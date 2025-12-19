@@ -1,0 +1,7 @@
+# Test: string match - with ? and []
+puts [string match "h?llo" "hello"]
+puts [string match "h?llo" "hallo"]
+puts [string match "h?llo" "hllo"]
+puts [string match {[abc]} "a"]
+puts [string match {[abc]} "d"]
+puts [string match {[a-z]} "m"]
