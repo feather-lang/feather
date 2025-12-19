@@ -1,0 +1,126 @@
+{
+  "feature": "parser",
+  "tclsh": "tclsh",
+  "tests": [
+    {
+      "name": "cmdsub-1.1",
+      "file": "spec/tests/parser/cmdsub-1.1.tcl",
+      "script": "# Test: basic command substitution\n# Square brackets execute nested commands\n\nputs [string length hello]\nputs [expr 1 + 2]\n",
+      "stdout": "5\n3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "cmdsub-1.2",
+      "file": "spec/tests/parser/cmdsub-1.2.tcl",
+      "script": "# Test: command substitution in arguments\n# Substitution result becomes part of the argument\n\nputs \"length is [string length hello]\"\nputs \"sum is [expr 2 + 3]\"\n",
+      "stdout": "length is 5\nsum is 5\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "cmdsub-1.3",
+      "file": "spec/tests/parser/cmdsub-1.3.tcl",
+      "script": "# Test: nested command substitution\n# Commands can be nested inside other commands\n\nputs [string toupper [string repeat a 3]]\n",
+      "stdout": "AAA\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "commands-1.1",
+      "file": "spec/tests/parser/commands-1.1.tcl",
+      "script": "# Test: basic command parsing\n# Commands are the first word followed by arguments\n\nputs hello\nputs \"hello world\"\nset a one\nset b two\nset c three\n",
+      "stdout": "hello\nhello world\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "commands-1.2",
+      "file": "spec/tests/parser/commands-1.2.tcl",
+      "script": "# Test: multiple commands on separate lines\n# Each line is a separate command\n\nputs first\nputs second\nputs third\n",
+      "stdout": "first\nsecond\nthird\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "commands-1.3",
+      "file": "spec/tests/parser/commands-1.3.tcl",
+      "script": "# Test: empty lines between commands\n# Empty lines are ignored\n\nputs before\n\n\nputs after\n",
+      "stdout": "before\nafter\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "error-1.1",
+      "file": "spec/tests/parser/error-1.1.tcl",
+      "script": "# Test: unmatched bracket error\n# Missing closing bracket should error\n\nputs [string length hello\n",
+      "stdout": "",
+      "stderr": "missing close-bracket\n    while executing\n\"puts [\"\n    (file \"spec/tests/parser/error-1.1.tcl\" line 4)\n",
+      "returncode": 1
+    },
+    {
+      "name": "error-1.2",
+      "file": "spec/tests/parser/error-1.2.tcl",
+      "script": "# Test: unmatched brace error\n# Missing closing brace should error\n\nputs {hello world\n",
+      "stdout": "",
+      "stderr": "missing close-brace\n    while executing\n\"puts {\"\n    (file \"spec/tests/parser/error-1.2.tcl\" line 4)\n",
+      "returncode": 1
+    },
+    {
+      "name": "error-1.3",
+      "file": "spec/tests/parser/error-1.3.tcl",
+      "script": "# Test: unmatched quote error\n# Missing closing quote should error\n\nputs \"hello world\n",
+      "stdout": "",
+      "stderr": "missing \"\n    while executing\n\"puts \"\"\n    (file \"spec/tests/parser/error-1.3.tcl\" line 4)\n",
+      "returncode": 1
+    },
+    {
+      "name": "nesting-1.1",
+      "file": "spec/tests/parser/nesting-1.1.tcl",
+      "script": "# Test: combined variable and command substitution\n# Both types of substitution in same argument\n\nset count 5\nputs \"length: [string length $count]\"\n",
+      "stdout": "length: 1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "nesting-1.2",
+      "file": "spec/tests/parser/nesting-1.2.tcl",
+      "script": "# Test: deeply nested command substitution\n# Multiple levels of nesting\n\nputs [string toupper [string tolower [string toupper abc]]]\n",
+      "stdout": "ABC\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "nesting-1.3",
+      "file": "spec/tests/parser/nesting-1.3.tcl",
+      "script": "# Test: command substitution with braces\n# Braces inside command substitution\n\nputs [string length {hello world}]\n",
+      "stdout": "11\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "varsub-1.1",
+      "file": "spec/tests/parser/varsub-1.1.tcl",
+      "script": "# Test: basic variable substitution\n# Dollar sign substitutes variable value\n\nset x hello\nputs $x\n",
+      "stdout": "hello\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "varsub-1.2",
+      "file": "spec/tests/parser/varsub-1.2.tcl",
+      "script": "# Test: braced variable names\n# Braces delimit variable name\n\nset name world\nputs ${name}\nputs \"hello ${name}!\"\n",
+      "stdout": "world\nhello world!\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "varsub-1.3",
+      "file": "spec/tests/parser/varsub-1.3.tcl",
+      "script": "# Test: variable in double quotes\n# Variables are substituted inside double quotes\n\nset greeting hello\nset name world\nputs \"$greeting $name\"\n",
+      "stdout": "hello world\n",
+      "stderr": "",
+      "returncode": 0
+    }
+  ]
+}
