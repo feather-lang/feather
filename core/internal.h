@@ -194,9 +194,14 @@ const TclBuiltinEntry *tclBuiltinGet(int index);
 /* Get number of builtins */
 int tclBuiltinCount(void);
 
-/* Individual builtin implementations */
+/* I/O commands (builtin_chan.c) */
 TclResult tclCmdPuts(TclInterp *interp, int objc, TclObj **objv);
-TclResult tclCmdSet(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdOpen(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdClose(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdGets(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdRead(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdChan(TclInterp *interp, int objc, TclObj **objv);
+
 TclResult tclCmdString(TclInterp *interp, int objc, TclObj **objv);
 TclResult tclCmdExpr(TclInterp *interp, int objc, TclObj **objv);
 TclResult tclCmdSubst(TclInterp *interp, int objc, TclObj **objv);
@@ -214,6 +219,48 @@ TclResult tclCmdExec(TclInterp *interp, int objc, TclObj **objv);
 
 /* File command (builtin_file.c) */
 TclResult tclCmdFile(TclInterp *interp, int objc, TclObj **objv);
+
+/* Break/continue commands (builtin_break.c) */
+TclResult tclCmdBreak(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdContinue(TclInterp *interp, int objc, TclObj **objv);
+
+/* List commands (builtin_list.c) */
+TclResult tclCmdList(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdLlength(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdLindex(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdLrange(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdLappend(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdJoin(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdSplit(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdLsort(TclInterp *interp, int objc, TclObj **objv);
+
+/* Error handling commands (builtin_error.c) */
+TclResult tclCmdError(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdCatch(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdThrow(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdTry(TclInterp *interp, int objc, TclObj **objv);
+
+/* Procedure commands (builtin_proc.c) */
+TclResult tclCmdProc(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdReturn(TclInterp *interp, int objc, TclObj **objv);
+
+/* Variable commands (builtin_var.c) */
+TclResult tclCmdSet(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdIncr(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdAppend(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdUnset(TclInterp *interp, int objc, TclObj **objv);
+
+/* Array command (builtin_array.c) */
+TclResult tclCmdArray(TclInterp *interp, int objc, TclObj **objv);
+
+/* Info command (builtin_info.c) */
+TclResult tclCmdInfo(TclInterp *interp, int objc, TclObj **objv);
+
+/* Control flow commands (builtin_control.c) */
+TclResult tclCmdIf(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdWhile(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdFor(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdForeach(TclInterp *interp, int objc, TclObj **objv);
 
 /* ========================================================================
  * Interpreter Functions (from tclc.h, implemented in eval.c)

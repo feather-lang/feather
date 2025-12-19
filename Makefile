@@ -27,7 +27,10 @@ CORE_SRCS = $(CORE_DIR)/lexer.c $(CORE_DIR)/parser.c $(CORE_DIR)/subst.c \
             $(CORE_DIR)/eval.c $(CORE_DIR)/builtins.c $(CORE_DIR)/builtin_expr.c \
             $(CORE_DIR)/builtin_global.c $(CORE_DIR)/builtin_upvar.c $(CORE_DIR)/builtin_uplevel.c \
             $(CORE_DIR)/builtin_string.c $(CORE_DIR)/builtin_dict.c $(CORE_DIR)/builtin_exec.c \
-            $(CORE_DIR)/builtin_file.c
+            $(CORE_DIR)/builtin_file.c $(CORE_DIR)/builtin_break.c $(CORE_DIR)/builtin_list.c \
+            $(CORE_DIR)/builtin_error.c $(CORE_DIR)/builtin_proc.c $(CORE_DIR)/builtin_var.c \
+            $(CORE_DIR)/builtin_array.c $(CORE_DIR)/builtin_info.c $(CORE_DIR)/builtin_control.c \
+            $(CORE_DIR)/builtin_subst.c $(CORE_DIR)/builtin_chan.c
 HOST_C_SRCS = $(HOST_C_DIR)/host.c $(HOST_C_DIR)/object.c $(HOST_C_DIR)/vars.c \
               $(HOST_C_DIR)/arena.c $(HOST_C_DIR)/channel.c $(HOST_C_DIR)/main.c
 
