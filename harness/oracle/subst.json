@@ -1,0 +1,134 @@
+{
+  "feature": "subst",
+  "tclsh": "tclsh",
+  "tests": [
+    {
+      "name": "array-1.1",
+      "file": "spec/tests/subst/array-1.1.tcl",
+      "script": "# Test: array variable substitution\n# Array elements accessed with parentheses\n\nset arr(key) value\nputs $arr(key)\nset arr(x) hello\nset arr(y) world\nputs \"$arr(x) $arr(y)\"\n",
+      "stdout": "value\nhello world\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "backslash-1.1",
+      "file": "spec/tests/subst/backslash-1.1.tcl",
+      "script": "# Test: backslash escape sequences\n# Common escape sequences in double quotes\n\nputs \"hello\\tworld\"\nputs \"line1\\nline2\"\nputs \"back\\\\slash\"\n",
+      "stdout": "hello\tworld\nline1\nline2\nback\\slash\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "backslash-1.2",
+      "file": "spec/tests/subst/backslash-1.2.tcl",
+      "script": "# Test: backslash escapes special chars\n# Escape dollar and bracket to prevent substitution\n\nputs \"literal \\$var\"\nputs \"literal \\[cmd\\]\"\nputs \"quote: \\\"\"\n",
+      "stdout": "literal $var\nliteral [cmd]\nquote: \"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "backslash-1.3",
+      "file": "spec/tests/subst/backslash-1.3.tcl",
+      "script": "# Test: backslash-newline continuation\n# Backslash-newline becomes space\n\nputs \"hello \\\nworld\"\nputs \"one\\\ntwo\"\n",
+      "stdout": "hello  world\none two\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "cmd-1.1",
+      "file": "spec/tests/subst/cmd-1.1.tcl",
+      "script": "# Test: basic command substitution\n# Square brackets execute command and substitute result\n\nputs [string length hello]\nputs [string toupper abc]\n",
+      "stdout": "5\nABC\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "cmd-1.2",
+      "file": "spec/tests/subst/cmd-1.2.tcl",
+      "script": "# Test: command substitution in double quotes\n# Command substitution works inside quotes\n\nputs \"length: [string length test]\"\nputs \"upper: [string toupper hello]\"\n",
+      "stdout": "length: 4\nupper: HELLO\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "cmd-1.3",
+      "file": "spec/tests/subst/cmd-1.3.tcl",
+      "script": "# Test: nested command substitution\n# Commands can be nested\n\nputs [string toupper [string tolower ABC]]\nputs [string length [string repeat x 5]]\n",
+      "stdout": "ABC\n5\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "cmd-1.4",
+      "file": "spec/tests/subst/cmd-1.4.tcl",
+      "script": "# Test: command substitution with variable\n# Variables work inside command substitution\n\nset x hello\nputs [string length $x]\nputs [string toupper $x]\n",
+      "stdout": "5\nHELLO\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "mixed-1.1",
+      "file": "spec/tests/subst/mixed-1.1.tcl",
+      "script": "# Test: mixed substitutions\n# All substitution types in one string\n\nset name world\nputs \"hello $name, len=[string length $name]\\ttab\"\n",
+      "stdout": "hello world, len=5\ttab\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "nosubst-1.1",
+      "file": "spec/tests/subst/nosubst-1.1.tcl",
+      "script": "# Test: no substitution in braces\n# Braces prevent all substitution\n\nset x hello\nputs {$x}\nputs {[string length foo]}\nputs {\\n\\t}\n",
+      "stdout": "$x\n[string length foo]\n\\n\\t\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "substcmd-1.1",
+      "file": "spec/tests/subst/substcmd-1.1.tcl",
+      "script": "# Test: subst command basic usage\n# The subst command performs substitutions on a string\n\nset x hello\nputs [subst {$x world}]\nputs [subst {length is [string length abc]}]\n",
+      "stdout": "hello world\nlength is 3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "substcmd-1.2",
+      "file": "spec/tests/subst/substcmd-1.2.tcl",
+      "script": "# Test: subst command with flags\n# Disable specific substitution types\n\nset x hello\nputs [subst -nocommands {$x [string length foo]}]\nputs [subst -novariables {$x [string length foo]}]\n",
+      "stdout": "hello [string length foo]\n$x 3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "var-1.1",
+      "file": "spec/tests/subst/var-1.1.tcl",
+      "script": "# Test: basic variable substitution\n# Dollar sign substitutes variable value\n\nset x hello\nputs $x\nset y world\nputs $y\n",
+      "stdout": "hello\nworld\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "var-1.2",
+      "file": "spec/tests/subst/var-1.2.tcl",
+      "script": "# Test: braced variable names\n# Braces delimit variable name exactly\n\nset name value\nputs ${name}\nset abc 123\nputs ${abc}def\n",
+      "stdout": "value\n123def\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "var-1.3",
+      "file": "spec/tests/subst/var-1.3.tcl",
+      "script": "# Test: variable in double quotes\n# Variables substituted inside double quotes\n\nset a hello\nset b world\nputs \"$a\"\nputs \"$a $b\"\nputs \"say $a to $b\"\n",
+      "stdout": "hello\nhello world\nsay hello to world\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "var-1.4",
+      "file": "spec/tests/subst/var-1.4.tcl",
+      "script": "# Test: undefined variable error\n# Accessing undefined variable is an error\n\nputs $undefined\n",
+      "stdout": "",
+      "stderr": "can't read \"undefined\": no such variable\n    while executing\n\"puts $undefined\"\n    (file \"spec/tests/subst/var-1.4.tcl\" line 4)\n",
+      "returncode": 1
+    }
+  ]
+}
