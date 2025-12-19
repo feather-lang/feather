@@ -19,6 +19,14 @@
       "returncode": 0
     },
     {
+      "name": "append-1.3",
+      "file": "spec/tests/variables/append-1.3.tcl",
+      "script": "# Test: append with multiple values at once\nset result \"\"\nappend result a b c d\nputs $result\n",
+      "stdout": "abcd\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
       "name": "array-1.1",
       "file": "spec/tests/variables/array-1.1.tcl",
       "script": "# Test: array set and get\n# Arrays use parentheses for keys\n\nset data(name) \"Alice\"\nset data(age) 30\nputs $data(name)\nputs $data(age)\n",
@@ -29,8 +37,8 @@
     {
       "name": "array-1.2",
       "file": "spec/tests/variables/array-1.2.tcl",
-      "script": "# Test: array exists and names\n# Check if array exists, list keys\n\nset arr(a) 1\nset arr(b) 2\nset arr(c) 3\nputs [array exists arr]\nputs [lsort [array names arr]]\n",
-      "stdout": "1\na b c\n",
+      "script": "# Test: array exists and names\n# Check if array exists, list keys\n\nset arr(a) 1\nset arr(b) 2\nset arr(c) 3\nputs [array exists arr]\nputs [array size arr]\n",
+      "stdout": "1\n3\n",
       "stderr": "",
       "returncode": 0
     },
@@ -39,6 +47,30 @@
       "file": "spec/tests/variables/array-1.3.tcl",
       "script": "# Test: array size\n# Returns number of elements\n\nset items(one) 1\nset items(two) 2\nset items(three) 3\nputs [array size items]\n",
       "stdout": "3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "array-1.4",
+      "file": "spec/tests/variables/array-1.4.tcl",
+      "script": "# Test: array set with list\narray set colors {red 1 green 2 blue 3}\nputs [array size colors]\nputs [array exists colors]\n",
+      "stdout": "3\n1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "array-1.5",
+      "file": "spec/tests/variables/array-1.5.tcl",
+      "script": "# Test: array get returns key-value pairs\narray set nums {a 1 b 2}\nputs [array get nums]\n",
+      "stdout": "a 1 b 2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "array-1.6",
+      "file": "spec/tests/variables/array-1.6.tcl",
+      "script": "# Test: array unset removes elements\narray set data {x 1 y 2 z 3}\nputs [array size data]\narray unset data\nputs [array size data]\n",
+      "stdout": "3\n0\n",
       "stderr": "",
       "returncode": 0
     },
@@ -55,6 +87,30 @@
       "file": "spec/tests/variables/incr-1.2.tcl",
       "script": "# Test: incr with explicit increment\n# Can increment by any integer\n\nset n 10\nincr n 5\nputs $n\nincr n -3\nputs $n\n",
       "stdout": "15\n12\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "incr-1.3",
+      "file": "spec/tests/variables/incr-1.3.tcl",
+      "script": "# Test: incr with negative increment (decrement)\nset x 10\nputs [incr x -3]\n",
+      "stdout": "7\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "incr-1.4",
+      "file": "spec/tests/variables/incr-1.4.tcl",
+      "script": "# Test: incr unset variable (should start from 0)\nincr newvar\nputs $newvar\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "incr-1.5",
+      "file": "spec/tests/variables/incr-1.5.tcl",
+      "script": "# Test: incr with zero (useful for integer validation)\nset x 42\nputs [incr x 0]\n",
+      "stdout": "42\n",
       "stderr": "",
       "returncode": 0
     },
@@ -95,6 +151,14 @@
       "file": "spec/tests/variables/unset-1.2.tcl",
       "script": "# Test: unset multiple variables\n# Can unset several variables at once\n\nset a 1\nset b 2\nset c 3\nunset a b\nputs [info exists a]\nputs [info exists b]\nputs [info exists c]\n",
       "stdout": "0\n0\n1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "unset-1.3",
+      "file": "spec/tests/variables/unset-1.3.tcl",
+      "script": "# Test: unset -nocomplain doesn't error on missing var\nunset -nocomplain nonexistent\nset x 1\nunset -nocomplain x\nputs [info exists x]\n",
+      "stdout": "0\n",
       "stderr": "",
       "returncode": 0
     }

@@ -939,23 +939,454 @@ TclResult tclCmdContinue(TclInterp *interp, int objc, TclObj **objv) {
 }
 
 /* ========================================================================
+ * incr Command
+ * ======================================================================== */
+
+TclResult tclCmdIncr(TclInterp *interp, int objc, TclObj **objv) {
+    const TclHost *host = interp->host;
+
+    if (objc < 2 || objc > 3) {
+        tclSetError(interp, "wrong # args: should be \"incr varName ?increment?\"", -1);
+        return TCL_ERROR;
+    }
+
+    size_t nameLen;
+    const char *name = host->getStringPtr(objv[1], &nameLen);
+    void *vars = interp->currentFrame->varsHandle;
+
+    /* Get increment value (default 1) */
+    int64_t increment = 1;
+    if (objc == 3) {
+        if (host->asInt(objv[2], &increment) != 0) {
+            tclSetError(interp, "expected integer but got non-integer value", -1);
+            return TCL_ERROR;
+        }
+    }
+
+    /* Get current value (or 0 if doesn't exist) */
+    int64_t currentVal = 0;
+    TclObj *current = host->varGet(vars, name, nameLen);
+    if (!current && interp->currentFrame != interp->globalFrame) {
+        current = host->varGet(interp->globalFrame->varsHandle, name, nameLen);
+    }
+
+    if (current) {
+        if (host->asInt(current, &currentVal) != 0) {
+            tclSetError(interp, "expected integer but got non-integer value", -1);
+            return TCL_ERROR;
+        }
+    }
+
+    /* Calculate new value */
+    int64_t newVal = currentVal + increment;
+
+    /* Store and return */
+    TclObj *result = host->newInt(newVal);
+    host->varSet(vars, name, nameLen, host->dup(result));
+    tclSetResult(interp, result);
+    return TCL_OK;
+}
+
+/* ========================================================================
+ * append Command
+ * ======================================================================== */
+
+TclResult tclCmdAppend(TclInterp *interp, int objc, TclObj **objv) {
+    const TclHost *host = interp->host;
+
+    if (objc < 2) {
+        tclSetError(interp, "wrong # args: should be \"append varName ?value ...?\"", -1);
+        return TCL_ERROR;
+    }
+
+    size_t nameLen;
+    const char *name = host->getStringPtr(objv[1], &nameLen);
+    void *vars = interp->currentFrame->varsHandle;
+
+    /* Get current value (or empty if doesn't exist) */
+    TclObj *current = host->varGet(vars, name, nameLen);
+    if (!current && interp->currentFrame != interp->globalFrame) {
+        current = host->varGet(interp->globalFrame->varsHandle, name, nameLen);
+    }
+
+    size_t currentLen = 0;
+    const char *currentStr = "";
+    if (current) {
+        currentStr = host->getStringPtr(current, &currentLen);
+    }
+
+    /* Calculate total length */
+    size_t totalLen = currentLen;
+    for (int i = 2; i < objc; i++) {
+        size_t len;
+        host->getStringPtr(objv[i], &len);
+        totalLen += len;
+    }
+
+    /* Build result */
+    void *arena = host->arenaPush(interp->hostCtx);
+    char *buf = host->arenaAlloc(arena, totalLen + 1, 1);
+    char *p = buf;
+
+    /* Copy current value */
+    for (size_t i = 0; i < currentLen; i++) {
+        *p++ = currentStr[i];
+    }
+
+    /* Append all values */
+    for (int i = 2; i < objc; i++) {
+        size_t len;
+        const char *s = host->getStringPtr(objv[i], &len);
+        for (size_t j = 0; j < len; j++) {
+            *p++ = s[j];
+        }
+    }
+    *p = '\0';
+
+    TclObj *result = host->newString(buf, totalLen);
+    host->arenaPop(interp->hostCtx, arena);
+
+    host->varSet(vars, name, nameLen, host->dup(result));
+    tclSetResult(interp, result);
+    return TCL_OK;
+}
+
+/* ========================================================================
+ * unset Command
+ * ======================================================================== */
+
+TclResult tclCmdUnset(TclInterp *interp, int objc, TclObj **objv) {
+    const TclHost *host = interp->host;
+
+    int nocomplain = 0;
+    int argStart = 1;
+
+    /* Parse options */
+    while (argStart < objc) {
+        size_t len;
+        const char *arg = host->getStringPtr(objv[argStart], &len);
+
+        if (len == 11 && tclStrncmp(arg, "-nocomplain", 11) == 0) {
+            nocomplain = 1;
+            argStart++;
+        } else if (len == 2 && tclStrncmp(arg, "--", 2) == 0) {
+            argStart++;
+            break;
+        } else {
+            break;
+        }
+    }
+
+    void *vars = interp->currentFrame->varsHandle;
+
+    /* Unset each variable */
+    for (int i = argStart; i < objc; i++) {
+        size_t nameLen;
+        const char *name = host->getStringPtr(objv[i], &nameLen);
+
+        /* Check if variable exists */
+        if (!host->varExists(vars, name, nameLen)) {
+            if (interp->currentFrame != interp->globalFrame) {
+                if (host->varExists(interp->globalFrame->varsHandle, name, nameLen)) {
+                    host->varUnset(interp->globalFrame->varsHandle, name, nameLen);
+                    continue;
+                }
+            }
+            if (!nocomplain) {
+                tclSetError(interp, "can't unset: no such variable", -1);
+                return TCL_ERROR;
+            }
+        } else {
+            host->varUnset(vars, name, nameLen);
+        }
+    }
+
+    tclSetResult(interp, host->newString("", 0));
+    return TCL_OK;
+}
+
+/* ========================================================================
+ * array Command
+ * ======================================================================== */
+
+TclResult tclCmdArray(TclInterp *interp, int objc, TclObj **objv) {
+    const TclHost *host = interp->host;
+
+    if (objc < 2) {
+        tclSetError(interp, "wrong # args: should be \"array subcommand arrayName ?arg ...?\"", -1);
+        return TCL_ERROR;
+    }
+
+    size_t subcmdLen;
+    const char *subcmd = host->getStringPtr(objv[1], &subcmdLen);
+
+    /* array exists arrayName */
+    if (subcmdLen == 6 && tclStrncmp(subcmd, "exists", 6) == 0) {
+        if (objc != 3) {
+            tclSetError(interp, "wrong # args: should be \"array exists arrayName\"", -1);
+            return TCL_ERROR;
+        }
+        size_t arrLen;
+        const char *arrName = host->getStringPtr(objv[2], &arrLen);
+        void *vars = interp->currentFrame->varsHandle;
+
+        /* Check if any array elements exist */
+        size_t size = host->arraySize(vars, arrName, arrLen);
+        if (size == 0 && interp->currentFrame != interp->globalFrame) {
+            size = host->arraySize(interp->globalFrame->varsHandle, arrName, arrLen);
+        }
+
+        tclSetResult(interp, host->newInt(size > 0 ? 1 : 0));
+        return TCL_OK;
+    }
+
+    /* array names arrayName ?pattern? */
+    if (subcmdLen == 5 && tclStrncmp(subcmd, "names", 5) == 0) {
+        if (objc < 3 || objc > 4) {
+            tclSetError(interp, "wrong # args: should be \"array names arrayName ?pattern?\"", -1);
+            return TCL_ERROR;
+        }
+        size_t arrLen;
+        const char *arrName = host->getStringPtr(objv[2], &arrLen);
+        const char *pattern = NULL;
+        if (objc == 4) {
+            size_t patLen;
+            pattern = host->getStringPtr(objv[3], &patLen);
+        }
+
+        void *vars = interp->currentFrame->varsHandle;
+        TclObj *names = host->arrayNames(vars, arrName, arrLen, pattern);
+        if (!names && interp->currentFrame != interp->globalFrame) {
+            names = host->arrayNames(interp->globalFrame->varsHandle, arrName, arrLen, pattern);
+        }
+
+        tclSetResult(interp, names ? names : host->newString("", 0));
+        return TCL_OK;
+    }
+
+    /* array size arrayName */
+    if (subcmdLen == 4 && tclStrncmp(subcmd, "size", 4) == 0) {
+        if (objc != 3) {
+            tclSetError(interp, "wrong # args: should be \"array size arrayName\"", -1);
+            return TCL_ERROR;
+        }
+        size_t arrLen;
+        const char *arrName = host->getStringPtr(objv[2], &arrLen);
+        void *vars = interp->currentFrame->varsHandle;
+
+        size_t size = host->arraySize(vars, arrName, arrLen);
+        if (size == 0 && interp->currentFrame != interp->globalFrame) {
+            size = host->arraySize(interp->globalFrame->varsHandle, arrName, arrLen);
+        }
+
+        tclSetResult(interp, host->newInt((int64_t)size));
+        return TCL_OK;
+    }
+
+    /* array get arrayName ?pattern? */
+    if (subcmdLen == 3 && tclStrncmp(subcmd, "get", 3) == 0) {
+        if (objc < 3 || objc > 4) {
+            tclSetError(interp, "wrong # args: should be \"array get arrayName ?pattern?\"", -1);
+            return TCL_ERROR;
+        }
+        size_t arrLen;
+        const char *arrName = host->getStringPtr(objv[2], &arrLen);
+        const char *pattern = NULL;
+        if (objc == 4) {
+            size_t patLen;
+            pattern = host->getStringPtr(objv[3], &patLen);
+        }
+
+        void *vars = interp->currentFrame->varsHandle;
+
+        /* Get array names */
+        TclObj *names = host->arrayNames(vars, arrName, arrLen, pattern);
+        if (!names && interp->currentFrame != interp->globalFrame) {
+            vars = interp->globalFrame->varsHandle;
+            names = host->arrayNames(vars, arrName, arrLen, pattern);
+        }
+
+        if (!names) {
+            tclSetResult(interp, host->newString("", 0));
+            return TCL_OK;
+        }
+
+        /* Parse names and build key-value list */
+        TclObj **nameList;
+        size_t nameCount;
+        if (host->asList(names, &nameList, &nameCount) != 0 || nameCount == 0) {
+            tclSetResult(interp, host->newString("", 0));
+            return TCL_OK;
+        }
+
+        /* Build result list with key value pairs */
+        void *arena = host->arenaPush(interp->hostCtx);
+        size_t resultCount = nameCount * 2;
+        TclObj **resultElems = host->arenaAlloc(arena, resultCount * sizeof(TclObj*), sizeof(void*));
+
+        for (size_t i = 0; i < nameCount; i++) {
+            size_t keyLen;
+            const char *key = host->getStringPtr(nameList[i], &keyLen);
+            resultElems[i * 2] = nameList[i];
+            resultElems[i * 2 + 1] = host->arrayGet(vars, arrName, arrLen, key, keyLen);
+        }
+
+        TclObj *result = host->newList(resultElems, resultCount);
+        host->arenaPop(interp->hostCtx, arena);
+        tclSetResult(interp, result);
+        return TCL_OK;
+    }
+
+    /* array set arrayName list */
+    if (subcmdLen == 3 && tclStrncmp(subcmd, "set", 3) == 0) {
+        if (objc != 4) {
+            tclSetError(interp, "wrong # args: should be \"array set arrayName list\"", -1);
+            return TCL_ERROR;
+        }
+        size_t arrLen;
+        const char *arrName = host->getStringPtr(objv[2], &arrLen);
+
+        /* Parse list */
+        TclObj **elems;
+        size_t elemCount;
+        if (host->asList(objv[3], &elems, &elemCount) != 0) {
+            tclSetError(interp, "list must have an even number of elements", -1);
+            return TCL_ERROR;
+        }
+
+        if (elemCount % 2 != 0) {
+            tclSetError(interp, "list must have an even number of elements", -1);
+            return TCL_ERROR;
+        }
+
+        void *vars = interp->currentFrame->varsHandle;
+
+        /* Set each key-value pair */
+        for (size_t i = 0; i < elemCount; i += 2) {
+            size_t keyLen;
+            const char *key = host->getStringPtr(elems[i], &keyLen);
+            host->arraySet(vars, arrName, arrLen, key, keyLen, host->dup(elems[i + 1]));
+        }
+
+        tclSetResult(interp, host->newString("", 0));
+        return TCL_OK;
+    }
+
+    /* array unset arrayName ?pattern? */
+    if (subcmdLen == 5 && tclStrncmp(subcmd, "unset", 5) == 0) {
+        if (objc < 3 || objc > 4) {
+            tclSetError(interp, "wrong # args: should be \"array unset arrayName ?pattern?\"", -1);
+            return TCL_ERROR;
+        }
+        size_t arrLen;
+        const char *arrName = host->getStringPtr(objv[2], &arrLen);
+        const char *pattern = NULL;
+        if (objc == 4) {
+            size_t patLen;
+            pattern = host->getStringPtr(objv[3], &patLen);
+        }
+
+        void *vars = interp->currentFrame->varsHandle;
+
+        if (pattern == NULL) {
+            /* Unset entire array - get all names and unset each */
+            TclObj *names = host->arrayNames(vars, arrName, arrLen, NULL);
+            if (names) {
+                TclObj **nameList;
+                size_t nameCount;
+                if (host->asList(names, &nameList, &nameCount) == 0) {
+                    for (size_t i = 0; i < nameCount; i++) {
+                        size_t keyLen;
+                        const char *key = host->getStringPtr(nameList[i], &keyLen);
+                        host->arrayUnset(vars, arrName, arrLen, key, keyLen);
+                    }
+                }
+            }
+        } else {
+            /* Unset matching elements */
+            TclObj *names = host->arrayNames(vars, arrName, arrLen, pattern);
+            if (names) {
+                TclObj **nameList;
+                size_t nameCount;
+                if (host->asList(names, &nameList, &nameCount) == 0) {
+                    for (size_t i = 0; i < nameCount; i++) {
+                        size_t keyLen;
+                        const char *key = host->getStringPtr(nameList[i], &keyLen);
+                        host->arrayUnset(vars, arrName, arrLen, key, keyLen);
+                    }
+                }
+            }
+        }
+
+        tclSetResult(interp, host->newString("", 0));
+        return TCL_OK;
+    }
+
+    tclSetError(interp, "unknown or ambiguous subcommand", -1);
+    return TCL_ERROR;
+}
+
+/* ========================================================================
+ * info Command
+ * ======================================================================== */
+
+TclResult tclCmdInfo(TclInterp *interp, int objc, TclObj **objv) {
+    const TclHost *host = interp->host;
+
+    if (objc < 2) {
+        tclSetError(interp, "wrong # args: should be \"info subcommand ?arg ...?\"", -1);
+        return TCL_ERROR;
+    }
+
+    size_t subcmdLen;
+    const char *subcmd = host->getStringPtr(objv[1], &subcmdLen);
+
+    /* info exists varName */
+    if (subcmdLen == 6 && tclStrncmp(subcmd, "exists", 6) == 0) {
+        if (objc != 3) {
+            tclSetError(interp, "wrong # args: should be \"info exists varName\"", -1);
+            return TCL_ERROR;
+        }
+        size_t nameLen;
+        const char *name = host->getStringPtr(objv[2], &nameLen);
+        void *vars = interp->currentFrame->varsHandle;
+
+        int exists = host->varExists(vars, name, nameLen);
+        if (!exists && interp->currentFrame != interp->globalFrame) {
+            exists = host->varExists(interp->globalFrame->varsHandle, name, nameLen);
+        }
+
+        tclSetResult(interp, host->newInt(exists ? 1 : 0));
+        return TCL_OK;
+    }
+
+    tclSetError(interp, "unknown or ambiguous subcommand", -1);
+    return TCL_ERROR;
+}
+
+/* ========================================================================
  * Builtin Table
  * ======================================================================== */
 
 /* Sorted alphabetically for binary search */
 static const TclBuiltinEntry builtinTable[] = {
+    {"append",   tclCmdAppend},
+    {"array",    tclCmdArray},
     {"break",    tclCmdBreak},
     {"continue", tclCmdContinue},
     {"expr",     tclCmdExpr},
     {"for",      tclCmdFor},
     {"foreach",  tclCmdForeach},
     {"if",       tclCmdIf},
+    {"incr",     tclCmdIncr},
+    {"info",     tclCmdInfo},
     {"proc",     tclCmdProc},
     {"puts",     tclCmdPuts},
     {"return",   tclCmdReturn},
     {"set",      tclCmdSet},
     {"string",   tclCmdString},
     {"subst",    tclCmdSubst},
+    {"unset",    tclCmdUnset},
     {"while",    tclCmdWhile},
 };
 
