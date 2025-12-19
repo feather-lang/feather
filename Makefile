@@ -50,10 +50,6 @@ help:
 	@echo "  make deps FEATURE=x - Show dependencies for feature x"
 	@echo "  make check-tools    - Verify required tools are installed"
 
-# Create build directory
-$(BUILD_DIR):
-	mkdir -p $(BUILD_DIR)
-
 # Build harness
 $(HARNESS): $(BUILD_DIR) $(wildcard $(HARNESS_DIR)/*.go)
 	cd $(HARNESS_DIR) && $(GO) build -o ../$(HARNESS) .
