@@ -99,6 +99,62 @@
       "returncode": 0
     },
     {
+      "name": "substcmd-2.1",
+      "file": "spec/tests/subst/substcmd-2.1.tcl",
+      "script": "# Test: subst -nobackslashes flag\n# Disable backslash substitution\n\nputs [subst -nobackslashes {hello\\tworld}]\nputs [subst -nobackslashes {line1\\nline2}]\nputs [subst -nobackslashes {back\\\\slash}]\n",
+      "stdout": "hello\\tworld\nline1\\nline2\nback\\\\slash\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "substcmd-2.2",
+      "file": "spec/tests/subst/substcmd-2.2.tcl",
+      "script": "# Test: subst with multiple flags\n# Combine multiple substitution disabling flags\n\nset x hello\nputs [subst -nocommands -novariables {$x [string length foo]}]\nputs [subst -nobackslashes -novariables {$x\\tworld}]\nputs [subst -nobackslashes -nocommands {hello\\t[cmd]}]\n",
+      "stdout": "$x [string length foo]\n$x\\tworld\nhello\\t[cmd]\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "substcmd-2.3",
+      "file": "spec/tests/subst/substcmd-2.3.tcl",
+      "script": "# Test: subst with break exception\n# Break stops substitution of rest of string\n\nputs [subst {abc,[break],def}]\nputs [subst {start [break] end}]\n",
+      "stdout": "abc,\nstart \n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "substcmd-2.4",
+      "file": "spec/tests/subst/substcmd-2.4.tcl",
+      "script": "# Test: subst with continue exception\n# Continue substitutes empty string for that substitution\n\nputs [subst {abc,[continue],def}]\nputs [subst {start [continue] end}]\n",
+      "stdout": "abc,,def\nstart  end\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "substcmd-2.5",
+      "file": "spec/tests/subst/substcmd-2.5.tcl",
+      "script": "# Test: subst with return exception\n# Return substitutes the returned value\n\nputs [subst {abc,[return foo],def}]\nputs [subst {start [return bar] end}]\n",
+      "stdout": "abc,foo,def\nstart bar end\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "substcmd-2.6",
+      "file": "spec/tests/subst/substcmd-2.6.tcl",
+      "script": "# Test: braces don't protect from substitution in subst\n# Unlike normal Tcl parsing, braces in subst string are literal\n\nset a 44\nputs [subst {xyz {$a}}]\nputs [subst {{$a}}]\n",
+      "stdout": "xyz {44}\n{44}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "substcmd-2.7",
+      "file": "spec/tests/subst/substcmd-2.7.tcl",
+      "script": "# Test: subst edge cases\n# Empty string and special characters\n\nputs [subst {}]\nputs [subst {literal text only}]\nputs [subst {special chars: ; # \" '}]\n",
+      "stdout": "\nliteral text only\nspecial chars: ; # \" '\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
       "name": "var-1.1",
       "file": "spec/tests/subst/var-1.1.tcl",
       "script": "# Test: basic variable substitution\n# Dollar sign substitutes variable value\n\nset x hello\nputs $x\nset y world\nputs $y\n",

@@ -216,12 +216,24 @@ TclObj *tclSubstString(TclInterp *interp, const char *str, size_t len, int flags
 
             /* Execute the command */
             TclResult result = tclEvalBracketed(interp, cmdStart, cmdLen);
-            if (result != TCL_OK) {
+            if (result == TCL_ERROR) {
                 host->arenaPop(interp->hostCtx, arena);
                 return NULL;
             }
+            if (result == TCL_BREAK) {
+                /* Break: stop substitution, return what we have so far */
+                *dst = '\0';
+                size_t resultLen = dst - buf;
+                TclObj *res = host->newString(buf, resultLen);
+                host->arenaPop(interp->hostCtx, arena);
+                return res;
+            }
+            if (result == TCL_CONTINUE) {
+                /* Continue: substitute empty string (skip appending result) */
+                continue;
+            }
 
-            /* Append result to output */
+            /* TCL_OK, TCL_RETURN, or other: append result to output */
             if (interp->result) {
                 size_t resLen;
                 const char *resStr = host->getStringPtr(interp->result, &resLen);
