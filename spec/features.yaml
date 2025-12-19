@@ -17,7 +17,7 @@ features:
     description: "Parse token stream into command structure"
     depends: [lexer]
     phase: 1
-    status: pending
+    status: in_progress
     tests: ["parser-*"]
     source_files:
       - path: core/parser.c
@@ -27,7 +27,7 @@ features:
     description: "Variable, command, and backslash substitution"
     depends: [lexer, parser]
     phase: 1
-    status: pending
+    status: complete
     tests: ["subst-*"]
     source_files:
       - path: core/subst.c
@@ -37,7 +37,7 @@ features:
     description: "Variable storage and retrieval (set, unset)"
     depends: [lexer, parser]
     phase: 1
-    status: pending
+    status: complete
     tests: ["var-*"]
     source_files:
       - path: core/builtins.c
@@ -47,7 +47,7 @@ features:
     description: "Command dispatch infrastructure"
     depends: [lexer, parser]
     phase: 1
-    status: pending
+    status: complete
     tests: ["cmd-*"]
     source_files:
       - path: core/eval.c
@@ -57,7 +57,7 @@ features:
     description: "Command evaluation trampoline"
     depends: [subst, variables, commands]
     phase: 1
-    status: pending
+    status: complete
     tests: ["eval-*"]
     source_files:
       - path: core/eval.c
@@ -68,7 +68,7 @@ features:
     description: "Expression parser and evaluator"
     depends: [eval]
     phase: 2
-    status: pending
+    status: complete
     tests: ["expr-*"]
     source_files:
       - path: core/expr.c
@@ -78,7 +78,7 @@ features:
     description: "Control flow commands (if, while, for, foreach, switch)"
     depends: [eval, expr]
     phase: 2
-    status: pending
+    status: complete
     tests:
       [
         "if-*",
@@ -97,7 +97,7 @@ features:
     description: "Procedure definition and invocation"
     depends: [eval]
     phase: 2
-    status: pending
+    status: complete
     tests: ["proc-*"]
     source_files:
       - path: core/builtins.c
@@ -120,7 +120,7 @@ features:
     description: "List manipulation commands"
     depends: [eval]
     phase: 3
-    status: pending
+    status: complete
     tests: ["list-*"]
     source_files:
       - path: core/builtins.c
@@ -163,7 +163,7 @@ features:
     description: "Error handling (catch, try, throw, error)"
     depends: [eval]
     phase: 4
-    status: pending
+    status: complete
     tests: ["catch-*", "try-*", "error-*", "throw-*"]
     source_files:
       - path: core/builtins.c
