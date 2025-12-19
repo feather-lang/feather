@@ -95,7 +95,18 @@ TclResult tclCmdSet(TclInterp *interp, int objc, TclObj **objv) {
         }
 
         if (!value) {
-            tclSetError(interp, "can't read variable: no such variable", -1);
+            /* Build error message: can't read "varname": no such variable */
+            void *arena = host->arenaPush(interp->hostCtx);
+            char *errBuf = host->arenaAlloc(arena, nameLen + 50, 1);
+            char *ep = errBuf;
+            const char *prefix = "can't read \"";
+            while (*prefix) *ep++ = *prefix++;
+            for (size_t i = 0; i < nameLen; i++) *ep++ = name[i];
+            const char *suffix = "\": no such variable";
+            while (*suffix) *ep++ = *suffix++;
+            *ep = '\0';
+            tclSetError(interp, errBuf, ep - errBuf);
+            host->arenaPop(interp->hostCtx, arena);
             return TCL_ERROR;
         }
         tclSetResult(interp, host->dup(value));
@@ -211,88 +222,10 @@ TclResult tclCmdString(TclInterp *interp, int objc, TclObj **objv) {
 }
 
 /* ========================================================================
- * expr Command (Simple Arithmetic)
+ * expr Command - Implementation in builtin_expr.c
  * ======================================================================== */
 
-TclResult tclCmdExpr(TclInterp *interp, int objc, TclObj **objv) {
-    const TclHost *host = interp->host;
-
-    if (objc < 2) {
-        tclSetError(interp, "wrong # args: should be \"expr arg ?arg ...?\"", -1);
-        return TCL_ERROR;
-    }
-
-    /* Concatenate all args with spaces */
-    void *arena = host->arenaPush(interp->hostCtx);
-    size_t totalLen = 0;
-    for (int i = 1; i < objc; i++) {
-        size_t len;
-        host->getStringPtr(objv[i], &len);
-        totalLen += len + 1;
-    }
-
-    char *expr = host->arenaAlloc(arena, totalLen + 1, 1);
-    char *p = expr;
-    for (int i = 1; i < objc; i++) {
-        size_t len;
-        const char *s = host->getStringPtr(objv[i], &len);
-        if (i > 1) *p++ = ' ';
-        for (size_t j = 0; j < len; j++) {
-            *p++ = s[j];
-        }
-    }
-    *p = '\0';
-
-    /* Simple expression parser: integers with + - * / */
-    const char *ep = expr;
-    while (*ep == ' ') ep++;
-
-    int64_t result = 0;
-    int haveResult = 0;
-    char op = '+';
-
-    while (*ep) {
-        while (*ep == ' ') ep++;
-        if (!*ep) break;
-
-        /* Parse number */
-        int neg = 0;
-        if (*ep == '-' && !haveResult) {
-            neg = 1;
-            ep++;
-        } else if (*ep == '+' && !haveResult) {
-            ep++;
-        }
-
-        int64_t num = 0;
-        while (*ep >= '0' && *ep <= '9') {
-            num = num * 10 + (*ep - '0');
-            ep++;
-        }
-        if (neg) num = -num;
-
-        if (!haveResult) {
-            result = num;
-            haveResult = 1;
-        } else {
-            switch (op) {
-                case '+': result += num; break;
-                case '-': result -= num; break;
-                case '*': result *= num; break;
-                case '/': if (num != 0) result /= num; break;
-            }
-        }
-
-        while (*ep == ' ') ep++;
-        if (*ep == '+' || *ep == '-' || *ep == '*' || *ep == '/') {
-            op = *ep++;
-        }
-    }
-
-    host->arenaPop(interp->hostCtx, arena);
-    tclSetResult(interp, host->newInt(result));
-    return TCL_OK;
-}
+/* tclCmdExpr is defined in builtin_expr.c */
 
 /* ========================================================================
  * subst Command

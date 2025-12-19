@@ -57,10 +57,42 @@ TclObj *hostNewInt(int64_t val) {
     return obj;
 }
 
+/* Helper to check if value is infinite */
+static int isInf(double val) {
+    return val > 1e308 || val < -1e308;
+}
+
+/* Helper to check if value is NaN */
+static int isNaN(double val) {
+    return val != val;
+}
+
 /* Create a new double object */
 TclObj *hostNewDouble(double val) {
     char buf[64];
-    int len = snprintf(buf, sizeof(buf), "%g", val);
+    int len;
+
+    /* Handle special values */
+    if (isNaN(val)) {
+        len = snprintf(buf, sizeof(buf), "NaN");
+    } else if (isInf(val)) {
+        len = snprintf(buf, sizeof(buf), val > 0 ? "Inf" : "-Inf");
+    } else {
+        len = snprintf(buf, sizeof(buf), "%g", val);
+
+        /* Tcl always shows at least ".0" for floats that are whole numbers */
+        /* Check if we need to add ".0" - if no '.' or 'e' in the output */
+        int hasDot = 0, hasE = 0;
+        for (int i = 0; i < len; i++) {
+            if (buf[i] == '.') hasDot = 1;
+            if (buf[i] == 'e' || buf[i] == 'E') hasE = 1;
+        }
+        if (!hasDot && !hasE && len < 62) {
+            buf[len++] = '.';
+            buf[len++] = '0';
+            buf[len] = '\0';
+        }
+    }
 
     TclObj *obj = hostNewString(buf, len);
     if (obj) {

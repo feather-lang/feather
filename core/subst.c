@@ -174,8 +174,16 @@ TclObj *tclSubstString(TclInterp *interp, const char *str, size_t len, int flags
             }
 
             if (!value) {
-                /* Variable not found - error */
-                tclSetError(interp, "can't read variable: no such variable", -1);
+                /* Variable not found - error: can't read "varname": no such variable */
+                char *errBuf = host->arenaAlloc(arena, varNameLen + 50, 1);
+                char *ep = errBuf;
+                const char *prefix = "can't read \"";
+                while (*prefix) *ep++ = *prefix++;
+                for (size_t i = 0; i < varNameLen; i++) *ep++ = varName[i];
+                const char *suffix = "\": no such variable";
+                while (*suffix) *ep++ = *suffix++;
+                *ep = '\0';
+                tclSetError(interp, errBuf, ep - errBuf);
                 host->arenaPop(interp->hostCtx, arena);
                 return NULL;
             }
