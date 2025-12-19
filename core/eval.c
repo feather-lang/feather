@@ -57,6 +57,8 @@ TclInterp *tclInterpNew(const TclHost *host, void *hostCtx) {
     interp->globalFrame->level = 0;
     interp->globalFrame->flags = TCL_FRAME_GLOBAL;
     interp->globalFrame->procName = NULL;
+    interp->globalFrame->invocationObjs = NULL;
+    interp->globalFrame->invocationCount = 0;
 
     interp->currentFrame = interp->globalFrame;
 
@@ -292,6 +294,10 @@ TclEvalStatus tclEvalStep(TclInterp *interp, TclEvalState *state) {
                     /* Get proc name for stack traces */
                     size_t procNameLen;
                     procFrame->procName = host->getStringPtr(state->substWords[0], &procNameLen);
+
+                    /* Store invocation for info level */
+                    procFrame->invocationObjs = state->substWords;
+                    procFrame->invocationCount = state->substCount;
 
                     /* Bind arguments to local variables */
                     int actualArgs = state->substCount - 1;  /* Exclude command name */

@@ -178,7 +178,7 @@ features:
         description: Evaluation loop
 
   - id: io
-    description: "I/O commands (puts, gets, open, close, read)"
+    description: "I/O commands (puts, gets, open, close, read, chan)"
     depends: [eval]
     phase: 4
     status: pending

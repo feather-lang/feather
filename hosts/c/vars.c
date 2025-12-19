@@ -141,27 +141,50 @@ int hostVarExists(void *vars, const char *name, size_t len) {
 typedef struct {
     GPtrArray *names;
     const gchar *pattern;
+    gsize patLen;
+    gboolean skipLinked;  /* If TRUE, skip linked variables */
 } VarNamesData;
 
+/* Simple glob pattern matching (supports * at end) */
+static gboolean varPatternMatch(const gchar *pattern, gsize patLen, const gchar *name) {
+    if (!pattern || patLen == 0) return TRUE;  /* NULL/empty matches all */
+    if (patLen == 1 && pattern[0] == '*') return TRUE;  /* "*" matches all */
+
+    /* Check for wildcard at end */
+    if (pattern[patLen - 1] == '*') {
+        gsize prefixLen = patLen - 1;
+        return strncmp(name, pattern, prefixLen) == 0;
+    }
+
+    /* Exact match */
+    return strcmp(name, pattern) == 0;
+}
+
 static void collectVarNames(gpointer key, gpointer value, gpointer userData) {
-    (void)value;
     VarNamesData *data = userData;
     const gchar *name = key;
+    VarEntry *entry = value;
 
-    /* Simple pattern matching: NULL or "*" matches all */
-    if (!data->pattern || data->pattern[0] == '*') {
+    /* Skip linked variables if requested */
+    if (data->skipLinked && entry && entry->linkTable) {
+        return;
+    }
+
+    if (varPatternMatch(data->pattern, data->patLen, name)) {
         g_ptr_array_add(data->names, g_strdup(name));
     }
 }
 
-/* Get list of variable names matching pattern (NULL for all) */
-TclObj *hostVarNames(void *vars, const char *pattern) {
+/* Internal function to get variable names with option to skip linked */
+static TclObj *varNamesInternal(void *vars, const char *pattern, gboolean skipLinked) {
     VarTable *table = vars;
     if (!table) return hostNewString("", 0);
 
     VarNamesData data = {
         .names = g_ptr_array_new_with_free_func(g_free),
-        .pattern = pattern
+        .pattern = pattern,
+        .patLen = pattern ? strlen(pattern) : 0,
+        .skipLinked = skipLinked
     };
 
     g_hash_table_foreach(table->vars, collectVarNames, &data);
@@ -183,6 +206,16 @@ TclObj *hostVarNames(void *vars, const char *pattern) {
     TclObj *obj = hostNewString(result->str, result->len);
     g_string_free(result, TRUE);
     return obj;
+}
+
+/* Get list of variable names matching pattern (NULL for all) */
+TclObj *hostVarNames(void *vars, const char *pattern) {
+    return varNamesInternal(vars, pattern, FALSE);
+}
+
+/* Get list of local variable names (excludes linked variables) */
+TclObj *hostVarNamesLocal(void *vars, const char *pattern) {
+    return varNamesInternal(vars, pattern, TRUE);
 }
 
 /* Link a local variable to another variable */

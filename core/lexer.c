@@ -212,10 +212,37 @@ static int lexBareWord(TclLexer *lex, TclWord *word, TclInterp *interp) {
             int depth = 1;
             lex->pos++;
             while (lex->pos < lex->end && depth > 0) {
-                if (*lex->pos == '[') depth++;
-                else if (*lex->pos == ']') depth--;
-                if (*lex->pos == '\n') lex->line++;
-                if (depth > 0) lex->pos++;
+                char ch = *lex->pos;
+                if (ch == '{') {
+                    /* Skip braced content - brackets inside don't count */
+                    int braceDepth = 1;
+                    lex->pos++;
+                    while (lex->pos < lex->end && braceDepth > 0) {
+                        if (*lex->pos == '{') braceDepth++;
+                        else if (*lex->pos == '}') braceDepth--;
+                        if (*lex->pos == '\n') lex->line++;
+                        if (braceDepth > 0) lex->pos++;
+                    }
+                    if (lex->pos < lex->end) lex->pos++;  /* Skip } */
+                    continue;  /* Re-check loop condition */
+                } else if (ch == '"') {
+                    /* Skip quoted content - brackets inside don't count */
+                    lex->pos++;
+                    while (lex->pos < lex->end && *lex->pos != '"') {
+                        if (*lex->pos == '\\' && lex->pos + 1 < lex->end) {
+                            lex->pos++;  /* Skip escaped char */
+                        }
+                        if (*lex->pos == '\n') lex->line++;
+                        lex->pos++;
+                    }
+                    if (lex->pos < lex->end) lex->pos++;  /* Skip " */
+                    continue;  /* Re-check loop condition */
+                } else {
+                    if (ch == '[') depth++;
+                    else if (ch == ']') depth--;
+                    if (ch == '\n') lex->line++;
+                    if (depth > 0) lex->pos++;
+                }
             }
             if (depth != 0) {
                 if (interp) {

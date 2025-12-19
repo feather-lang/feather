@@ -76,7 +76,7 @@ The C core does not call `malloc`, `free`, or any standard library allocation fu
 
 This simplifies memory management and allows Go's GC to handle all object lifetimes.
 
-### 2. No Standard Library in C
+### 3. No Standard Library in C
 
 The C core avoids libc dependencies except for:
 - `<stddef.h>` - `size_t`, `NULL`
@@ -85,7 +85,7 @@ The C core avoids libc dependencies except for:
 
 All I/O, string operations, and system calls go through host callbacks.
 
-### 3. Host-Managed Data Structures
+### 4. Host-Managed Data Structures
 
 The host provides all complex data structures:
 - **TclObj** - Opaque value type with type-specific operations
@@ -95,7 +95,7 @@ The host provides all complex data structures:
 
 The C core only sees opaque handles and calls through function pointers.
 
-### 4. Trampoline Evaluation
+### 5. Trampoline Evaluation
 
 The eval loop is non-recursive to support coroutines:
 
@@ -161,7 +161,7 @@ Performs `$var`, `[cmd]`, and `\x` substitution.
 
 **Allocation:** Uses arena for intermediate strings, returns host-allocated TclObj.
 
-### Expression Evaluator (`core/expr.c`)
+### Expression Evaluator (`core/builtin_expr.c`)
 
 Parses and evaluates `expr` expressions.
 
@@ -455,10 +455,13 @@ tclc/
 │   ├── subst.c             # Substitution engine
 │   ├── eval.c              # Evaluation trampoline
 │   ├── builtins.c          # Built-in commands
+│   ├── builtin_dict.c      # dict command
 │   ├── builtin_expr.c      # Expression evaluator
 │   ├── builtin_global.c    # global command
+│   ├── builtin_string.c    # string command
 │   ├── builtin_upvar.c     # upvar command
-│   └── builtin_uplevel.c   # uplevel command
+│   ├── builtin_uplevel.c   # uplevel command
+│   └── builtin_chan.c      # chan command
 │
 ├── hosts/                   # Host implementations
 │   ├── c/                  # C host (primary)
@@ -470,7 +473,12 @@ tclc/
 │   │   └── main.c          # Entry point
 │   │
 │   └── go/                 # Go host (CGO wrapper)
-│       └── (future)
+│       ├── host.go         # TclHost callback implementations
+│       ├── object.go       # TclObj implementation
+│       ├── vars.go         # Variable tables
+│       ├── arena.go        # Arena allocator
+│       ├── channel.go      # I/O channels
+│       └── main.go         # Entry point
 │
 ├── build/                   # Build artifacts (generated)
 │   ├── *.o                 # Object files

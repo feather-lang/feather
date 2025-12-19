@@ -35,6 +35,7 @@ extern void hostVarSet(void *vars, const char *name, size_t len, TclObj *val);
 extern void hostVarUnset(void *vars, const char *name, size_t len);
 extern int hostVarExists(void *vars, const char *name, size_t len);
 extern TclObj *hostVarNames(void *vars, const char *pattern);
+extern TclObj *hostVarNamesLocal(void *vars, const char *pattern);
 extern void hostVarLink(void *localVars, const char *localName, size_t localLen,
                         void *targetVars, const char *targetName, size_t targetLen);
 extern void hostArraySet(void *vars, const char *arr, size_t arrLen,
@@ -239,10 +240,68 @@ static int hostCmdExists(void *ctx, const char *name, size_t len) {
     return 0;
 }
 
-static TclObj *hostCmdList(void *ctx, const char *pattern) {
-    (void)ctx;
-    (void)pattern;
-    return hostNewString("", 0);
+/* Helper struct for command collection */
+typedef struct {
+    GPtrArray *cmds;
+    const gchar *pattern;
+    gsize patLen;
+} CmdCollectData;
+
+/* Helper for pattern matching (simple glob with * at end) */
+static gboolean patternMatch(const gchar *pattern, gsize patLen, const gchar *name) {
+    if (!pattern || patLen == 0) return TRUE;  /* NULL/empty matches all */
+
+    /* Check for wildcard at end */
+    if (pattern[patLen - 1] == '*') {
+        gsize prefixLen = patLen - 1;
+        return strncmp(name, pattern, prefixLen) == 0;
+    }
+
+    /* Exact match */
+    return strcmp(name, pattern) == 0;
+}
+
+/* Callback to collect proc names */
+static void collectProcName(gpointer key, gpointer value, gpointer userData) {
+    (void)value;
+    CmdCollectData *data = userData;
+    const gchar *name = key;
+
+    if (patternMatch(data->pattern, data->patLen, name)) {
+        g_ptr_array_add(data->cmds, hostNewString(name, strlen(name)));
+    }
+}
+
+static TclObj *hostCmdList(void *ctxPtr, const char *pattern) {
+    HostContext *ctx = ctxPtr;
+
+    GPtrArray *cmds = g_ptr_array_new();
+    gsize patLen = pattern ? strlen(pattern) : 0;
+
+    /* Add all registered procedures that match pattern */
+    CmdCollectData collectData = { cmds, pattern, patLen };
+    g_hash_table_foreach(ctx->procs, collectProcName, &collectData);
+
+    /* Add all built-in commands that match pattern */
+    int count = tclBuiltinCount();
+    for (int i = 0; i < count; i++) {
+        const char *name = tclBuiltinName(i);
+        if (name && patternMatch(pattern, patLen, name)) {
+            g_ptr_array_add(cmds, hostNewString(name, strlen(name)));
+        }
+    }
+
+    /* Build result list */
+    TclObj *result;
+    if (cmds->len == 0) {
+        result = hostNewString("", 0);
+    } else {
+        result = hostNewList((TclObj**)cmds->pdata, cmds->len);
+    }
+
+    /* Free array (not elements, they're in the result list) */
+    g_ptr_array_free(cmds, TRUE);
+    return result;
 }
 
 static void hostCmdHide(void *ctx, const char *name, size_t len) {
@@ -990,6 +1049,7 @@ const TclHost cHost = {
     .varUnset = hostVarUnset,
     .varExists = hostVarExists,
     .varNames = hostVarNames,
+    .varNamesLocal = hostVarNamesLocal,
     .varLink = hostVarLink,
 
     /* Arrays */

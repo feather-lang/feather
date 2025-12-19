@@ -9,6 +9,10 @@ CFLAGS = -Wall -Wextra -Werror -std=c11 -g -O2
 GO = go
 TCLSH ?= tclsh
 
+# GLib-2.0 flags (for C host)
+GLIB_CFLAGS := $(shell pkg-config --cflags glib-2.0 2>/dev/null)
+GLIB_LIBS := $(shell pkg-config --libs glib-2.0 2>/dev/null)
+
 # Directories
 CORE_DIR = core
 HOST_C_DIR = hosts/c
@@ -93,9 +97,9 @@ $(BIN_DIR)/.stamp:
 $(BUILD_DIR)/%.o: $(CORE_DIR)/%.c $(CORE_DIR)/tclc.h $(CORE_DIR)/internal.h $(BUILD_DIR)/.stamp
 	$(CC) $(CFLAGS) -I$(CORE_DIR) -c -o $@ $<
 
-# Host C object files
+# Host C object files (require glib-2.0)
 $(BUILD_DIR)/host_%.o: $(HOST_C_DIR)/%.c $(CORE_DIR)/tclc.h $(BUILD_DIR)/.stamp
-	$(CC) $(CFLAGS) -I$(CORE_DIR) -c -o $@ $<
+	$(CC) $(CFLAGS) $(GLIB_CFLAGS) -I$(CORE_DIR) -c -o $@ $<
 
 # Static library
 $(LIBTCLC_STATIC): $(CORE_OBJS)
@@ -108,9 +112,9 @@ $(LIBTCLC_DYNAMIC): $(CORE_OBJS)
 # Library targets
 libs: $(LIBTCLC_STATIC) $(LIBTCLC_DYNAMIC)
 
-# Build tclc interpreter (links statically)
+# Build tclc interpreter (links statically, requires glib-2.0)
 $(TCLC): $(BIN_DIR)/.stamp $(HOST_C_OBJS) $(LIBTCLC_STATIC)
-	$(CC) $(CFLAGS) -o $@ $(HOST_C_OBJS) $(LIBTCLC_STATIC)
+	$(CC) $(CFLAGS) -o $@ $(HOST_C_OBJS) $(LIBTCLC_STATIC) $(GLIB_LIBS)
 
 # Build Go host
 $(TCLGO): $(BIN_DIR)/.stamp $(LIBTCLC_STATIC)

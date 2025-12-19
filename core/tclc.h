@@ -163,6 +163,8 @@ struct TclFrame {
     void       *varsHandle;     /* Host-managed variable table */
     void       *nsHandle;       /* Namespace handle (NULL = current) */
     const char *procName;       /* Proc name for stack traces, or NULL */
+    TclObj    **invocationObjs; /* Command invocation for info level */
+    int         invocationCount;/* Number of invocation objects */
     uint32_t    level;          /* Call depth from global */
     uint32_t    flags;          /* TCL_FRAME_* flags */
 
@@ -339,6 +341,7 @@ struct TclHost {
     void    (*varUnset)(void *vars, const char *name, size_t len);
     int     (*varExists)(void *vars, const char *name, size_t len);
     TclObj* (*varNames)(void *vars, const char *pattern);
+    TclObj* (*varNamesLocal)(void *vars, const char *pattern);  /* Excludes linked vars */
     void    (*varLink)(void *localVars, const char *localName, size_t localLen,
                        void *targetVars, const char *targetName, size_t targetLen);
 
@@ -569,6 +572,10 @@ void       tclInterpAlias(TclInterp *child, const char *childCmd,
 /* Expression evaluation (for expr command) */
 TclResult tclExprEval(TclInterp *interp, TclObj *expr, TclObj **resultOut);
 TclResult tclExprBool(TclInterp *interp, TclObj *expr, int *resultOut);
+
+/* Builtin command enumeration (for info commands) */
+int tclBuiltinCount(void);
+const char *tclBuiltinName(int index);
 
 /* Substitution (for subst command) */
 TclResult tclSubst(TclInterp *interp, TclObj *str, int flags, TclObj **resultOut);

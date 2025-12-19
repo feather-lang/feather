@@ -191,10 +191,29 @@ TclObj *tclSubstString(TclInterp *interp, const char *str, size_t len, int flags
             /* Append value to output */
             size_t valLen;
             const char *valStr = host->getStringPtr(value, &valLen);
-            if (dst + valLen < dstEnd) {
-                for (size_t i = 0; i < valLen; i++) {
-                    *dst++ = valStr[i];
+            size_t dstUsed = dst - buf;
+            size_t needed = dstUsed + valLen + (end - src) + 1;
+
+            /* Reallocate if needed */
+            if (needed > bufSize) {
+                size_t newSize = needed * 2;
+                char *newBuf = host->arenaAlloc(arena, newSize, 1);
+                if (!newBuf) {
+                    host->arenaPop(interp->hostCtx, arena);
+                    return NULL;
                 }
+                for (size_t i = 0; i < dstUsed; i++) {
+                    newBuf[i] = buf[i];
+                }
+                buf = newBuf;
+                dst = buf + dstUsed;
+                bufSize = newSize;
+                dstEnd = buf + bufSize - 1;
+            }
+
+            /* Now copy the value */
+            for (size_t i = 0; i < valLen; i++) {
+                *dst++ = valStr[i];
             }
             continue;
         }
@@ -206,8 +225,32 @@ TclObj *tclSubstString(TclInterp *interp, const char *str, size_t len, int flags
             int depth = 1;
 
             while (src < end && depth > 0) {
-                if (*src == '[') depth++;
-                else if (*src == ']') depth--;
+                char ch = *src;
+                if (ch == '{') {
+                    /* Skip braced content - brackets inside don't count */
+                    int braceDepth = 1;
+                    src++;
+                    while (src < end && braceDepth > 0) {
+                        if (*src == '{') braceDepth++;
+                        else if (*src == '}') braceDepth--;
+                        if (braceDepth > 0) src++;
+                    }
+                    if (src < end) src++;  /* Skip } */
+                    continue;
+                } else if (ch == '"') {
+                    /* Skip quoted content - brackets inside don't count */
+                    src++;
+                    while (src < end && *src != '"') {
+                        if (*src == '\\' && src + 1 < end) src++;  /* Skip escaped char */
+                        src++;
+                    }
+                    if (src < end) src++;  /* Skip " */
+                    continue;
+                } else if (ch == '[') {
+                    depth++;
+                } else if (ch == ']') {
+                    depth--;
+                }
                 if (depth > 0) src++;
             }
 
@@ -237,10 +280,29 @@ TclObj *tclSubstString(TclInterp *interp, const char *str, size_t len, int flags
             if (interp->result) {
                 size_t resLen;
                 const char *resStr = host->getStringPtr(interp->result, &resLen);
-                if (dst + resLen < dstEnd) {
-                    for (size_t i = 0; i < resLen; i++) {
-                        *dst++ = resStr[i];
+                size_t dstUsed = dst - buf;
+                size_t needed = dstUsed + resLen + (end - src) + 1;
+
+                /* Reallocate if needed */
+                if (needed > bufSize) {
+                    size_t newSize = needed * 2;
+                    char *newBuf = host->arenaAlloc(arena, newSize, 1);
+                    if (!newBuf) {
+                        host->arenaPop(interp->hostCtx, arena);
+                        return NULL;
                     }
+                    for (size_t i = 0; i < dstUsed; i++) {
+                        newBuf[i] = buf[i];
+                    }
+                    buf = newBuf;
+                    dst = buf + dstUsed;
+                    bufSize = newSize;
+                    dstEnd = buf + bufSize - 1;
+                }
+
+                /* Now copy the result */
+                for (size_t i = 0; i < resLen; i++) {
+                    *dst++ = resStr[i];
                 }
             }
             continue;

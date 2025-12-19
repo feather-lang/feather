@@ -594,6 +594,14 @@ static ExprValue parseVariable(ExprParser *p) {
     p->pos++; /* Skip $ */
     const char *start = p->pos;
 
+    /* Handle :: prefix for global variables */
+    int forceGlobal = 0;
+    if (p->pos + 1 < p->end && p->pos[0] == ':' && p->pos[1] == ':') {
+        forceGlobal = 1;
+        p->pos += 2;
+        start = p->pos;
+    }
+
     /* Handle ${name} form */
     if (p->pos < p->end && *p->pos == '{') {
         p->pos++;
@@ -602,7 +610,13 @@ static ExprValue parseVariable(ExprParser *p) {
         size_t nameLen = p->pos - start;
         if (p->pos < p->end) p->pos++;
 
-        TclObj *val = p->host->varGet(p->interp->hostCtx, start, nameLen);
+        void *vars = forceGlobal ? p->interp->globalFrame->varsHandle
+                                 : p->interp->currentFrame->varsHandle;
+        TclObj *val = p->host->varGet(vars, start, nameLen);
+        /* Try global frame if not found */
+        if (!val && !forceGlobal && p->interp->currentFrame != p->interp->globalFrame) {
+            val = p->host->varGet(p->interp->globalFrame->varsHandle, start, nameLen);
+        }
         if (!val) {
             setVarReadError(p, start, nameLen);
             p->error = 1;
@@ -635,7 +649,13 @@ static ExprValue parseVariable(ExprParser *p) {
     }
 
     size_t nameLen = p->pos - start;
-    TclObj *val = p->host->varGet(p->interp->hostCtx, start, nameLen);
+    void *vars = forceGlobal ? p->interp->globalFrame->varsHandle
+                             : p->interp->currentFrame->varsHandle;
+    TclObj *val = p->host->varGet(vars, start, nameLen);
+    /* Try global frame if not found */
+    if (!val && !forceGlobal && p->interp->currentFrame != p->interp->globalFrame) {
+        val = p->host->varGet(p->interp->globalFrame->varsHandle, start, nameLen);
+    }
     if (!val) {
         setVarReadError(p, start, nameLen);
         p->error = 1;
@@ -1615,24 +1635,19 @@ TclResult tclCmdExpr(TclInterp *interp, int objc, TclObj **objv) {
     *p = '\0';
     size_t exprLen = p - exprStr;
 
-    /* Perform substitution on the expression */
-    TclObj *substResult = tclSubstString(interp, exprStr, exprLen, TCL_SUBST_ALL);
-    if (!substResult) {
-        host->arenaPop(interp->hostCtx, arena);
-        return TCL_ERROR;
-    }
-
-    size_t substLen;
-    const char *substStr = host->getStringPtr(substResult, &substLen);
+    /* Note: Do NOT pre-substitute the expression string.
+     * The parser handles $var and [cmd] substitutions operand-by-operand,
+     * which preserves the structure (e.g., "$list" stays as one operand).
+     * Pre-substitution would turn "$list" into "a b c" (multiple tokens). */
 
     /* Initialize parser */
     ExprParser parser;
     parser.interp = interp;
     parser.host = host;
-    parser.pos = substStr;
-    parser.end = substStr + substLen;
-    parser.exprStart = substStr;
-    parser.exprLen = substLen;
+    parser.pos = exprStr;
+    parser.end = exprStr + exprLen;
+    parser.exprStart = exprStr;
+    parser.exprLen = exprLen;
     parser.arena = arena;
     parser.error = 0;
 
@@ -1644,7 +1659,7 @@ TclResult tclCmdExpr(TclInterp *interp, int objc, TclObj **objv) {
         host->arenaPop(interp->hostCtx, arena);
         return TCL_ERROR;
     }
-    parser.pos = substStr; /* Reset position for parsing */
+    parser.pos = exprStr; /* Reset position for parsing */
 
     /* Parse and evaluate */
     ExprValue result = parseExpr(&parser);
