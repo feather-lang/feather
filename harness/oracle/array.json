@@ -1,0 +1,190 @@
+{
+  "feature": "array",
+  "tclsh": "tclsh",
+  "tests": [
+    {
+      "name": "array-1.0",
+      "file": "spec/tests/array/array-1.0.tcl",
+      "script": "# Test: array names returns all keys\n# Lists all element names in an array\n\narray set colors {red 1 green 2 blue 3}\nputs [lsort [array names colors]]\n",
+      "stdout": "blue green red\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "array-1.1",
+      "file": "spec/tests/array/array-1.1.tcl",
+      "script": "# Test: array names with glob pattern\n# Filter keys by pattern\n\narray set data {foo_a 1 foo_b 2 bar_a 3 bar_b 4}\nputs [lsort [array names data foo_*]]\n",
+      "stdout": "foo_a foo_b\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "array-1.2",
+      "file": "spec/tests/array/array-1.2.tcl",
+      "script": "# Test: array get with pattern\n# Returns matching key-value pairs\n\narray set items {x1 10 x2 20 y1 30 y2 40}\nputs [lsort [array get items x*]]\n",
+      "stdout": "10 20 x1 x2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "array-1.3",
+      "file": "spec/tests/array/array-1.3.tcl",
+      "script": "# Test: array unset with pattern\n# Removes matching elements only\n\narray set vals {a1 1 a2 2 b1 3 b2 4}\nputs [array size vals]\narray unset vals a*\nputs [array size vals]\nputs [lsort [array names vals]]\n",
+      "stdout": "4\n2\nb1 b2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "array-1.4",
+      "file": "spec/tests/array/array-1.4.tcl",
+      "script": "# Test: array exists on non-array variable\n# Returns 0 for scalar variables\n\nset scalar \"hello\"\nputs [array exists scalar]\nputs [array exists undefined]\n",
+      "stdout": "0\n0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "array-1.5",
+      "file": "spec/tests/array/array-1.5.tcl",
+      "script": "# Test: array set overwrites existing elements\n# Merges with existing array\n\narray set arr {a 1 b 2}\narray set arr {b 20 c 3}\nputs $arr(a)\nputs $arr(b)\nputs $arr(c)\n",
+      "stdout": "1\n20\n3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "array-1.6",
+      "file": "spec/tests/array/array-1.6.tcl",
+      "script": "# Test: array get on empty/nonexistent array\n# Returns empty list\n\nputs [array get noarray]\narray set empty {}\nputs [array get empty]\n",
+      "stdout": "\n\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "array-1.7",
+      "file": "spec/tests/array/array-1.7.tcl",
+      "script": "# Test: array size on empty array\n# Returns 0\n\narray set empty {}\nputs [array size empty]\nputs [array size nonexistent]\n",
+      "stdout": "0\n0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "array-2.0",
+      "file": "spec/tests/array/array-2.0.tcl",
+      "script": "# Test: array names with -exact mode\n# Matches only exact string\n\narray set data {foo 1 foobar 2 food 3}\nputs [lsort [array names data -exact foo]]\n",
+      "stdout": "foo\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "array-2.1",
+      "file": "spec/tests/array/array-2.1.tcl",
+      "script": "# Test: array names with -glob mode (explicit)\n# Glob pattern matching\n\narray set data {foo 1 foobar 2 food 3 bar 4}\nputs [lsort [array names data -glob foo*]]\n",
+      "stdout": "foo foobar food\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "array-2.2",
+      "file": "spec/tests/array/array-2.2.tcl",
+      "script": "# Test: array names with -regexp mode\n# Regular expression matching\n\narray set data {foo 1 foobar 2 food 3 bar 4 baz 5}\nputs [lsort [array names data -regexp {^foo}]]\n",
+      "stdout": "foo foobar food\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "array-2.3",
+      "file": "spec/tests/array/array-2.3.tcl",
+      "script": "# Test: array names with -regexp complex pattern\n# Match keys ending with digit\n\narray set data {item1 a item2 b item c noitem 4}\nputs [lsort [array names data -regexp {\\d$}]]\n",
+      "stdout": "item1 item2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "array-3.0",
+      "file": "spec/tests/array/array-3.0.tcl",
+      "script": "# Test: array startsearch and nextelement\n# Basic iteration through array elements\n\narray set data {a 1 b 2 c 3}\nset sid [array startsearch data]\nset keys {}\nwhile {[array anymore data $sid]} {\n    lappend keys [array nextelement data $sid]\n}\narray donesearch data $sid\nputs [lsort $keys]\n",
+      "stdout": "a b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "array-3.1",
+      "file": "spec/tests/array/array-3.1.tcl",
+      "script": "# Test: array anymore returns 0 when done\n# Check completion status\n\narray set nums {x 1}\nset sid [array startsearch nums]\nputs [array anymore nums $sid]\narray nextelement nums $sid\nputs [array anymore nums $sid]\narray donesearch nums $sid\n",
+      "stdout": "1\n0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "array-3.2",
+      "file": "spec/tests/array/array-3.2.tcl",
+      "script": "# Test: array donesearch returns empty string\n# Cleanup search state\n\narray set data {a 1}\nset sid [array startsearch data]\nputs \"[array donesearch data $sid].\"\n",
+      "stdout": ".\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "array-4.0",
+      "file": "spec/tests/array/array-4.0.tcl",
+      "script": "# Test: array for basic iteration\n# Iterate over key-value pairs\n\narray set colors {red 1 green 2 blue 3}\nset result {}\narray for {k v} colors {\n    lappend result \"$k=$v\"\n}\nputs [lsort $result]\n",
+      "stdout": "blue=3 green=2 red=1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "array-4.1",
+      "file": "spec/tests/array/array-4.1.tcl",
+      "script": "# Test: array for with empty array\n# Should not execute body\n\narray set empty {}\nset count 0\narray for {k v} empty {\n    incr count\n}\nputs $count\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "array-4.2",
+      "file": "spec/tests/array/array-4.2.tcl",
+      "script": "# Test: array for with break\n# Early exit from iteration\n\narray set data {a 1 b 2 c 3 d 4}\nset count 0\narray for {k v} data {\n    incr count\n    if {$count == 2} break\n}\nputs $count\n",
+      "stdout": "2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "array-5.0",
+      "file": "spec/tests/array/array-5.0.tcl",
+      "script": "# Test: array statistics returns info\n# Just verify it doesn't error on valid array\n\narray set data {a 1 b 2 c 3}\nset stats [array statistics data]\nputs [expr {[string length $stats] \u003e 0}]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "array-6.0",
+      "file": "spec/tests/array/array-6.0.tcl",
+      "script": "# Test: array set with odd number of elements\n# Should error on invalid list\n\ncatch {array set data {a 1 b}} result\nputs [string match \"*must have an even*\" $result]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "array-6.1",
+      "file": "spec/tests/array/array-6.1.tcl",
+      "script": "# Test: array on scalar variable\n# Most operations error on scalar\n\nset scalar \"hello\"\ncatch {array names scalar} result\nputs [expr {$result ne \"\"}]\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "array-6.2",
+      "file": "spec/tests/array/array-6.2.tcl",
+      "script": "# Test: array with special characters in keys\n# Keys can contain special chars\n\narray set data [list \"key with spaces\" 1 \"key\\twith\\ttabs\" 2]\nputs $data(key with spaces)\nputs $data(key\twith\ttabs)\n",
+      "stdout": "1\n2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "array-6.3",
+      "file": "spec/tests/array/array-6.3.tcl",
+      "script": "# Test: array with empty key\n# Empty string is valid key\n\narray set data {\"\" empty a 1}\nputs [array size data]\nputs $data()\nputs $data(a)\n",
+      "stdout": "2\nempty\n1\n",
+      "stderr": "",
+      "returncode": 0
+    }
+  ]
+}

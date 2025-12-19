@@ -1,0 +1,542 @@
+{
+  "feature": "file",
+  "tclsh": "tclsh",
+  "tests": [
+    {
+      "name": "file-1.0",
+      "file": "spec/tests/file/file-1.0.tcl",
+      "script": "# Test: file dirname basic\nputs [file dirname /foo/bar/baz.txt]\n",
+      "stdout": "/foo/bar\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-1.1",
+      "file": "spec/tests/file/file-1.1.tcl",
+      "script": "# Test: file dirname relative path\nputs [file dirname foo/bar.txt]\n",
+      "stdout": "foo\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-1.2",
+      "file": "spec/tests/file/file-1.2.tcl",
+      "script": "# Test: file dirname single component\nputs [file dirname foo.txt]\n",
+      "stdout": ".\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-1.3",
+      "file": "spec/tests/file/file-1.3.tcl",
+      "script": "# Test: file dirname root\nputs [file dirname /]\n",
+      "stdout": "/\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-10.0",
+      "file": "spec/tests/file/file-10.0.tcl",
+      "script": "# Test: file type on regular file\nset f [open \"/tmp/file-test-10.0.txt\" w]\nclose $f\nputs [file type /tmp/file-test-10.0.txt]\nfile delete /tmp/file-test-10.0.txt\n",
+      "stdout": "file\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-10.1",
+      "file": "spec/tests/file/file-10.1.tcl",
+      "script": "# Test: file type on directory\nputs [file type /tmp]\n",
+      "stdout": "link\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-11.0",
+      "file": "spec/tests/file/file-11.0.tcl",
+      "script": "# Test: file readable on readable file\nset f [open \"/tmp/file-test-11.0.txt\" w]\nclose $f\nputs [file readable /tmp/file-test-11.0.txt]\nfile delete /tmp/file-test-11.0.txt\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-11.1",
+      "file": "spec/tests/file/file-11.1.tcl",
+      "script": "# Test: file readable on non-existing file\nputs [file readable /tmp/nonexistent-xyz-123.txt]\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-12.0",
+      "file": "spec/tests/file/file-12.0.tcl",
+      "script": "# Test: file writable on writable file\nset f [open \"/tmp/file-test-12.0.txt\" w]\nclose $f\nputs [file writable /tmp/file-test-12.0.txt]\nfile delete /tmp/file-test-12.0.txt\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-12.1",
+      "file": "spec/tests/file/file-12.1.tcl",
+      "script": "# Test: file writable on non-existing file\nputs [file writable /tmp/nonexistent-xyz-123.txt]\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-13.0",
+      "file": "spec/tests/file/file-13.0.tcl",
+      "script": "# Test: file executable on directory\nputs [file executable /tmp]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-13.1",
+      "file": "spec/tests/file/file-13.1.tcl",
+      "script": "# Test: file executable on non-executable file\nset f [open \"/tmp/file-test-13.1.txt\" w]\nclose $f\nputs [file executable /tmp/file-test-13.1.txt]\nfile delete /tmp/file-test-13.1.txt\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-14.0",
+      "file": "spec/tests/file/file-14.0.tcl",
+      "script": "# Test: file size\nset f [open \"/tmp/file-test-14.0.txt\" w]\nputs -nonewline $f \"hello\"\nclose $f\nputs [file size /tmp/file-test-14.0.txt]\nfile delete /tmp/file-test-14.0.txt\n",
+      "stdout": "5\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-14.1",
+      "file": "spec/tests/file/file-14.1.tcl",
+      "script": "# Test: file size empty file\nset f [open \"/tmp/file-test-14.1.txt\" w]\nclose $f\nputs [file size /tmp/file-test-14.1.txt]\nfile delete /tmp/file-test-14.1.txt\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-15.0",
+      "file": "spec/tests/file/file-15.0.tcl",
+      "script": "# Test: file mtime returns integer\nset f [open \"/tmp/file-test-15.0.txt\" w]\nclose $f\nputs [string is integer [file mtime /tmp/file-test-15.0.txt]]\nfile delete /tmp/file-test-15.0.txt\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-15.1",
+      "file": "spec/tests/file/file-15.1.tcl",
+      "script": "# Test: file atime returns integer\nset f [open \"/tmp/file-test-15.1.txt\" w]\nclose $f\nputs [string is integer [file atime /tmp/file-test-15.1.txt]]\nfile delete /tmp/file-test-15.1.txt\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-16.0",
+      "file": "spec/tests/file/file-16.0.tcl",
+      "script": "# Test: file mkdir creates directory\nfile mkdir /tmp/file-test-16.0-dir\nputs [file isdirectory /tmp/file-test-16.0-dir]\nfile delete /tmp/file-test-16.0-dir\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-16.1",
+      "file": "spec/tests/file/file-16.1.tcl",
+      "script": "# Test: file mkdir creates nested directories\nfile mkdir /tmp/file-test-16.1-dir/nested/deep\nputs [file isdirectory /tmp/file-test-16.1-dir/nested/deep]\nfile delete -force /tmp/file-test-16.1-dir\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-17.0",
+      "file": "spec/tests/file/file-17.0.tcl",
+      "script": "# Test: file delete removes file\nset f [open \"/tmp/file-test-17.0.txt\" w]\nclose $f\nfile delete /tmp/file-test-17.0.txt\nputs [file exists /tmp/file-test-17.0.txt]\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-17.1",
+      "file": "spec/tests/file/file-17.1.tcl",
+      "script": "# Test: file delete non-existing is not an error\nfile delete /tmp/nonexistent-xyz-123.txt\nputs \"ok\"\n",
+      "stdout": "ok\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-17.2",
+      "file": "spec/tests/file/file-17.2.tcl",
+      "script": "# Test: file delete -force removes directory\nfile mkdir /tmp/file-test-17.2-dir\nset f [open \"/tmp/file-test-17.2-dir/file.txt\" w]\nclose $f\nfile delete -force /tmp/file-test-17.2-dir\nputs [file exists /tmp/file-test-17.2-dir]\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-18.0",
+      "file": "spec/tests/file/file-18.0.tcl",
+      "script": "# Test: file copy copies file\nset f [open \"/tmp/file-test-18.0-src.txt\" w]\nputs $f \"content\"\nclose $f\nfile copy /tmp/file-test-18.0-src.txt /tmp/file-test-18.0-dst.txt\nputs [file exists /tmp/file-test-18.0-dst.txt]\nfile delete /tmp/file-test-18.0-src.txt /tmp/file-test-18.0-dst.txt\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-18.1",
+      "file": "spec/tests/file/file-18.1.tcl",
+      "script": "# Test: file copy preserves content\nset f [open \"/tmp/file-test-18.1-src.txt\" w]\nputs -nonewline $f \"hello world\"\nclose $f\nfile copy /tmp/file-test-18.1-src.txt /tmp/file-test-18.1-dst.txt\nset f [open \"/tmp/file-test-18.1-dst.txt\" r]\nputs [read $f]\nclose $f\nfile delete /tmp/file-test-18.1-src.txt /tmp/file-test-18.1-dst.txt\n",
+      "stdout": "hello world\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-19.0",
+      "file": "spec/tests/file/file-19.0.tcl",
+      "script": "# Test: file rename moves file\nset f [open \"/tmp/file-test-19.0-src.txt\" w]\nputs $f \"content\"\nclose $f\nfile rename /tmp/file-test-19.0-src.txt /tmp/file-test-19.0-dst.txt\nputs [file exists /tmp/file-test-19.0-src.txt]\nputs [file exists /tmp/file-test-19.0-dst.txt]\nfile delete /tmp/file-test-19.0-dst.txt\n",
+      "stdout": "0\n1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-2.0",
+      "file": "spec/tests/file/file-2.0.tcl",
+      "script": "# Test: file tail basic\nputs [file tail /foo/bar/baz.txt]\n",
+      "stdout": "baz.txt\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-2.1",
+      "file": "spec/tests/file/file-2.1.tcl",
+      "script": "# Test: file tail with trailing slash\nputs [file tail /foo/bar/]\n",
+      "stdout": "bar\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-2.2",
+      "file": "spec/tests/file/file-2.2.tcl",
+      "script": "# Test: file tail single component\nputs [file tail foo.txt]\n",
+      "stdout": "foo.txt\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-20.0",
+      "file": "spec/tests/file/file-20.0.tcl",
+      "script": "# Test: file normalize removes ..\nputs [file normalize /foo/bar/../baz]\n",
+      "stdout": "/foo/baz\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-20.1",
+      "file": "spec/tests/file/file-20.1.tcl",
+      "script": "# Test: file normalize removes .\nputs [file normalize /foo/./bar]\n",
+      "stdout": "/foo/bar\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-21.0",
+      "file": "spec/tests/file/file-21.0.tcl",
+      "script": "# Test: file pathtype absolute\nputs [file pathtype /foo/bar]\n",
+      "stdout": "absolute\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-21.1",
+      "file": "spec/tests/file/file-21.1.tcl",
+      "script": "# Test: file pathtype relative\nputs [file pathtype foo/bar]\n",
+      "stdout": "relative\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-22.0",
+      "file": "spec/tests/file/file-22.0.tcl",
+      "script": "# Test: file separator\nputs [file separator]\n",
+      "stdout": "/\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-23.0",
+      "file": "spec/tests/file/file-23.0.tcl",
+      "script": "# Test: file stat returns dict with expected keys\nset f [open \"/tmp/file-test-23.0.txt\" w]\nputs $f \"content\"\nclose $f\nset s [file stat /tmp/file-test-23.0.txt]\nputs [dict exists $s size]\nputs [dict exists $s mtime]\nputs [dict exists $s type]\nfile delete /tmp/file-test-23.0.txt\n",
+      "stdout": "1\n1\n1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-23.1",
+      "file": "spec/tests/file/file-23.1.tcl",
+      "script": "# Test: file stat type is file\nset f [open \"/tmp/file-test-23.1.txt\" w]\nclose $f\nset s [file stat /tmp/file-test-23.1.txt]\nputs [dict get $s type]\nfile delete /tmp/file-test-23.1.txt\n",
+      "stdout": "file\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-24.0",
+      "file": "spec/tests/file/file-24.0.tcl",
+      "script": "# Test: file nativename\nputs [expr {[file nativename /foo/bar] ne \"\"}]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-25.0",
+      "file": "spec/tests/file/file-25.0.tcl",
+      "script": "# Test: file channels lists standard channels\nset chans [file channels]\nputs [expr {\"stdin\" in $chans}]\nputs [expr {\"stdout\" in $chans}]\n",
+      "stdout": "1\n1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-26.0",
+      "file": "spec/tests/file/file-26.0.tcl",
+      "script": "# Test: file owned on own file\nset f [open \"/tmp/file-test-26.0.txt\" w]\nclose $f\nputs [file owned /tmp/file-test-26.0.txt]\nfile delete /tmp/file-test-26.0.txt\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-27.0",
+      "file": "spec/tests/file/file-27.0.tcl",
+      "script": "# Test: file tempfile creates file\nset chan [file tempfile fname]\nputs [file exists $fname]\nclose $chan\nfile delete $fname\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-28.0",
+      "file": "spec/tests/file/file-28.0.tcl",
+      "script": "# Test: file tempdir creates directory\nset dir [file tempdir]\nputs [file isdirectory $dir]\nfile delete $dir\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-29.0",
+      "file": "spec/tests/file/file-29.0.tcl",
+      "script": "# Test: error on file size non-existing\ncatch {file size /tmp/nonexistent-xyz-123.txt} err\nputs [expr {$err ne \"\"}]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-29.1",
+      "file": "spec/tests/file/file-29.1.tcl",
+      "script": "# Test: error on invalid subcommand\ncatch {file invalid_subcommand foo} err\nputs [expr {$err ne \"\"}]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-3.0",
+      "file": "spec/tests/file/file-3.0.tcl",
+      "script": "# Test: file extension basic\nputs [file extension /foo/bar.txt]\n",
+      "stdout": ".txt\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-3.1",
+      "file": "spec/tests/file/file-3.1.tcl",
+      "script": "# Test: file extension multiple dots\nputs [file extension /foo/bar.tar.gz]\n",
+      "stdout": ".gz\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-3.2",
+      "file": "spec/tests/file/file-3.2.tcl",
+      "script": "# Test: file extension no extension\nputs [file extension /foo/bar]\n",
+      "stdout": "\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-3.3",
+      "file": "spec/tests/file/file-3.3.tcl",
+      "script": "# Test: file extension hidden file\nputs [file extension .bashrc]\n",
+      "stdout": ".bashrc\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-30.0",
+      "file": "spec/tests/file/file-30.0.tcl",
+      "script": "# Test: file system returns list\nset sys [file system /tmp]\nputs [expr {[llength $sys] \u003e= 1}]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-31.0",
+      "file": "spec/tests/file/file-31.0.tcl",
+      "script": "# Test: file home returns non-empty\nputs [expr {[file home] ne \"\"}]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-32.0",
+      "file": "spec/tests/file/file-32.0.tcl",
+      "script": "# Test: file link creates symlink\nset f [open \"/tmp/file-test-32.0-target.txt\" w]\nclose $f\nfile link -symbolic /tmp/file-test-32.0-link.txt /tmp/file-test-32.0-target.txt\nputs [file type /tmp/file-test-32.0-link.txt]\nfile delete /tmp/file-test-32.0-link.txt /tmp/file-test-32.0-target.txt\n",
+      "stdout": "link\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-32.1",
+      "file": "spec/tests/file/file-32.1.tcl",
+      "script": "# Test: file readlink returns target\nset f [open \"/tmp/file-test-32.1-target.txt\" w]\nclose $f\nfile link -symbolic /tmp/file-test-32.1-link.txt /tmp/file-test-32.1-target.txt\nputs [file readlink /tmp/file-test-32.1-link.txt]\nfile delete /tmp/file-test-32.1-link.txt /tmp/file-test-32.1-target.txt\n",
+      "stdout": "/tmp/file-test-32.1-target.txt\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-4.0",
+      "file": "spec/tests/file/file-4.0.tcl",
+      "script": "# Test: file rootname basic\nputs [file rootname /foo/bar.txt]\n",
+      "stdout": "/foo/bar\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-4.1",
+      "file": "spec/tests/file/file-4.1.tcl",
+      "script": "# Test: file rootname multiple dots\nputs [file rootname /foo/bar.tar.gz]\n",
+      "stdout": "/foo/bar.tar\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-4.2",
+      "file": "spec/tests/file/file-4.2.tcl",
+      "script": "# Test: file rootname no extension\nputs [file rootname /foo/bar]\n",
+      "stdout": "/foo/bar\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-5.0",
+      "file": "spec/tests/file/file-5.0.tcl",
+      "script": "# Test: file join basic\nputs [file join /foo bar baz.txt]\n",
+      "stdout": "/foo/bar/baz.txt\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-5.1",
+      "file": "spec/tests/file/file-5.1.tcl",
+      "script": "# Test: file join with absolute in middle resets\nputs [file join a b /foo bar]\n",
+      "stdout": "/foo/bar\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-5.2",
+      "file": "spec/tests/file/file-5.2.tcl",
+      "script": "# Test: file join single component\nputs [file join foo]\n",
+      "stdout": "foo\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-5.3",
+      "file": "spec/tests/file/file-5.3.tcl",
+      "script": "# Test: file join empty string\nputs [file join \"\" foo bar]\n",
+      "stdout": "foo/bar\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-6.0",
+      "file": "spec/tests/file/file-6.0.tcl",
+      "script": "# Test: file split absolute path\nputs [file split /foo/bar/baz.txt]\n",
+      "stdout": "/ foo bar baz.txt\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-6.1",
+      "file": "spec/tests/file/file-6.1.tcl",
+      "script": "# Test: file split relative path\nputs [file split foo/bar/baz.txt]\n",
+      "stdout": "foo bar baz.txt\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-6.2",
+      "file": "spec/tests/file/file-6.2.tcl",
+      "script": "# Test: file split single component\nputs [file split foo]\n",
+      "stdout": "foo\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-7.0",
+      "file": "spec/tests/file/file-7.0.tcl",
+      "script": "# Test: file exists on existing file\nset f [open \"/tmp/file-test-7.0.txt\" w]\nclose $f\nputs [file exists /tmp/file-test-7.0.txt]\nfile delete /tmp/file-test-7.0.txt\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-7.1",
+      "file": "spec/tests/file/file-7.1.tcl",
+      "script": "# Test: file exists on non-existing file\nputs [file exists /tmp/nonexistent-file-xyz-123.txt]\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-7.2",
+      "file": "spec/tests/file/file-7.2.tcl",
+      "script": "# Test: file exists on directory\nputs [file exists /tmp]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-8.0",
+      "file": "spec/tests/file/file-8.0.tcl",
+      "script": "# Test: file isfile on regular file\nset f [open \"/tmp/file-test-8.0.txt\" w]\nclose $f\nputs [file isfile /tmp/file-test-8.0.txt]\nfile delete /tmp/file-test-8.0.txt\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-8.1",
+      "file": "spec/tests/file/file-8.1.tcl",
+      "script": "# Test: file isfile on directory\nputs [file isfile /tmp]\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-8.2",
+      "file": "spec/tests/file/file-8.2.tcl",
+      "script": "# Test: file isfile on non-existing\nputs [file isfile /tmp/nonexistent-xyz-123.txt]\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-9.0",
+      "file": "spec/tests/file/file-9.0.tcl",
+      "script": "# Test: file isdirectory on directory\nputs [file isdirectory /tmp]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "file-9.1",
+      "file": "spec/tests/file/file-9.1.tcl",
+      "script": "# Test: file isdirectory on file\nset f [open \"/tmp/file-test-9.1.txt\" w]\nclose $f\nputs [file isdirectory /tmp/file-test-9.1.txt]\nfile delete /tmp/file-test-9.1.txt\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    }
+  ]
+}

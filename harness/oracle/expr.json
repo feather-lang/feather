@@ -211,6 +211,46 @@
       "returncode": 0
     },
     {
+      "name": "expr-12.0",
+      "file": "spec/tests/expr/expr-12.0.tcl",
+      "script": "# Test: expr in operator with command substitution\nset mylist {a b c}\nputs [expr {\"a\" in $mylist}]\nputs [expr {\"d\" in $mylist}]\n",
+      "stdout": "1\n0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "expr-12.1",
+      "file": "spec/tests/expr/expr-12.1.tcl",
+      "script": "# Test: expr in operator with list command\nputs [expr {\"a\" in [list a b c]}]\nputs [expr {\"z\" in [list a b c]}]\n",
+      "stdout": "1\n0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "expr-12.2",
+      "file": "spec/tests/expr/expr-12.2.tcl",
+      "script": "# Test: expr ni (not in) operator\nputs [expr {\"a\" ni {a b c}}]\nputs [expr {\"d\" ni {a b c}}]\nputs [expr {\"x\" ni [list x y z]}]\n",
+      "stdout": "0\n1\n0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "expr-12.3",
+      "file": "spec/tests/expr/expr-12.3.tcl",
+      "script": "# Test: expr in operator with empty list\nputs [expr {\"a\" in {}}]\nputs [expr {\"\" in {}}]\nputs [expr {\"a\" ni {}}]\n",
+      "stdout": "0\n0\n1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "expr-12.4",
+      "file": "spec/tests/expr/expr-12.4.tcl",
+      "script": "# Test: expr in operator with proc-defined list\nproc getlist {} { return {apple banana cherry} }\nputs [expr {\"banana\" in [getlist]}]\nputs [expr {\"grape\" in [getlist]}]\n",
+      "stdout": "1\n0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
       "name": "expr-2.0",
       "file": "spec/tests/expr/expr-2.0.tcl",
       "script": "# Test: expr exponentiation\nputs [expr {2 ** 3}]\nputs [expr {2 ** 0}]\nputs [expr {2 ** 10}]\nputs [expr {3 ** 3}]\nputs [expr {10 ** 2}]\n",

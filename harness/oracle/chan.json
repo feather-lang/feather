@@ -1,0 +1,254 @@
+{
+  "feature": "chan",
+  "tclsh": "tclsh",
+  "tests": [
+    {
+      "name": "chan-1.0",
+      "file": "spec/tests/chan/chan-1.0.tcl",
+      "script": "# Test: chan names returns list containing standard channels\nputs [expr {\"stdin\" in [chan names]}]\nputs [expr {\"stdout\" in [chan names]}]\nputs [expr {\"stderr\" in [chan names]}]\n",
+      "stdout": "1\n1\n1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-1.1",
+      "file": "spec/tests/chan/chan-1.1.tcl",
+      "script": "# Test: chan names with pattern filters results\nputs [llength [chan names std*]]\n",
+      "stdout": "3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-10.0",
+      "file": "spec/tests/chan/chan-10.0.tcl",
+      "script": "# Test: chan seek and tell\nset f [open \"/tmp/chan-test-10.0.txt\" w]\nchan puts -nonewline $f \"0123456789\"\nchan close $f\nset f [open \"/tmp/chan-test-10.0.txt\" r]\nputs [chan tell $f]\nchan seek $f 5\nputs [chan tell $f]\nputs [chan read $f]\nchan close $f\nfile delete \"/tmp/chan-test-10.0.txt\"\n",
+      "stdout": "0\n5\n56789\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-10.1",
+      "file": "spec/tests/chan/chan-10.1.tcl",
+      "script": "# Test: chan seek from end\nset f [open \"/tmp/chan-test-10.1.txt\" w]\nchan puts -nonewline $f \"0123456789\"\nchan close $f\nset f [open \"/tmp/chan-test-10.1.txt\" r]\nchan seek $f -3 end\nputs [chan read $f]\nchan close $f\nfile delete \"/tmp/chan-test-10.1.txt\"\n",
+      "stdout": "789\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-10.2",
+      "file": "spec/tests/chan/chan-10.2.tcl",
+      "script": "# Test: chan seek from current\nset f [open \"/tmp/chan-test-10.2.txt\" w]\nchan puts -nonewline $f \"0123456789\"\nchan close $f\nset f [open \"/tmp/chan-test-10.2.txt\" r]\nchan read $f 3\nchan seek $f 2 current\nputs [chan read $f]\nchan close $f\nfile delete \"/tmp/chan-test-10.2.txt\"\n",
+      "stdout": "56789\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-11.0",
+      "file": "spec/tests/chan/chan-11.0.tcl",
+      "script": "# Test: chan eof after reading entire file\nset f [open \"/tmp/chan-test-11.0.txt\" w]\nchan puts $f \"data\"\nchan close $f\nset f [open \"/tmp/chan-test-11.0.txt\" r]\nchan read $f\nputs [chan eof $f]\nchan close $f\nfile delete \"/tmp/chan-test-11.0.txt\"\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-12.0",
+      "file": "spec/tests/chan/chan-12.0.tcl",
+      "script": "# Test: chan truncate\nset f [open \"/tmp/chan-test-12.0.txt\" w]\nchan puts -nonewline $f \"0123456789\"\nchan close $f\nset f [open \"/tmp/chan-test-12.0.txt\" r+]\nchan truncate $f 5\nchan close $f\nset f [open \"/tmp/chan-test-12.0.txt\" r]\nputs [chan read $f]\nchan close $f\nfile delete \"/tmp/chan-test-12.0.txt\"\n",
+      "stdout": "01234\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-12.1",
+      "file": "spec/tests/chan/chan-12.1.tcl",
+      "script": "# Test: chan truncate at current position\nset f [open \"/tmp/chan-test-12.1.txt\" w]\nchan puts -nonewline $f \"0123456789\"\nchan close $f\nset f [open \"/tmp/chan-test-12.1.txt\" r+]\nchan seek $f 3\nchan truncate $f\nchan close $f\nset f [open \"/tmp/chan-test-12.1.txt\" r]\nputs [chan read $f]\nchan close $f\nfile delete \"/tmp/chan-test-12.1.txt\"\n",
+      "stdout": "012\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-13.0",
+      "file": "spec/tests/chan/chan-13.0.tcl",
+      "script": "# Test: chan configure set and query -translation\nset f [open \"/tmp/chan-test-13.0.txt\" w]\nchan configure $f -translation lf\nputs [chan configure $f -translation]\nchan close $f\nfile delete \"/tmp/chan-test-13.0.txt\"\n",
+      "stdout": "lf\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-13.1",
+      "file": "spec/tests/chan/chan-13.1.tcl",
+      "script": "# Test: chan configure -translation binary\nset f [open \"/tmp/chan-test-13.1.txt\" w]\nchan configure $f -translation binary\nputs [chan configure $f -translation]\nchan close $f\nfile delete \"/tmp/chan-test-13.1.txt\"\n",
+      "stdout": "lf\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-14.0",
+      "file": "spec/tests/chan/chan-14.0.tcl",
+      "script": "# Test: chan copy between files\nset f1 [open \"/tmp/chan-test-14.0-src.txt\" w]\nchan puts -nonewline $f1 \"copy this\"\nchan close $f1\nset f1 [open \"/tmp/chan-test-14.0-src.txt\" r]\nset f2 [open \"/tmp/chan-test-14.0-dst.txt\" w]\nputs [chan copy $f1 $f2]\nchan close $f1\nchan close $f2\nset f2 [open \"/tmp/chan-test-14.0-dst.txt\" r]\nputs [chan read $f2]\nchan close $f2\nfile delete \"/tmp/chan-test-14.0-src.txt\" \"/tmp/chan-test-14.0-dst.txt\"\n",
+      "stdout": "9\ncopy this\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-14.1",
+      "file": "spec/tests/chan/chan-14.1.tcl",
+      "script": "# Test: chan copy with -size limit\nset f1 [open \"/tmp/chan-test-14.1-src.txt\" w]\nchan puts -nonewline $f1 \"0123456789\"\nchan close $f1\nset f1 [open \"/tmp/chan-test-14.1-src.txt\" r]\nset f2 [open \"/tmp/chan-test-14.1-dst.txt\" w]\nputs [chan copy $f1 $f2 -size 5]\nchan close $f1\nchan close $f2\nset f2 [open \"/tmp/chan-test-14.1-dst.txt\" r]\nputs [chan read $f2]\nchan close $f2\nfile delete \"/tmp/chan-test-14.1-src.txt\" \"/tmp/chan-test-14.1-dst.txt\"\n",
+      "stdout": "5\n01234\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-15.0",
+      "file": "spec/tests/chan/chan-15.0.tcl",
+      "script": "# Test: error on invalid channel\ncatch {chan close invalid_channel} err\nputs [string match \"*invalid*\" $err]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-15.1",
+      "file": "spec/tests/chan/chan-15.1.tcl",
+      "script": "# Test: error on invalid subcommand\ncatch {chan invalid_subcommand} err\nputs [expr {$err ne \"\"}]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-2.0",
+      "file": "spec/tests/chan/chan-2.0.tcl",
+      "script": "# Test: chan eof on stdin before any read\nputs [chan eof stdin]\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-2.1",
+      "file": "spec/tests/chan/chan-2.1.tcl",
+      "script": "# Test: chan eof on stdout\nputs [chan eof stdout]\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-3.0",
+      "file": "spec/tests/chan/chan-3.0.tcl",
+      "script": "# Test: chan configure returns options list for stdout\nset opts [chan configure stdout]\nputs [expr {[llength $opts] \u003e 0}]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-3.1",
+      "file": "spec/tests/chan/chan-3.1.tcl",
+      "script": "# Test: chan configure -buffering query\nputs [chan configure stdout -buffering]\n",
+      "stdout": "line\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-3.2",
+      "file": "spec/tests/chan/chan-3.2.tcl",
+      "script": "# Test: chan configure -blocking query\nputs [chan configure stdout -blocking]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-3.3",
+      "file": "spec/tests/chan/chan-3.3.tcl",
+      "script": "# Test: chan configure -encoding query\nset enc [chan configure stdout -encoding]\nputs [expr {$enc ne \"\"}]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-4.0",
+      "file": "spec/tests/chan/chan-4.0.tcl",
+      "script": "# Test: chan puts to stdout (no newline option)\nchan puts -nonewline stdout \"hello\"\nchan puts stdout \"\"\n",
+      "stdout": "hello\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-4.1",
+      "file": "spec/tests/chan/chan-4.1.tcl",
+      "script": "# Test: chan puts default channel is stdout\nchan puts \"test output\"\n",
+      "stdout": "test output\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-5.0",
+      "file": "spec/tests/chan/chan-5.0.tcl",
+      "script": "# Test: chan flush stdout\nchan puts -nonewline stdout \"flushed\"\nchan flush stdout\nchan puts stdout \"\"\n",
+      "stdout": "flushed\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-6.0",
+      "file": "spec/tests/chan/chan-6.0.tcl",
+      "script": "# Test: chan blocked on stdin (non-blocking check)\nputs [chan blocked stdin]\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-7.0",
+      "file": "spec/tests/chan/chan-7.0.tcl",
+      "script": "# Test: chan tell on stdout\nset pos [chan tell stdout]\nputs [expr {$pos \u003e= 0 || $pos == -1}]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-8.0",
+      "file": "spec/tests/chan/chan-8.0.tcl",
+      "script": "# Test: chan pending input on stdin\nputs [chan pending input stdin]\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-8.1",
+      "file": "spec/tests/chan/chan-8.1.tcl",
+      "script": "# Test: chan pending output on stdout\nputs [chan pending output stdout]\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-9.0",
+      "file": "spec/tests/chan/chan-9.0.tcl",
+      "script": "# Test: chan open, write, close, read cycle\nset f [open \"/tmp/chan-test-9.0.txt\" w]\nchan puts $f \"line one\"\nchan puts $f \"line two\"\nchan close $f\nset f [open \"/tmp/chan-test-9.0.txt\" r]\nputs [chan gets $f]\nputs [chan gets $f]\nchan close $f\nfile delete \"/tmp/chan-test-9.0.txt\"\n",
+      "stdout": "line one\nline two\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-9.1",
+      "file": "spec/tests/chan/chan-9.1.tcl",
+      "script": "# Test: chan gets with variable for line length\nset f [open \"/tmp/chan-test-9.1.txt\" w]\nchan puts $f \"hello\"\nchan close $f\nset f [open \"/tmp/chan-test-9.1.txt\" r]\nset len [chan gets $f line]\nputs $len\nputs $line\nchan close $f\nfile delete \"/tmp/chan-test-9.1.txt\"\n",
+      "stdout": "5\nhello\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-9.2",
+      "file": "spec/tests/chan/chan-9.2.tcl",
+      "script": "# Test: chan read entire file\nset f [open \"/tmp/chan-test-9.2.txt\" w]\nchan puts -nonewline $f \"content\"\nchan close $f\nset f [open \"/tmp/chan-test-9.2.txt\" r]\nputs [chan read $f]\nchan close $f\nfile delete \"/tmp/chan-test-9.2.txt\"\n",
+      "stdout": "content\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "chan-9.3",
+      "file": "spec/tests/chan/chan-9.3.tcl",
+      "script": "# Test: chan read with size limit\nset f [open \"/tmp/chan-test-9.3.txt\" w]\nchan puts -nonewline $f \"0123456789\"\nchan close $f\nset f [open \"/tmp/chan-test-9.3.txt\" r]\nputs [chan read $f 5]\nchan close $f\nfile delete \"/tmp/chan-test-9.3.txt\"\n",
+      "stdout": "01234\n",
+      "stderr": "",
+      "returncode": 0
+    }
+  ]
+}
