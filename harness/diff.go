@@ -211,6 +211,35 @@ func saveResults(featureID string, result DiffResult) error {
 	return nil
 }
 
+// RunAllDiffs runs differential tests for all features with test directories
+func RunAllDiffs() error {
+	testDir := filepath.Join("spec", "tests")
+	entries, err := os.ReadDir(testDir)
+	if err != nil {
+		return fmt.Errorf("reading test directory: %w", err)
+	}
+
+	var totalPassed, totalFailed int
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		featureID := e.Name()
+		if err := RunDiff(featureID); err != nil {
+			fmt.Printf("Error running diff for %s: %v\n", featureID, err)
+		}
+		// Load results to accumulate totals
+		if result, _ := LoadResults(featureID); result != nil {
+			totalPassed += result.Passed
+			totalFailed += result.Failed
+		}
+	}
+
+	fmt.Println()
+	fmt.Printf("=== Overall: %d passed, %d failed ===\n", totalPassed, totalFailed)
+	return nil
+}
+
 // LoadResults loads test results for a feature
 func LoadResults(featureID string) (*DiffResult, error) {
 	resultsFile := filepath.Join("harness", "results", featureID+".json")

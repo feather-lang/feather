@@ -145,11 +145,9 @@ ifndef FEATURE
 endif
 	@TCLC_INTERP=$(TCLC) $(HARNESS) diff $(FEATURE)
 
-# Run differential tests for all features (auto-discovered from spec/tests/)
+# Run differential tests for all features
 diff-all: $(HARNESS) $(TCLC)
-	@for feature in $$(ls -d $(SPEC_DIR)/tests/*/ 2>/dev/null | xargs -n1 basename); do \
-		TCLC_INTERP=$(TCLC) $(HARNESS) diff $$feature; \
-	done
+	@TCLC_INTERP=$(TCLC) $(HARNESS) diff
 
 # Agent Prompt Generation
 prompt: $(HARNESS)

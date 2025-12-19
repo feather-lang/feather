@@ -25,10 +25,10 @@ func main() {
 
 	case "diff":
 		if len(args) == 0 {
-			fmt.Fprintln(os.Stderr, "Usage: harness diff <feature>")
-			os.Exit(1)
+			err = RunAllDiffs()
+		} else {
+			err = RunDiff(args[0])
 		}
-		err = RunDiff(args[0])
 
 	case "prompt":
 		if len(args) == 0 {
@@ -78,8 +78,9 @@ Usage: harness <command> [arguments]
 Commands:
   oracle [feature]   Generate expected outputs from tclsh
                      Without feature: generate for all features
-  
-  diff <feature>     Run differential tests against oracle
+
+  diff [feature]     Run differential tests against oracle
+                     Without feature: run for all features
   
   prompt <feature>   Generate agent prompt for failing tests
   

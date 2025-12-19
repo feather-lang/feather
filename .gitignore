@@ -66,3 +66,4 @@ coverage.html
 *.temp
 *.log
 hosts/go/go
+bin/harness
