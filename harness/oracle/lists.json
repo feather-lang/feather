@@ -235,6 +235,118 @@
       "returncode": 0
     },
     {
+      "name": "lassign-1.0",
+      "file": "spec/tests/lists/lassign-1.0.tcl",
+      "script": "# Test: lassign basic\nlassign {a b c} x y z\nputs \"$x $y $z\"\n",
+      "stdout": "a b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lassign-1.1",
+      "file": "spec/tests/lists/lassign-1.1.tcl",
+      "script": "# Test: lassign fewer elements than vars\nlassign {a b} x y z\nputs \"$x $y $z\"\n",
+      "stdout": "a b \n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lassign-1.2",
+      "file": "spec/tests/lists/lassign-1.2.tcl",
+      "script": "# Test: lassign more elements than vars (returns remaining)\nputs [lassign {a b c d e} x y]\n",
+      "stdout": "c d e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lassign-1.3",
+      "file": "spec/tests/lists/lassign-1.3.tcl",
+      "script": "# Test: lassign empty list\nlassign {} x y z\nputs \"$x $y $z\"\n",
+      "stdout": "  \n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lassign-1.4",
+      "file": "spec/tests/lists/lassign-1.4.tcl",
+      "script": "# Test: lassign no variables\nputs [lassign {a b c}]\n",
+      "stdout": "a b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lassign-1.5",
+      "file": "spec/tests/lists/lassign-1.5.tcl",
+      "script": "# Test: lassign with nested list\nlassign {{a b} c {d e}} x y z\nputs \"$x $y $z\"\n",
+      "stdout": "a b c d e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lassign-2.0",
+      "file": "spec/tests/lists/lassign-2.0.tcl",
+      "script": "# Test: lassign wrong args\ncatch {lassign} msg\nputs $msg\n",
+      "stdout": "wrong # args: should be \"lassign list ?varName ...?\"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "ledit-1.0",
+      "file": "spec/tests/lists/ledit-1.0.tcl",
+      "script": "# Test: ledit replace single element\nset x {a b c d e}\nputs [ledit x 1 1 foo]\n",
+      "stdout": "a foo c d e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "ledit-1.1",
+      "file": "spec/tests/lists/ledit-1.1.tcl",
+      "script": "# Test: ledit replace range with multiple\nset x {a b c d e}\nputs [ledit x 1 2 x y z]\n",
+      "stdout": "a x y z d e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "ledit-1.2",
+      "file": "spec/tests/lists/ledit-1.2.tcl",
+      "script": "# Test: ledit delete elements\nset x {a b c d e}\nputs [ledit x 1 2]\n",
+      "stdout": "a d e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "ledit-1.3",
+      "file": "spec/tests/lists/ledit-1.3.tcl",
+      "script": "# Test: ledit prepend\nset x {c d e}\nputs [ledit x -1 -1 a b]\n",
+      "stdout": "a b c d e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "ledit-1.4",
+      "file": "spec/tests/lists/ledit-1.4.tcl",
+      "script": "# Test: ledit append\nset x {a b c}\nputs [ledit x end+1 end+1 d e]\n",
+      "stdout": "a b c d e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "ledit-1.5",
+      "file": "spec/tests/lists/ledit-1.5.tcl",
+      "script": "# Test: ledit insert (last \u003c first)\nset x {a b c d e}\nputs [ledit x 2 1 x y]\n",
+      "stdout": "a b x y c d e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "ledit-2.0",
+      "file": "spec/tests/lists/ledit-2.0.tcl",
+      "script": "# Test: ledit wrong args\ncatch {ledit x} msg\nputs $msg\n",
+      "stdout": "wrong # args: should be \"ledit listVar first last ?element ...?\"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
       "name": "lindex-1.0",
       "file": "spec/tests/lists/lindex-1.0.tcl",
       "script": "# Test: lindex basic indexing\nputs [lindex {a b c} 0]\nputs [lindex {a b c} 1]\nputs [lindex {a b c} 2]\n",
@@ -359,6 +471,86 @@
       "file": "spec/tests/lists/lindex-3.4.tcl",
       "script": "# Test: lindex on list with empty elements\nputs \"[lindex {{} a {} b {}} 0].\"\nputs [lindex {{} a {} b {}} 1]\nputs \"[lindex {{} a {} b {}} 2].\"\n",
       "stdout": ".\na\n.\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "linsert-1.0",
+      "file": "spec/tests/lists/linsert-1.0.tcl",
+      "script": "# Test: linsert basic at beginning\nputs [linsert {a b c} 0 x]\n",
+      "stdout": "x a b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "linsert-1.1",
+      "file": "spec/tests/lists/linsert-1.1.tcl",
+      "script": "# Test: linsert at middle\nputs [linsert {a b c} 1 x]\n",
+      "stdout": "a x b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "linsert-1.2",
+      "file": "spec/tests/lists/linsert-1.2.tcl",
+      "script": "# Test: linsert at end\nputs [linsert {a b c} end x]\n",
+      "stdout": "a b c x\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "linsert-1.3",
+      "file": "spec/tests/lists/linsert-1.3.tcl",
+      "script": "# Test: linsert multiple elements\nputs [linsert {a b c} 1 x y z]\n",
+      "stdout": "a x y z b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "linsert-1.4",
+      "file": "spec/tests/lists/linsert-1.4.tcl",
+      "script": "# Test: linsert with end-N\nputs [linsert {a b c d e} end-1 x]\n",
+      "stdout": "a b c d x e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "linsert-1.5",
+      "file": "spec/tests/lists/linsert-1.5.tcl",
+      "script": "# Test: linsert negative index (prepend)\nputs [linsert {a b c} -1 x]\n",
+      "stdout": "x a b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "linsert-1.6",
+      "file": "spec/tests/lists/linsert-1.6.tcl",
+      "script": "# Test: linsert past end (append)\nputs [linsert {a b c} 100 x]\n",
+      "stdout": "a b c x\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "linsert-1.7",
+      "file": "spec/tests/lists/linsert-1.7.tcl",
+      "script": "# Test: linsert empty list\nputs [linsert {} 0 x]\n",
+      "stdout": "x\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "linsert-1.8",
+      "file": "spec/tests/lists/linsert-1.8.tcl",
+      "script": "# Test: linsert no elements (return original)\nputs [linsert {a b c} 1]\n",
+      "stdout": "a b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "linsert-2.0",
+      "file": "spec/tests/lists/linsert-2.0.tcl",
+      "script": "# Test: linsert wrong args\ncatch {linsert {a b c}} msg\nputs $msg\n",
+      "stdout": "wrong # args: should be \"linsert list index ?element ...?\"\n",
       "stderr": "",
       "returncode": 0
     },
@@ -611,6 +803,126 @@
       "returncode": 0
     },
     {
+      "name": "lmap-1.0",
+      "file": "spec/tests/lists/lmap-1.0.tcl",
+      "script": "# Test: lmap basic\nputs [lmap x {1 2 3 4} {expr {$x * 2}}]\n",
+      "stdout": "2 4 6 8\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lmap-1.1",
+      "file": "spec/tests/lists/lmap-1.1.tcl",
+      "script": "# Test: lmap with two lists\nputs [lmap a {1 2 3} b {a b c} {list $a $b}]\n",
+      "stdout": "{1 a} {2 b} {3 c}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lmap-1.2",
+      "file": "spec/tests/lists/lmap-1.2.tcl",
+      "script": "# Test: lmap empty list\nputs [lmap x {} {expr {$x * 2}}]\n",
+      "stdout": "\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lmap-1.3",
+      "file": "spec/tests/lists/lmap-1.3.tcl",
+      "script": "# Test: lmap with continue\nputs [lmap x {1 2 3 4 5} {if {$x == 3} continue; expr {$x * 2}}]\n",
+      "stdout": "2 4 8 10\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lmap-1.4",
+      "file": "spec/tests/lists/lmap-1.4.tcl",
+      "script": "# Test: lmap with break\nputs [lmap x {1 2 3 4 5} {if {$x == 3} break; expr {$x * 2}}]\n",
+      "stdout": "2 4\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lmap-1.5",
+      "file": "spec/tests/lists/lmap-1.5.tcl",
+      "script": "# Test: lmap multiple vars per list\nputs [lmap {a b} {1 2 3 4 5 6} {expr {$a + $b}}]\n",
+      "stdout": "3 7 11\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lmap-1.6",
+      "file": "spec/tests/lists/lmap-1.6.tcl",
+      "script": "# Test: lmap uneven lists\nputs [lmap a {1 2 3} b {a b} {list $a $b}]\n",
+      "stdout": "{1 a} {2 b} {3 {}}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lmap-2.0",
+      "file": "spec/tests/lists/lmap-2.0.tcl",
+      "script": "# Test: lmap wrong args\ncatch {lmap x} msg\nputs $msg\n",
+      "stdout": "wrong # args: should be \"lmap varList list ?varList list ...? command\"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lpop-1.0",
+      "file": "spec/tests/lists/lpop-1.0.tcl",
+      "script": "# Test: lpop default (end)\nset x {a b c d e}\nset result [lpop x]\nputs \"$result $x\"\n",
+      "stdout": "e a b c d\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lpop-1.1",
+      "file": "spec/tests/lists/lpop-1.1.tcl",
+      "script": "# Test: lpop first element\nset x {a b c d e}\nset result [lpop x 0]\nputs \"$result $x\"\n",
+      "stdout": "a b c d e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lpop-1.2",
+      "file": "spec/tests/lists/lpop-1.2.tcl",
+      "script": "# Test: lpop middle element\nset x {a b c d e}\nset result [lpop x 2]\nputs \"$result $x\"\n",
+      "stdout": "c a b d e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lpop-1.3",
+      "file": "spec/tests/lists/lpop-1.3.tcl",
+      "script": "# Test: lpop end-N\nset x {a b c d e}\nset result [lpop x end-1]\nputs \"$result $x\"\n",
+      "stdout": "d a b c e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lpop-1.4",
+      "file": "spec/tests/lists/lpop-1.4.tcl",
+      "script": "# Test: lpop nested index\nset x {{a b c} {d e f} {g h i}}\nset result [lpop x 1 1]\nputs \"$result $x\"\n",
+      "stdout": "e {a b c} {d f} {g h i}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lpop-2.0",
+      "file": "spec/tests/lists/lpop-2.0.tcl",
+      "script": "# Test: lpop wrong args\ncatch {lpop} msg\nputs $msg\n",
+      "stdout": "wrong # args: should be \"lpop listvar ?index?\"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lpop-2.1",
+      "file": "spec/tests/lists/lpop-2.1.tcl",
+      "script": "# Test: lpop index out of range\nset x {a b c}\ncatch {lpop x 10} msg\nputs $msg\n",
+      "stdout": "index \"10\" out of range\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
       "name": "lrange-1.0",
       "file": "spec/tests/lists/lrange-1.0.tcl",
       "script": "# Test: lrange basic\nputs [lrange {a b c d e} 1 3]\n",
@@ -743,6 +1055,542 @@
       "file": "spec/tests/lists/lrange-3.3.tcl",
       "script": "# Test: lrange with mixed end and number indices\nputs [lrange {a b c d e} 1 end-2]\n",
       "stdout": "b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lremove-1.0",
+      "file": "spec/tests/lists/lremove-1.0.tcl",
+      "script": "# Test: lremove single index\nputs [lremove {a b c d e} 2]\n",
+      "stdout": "a b d e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lremove-1.1",
+      "file": "spec/tests/lists/lremove-1.1.tcl",
+      "script": "# Test: lremove multiple indices\nputs [lremove {a b c d e} 1 3]\n",
+      "stdout": "a c e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lremove-1.2",
+      "file": "spec/tests/lists/lremove-1.2.tcl",
+      "script": "# Test: lremove end-N index\nputs [lremove {a b c d e} end-1]\n",
+      "stdout": "a b c e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lremove-1.3",
+      "file": "spec/tests/lists/lremove-1.3.tcl",
+      "script": "# Test: lremove duplicate indices\nputs [lremove {a b c d e} 2 end-2]\n",
+      "stdout": "a b d e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lremove-1.4",
+      "file": "spec/tests/lists/lremove-1.4.tcl",
+      "script": "# Test: lremove no indices\nputs [lremove {a b c d e}]\n",
+      "stdout": "a b c d e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lremove-1.5",
+      "file": "spec/tests/lists/lremove-1.5.tcl",
+      "script": "# Test: lremove indices out of order\nputs [lremove {a b c d e} 3 1]\n",
+      "stdout": "a c e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lremove-2.0",
+      "file": "spec/tests/lists/lremove-2.0.tcl",
+      "script": "# Test: lremove wrong args\ncatch {lremove} msg\nputs $msg\n",
+      "stdout": "wrong # args: should be \"lremove list ?index ...?\"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lrepeat-1.0",
+      "file": "spec/tests/lists/lrepeat-1.0.tcl",
+      "script": "# Test: lrepeat basic\nputs [lrepeat 3 a]\n",
+      "stdout": "a a a\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lrepeat-1.1",
+      "file": "spec/tests/lists/lrepeat-1.1.tcl",
+      "script": "# Test: lrepeat zero count\nputs [lrepeat 0 a]\n",
+      "stdout": "\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lrepeat-1.2",
+      "file": "spec/tests/lists/lrepeat-1.2.tcl",
+      "script": "# Test: lrepeat multiple elements\nputs [lrepeat 3 a b c]\n",
+      "stdout": "a b c a b c a b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lrepeat-1.3",
+      "file": "spec/tests/lists/lrepeat-1.3.tcl",
+      "script": "# Test: lrepeat nested list\nputs [lrepeat 3 {a b}]\n",
+      "stdout": "{a b} {a b} {a b}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lrepeat-1.4",
+      "file": "spec/tests/lists/lrepeat-1.4.tcl",
+      "script": "# Test: lrepeat count 1 is like list\nputs [lrepeat 1 a b c]\n",
+      "stdout": "a b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lrepeat-2.0",
+      "file": "spec/tests/lists/lrepeat-2.0.tcl",
+      "script": "# Test: lrepeat no elements\nputs [lrepeat 3]\n",
+      "stdout": "\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lrepeat-2.1",
+      "file": "spec/tests/lists/lrepeat-2.1.tcl",
+      "script": "# Test: lrepeat negative count error\ncatch {lrepeat -1 a} msg\nputs $msg\n",
+      "stdout": "bad count \"-1\": must be integer \u003e= 0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lrepeat-2.2",
+      "file": "spec/tests/lists/lrepeat-2.2.tcl",
+      "script": "# Test: lrepeat wrong args\ncatch {lrepeat} msg\nputs $msg\n",
+      "stdout": "wrong # args: should be \"lrepeat count ?value ...?\"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lreplace-1.0",
+      "file": "spec/tests/lists/lreplace-1.0.tcl",
+      "script": "# Test: lreplace single element\nputs [lreplace {a b c d e} 1 1 foo]\n",
+      "stdout": "a foo c d e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lreplace-1.1",
+      "file": "spec/tests/lists/lreplace-1.1.tcl",
+      "script": "# Test: lreplace two elements with three\nputs [lreplace {a b c d e} 1 2 three more elements]\n",
+      "stdout": "a three more elements d e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lreplace-1.2",
+      "file": "spec/tests/lists/lreplace-1.2.tcl",
+      "script": "# Test: lreplace delete element (no replacement)\nputs [lreplace {a b c d e} end end]\n",
+      "stdout": "a b c d\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lreplace-1.3",
+      "file": "spec/tests/lists/lreplace-1.3.tcl",
+      "script": "# Test: lreplace delete range\nputs [lreplace {a b c d e} 1 3]\n",
+      "stdout": "a e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lreplace-1.4",
+      "file": "spec/tests/lists/lreplace-1.4.tcl",
+      "script": "# Test: lreplace insert (last \u003c first)\nputs [lreplace {a b c d e} 2 1 x y]\n",
+      "stdout": "a b x y c d e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lreplace-1.5",
+      "file": "spec/tests/lists/lreplace-1.5.tcl",
+      "script": "# Test: lreplace at beginning\nputs [lreplace {a b c d e} 0 0 x]\n",
+      "stdout": "x b c d e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lreplace-1.6",
+      "file": "spec/tests/lists/lreplace-1.6.tcl",
+      "script": "# Test: lreplace with end-N\nputs [lreplace {a b c d e} end-1 end x]\n",
+      "stdout": "a b c x\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lreplace-1.7",
+      "file": "spec/tests/lists/lreplace-1.7.tcl",
+      "script": "# Test: lreplace prepend (negative indices)\nputs [lreplace {a b c} -1 -1 x y]\n",
+      "stdout": "x y a b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lreplace-1.8",
+      "file": "spec/tests/lists/lreplace-1.8.tcl",
+      "script": "# Test: lreplace append (past end)\nputs [lreplace {a b c} 100 100 x y]\n",
+      "stdout": "a b c x y\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lreplace-2.0",
+      "file": "spec/tests/lists/lreplace-2.0.tcl",
+      "script": "# Test: lreplace wrong args\ncatch {lreplace {a b c}} msg\nputs $msg\n",
+      "stdout": "wrong # args: should be \"lreplace list first last ?element ...?\"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lreverse-1.0",
+      "file": "spec/tests/lists/lreverse-1.0.tcl",
+      "script": "# Test: lreverse basic functionality\nputs [lreverse {a b c d e}]\n",
+      "stdout": "e d c b a\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lreverse-1.1",
+      "file": "spec/tests/lists/lreverse-1.1.tcl",
+      "script": "# Test: lreverse empty list\nputs [lreverse {}]\n",
+      "stdout": "\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lreverse-1.2",
+      "file": "spec/tests/lists/lreverse-1.2.tcl",
+      "script": "# Test: lreverse single element\nputs [lreverse {a}]\n",
+      "stdout": "a\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lreverse-1.3",
+      "file": "spec/tests/lists/lreverse-1.3.tcl",
+      "script": "# Test: lreverse with nested list\nputs [lreverse {a b {c d} e f}]\n",
+      "stdout": "f e {c d} b a\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lreverse-1.4",
+      "file": "spec/tests/lists/lreverse-1.4.tcl",
+      "script": "# Test: lreverse with duplicates\nputs [lreverse {a a b c}]\n",
+      "stdout": "c b a a\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lreverse-2.0",
+      "file": "spec/tests/lists/lreverse-2.0.tcl",
+      "script": "# Test: lreverse wrong args\ncatch {lreverse} msg\nputs $msg\n",
+      "stdout": "wrong # args: should be \"lreverse list\"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lreverse-2.1",
+      "file": "spec/tests/lists/lreverse-2.1.tcl",
+      "script": "# Test: lreverse too many args\ncatch {lreverse a b} msg\nputs $msg\n",
+      "stdout": "wrong # args: should be \"lreverse list\"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsearch-1.0",
+      "file": "spec/tests/lists/lsearch-1.0.tcl",
+      "script": "# Test: lsearch basic (glob default)\nputs [lsearch {a b c d e} c]\n",
+      "stdout": "2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsearch-1.1",
+      "file": "spec/tests/lists/lsearch-1.1.tcl",
+      "script": "# Test: lsearch not found\nputs [lsearch {a b c d e} x]\n",
+      "stdout": "-1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsearch-1.2",
+      "file": "spec/tests/lists/lsearch-1.2.tcl",
+      "script": "# Test: lsearch -exact\nputs [lsearch -exact {a b c d e} c]\n",
+      "stdout": "2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsearch-1.3",
+      "file": "spec/tests/lists/lsearch-1.3.tcl",
+      "script": "# Test: lsearch -glob with wildcard\nputs [lsearch -glob {apple banana cherry} b*]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsearch-1.4",
+      "file": "spec/tests/lists/lsearch-1.4.tcl",
+      "script": "# Test: lsearch -regexp\nputs [lsearch -regexp {apple banana cherry} {^b.*a$}]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsearch-1.5",
+      "file": "spec/tests/lists/lsearch-1.5.tcl",
+      "script": "# Test: lsearch -all\nputs [lsearch -all {a b c a b c} c]\n",
+      "stdout": "2 5\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsearch-1.6",
+      "file": "spec/tests/lists/lsearch-1.6.tcl",
+      "script": "# Test: lsearch -inline\nputs [lsearch -inline {a20 b35 c47} b*]\n",
+      "stdout": "b35\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsearch-1.7",
+      "file": "spec/tests/lists/lsearch-1.7.tcl",
+      "script": "# Test: lsearch -all -inline\nputs [lsearch -all -inline {a20 b35 c47 b99} b*]\n",
+      "stdout": "b35 b99\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsearch-1.8",
+      "file": "spec/tests/lists/lsearch-1.8.tcl",
+      "script": "# Test: lsearch -not\nputs [lsearch -not {a b c d e} b]\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsearch-1.9",
+      "file": "spec/tests/lists/lsearch-1.9.tcl",
+      "script": "# Test: lsearch -start\nputs [lsearch -start 3 {a b c a b c} c]\n",
+      "stdout": "5\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsearch-2.0",
+      "file": "spec/tests/lists/lsearch-2.0.tcl",
+      "script": "# Test: lsearch -nocase\nputs [lsearch -nocase -exact {Apple Banana Cherry} banana]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsearch-2.1",
+      "file": "spec/tests/lists/lsearch-2.1.tcl",
+      "script": "# Test: lsearch -integer -sorted\nputs [lsearch -integer -sorted {1 5 10 20 50} 10]\n",
+      "stdout": "2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsearch-2.2",
+      "file": "spec/tests/lists/lsearch-2.2.tcl",
+      "script": "# Test: lsearch empty list\nputs [lsearch {} x]\n",
+      "stdout": "-1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsearch-3.0",
+      "file": "spec/tests/lists/lsearch-3.0.tcl",
+      "script": "# Test: lsearch wrong args\ncatch {lsearch} msg\nputs $msg\n",
+      "stdout": "wrong # args: should be \"lsearch ?-option value ...? list pattern\"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lseq-1.0",
+      "file": "spec/tests/lists/lseq-1.0.tcl",
+      "script": "# Test: lseq simple count\nputs [lseq 5]\n",
+      "stdout": "0 1 2 3 4\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lseq-1.1",
+      "file": "spec/tests/lists/lseq-1.1.tcl",
+      "script": "# Test: lseq start to end\nputs [lseq 1 to 5]\n",
+      "stdout": "1 2 3 4 5\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lseq-1.2",
+      "file": "spec/tests/lists/lseq-1.2.tcl",
+      "script": "# Test: lseq decreasing\nputs [lseq 5 to 1]\n",
+      "stdout": "5 4 3 2 1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lseq-1.3",
+      "file": "spec/tests/lists/lseq-1.3.tcl",
+      "script": "# Test: lseq with step\nputs [lseq 1 to 10 by 2]\n",
+      "stdout": "1 3 5 7 9\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lseq-1.4",
+      "file": "spec/tests/lists/lseq-1.4.tcl",
+      "script": "# Test: lseq with negative step\nputs [lseq 10 .. 1 by -2]\n",
+      "stdout": "10 8 6 4 2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lseq-1.5",
+      "file": "spec/tests/lists/lseq-1.5.tcl",
+      "script": "# Test: lseq with start end (no to)\nputs [lseq 3 0]\n",
+      "stdout": "3 2 1 0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lseq-1.6",
+      "file": "spec/tests/lists/lseq-1.6.tcl",
+      "script": "# Test: lseq count form\nputs [lseq 1 count 5]\n",
+      "stdout": "1 2 3 4 5\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lseq-1.7",
+      "file": "spec/tests/lists/lseq-1.7.tcl",
+      "script": "# Test: lseq with doubles\nputs [lseq 0 0.5 by 0.1]\n",
+      "stdout": "0.0 0.1 0.2 0.3 0.4 0.5\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lseq-1.8",
+      "file": "spec/tests/lists/lseq-1.8.tcl",
+      "script": "# Test: lseq zero count\nputs [lseq 0]\n",
+      "stdout": "\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lseq-1.9",
+      "file": "spec/tests/lists/lseq-1.9.tcl",
+      "script": "# Test: lseq wrong step direction (empty result)\nputs [lseq 1 to 5 by -1]\n",
+      "stdout": "\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lseq-2.0",
+      "file": "spec/tests/lists/lseq-2.0.tcl",
+      "script": "# Test: lseq wrong args\ncatch {lseq} msg\nputs $msg\n",
+      "stdout": "wrong # args: should be \"lseq n ??op? n ??by? n??\"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lseq-2.1",
+      "file": "spec/tests/lists/lseq-2.1.tcl",
+      "script": "# Test: lseq negative count\nputs [lseq 0 -5]\n",
+      "stdout": "0 -1 -2 -3 -4 -5\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lset-1.0",
+      "file": "spec/tests/lists/lset-1.0.tcl",
+      "script": "# Test: lset single index\nset x {a b c d e}\nputs [lset x 1 foo]\n",
+      "stdout": "a foo c d e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lset-1.1",
+      "file": "spec/tests/lists/lset-1.1.tcl",
+      "script": "# Test: lset end index\nset x {a b c d e}\nputs [lset x end foo]\n",
+      "stdout": "a b c d foo\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lset-1.2",
+      "file": "spec/tests/lists/lset-1.2.tcl",
+      "script": "# Test: lset end-N index\nset x {a b c d e}\nputs [lset x end-1 foo]\n",
+      "stdout": "a b c foo e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lset-1.3",
+      "file": "spec/tests/lists/lset-1.3.tcl",
+      "script": "# Test: lset nested index\nset x {{a b c} {d e f} {g h i}}\nputs [lset x 1 1 foo]\n",
+      "stdout": "{a b c} {d foo f} {g h i}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lset-1.4",
+      "file": "spec/tests/lists/lset-1.4.tcl",
+      "script": "# Test: lset index list\nset x {{a b c} {d e f} {g h i}}\nputs [lset x {1 2} foo]\n",
+      "stdout": "{a b c} {d e foo} {g h i}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lset-1.5",
+      "file": "spec/tests/lists/lset-1.5.tcl",
+      "script": "# Test: lset no index (replace entire variable)\nset x {a b c}\nputs [lset x {} {x y z}]\n",
+      "stdout": "x y z\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lset-1.6",
+      "file": "spec/tests/lists/lset-1.6.tcl",
+      "script": "# Test: lset append to list\nset x {a b c}\nputs [lset x 3 d]\n",
+      "stdout": "a b c d\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lset-2.0",
+      "file": "spec/tests/lists/lset-2.0.tcl",
+      "script": "# Test: lset index out of range\nset x {a b c}\ncatch {lset x 5 foo} msg\nputs $msg\n",
+      "stdout": "index \"5\" out of range\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lset-2.1",
+      "file": "spec/tests/lists/lset-2.1.tcl",
+      "script": "# Test: lset wrong args\ncatch {lset x} msg\nputs $msg\n",
+      "stdout": "wrong # args: should be \"lset listVar ?index? ?index ...? value\"\n",
       "stderr": "",
       "returncode": 0
     },

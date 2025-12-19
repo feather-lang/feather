@@ -27,6 +27,7 @@
 
 /* Sorted alphabetically for binary search */
 static const TclBuiltinEntry builtinTable[] = {
+    {"after",    tclCmdAfter},
     {"append",   tclCmdAppend},
     {"array",    tclCmdArray},
     {"break",    tclCmdBreak},
@@ -39,6 +40,7 @@ static const TclBuiltinEntry builtinTable[] = {
     {"exec",     tclCmdExec},
     {"expr",     tclCmdExpr},
     {"file",     tclCmdFile},
+    {"fileevent", tclCmdFileevent},
     {"for",      tclCmdFor},
     {"foreach",  tclCmdForeach},
     {"gets",     tclCmdGets},
@@ -57,6 +59,8 @@ static const TclBuiltinEntry builtinTable[] = {
     {"proc",     tclCmdProc},
     {"puts",     tclCmdPuts},
     {"read",     tclCmdRead},
+    {"regexp",   tclCmdRegexp},
+    {"regsub",   tclCmdRegsub},
     {"return",   tclCmdReturn},
     {"set",      tclCmdSet},
     {"split",    tclCmdSplit},
@@ -65,8 +69,10 @@ static const TclBuiltinEntry builtinTable[] = {
     {"throw",    tclCmdThrow},
     {"try",      tclCmdTry},
     {"unset",    tclCmdUnset},
+    {"update",   tclCmdUpdate},
     {"uplevel",  tclCmdUplevel},
     {"upvar",    tclCmdUpvar},
+    {"vwait",    tclCmdVwait},
     {"while",    tclCmdWhile},
 };
 

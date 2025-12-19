@@ -257,11 +257,11 @@ features:
     description: "Regular expression support (regexp, regsub)"
     depends: [eval]
     phase: 6
-    status: pending
+    status: in_progress
     tests: ["regexp-*", "regsub-*"]
     source_files:
-      - path: core/builtins.c
-        description: Built-in commands
+      - path: core/builtin_regexp.c
+        description: Regexp command implementation
 
   - id: info
     description: "Introspection commands"

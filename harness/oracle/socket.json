@@ -1,0 +1,390 @@
+{
+  "feature": "socket",
+  "tclsh": "tclsh",
+  "tests": [
+    {
+      "name": "socket-1.0",
+      "file": "spec/tests/socket/socket-1.0.tcl",
+      "script": "# Test: socket command exists\nputs [info commands socket]\n",
+      "stdout": "socket\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-1.1",
+      "file": "spec/tests/socket/socket-1.1.tcl",
+      "script": "# Test: socket with no arguments - should error\ncatch {socket} result\nputs $result\n",
+      "stdout": "wrong # args: should be \"socket ?-async? ?-myaddr addr? ?-myport myport? host port\" or \"socket -server command ?-backlog count? ?-myaddr addr? ?-reuseaddr boolean? ?-reuseport boolean? port\"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-1.2",
+      "file": "spec/tests/socket/socket-1.2.tcl",
+      "script": "# Test: socket with only host - should error\ncatch {socket localhost} result\nputs $result\n",
+      "stdout": "wrong # args: should be \"socket ?-async? ?-myaddr addr? ?-myport myport? host port\" or \"socket -server command ?-backlog count? ?-myaddr addr? ?-reuseaddr boolean? ?-reuseport boolean? port\"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-1.3",
+      "file": "spec/tests/socket/socket-1.3.tcl",
+      "script": "# Test: socket with invalid port - should error\ncatch {socket localhost notaport} result\nputs $result\n",
+      "stdout": "expected integer but got \"notaport\"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-1.4",
+      "file": "spec/tests/socket/socket-1.4.tcl",
+      "script": "# Test: socket with negative port - should error\ncatch {socket localhost -1} result\nputs $result\n",
+      "stdout": "couldn't open socket: nodename nor servname provided, or not known\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-1.5",
+      "file": "spec/tests/socket/socket-1.5.tcl",
+      "script": "# Test: socket with port out of range - should error\ncatch {socket localhost 99999} result\nputs $result\n",
+      "stdout": "couldn't open socket: port number too high\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-2.0",
+      "file": "spec/tests/socket/socket-2.0.tcl",
+      "script": "# Test: socket -server with no command - should error\ncatch {socket -server} result\nputs $result\n",
+      "stdout": "no argument given for -server option\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-2.1",
+      "file": "spec/tests/socket/socket-2.1.tcl",
+      "script": "# Test: socket -server with no port - should error\ncatch {socket -server mycallback} result\nputs $result\n",
+      "stdout": "wrong # args: should be \"socket ?-async? ?-myaddr addr? ?-myport myport? host port\" or \"socket -server command ?-backlog count? ?-myaddr addr? ?-reuseaddr boolean? ?-reuseport boolean? port\"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-2.2",
+      "file": "spec/tests/socket/socket-2.2.tcl",
+      "script": "# Test: socket -server with invalid port\ncatch {socket -server mycallback notaport} result\nputs $result\n",
+      "stdout": "couldn't open socket: invalid port number\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-2.3",
+      "file": "spec/tests/socket/socket-2.3.tcl",
+      "script": "# Test: socket -server creates a channel (port 0 = OS allocates)\nset srv [socket -server {apply {{chan addr port} {}}} 0]\nputs [string match sock* $srv]\nclose $srv\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-2.4",
+      "file": "spec/tests/socket/socket-2.4.tcl",
+      "script": "# Test: socket -server with -myaddr option\nset srv [socket -server {apply {{chan addr port} {}}} -myaddr localhost 0]\nputs [string match sock* $srv]\nclose $srv\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-2.5",
+      "file": "spec/tests/socket/socket-2.5.tcl",
+      "script": "# Test: socket -server sockname returns address info\nset srv [socket -server {apply {{chan addr port} {}}} 0]\nset info [chan configure $srv -sockname]\nputs [expr {[llength $info] \u003e= 3}]\nclose $srv\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-3.0",
+      "file": "spec/tests/socket/socket-3.0.tcl",
+      "script": "# Test: socket client connection to non-listening port fails\ncatch {socket localhost 59999} result\nputs [string match \"*connection refused*\" [string tolower $result]]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-3.1",
+      "file": "spec/tests/socket/socket-3.1.tcl",
+      "script": "# Test: socket -async returns immediately\nset srv [socket -server {apply {{chan addr port} {}}} 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket -async localhost $port]\nputs [string match sock* $client]\nclose $client\nclose $srv\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-3.2",
+      "file": "spec/tests/socket/socket-3.2.tcl",
+      "script": "# Test: socket -myport option\nset srv [socket -server {apply {{chan addr port} {}}} 0]\nset port [lindex [chan configure $srv -sockname] 2]\ncatch {socket -myport 0 localhost $port} client\nputs [string match sock* $client]\ncatch {close $client}\nclose $srv\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-3.3",
+      "file": "spec/tests/socket/socket-3.3.tcl",
+      "script": "# Test: socket -myaddr option\nset srv [socket -server {apply {{chan addr port} {}}} 0]\nset port [lindex [chan configure $srv -sockname] 2]\ncatch {socket -myaddr localhost localhost $port} client\nputs [string match sock* $client]\ncatch {close $client}\nclose $srv\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-4.0",
+      "file": "spec/tests/socket/socket-4.0.tcl",
+      "script": "# Test: chan configure -peername on client socket\nset srv [socket -server {apply {{chan addr port} {}}} 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket localhost $port]\nset peer [chan configure $client -peername]\nputs [expr {[llength $peer] == 3}]\nclose $client\nclose $srv\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-4.1",
+      "file": "spec/tests/socket/socket-4.1.tcl",
+      "script": "# Test: chan configure -sockname on client socket\nset srv [socket -server {apply {{chan addr port} {}}} 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket localhost $port]\nset name [chan configure $client -sockname]\nputs [expr {[llength $name] == 3}]\nclose $client\nclose $srv\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-4.2",
+      "file": "spec/tests/socket/socket-4.2.tcl",
+      "script": "# Test: chan configure -keepalive on socket\nset srv [socket -server {apply {{chan addr port} {}}} 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket localhost $port]\nchan configure $client -keepalive 1\nputs [chan configure $client -keepalive]\nclose $client\nclose $srv\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-4.3",
+      "file": "spec/tests/socket/socket-4.3.tcl",
+      "script": "# Test: chan configure -nodelay on socket\nset srv [socket -server {apply {{chan addr port} {}}} 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket localhost $port]\nif {[catch {chan configure $client -nodelay 1} err]} {\n    puts [string match \"*not supported*\" $err]\n} else {\n    puts [chan configure $client -nodelay]\n}\nclose $client\nclose $srv\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-4.4",
+      "file": "spec/tests/socket/socket-4.4.tcl",
+      "script": "# Test: chan configure -error on socket (no error expected)\nset srv [socket -server {apply {{chan addr port} {}}} 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket localhost $port]\nputs [chan configure $client -error]\nclose $client\nclose $srv\n",
+      "stdout": "\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-4.5",
+      "file": "spec/tests/socket/socket-4.5.tcl",
+      "script": "# Test: chan configure -connecting on connected socket\nset srv [socket -server {apply {{chan addr port} {}}} 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket localhost $port]\nputs [chan configure $client -connecting]\nclose $client\nclose $srv\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-5.0",
+      "file": "spec/tests/socket/socket-5.0.tcl",
+      "script": "# Test: socket client/server communication\nproc accept {chan addr port} {\n    chan configure $chan -buffering line\n    puts $chan \"hello from server\"\n    close $chan\n}\nset srv [socket -server accept 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket localhost $port]\nchan configure $client -buffering line\nafter 100\nupdate\nset line [gets $client]\nputs $line\nclose $client\nclose $srv\n",
+      "stdout": "hello from server\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-5.1",
+      "file": "spec/tests/socket/socket-5.1.tcl",
+      "script": "# Test: bidirectional socket communication\nproc accept {chan addr port} {\n    chan configure $chan -buffering line\n    set msg [gets $chan]\n    puts $chan \"echo: $msg\"\n    close $chan\n}\nset srv [socket -server accept 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket localhost $port]\nchan configure $client -buffering line\nputs $client \"test message\"\nflush $client\nafter 100\nupdate\nset response [gets $client]\nputs $response\nclose $client\nclose $srv\n",
+      "stdout": "echo: test message\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-6.0",
+      "file": "spec/tests/socket/socket-6.0.tcl",
+      "script": "# Test: socket -server -reuseaddr option\nset srv [socket -server {apply {{chan addr port} {}}} -reuseaddr 1 0]\nputs [string match sock* $srv]\nclose $srv\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-6.1",
+      "file": "spec/tests/socket/socket-6.1.tcl",
+      "script": "# Test: socket -server -reuseport option\ncatch {\n    set srv [socket -server {apply {{chan addr port} {}}} -reuseport 1 0]\n    puts [string match sock* $srv]\n    close $srv\n} result\n# reuseport may not be supported on all systems\nputs [expr {[string match sock* $result] || [string match \"*not supported*\" $result] || $result eq \"1\"}]\n",
+      "stdout": "1\n0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-6.2",
+      "file": "spec/tests/socket/socket-6.2.tcl",
+      "script": "# Test: unknown option error\ncatch {socket -badoption localhost 8080} result\nputs [string match \"*bad option*\" $result]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-6.3",
+      "file": "spec/tests/socket/socket-6.3.tcl",
+      "script": "# Test: server socket cannot be read\nset srv [socket -server {apply {{chan addr port} {}}} 0]\ncatch {read $srv} result\nputs [string match \"*not open for reading*\" $result]\nclose $srv\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-6.4",
+      "file": "spec/tests/socket/socket-6.4.tcl",
+      "script": "# Test: server socket cannot be written\nset srv [socket -server {apply {{chan addr port} {}}} 0]\ncatch {puts $srv \"test\"} result\nputs [string match \"*not open for writing*\" $result]\nclose $srv\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-6.5",
+      "file": "spec/tests/socket/socket-6.5.tcl",
+      "script": "# Test: -peername not supported on server socket\nset srv [socket -server {apply {{chan addr port} {}}} 0]\ncatch {chan configure $srv -peername} result\nputs [string match \"*not supported*\" [string tolower $result]]\nclose $srv\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-7.0",
+      "file": "spec/tests/socket/socket-7.0.tcl",
+      "script": "# Test: socket -async creates channel immediately (before connection completes)\nset srv [socket -server {apply {{chan addr port} {}}} 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket -async localhost $port]\n# Channel exists immediately even if not connected yet\nputs [string match sock* $client]\nclose $client\nclose $srv\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-7.1",
+      "file": "spec/tests/socket/socket-7.1.tcl",
+      "script": "# Test: -connecting option on async socket\nset srv [socket -server {apply {{chan addr port} {}}} 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket -async localhost $port]\n# -connecting may be 1 or 0 depending on how fast connection completes\nset connecting [chan configure $client -connecting]\nputs [expr {$connecting == 0 || $connecting == 1}]\nclose $client\nclose $srv\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-7.2",
+      "file": "spec/tests/socket/socket-7.2.tcl",
+      "script": "# Test: fblocked on async socket before connection\nset srv [socket -server {apply {{chan addr port} {}}} 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket -async localhost $port]\nchan configure $client -blocking 0\n# fblocked should return true on non-blocking channel with no data\nafter 10\nupdate\nset blocked [fblocked $client]\nputs [expr {$blocked == 0 || $blocked == 1}]\nclose $client\nclose $srv\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-7.3",
+      "file": "spec/tests/socket/socket-7.3.tcl",
+      "script": "# Test: non-blocking socket configuration\nset srv [socket -server {apply {{chan addr port} {}}} 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket localhost $port]\nchan configure $client -blocking 0\nputs [chan configure $client -blocking]\nclose $client\nclose $srv\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-7.4",
+      "file": "spec/tests/socket/socket-7.4.tcl",
+      "script": "# Test: non-blocking read returns empty when no data\nset srv [socket -server {apply {{chan addr port} {}}} 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket localhost $port]\nchan configure $client -blocking 0\nafter 10\nupdate\nset data [read $client]\nputs [expr {$data eq \"\"}]\nclose $client\nclose $srv\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-7.5",
+      "file": "spec/tests/socket/socket-7.5.tcl",
+      "script": "# Test: non-blocking gets returns -1 when no complete line\nset srv [socket -server {apply {{chan addr port} {}}} 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket localhost $port]\nchan configure $client -blocking 0\nafter 10\nupdate\nset result [gets $client line]\nputs [expr {$result == -1}]\nclose $client\nclose $srv\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-8.0",
+      "file": "spec/tests/socket/socket-8.0.tcl",
+      "script": "# Test: fileevent readable on socket\nset done 0\nproc accept {chan addr port} {\n    chan configure $chan -buffering line\n    puts $chan \"hello\"\n    close $chan\n}\nset srv [socket -server accept 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket localhost $port]\nchan configure $client -blocking 0 -buffering line\nfileevent $client readable {\n    set ::line [gets $client]\n    set ::done 1\n}\nafter 500 {set ::done 1}\nvwait done\nputs $line\nclose $client\nclose $srv\n",
+      "stdout": "hello\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-8.1",
+      "file": "spec/tests/socket/socket-8.1.tcl",
+      "script": "# Test: fileevent writable on socket\nset done 0\nproc accept {chan addr port} {\n    close $chan\n}\nset srv [socket -server accept 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket localhost $port]\nchan configure $client -blocking 0\nset writable 0\nfileevent $client writable {\n    set ::writable 1\n    fileevent $client writable {}\n    set ::done 1\n}\nafter 500 {set ::done 1}\nvwait done\nputs $writable\nclose $client\nclose $srv\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-8.2",
+      "file": "spec/tests/socket/socket-8.2.tcl",
+      "script": "# Test: fileevent with async socket connection\nset done 0\nset connected 0\nproc accept {chan addr port} {\n    chan configure $chan -buffering line\n    puts $chan \"welcome\"\n    close $chan\n}\nset srv [socket -server accept 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket -async localhost $port]\nchan configure $client -blocking 0 -buffering line\nfileevent $client writable {\n    if {![chan configure $client -connecting]} {\n        set ::connected 1\n        fileevent $client writable {}\n    }\n}\nfileevent $client readable {\n    if {[eof $client]} {\n        set ::done 1\n    } else {\n        set ::msg [gets $client]\n        if {$::msg ne \"\"} {set ::done 1}\n    }\n}\nafter 500 {set ::done 1}\nvwait done\nputs $connected\nclose $client\nclose $srv\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-8.3",
+      "file": "spec/tests/socket/socket-8.3.tcl",
+      "script": "# Test: clear fileevent handler\nset srv [socket -server {apply {{chan addr port} {}}} 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket localhost $port]\nchan configure $client -blocking 0\nfileevent $client readable {puts \"data available\"}\nfileevent $client readable {}\n# Empty script means no handler\nputs [expr {[fileevent $client readable] eq \"\"}]\nclose $client\nclose $srv\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-8.4",
+      "file": "spec/tests/socket/socket-8.4.tcl",
+      "script": "# Test: query fileevent handler\nset srv [socket -server {apply {{chan addr port} {}}} 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket localhost $port]\nchan configure $client -blocking 0\nfileevent $client readable {my handler script}\nputs [fileevent $client readable]\nclose $client\nclose $srv\n",
+      "stdout": "my handler script\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-8.5",
+      "file": "spec/tests/socket/socket-8.5.tcl",
+      "script": "# Test: eof detection on closed socket\nset done 0\nproc accept {chan addr port} {\n    close $chan\n}\nset srv [socket -server accept 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket localhost $port]\nchan configure $client -blocking 0\nfileevent $client readable {\n    if {[eof $client]} {\n        set ::done 1\n    }\n}\nafter 500 {set ::done 1}\nvwait done\nputs [eof $client]\nclose $client\nclose $srv\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-9.0",
+      "file": "spec/tests/socket/socket-9.0.tcl",
+      "script": "# Test: socket buffering modes - line buffering\nset srv [socket -server {apply {{chan addr port} {}}} 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket localhost $port]\nchan configure $client -buffering line\nputs [chan configure $client -buffering]\nclose $client\nclose $srv\n",
+      "stdout": "line\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-9.1",
+      "file": "spec/tests/socket/socket-9.1.tcl",
+      "script": "# Test: socket buffering modes - full buffering\nset srv [socket -server {apply {{chan addr port} {}}} 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket localhost $port]\nchan configure $client -buffering full\nputs [chan configure $client -buffering]\nclose $client\nclose $srv\n",
+      "stdout": "full\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-9.2",
+      "file": "spec/tests/socket/socket-9.2.tcl",
+      "script": "# Test: socket buffering modes - none (unbuffered)\nset srv [socket -server {apply {{chan addr port} {}}} 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket localhost $port]\nchan configure $client -buffering none\nputs [chan configure $client -buffering]\nclose $client\nclose $srv\n",
+      "stdout": "none\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-9.3",
+      "file": "spec/tests/socket/socket-9.3.tcl",
+      "script": "# Test: socket buffer size configuration\nset srv [socket -server {apply {{chan addr port} {}}} 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket localhost $port]\nchan configure $client -buffersize 8192\nputs [chan configure $client -buffersize]\nclose $client\nclose $srv\n",
+      "stdout": "8192\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-9.4",
+      "file": "spec/tests/socket/socket-9.4.tcl",
+      "script": "# Test: update processes pending events\nset result \"\"\nproc accept {chan addr port} {\n    chan configure $chan -buffering line\n    puts $chan \"msg1\"\n    flush $chan\n    close $chan\n}\nset srv [socket -server accept 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket localhost $port]\nchan configure $client -blocking 0 -buffering line\nafter 50\nupdate\nset line [gets $client]\nputs [expr {$line eq \"msg1\"}]\nclose $client\nclose $srv\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "socket-9.5",
+      "file": "spec/tests/socket/socket-9.5.tcl",
+      "script": "# Test: update idletasks does not process channel events\nset result \"\"\nproc accept {chan addr port} {\n    chan configure $chan -buffering line\n    puts $chan \"msg1\"\n    close $chan\n}\nset srv [socket -server accept 0]\nset port [lindex [chan configure $srv -sockname] 2]\nset client [socket localhost $port]\nchan configure $client -blocking 0 -buffering line\nafter 50\nupdate idletasks\n# idletasks shouldn't process the socket, so line should be empty\nset line [gets $client]\n# The result depends on timing; with idletasks only, data may not be there\nputs [expr {$line eq \"\" || $line eq \"msg1\"}]\nclose $client\nclose $srv\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    }
+  ]
+}

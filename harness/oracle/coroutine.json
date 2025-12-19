@@ -1,0 +1,230 @@
+{
+  "feature": "coroutine",
+  "tclsh": "tclsh",
+  "tests": [
+    {
+      "name": "coroutine-1.0",
+      "file": "spec/tests/coroutine/coroutine-1.0.tcl",
+      "script": "# Test: basic coroutine creation - immediate return gives result to coroutine caller\nproc simple {} {\n    return \"hello from coroutine\"\n}\nputs [coroutine mycoro simple]\n",
+      "stdout": "hello from coroutine\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "coroutine-1.1",
+      "file": "spec/tests/coroutine/coroutine-1.1.tcl",
+      "script": "# Test: coroutine with immediate yield to synchronize\nproc counter {} {\n    yield\n    set i 0\n    while {$i \u003c 3} {\n        yield $i\n        incr i\n    }\n    return \"done\"\n}\ncoroutine c counter\nputs [c]\nputs [c]\nputs [c]\nputs [c]\n",
+      "stdout": "0\n1\n2\ndone\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "coroutine-1.2",
+      "file": "spec/tests/coroutine/coroutine-1.2.tcl",
+      "script": "# Test: yield returns value passed by caller\nproc echo {} {\n    yield\n    while 1 {\n        set val [yield \"received\"]\n        puts \"got: $val\"\n    }\n}\ncoroutine e echo\ne\nputs [e \"first\"]\nputs [e \"second\"]\n",
+      "stdout": "got: first\nreceived\ngot: second\nreceived\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "coroutine-1.3",
+      "file": "spec/tests/coroutine/coroutine-1.3.tcl",
+      "script": "# Test: coroutine with accumulator pattern\ncoroutine accumulator apply {{} {\n    set x 0\n    while 1 {\n        incr x [yield $x]\n    }\n}}\nputs [accumulator 5]\nputs [accumulator 10]\nputs [accumulator 3]\n",
+      "stdout": "5\n15\n18\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "coroutine-1.4",
+      "file": "spec/tests/coroutine/coroutine-1.4.tcl",
+      "script": "# Test: coroutine that returns normally without yield\nproc noYield {} {\n    return 42\n}\nputs [coroutine ny noYield]\n",
+      "stdout": "42\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "coroutine-1.5",
+      "file": "spec/tests/coroutine/coroutine-1.5.tcl",
+      "script": "# Test: yield without value returns empty string\nproc emptyYield {} {\n    yield\n    yield\n    return \"finished\"\n}\ncoroutine ey emptyYield\nputs \"[ey].\"\nputs \"[ey].\"\n",
+      "stdout": ".\nfinished.\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "coroutine-2.0",
+      "file": "spec/tests/coroutine/coroutine-2.0.tcl",
+      "script": "# Test: deleting coroutine with rename\nproc counter {} {\n    set i 0\n    while 1 {\n        yield [incr i]\n    }\n}\ncoroutine c counter\nputs [c]\nputs [c]\nrename c {}\nputs \"deleted\"\n",
+      "stdout": "2\n3\ndeleted\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "coroutine-2.1",
+      "file": "spec/tests/coroutine/coroutine-2.1.tcl",
+      "script": "# Test: error in coroutine propagates to caller\nproc failing {} {\n    yield\n    yield \"ok\"\n    error \"something went wrong\"\n}\ncoroutine f failing\nputs [f]\ncatch {f} err\nputs \"caught: $err\"\n",
+      "stdout": "ok\ncaught: something went wrong\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "coroutine-2.2",
+      "file": "spec/tests/coroutine/coroutine-2.2.tcl",
+      "script": "# Test: coroutine in namespace\nnamespace eval myns {\n    proc gen {} {\n        yield\n        yield \"in namespace\"\n        return \"done\"\n    }\n    coroutine ::myns::coro gen\n}\nputs [myns::coro]\nputs [myns::coro]\n",
+      "stdout": "in namespace\ndone\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "coroutine-2.3",
+      "file": "spec/tests/coroutine/coroutine-2.3.tcl",
+      "script": "# Test: calling finished coroutine is error\nproc once {} {\n    return \"only once\"\n}\nputs [coroutine o once]\ncatch {o} err\nputs \"error: [string match {*invalid command*} $err]\"\n",
+      "stdout": "only once\nerror: 1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "coroutine-2.4",
+      "file": "spec/tests/coroutine/coroutine-2.4.tcl",
+      "script": "# Test: coroutine with args passed to initial proc\nproc greet {name} {\n    yield\n    yield \"hello $name\"\n    return \"bye $name\"\n}\ncoroutine g greet \"world\"\nputs [g]\nputs [g]\n",
+      "stdout": "hello world\nbye world\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "coroutine-2.5",
+      "file": "spec/tests/coroutine/coroutine-2.5.tcl",
+      "script": "# Test: coroutine with multiple args\nproc adder {a b} {\n    yield [expr {$a + $b}]\n    return \"done\"\n}\ncoroutine add adder 10 20\nputs [add]\n",
+      "stdout": "done\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "coroutine-2.6",
+      "file": "spec/tests/coroutine/coroutine-2.6.tcl",
+      "script": "# Test: local variables persist across yields\nproc stateful {} {\n    set count 0\n    yield\n    incr count\n    yield $count\n    incr count\n    yield $count\n    incr count\n    return $count\n}\ncoroutine s stateful\nputs [s]\nputs [s]\nputs [s]\n",
+      "stdout": "1\n2\n3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "coroutine-3.0",
+      "file": "spec/tests/coroutine/coroutine-3.0.tcl",
+      "script": "# Test: generator pattern - fibonacci\nproc fib {} {\n    yield\n    set a 0\n    set b 1\n    while 1 {\n        yield $a\n        set tmp $b\n        set b [expr {$a + $b}]\n        set a $tmp\n    }\n}\ncoroutine fibonacci fib\nfibonacci\nputs [fibonacci]\nputs [fibonacci]\nputs [fibonacci]\nputs [fibonacci]\nputs [fibonacci]\nputs [fibonacci]\nputs [fibonacci]\n",
+      "stdout": "1\n1\n2\n3\n5\n8\n13\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "coroutine-3.1",
+      "file": "spec/tests/coroutine/coroutine-3.1.tcl",
+      "script": "# Test: generator pattern - infinite sequence\nproc evens {} {\n    yield\n    set i 0\n    while 1 {\n        yield $i\n        incr i 2\n    }\n}\ncoroutine nextEven evens\nnextEven\nputs [nextEven]\nputs [nextEven]\nputs [nextEven]\nputs [nextEven]\nputs [nextEven]\n",
+      "stdout": "2\n4\n6\n8\n10\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "coroutine-3.2",
+      "file": "spec/tests/coroutine/coroutine-3.2.tcl",
+      "script": "# Test: coroutine using apply\ncoroutine counter apply {{} {\n    yield\n    set n 0\n    while 1 {\n        yield [incr n]\n    }\n}}\ncounter\nputs [counter]\nputs [counter]\nputs [counter]\n",
+      "stdout": "2\n3\n4\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "info-coroutine-1.0",
+      "file": "spec/tests/coroutine/info-coroutine-1.0.tcl",
+      "script": "# Test: info coroutine returns coroutine name\nproc showName {} {\n    yield\n    yield [info coroutine]\n    return \"done\"\n}\ncoroutine myCoroutine showName\nputs [myCoroutine]\nputs [myCoroutine]\n",
+      "stdout": "::myCoroutine\ndone\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "info-coroutine-1.1",
+      "file": "spec/tests/coroutine/info-coroutine-1.1.tcl",
+      "script": "# Test: info coroutine outside coroutine returns empty\nputs \"[info coroutine].\"\n",
+      "stdout": ".\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "info-coroutine-1.2",
+      "file": "spec/tests/coroutine/info-coroutine-1.2.tcl",
+      "script": "# Test: info coroutine in nested proc inside coroutine\nproc inner {} {\n    return [info coroutine]\n}\nproc outer {} {\n    yield\n    yield [inner]\n    return \"done\"\n}\ncoroutine test123 outer\nputs [test123]\nputs [test123]\n",
+      "stdout": "::test123\ndone\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "info-coroutine-1.3",
+      "file": "spec/tests/coroutine/info-coroutine-1.3.tcl",
+      "script": "# Test: multiple coroutines with different names\nproc showSelf {} {\n    yield\n    yield [info coroutine]\n    return \"done\"\n}\ncoroutine coro1 showSelf\ncoroutine coro2 showSelf\nputs [coro1]\nputs [coro2]\n",
+      "stdout": "::coro1\n::coro2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "yield-1.0",
+      "file": "spec/tests/coroutine/yield-1.0.tcl",
+      "script": "# Test: yield returns to coroutine caller\nproc gen {} {\n    yield\n    yield \"first\"\n    yield \"second\"\n    return \"third\"\n}\ncoroutine g gen\nputs [g]\nputs [g]\nputs [g]\n",
+      "stdout": "first\nsecond\nthird\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "yield-1.1",
+      "file": "spec/tests/coroutine/yield-1.1.tcl",
+      "script": "# Test: yield inside loop\nproc numbers {n} {\n    yield\n    for {set i 1} {$i \u003c= $n} {incr i} {\n        yield $i\n    }\n    return \"done\"\n}\ncoroutine nums numbers 5\nputs [nums]\nputs [nums]\nputs [nums]\nputs [nums]\nputs [nums]\nputs [nums]\n",
+      "stdout": "1\n2\n3\n4\n5\ndone\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "yield-1.2",
+      "file": "spec/tests/coroutine/yield-1.2.tcl",
+      "script": "# Test: yield with expression value\nproc compute {} {\n    yield\n    yield [expr {2 + 2}]\n    yield [expr {3 * 4}]\n    return [expr {10 - 1}]\n}\ncoroutine c compute\nputs [c]\nputs [c]\nputs [c]\n",
+      "stdout": "4\n12\n9\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "yield-1.3",
+      "file": "spec/tests/coroutine/yield-1.3.tcl",
+      "script": "# Test: yield with list value\nproc listGen {} {\n    yield\n    yield [list a b c]\n    yield [list 1 2 3]\n    return [list x y z]\n}\ncoroutine lg listGen\nputs [lg]\nputs [lg]\nputs [lg]\n",
+      "stdout": "a b c\n1 2 3\nx y z\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "yield-1.4",
+      "file": "spec/tests/coroutine/yield-1.4.tcl",
+      "script": "# Test: nested procedure call with yield\nproc helper {} {\n    yield \"from helper\"\n}\nproc outer {} {\n    yield \"before\"\n    helper\n    yield \"after\"\n    return \"end\"\n}\ncoroutine o outer\nputs [o]\nputs [o]\nputs [o]\n",
+      "stdout": "from helper\nafter\nend\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "yield-1.5",
+      "file": "spec/tests/coroutine/yield-1.5.tcl",
+      "script": "# Test: yield value with special characters\nproc special {} {\n    yield\n    yield \"hello world\"\n    yield {with {braces}}\n    yield \"with\\ttab\"\n    return \"done\"\n}\ncoroutine s special\nputs [s]\nputs [s]\nputs [s]\nputs [s]\n",
+      "stdout": "hello world\nwith {braces}\nwith\ttab\ndone\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "yieldto-1.0",
+      "file": "spec/tests/coroutine/yieldto-1.0.tcl",
+      "script": "# Test: basic yieldto usage with string cat\nproc gen {} {\n    yield\n    set result [yieldto string cat \"yielded\"]\n    return \"got: $result\"\n}\ncoroutine g gen\nputs [g]\nputs [g \"input\"]\n",
+      "stdout": "yielded\ngot: input\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "yieldto-1.1",
+      "file": "spec/tests/coroutine/yieldto-1.1.tcl",
+      "script": "# Test: yieldto with string cat to receive multiple values\nproc multiReceive {} {\n    yield\n    set args [yieldto string cat \"ready\"]\n    return \"received: $args\"\n}\ncoroutine mr multiReceive\nputs [mr]\nputs [mr a b c]\n",
+      "stdout": "ready\nreceived: a b c\n",
+      "stderr": "",
+      "returncode": 0
+    }
+  ]
+}

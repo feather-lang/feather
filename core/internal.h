@@ -262,6 +262,16 @@ TclResult tclCmdWhile(TclInterp *interp, int objc, TclObj **objv);
 TclResult tclCmdFor(TclInterp *interp, int objc, TclObj **objv);
 TclResult tclCmdForeach(TclInterp *interp, int objc, TclObj **objv);
 
+/* Event loop commands (builtin_event.c) */
+TclResult tclCmdAfter(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdVwait(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdUpdate(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdFileevent(TclInterp *interp, int objc, TclObj **objv);
+
+/* Regexp commands (builtin_regexp.c) */
+TclResult tclCmdRegexp(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdRegsub(TclInterp *interp, int objc, TclObj **objv);
+
 /* ========================================================================
  * Interpreter Functions (from tclc.h, implemented in eval.c)
  * ======================================================================== */

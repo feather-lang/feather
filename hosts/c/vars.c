@@ -17,16 +17,26 @@ extern const char *hostGetStringPtr(TclObj *obj, size_t *lenOut);
 /* Forward declaration */
 typedef struct VarTable VarTable;
 
+/* Trace callback entry */
+typedef struct TraceEntry {
+    TclTraceProc callback;
+    void *clientData;
+    int ops;
+    struct TraceEntry *next;
+} TraceEntry;
+
 /* Variable entry - stores either a value or a link */
 typedef struct VarEntry {
     TclObj   *value;         /* Variable value (NULL if linked) */
     VarTable *linkTable;     /* Target table (NULL if not linked) */
     gchar    *linkName;      /* Target variable name */
+    TraceEntry *traces;      /* List of trace callbacks */
 } VarEntry;
 
 /* Variable table using GHashTable */
 struct VarTable {
     GHashTable *vars;        /* Maps gchar* -> VarEntry* */
+    GHashTable *traces;      /* Global traces: name -> TraceEntry list */
 };
 
 /* ========================================================================
@@ -61,14 +71,42 @@ static void initSearchTable(void) {
     }
 }
 
+/* Free trace entries */
+static void traceEntryFreeList(TraceEntry *head) {
+    while (head) {
+        TraceEntry *next = head->next;
+        g_free(head);
+        head = next;
+    }
+}
+
 /* Free a variable entry */
 static void varEntryFree(gpointer data) {
     VarEntry *entry = data;
     if (entry) {
         if (entry->value) hostFreeObj(entry->value);
         g_free(entry->linkName);
+        traceEntryFreeList(entry->traces);
         g_free(entry);
     }
+}
+
+/* Fire traces for a variable */
+static void fireTraces(VarTable *table, const char *name, int op) {
+    if (!table || !table->traces) return;
+
+    TraceEntry *traces = g_hash_table_lookup(table->traces, name);
+    while (traces) {
+        if (traces->ops & op) {
+            traces->callback(traces->clientData, name, op);
+        }
+        traces = traces->next;
+    }
+}
+
+/* Free trace entries in hash table */
+static void traceListFree(gpointer data) {
+    traceEntryFreeList((TraceEntry *)data);
 }
 
 /* Create new variable table */
@@ -78,6 +116,7 @@ void *hostVarsNew(void *ctx) {
     if (!table) return NULL;
 
     table->vars = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, varEntryFree);
+    table->traces = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, traceListFree);
     return table;
 }
 
@@ -88,6 +127,9 @@ void hostVarsFree(void *ctx, void *vars) {
     if (!table) return;
 
     g_hash_table_destroy(table->vars);
+    if (table->traces) {
+        g_hash_table_destroy(table->traces);
+    }
     g_free(table);
 }
 
@@ -128,6 +170,8 @@ void hostVarSet(void *vars, const char *name, size_t len, TclObj *val) {
         /* Replace existing value */
         if (entry->value) hostFreeObj(entry->value);
         entry->value = val;
+        /* Fire write traces */
+        fireTraces(table, key, TCL_TRACE_WRITE);
         g_free(key);
     } else {
         /* Create new entry */
@@ -135,8 +179,11 @@ void hostVarSet(void *vars, const char *name, size_t len, TclObj *val) {
         entry->value = val;
         entry->linkTable = NULL;
         entry->linkName = NULL;
+        entry->traces = NULL;
 
         g_hash_table_insert(table->vars, key, entry);
+        /* Fire write traces (for new variable) */
+        fireTraces(table, key, TCL_TRACE_WRITE);
     }
 }
 
@@ -519,4 +566,79 @@ void hostArrayDoneSearch(const char *searchId) {
     if (!searchId) return;
 
     g_hash_table_remove(searchTable, searchId);
+}
+
+/* ========================================================================
+ * Variable Trace Functions
+ * ======================================================================== */
+
+/* Add a trace on a variable */
+void hostVarTraceAdd(void *vars, const char *name, size_t len, int ops,
+                     TclTraceProc callback, void *clientData) {
+    VarTable *table = vars;
+    if (!table || !table->traces || !name || !callback) return;
+
+    gchar *key = g_strndup(name, len);
+
+    /* Create new trace entry */
+    TraceEntry *newTrace = g_new0(TraceEntry, 1);
+    newTrace->callback = callback;
+    newTrace->clientData = clientData;
+    newTrace->ops = ops;
+
+    /* Add to front of trace list for this variable */
+    TraceEntry *existing = g_hash_table_lookup(table->traces, key);
+    newTrace->next = existing;
+
+    /* If key already exists, steal it; otherwise insert new key */
+    if (existing) {
+        g_hash_table_steal(table->traces, key);
+        g_hash_table_insert(table->traces, key, newTrace);
+    } else {
+        g_hash_table_insert(table->traces, key, newTrace);
+    }
+}
+
+/* Remove a trace from a variable */
+void hostVarTraceRemove(void *vars, const char *name, size_t len,
+                        TclTraceProc callback, void *clientData) {
+    VarTable *table = vars;
+    if (!table || !table->traces || !name || !callback) return;
+
+    gchar *key = g_strndup(name, len);
+    TraceEntry *traces = g_hash_table_lookup(table->traces, key);
+
+    if (!traces) {
+        g_free(key);
+        return;
+    }
+
+    /* Find and remove matching trace */
+    TraceEntry *prev = NULL;
+    TraceEntry *curr = traces;
+
+    while (curr) {
+        if (curr->callback == callback && curr->clientData == clientData) {
+            /* Found it - remove from list */
+            if (prev) {
+                prev->next = curr->next;
+            } else {
+                /* Removing head of list */
+                if (curr->next) {
+                    g_hash_table_steal(table->traces, key);
+                    g_hash_table_insert(table->traces, key, curr->next);
+                } else {
+                    /* List is now empty */
+                    g_hash_table_remove(table->traces, key);
+                }
+            }
+            g_free(curr);
+            g_free(key);
+            return;
+        }
+        prev = curr;
+        curr = curr->next;
+    }
+
+    g_free(key);
 }

@@ -817,74 +817,316 @@ static int hostStringLast(TclObj *needle, TclObj *haystack, size_t start) {
 }
 
 /* ========================================================================
- * Trace Operations (stubs)
+ * Trace Operations
  * ======================================================================== */
+
+/* External trace functions from vars.c */
+extern void hostVarTraceAdd(void *vars, const char *name, size_t len, int ops,
+                            TclTraceProc callback, void *clientData);
+extern void hostVarTraceRemove(void *vars, const char *name, size_t len,
+                               TclTraceProc callback, void *clientData);
 
 static void hostTraceVarAdd(void *vars, const char *name, size_t len, int ops,
                             TclTraceProc callback, void *clientData) {
-    (void)vars;
-    (void)name;
-    (void)len;
-    (void)ops;
-    (void)callback;
-    (void)clientData;
+    hostVarTraceAdd(vars, name, len, ops, callback, clientData);
 }
 
 static void hostTraceVarRemove(void *vars, const char *name, size_t len,
                                TclTraceProc callback, void *clientData) {
-    (void)vars;
-    (void)name;
-    (void)len;
-    (void)callback;
-    (void)clientData;
+    hostVarTraceRemove(vars, name, len, callback, clientData);
 }
 
 /* ========================================================================
- * Event Loop (stubs)
+ * Event Loop Implementation using GLib
  * ======================================================================== */
+
+/* Timer event data */
+typedef struct AfterEvent {
+    guint          id;          /* GSource ID */
+    TclObj        *script;      /* Script to execute (NULL for blocking sleep) */
+    TclObj        *idObj;       /* "after#N" identifier object */
+    gboolean       idle;        /* TRUE if idle callback */
+    TclInterp     *interp;      /* Interpreter for execution */
+} AfterEvent;
+
+/* File event data */
+typedef struct FileEvent {
+    TclChannel    *chan;        /* Channel */
+    TclObj        *readScript;  /* Readable handler */
+    TclObj        *writeScript; /* Writable handler */
+    guint          readId;      /* GSource ID for readable */
+    guint          writeId;     /* GSource ID for writable */
+} FileEvent;
+
+/* Global event loop state */
+static GMainContext *gEventContext = NULL;
+static GMainLoop *gEventLoop = NULL;
+static GHashTable *gAfterEvents = NULL;  /* id -> AfterEvent */
+static GHashTable *gFileEvents = NULL;   /* channel -> FileEvent */
+static guint gNextAfterId = 0;
+static TclInterp *gCurrentInterp = NULL;
+
+/* Initialize event loop */
+static void ensureEventLoop(void) {
+    if (!gEventContext) {
+        gEventContext = g_main_context_default();
+        gEventLoop = g_main_loop_new(gEventContext, FALSE);
+        gAfterEvents = g_hash_table_new(g_direct_hash, g_direct_equal);
+        gFileEvents = g_hash_table_new(g_direct_hash, g_direct_equal);
+    }
+}
+
+/* Timer callback */
+static gboolean afterTimerCallback(gpointer userData) {
+    AfterEvent *event = userData;
+
+    if (event->script && gCurrentInterp) {
+        /* Execute the script */
+        size_t len;
+        const char *script = hostGetStringPtr(event->script, &len);
+        tclEvalStr(gCurrentInterp, script, len);
+    }
+
+    /* Remove from hash table */
+    g_hash_table_remove(gAfterEvents, event->idObj);
+
+    /* Clean up */
+    if (event->script) hostFreeObj(event->script);
+    if (event->idObj) hostFreeObj(event->idObj);
+    g_free(event);
+
+    return G_SOURCE_REMOVE;
+}
 
 static TclTimerToken hostAfterMs(void *ctx, int ms, TclObj *script) {
     (void)ctx;
-    (void)ms;
-    (void)script;
-    return NULL;
+    ensureEventLoop();
+
+    if (!script) {
+        /* Blocking sleep */
+        g_usleep((gulong)ms * 1000);
+        return NULL;
+    }
+
+    /* Create after event */
+    AfterEvent *event = g_new0(AfterEvent, 1);
+    event->script = hostDup(script);
+    event->idle = FALSE;
+    event->interp = gCurrentInterp;
+
+    /* Create ID string "after#N" */
+    gchar *idStr = g_strdup_printf("after#%u", gNextAfterId++);
+    event->idObj = hostNewString(idStr, strlen(idStr));
+    g_free(idStr);
+
+    /* Schedule timer */
+    event->id = g_timeout_add(ms, afterTimerCallback, event);
+
+    /* Store in hash table */
+    g_hash_table_insert(gAfterEvents, event->idObj, event);
+
+    return (TclTimerToken)event->idObj;
 }
 
 static TclTimerToken hostAfterIdle(void *ctx, TclObj *script) {
     (void)ctx;
-    (void)script;
-    return NULL;
+    ensureEventLoop();
+
+    if (!script) return NULL;
+
+    /* Create after event */
+    AfterEvent *event = g_new0(AfterEvent, 1);
+    event->script = hostDup(script);
+    event->idle = TRUE;
+    event->interp = gCurrentInterp;
+
+    /* Create ID string "after#N" */
+    gchar *idStr = g_strdup_printf("after#%u", gNextAfterId++);
+    event->idObj = hostNewString(idStr, strlen(idStr));
+    g_free(idStr);
+
+    /* Schedule idle callback */
+    event->id = g_idle_add(afterTimerCallback, event);
+
+    /* Store in hash table */
+    g_hash_table_insert(gAfterEvents, event->idObj, event);
+
+    return (TclTimerToken)event->idObj;
 }
 
 static void hostAfterCancel(void *ctx, TclTimerToken token) {
     (void)ctx;
-    (void)token;
+    if (!token || !gAfterEvents) return;
+
+    TclObj *idObj = (TclObj *)token;
+
+    /* Try to find by ID object directly */
+    AfterEvent *event = g_hash_table_lookup(gAfterEvents, idObj);
+
+    if (!event) {
+        /* Try to find by string value (for cancel by script) */
+        size_t tokenLen;
+        const char *tokenStr = hostGetStringPtr(idObj, &tokenLen);
+
+        GHashTableIter iter;
+        gpointer key, value;
+        g_hash_table_iter_init(&iter, gAfterEvents);
+        while (g_hash_table_iter_next(&iter, &key, &value)) {
+            AfterEvent *e = value;
+            if (e->script) {
+                size_t scriptLen;
+                const char *scriptStr = hostGetStringPtr(e->script, &scriptLen);
+                if (scriptLen == tokenLen && memcmp(scriptStr, tokenStr, tokenLen) == 0) {
+                    event = e;
+                    idObj = key;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (event) {
+        /* Cancel the source */
+        g_source_remove(event->id);
+
+        /* Remove from hash table */
+        g_hash_table_remove(gAfterEvents, idObj);
+
+        /* Clean up */
+        if (event->script) hostFreeObj(event->script);
+        if (event->idObj) hostFreeObj(event->idObj);
+        g_free(event);
+    }
 }
 
 static TclObj *hostAfterInfo(void *ctx, TclTimerToken token) {
     (void)ctx;
-    (void)token;
-    return hostNewString("", 0);
+    ensureEventLoop();
+
+    if (!token) {
+        /* Return list of all pending event IDs */
+        GPtrArray *ids = g_ptr_array_new();
+
+        GHashTableIter iter;
+        gpointer key, value;
+        g_hash_table_iter_init(&iter, gAfterEvents);
+        while (g_hash_table_iter_next(&iter, &key, &value)) {
+            g_ptr_array_add(ids, key);
+        }
+
+        TclObj *result = hostNewList((TclObj **)ids->pdata, ids->len);
+        g_ptr_array_free(ids, TRUE);
+        return result;
+    }
+
+    /* Look up specific event */
+    TclObj *idObj = (TclObj *)token;
+    AfterEvent *event = g_hash_table_lookup(gAfterEvents, idObj);
+
+    if (!event) {
+        /* Try by string match */
+        size_t tokenLen;
+        const char *tokenStr = hostGetStringPtr(idObj, &tokenLen);
+
+        GHashTableIter iter;
+        gpointer key, value;
+        g_hash_table_iter_init(&iter, gAfterEvents);
+        while (g_hash_table_iter_next(&iter, &key, &value)) {
+            TclObj *keyObj = key;
+            size_t keyLen;
+            const char *keyStr = hostGetStringPtr(keyObj, &keyLen);
+            if (keyLen == tokenLen && memcmp(keyStr, tokenStr, tokenLen) == 0) {
+                event = value;
+                break;
+            }
+        }
+    }
+
+    if (!event) {
+        return NULL;  /* Not found - caller will report error */
+    }
+
+    /* Return {script type} where type is "timer" or "idle" */
+    TclObj *elems[2];
+    elems[0] = event->script ? hostDup(event->script) : hostNewString("", 0);
+    elems[1] = hostNewString(event->idle ? "idle" : "timer",
+                             event->idle ? 4 : 5);
+    return hostNewList(elems, 2);
 }
+
+/* Get file descriptor from channel (if possible) */
+extern int hostChanGetFd(TclChannel *chan);
 
 static void hostFileeventSet(void *ctx, TclChannel *chan, int mask, TclObj *script) {
     (void)ctx;
-    (void)chan;
-    (void)mask;
-    (void)script;
+    ensureEventLoop();
+
+    if (!chan) return;
+
+    /* Find or create file event entry */
+    FileEvent *fe = g_hash_table_lookup(gFileEvents, chan);
+    if (!fe) {
+        fe = g_new0(FileEvent, 1);
+        fe->chan = chan;
+        g_hash_table_insert(gFileEvents, chan, fe);
+    }
+
+    /* Get script length to check if empty */
+    size_t scriptLen = 0;
+    if (script) {
+        hostGetStringPtr(script, &scriptLen);
+    }
+
+    if (mask & TCL_READABLE) {
+        if (fe->readScript) {
+            hostFreeObj(fe->readScript);
+            fe->readScript = NULL;
+        }
+        if (script && scriptLen > 0) {
+            fe->readScript = hostDup(script);
+        }
+    }
+
+    if (mask & TCL_WRITABLE) {
+        if (fe->writeScript) {
+            hostFreeObj(fe->writeScript);
+            fe->writeScript = NULL;
+        }
+        if (script && scriptLen > 0) {
+            fe->writeScript = hostDup(script);
+        }
+    }
 }
 
 static TclObj *hostFileeventGet(void *ctx, TclChannel *chan, int mask) {
     (void)ctx;
-    (void)chan;
-    (void)mask;
+    if (!chan || !gFileEvents) return NULL;
+
+    FileEvent *fe = g_hash_table_lookup(gFileEvents, chan);
+    if (!fe) return NULL;
+
+    if (mask & TCL_READABLE) {
+        return fe->readScript ? hostDup(fe->readScript) : NULL;
+    }
+    if (mask & TCL_WRITABLE) {
+        return fe->writeScript ? hostDup(fe->writeScript) : NULL;
+    }
     return NULL;
 }
 
 static int hostDoOneEvent(void *ctx, int flags) {
     (void)ctx;
-    (void)flags;
-    return 0;
+    ensureEventLoop();
+
+    gboolean mayBlock = !(flags & TCL_EVENT_NOWAIT);
+
+    /* Run one iteration of the main loop */
+    return g_main_context_iteration(gEventContext, mayBlock) ? 1 : 0;
+}
+
+/* Set current interpreter for event callbacks */
+void hostSetCurrentInterp(TclInterp *interp) {
+    gCurrentInterp = interp;
 }
 
 /* ========================================================================
@@ -1445,8 +1687,13 @@ static TclObj *hostSysHostname(void) { return hostNewString("", 0); }
 static TclObj *hostSysExecutable(void) { return hostNewString("", 0); }
 static int hostSysPid(void) { return 0; }
 
+/* Regex flags - must match core/builtin_regexp.c */
+#define REGEX_FLAG_NOCASE   (1 << 0)
+#define REGEX_FLAG_ALL      (1 << 1)
+#define REGEX_FLAG_INDICES  (1 << 2)
+#define REGEX_FLAG_INLINE   (1 << 3)
+
 static TclObj *hostRegexMatch(const char *pat, size_t patLen, TclObj *str, int flags) {
-    (void)flags;
     if (!pat || !str) return NULL;
 
     /* Get string to match */
@@ -1454,24 +1701,232 @@ static TclObj *hostRegexMatch(const char *pat, size_t patLen, TclObj *str, int f
     const char *strPtr = hostGetStringPtr(str, &strLen);
     if (!strPtr) return NULL;
 
-    /* Create null-terminated pattern */
+    /* Create null-terminated pattern and subject */
     gchar *pattern = g_strndup(pat, patLen);
     gchar *subject = g_strndup(strPtr, strLen);
 
-    /* Use GLib regex for matching */
-    gboolean matched = g_regex_match_simple(pattern, subject, 0, 0);
+    /* Build GRegex compile flags */
+    GRegexCompileFlags compileFlags = 0;
+    if (flags & REGEX_FLAG_NOCASE) {
+        compileFlags |= G_REGEX_CASELESS;
+    }
 
+    /* Compile the regex */
+    GError *error = NULL;
+    GRegex *regex = g_regex_new(pattern, compileFlags, 0, &error);
+    if (!regex) {
+        g_free(pattern);
+        g_free(subject);
+        if (error) g_error_free(error);
+        return NULL;
+    }
+
+    /* Perform matching */
+    GMatchInfo *matchInfo = NULL;
+    gboolean matched = g_regex_match(regex, subject, 0, &matchInfo);
+
+    if (!matched) {
+        if (matchInfo) g_match_info_free(matchInfo);
+        g_regex_unref(regex);
+        g_free(pattern);
+        g_free(subject);
+        return NULL;
+    }
+
+    /* Build result list */
+    GPtrArray *results = g_ptr_array_new();
+
+    if (flags & REGEX_FLAG_ALL) {
+        /* Collect all matches */
+        do {
+            gint start, end;
+            if (g_match_info_fetch_pos(matchInfo, 0, &start, &end)) {
+                if (flags & REGEX_FLAG_INDICES) {
+                    /* Return indices as "start end" string */
+                    gchar *idx = g_strdup_printf("%d %d", start, end - 1);
+                    g_ptr_array_add(results, hostNewString(idx, strlen(idx)));
+                    g_free(idx);
+                } else {
+                    /* Return matched text */
+                    gchar *match = g_match_info_fetch(matchInfo, 0);
+                    if (match) {
+                        g_ptr_array_add(results, hostNewString(match, strlen(match)));
+                        g_free(match);
+                    }
+                }
+            }
+
+            /* Add subgroup matches for inline mode */
+            if (flags & REGEX_FLAG_INLINE) {
+                gint groupCount = g_match_info_get_match_count(matchInfo);
+                for (gint i = 1; i < groupCount; i++) {
+                    gint subStart, subEnd;
+                    if (g_match_info_fetch_pos(matchInfo, i, &subStart, &subEnd)) {
+                        if (flags & REGEX_FLAG_INDICES) {
+                            if (subStart >= 0) {
+                                gchar *idx = g_strdup_printf("%d %d", subStart, subEnd - 1);
+                                g_ptr_array_add(results, hostNewString(idx, strlen(idx)));
+                                g_free(idx);
+                            } else {
+                                g_ptr_array_add(results, hostNewString("-1 -1", 5));
+                            }
+                        } else {
+                            gchar *subMatch = g_match_info_fetch(matchInfo, i);
+                            if (subMatch) {
+                                g_ptr_array_add(results, hostNewString(subMatch, strlen(subMatch)));
+                                g_free(subMatch);
+                            } else {
+                                g_ptr_array_add(results, hostNewString("", 0));
+                            }
+                        }
+                    }
+                }
+            }
+        } while (g_match_info_next(matchInfo, NULL));
+    } else {
+        /* Single match - return full match and subgroups */
+        gint groupCount = g_match_info_get_match_count(matchInfo);
+        for (gint i = 0; i < groupCount; i++) {
+            gint start, end;
+            if (g_match_info_fetch_pos(matchInfo, i, &start, &end)) {
+                if (flags & REGEX_FLAG_INDICES) {
+                    if (start >= 0) {
+                        gchar *idx = g_strdup_printf("%d %d", start, end - 1);
+                        g_ptr_array_add(results, hostNewString(idx, strlen(idx)));
+                        g_free(idx);
+                    } else {
+                        g_ptr_array_add(results, hostNewString("-1 -1", 5));
+                    }
+                } else {
+                    gchar *match = g_match_info_fetch(matchInfo, i);
+                    if (match) {
+                        g_ptr_array_add(results, hostNewString(match, strlen(match)));
+                        g_free(match);
+                    } else {
+                        g_ptr_array_add(results, hostNewString("", 0));
+                    }
+                }
+            }
+        }
+    }
+
+    /* Create result list */
+    TclObj *result = hostNewList((TclObj**)results->pdata, results->len);
+
+    g_ptr_array_free(results, TRUE);
+    g_match_info_free(matchInfo);
+    g_regex_unref(regex);
     g_free(pattern);
     g_free(subject);
 
-    if (matched) {
-        /* Return a simple result indicating match - just return 1 */
-        return hostNewInt(1);
-    }
-    return NULL;
+    return result;
 }
+
 static TclObj *hostRegexSubst(const char *pat, size_t patLen, TclObj *str, TclObj *rep, int flags) {
-    (void)pat; (void)patLen; (void)str; (void)rep; (void)flags; return NULL;
+    if (!pat || !str || !rep) return NULL;
+
+    /* Get string and replacement */
+    size_t strLen, repLen;
+    const char *strPtr = hostGetStringPtr(str, &strLen);
+    const char *repPtr = hostGetStringPtr(rep, &repLen);
+    if (!strPtr || !repPtr) return NULL;
+
+    /* Create null-terminated strings */
+    gchar *pattern = g_strndup(pat, patLen);
+    gchar *subject = g_strndup(strPtr, strLen);
+    gchar *replacement = g_strndup(repPtr, repLen);
+
+    /* Convert TCL back-references to GLib format:
+     * TCL uses \0, \1, etc. and &
+     * GLib uses \0, \1, etc. (same) but TCL's & becomes \0
+     */
+    GString *glibRep = g_string_new("");
+    for (size_t i = 0; i < repLen; i++) {
+        if (replacement[i] == '&') {
+            g_string_append(glibRep, "\\0");
+        } else if (replacement[i] == '\\' && i + 1 < repLen) {
+            if (replacement[i+1] >= '0' && replacement[i+1] <= '9') {
+                /* Keep \N as is */
+                g_string_append_c(glibRep, replacement[i]);
+                g_string_append_c(glibRep, replacement[i+1]);
+                i++;
+            } else if (replacement[i+1] == '&') {
+                /* \& is literal & */
+                g_string_append_c(glibRep, '&');
+                i++;
+            } else if (replacement[i+1] == '\\') {
+                /* \\ is literal \ */
+                g_string_append(glibRep, "\\\\");
+                i++;
+            } else {
+                g_string_append_c(glibRep, replacement[i]);
+            }
+        } else {
+            g_string_append_c(glibRep, replacement[i]);
+        }
+    }
+
+    /* Build GRegex compile flags */
+    GRegexCompileFlags compileFlags = 0;
+    if (flags & REGEX_FLAG_NOCASE) {
+        compileFlags |= G_REGEX_CASELESS;
+    }
+
+    /* Compile the regex */
+    GError *error = NULL;
+    GRegex *regex = g_regex_new(pattern, compileFlags, 0, &error);
+    if (!regex) {
+        g_string_free(glibRep, TRUE);
+        g_free(pattern);
+        g_free(subject);
+        g_free(replacement);
+        if (error) g_error_free(error);
+        return NULL;
+    }
+
+    /* Perform substitution */
+    TclObj *resultObj = NULL;
+
+    if (flags & REGEX_FLAG_ALL) {
+        /* Replace all occurrences */
+        gchar *result = g_regex_replace(regex, subject, -1, 0, glibRep->str, 0, &error);
+        if (result) {
+            resultObj = hostNewString(result, strlen(result));
+            g_free(result);
+        }
+    } else {
+        /* Single replacement */
+        GMatchInfo *matchInfo = NULL;
+        if (g_regex_match(regex, subject, 0, &matchInfo)) {
+            gint start, end;
+            g_match_info_fetch_pos(matchInfo, 0, &start, &end);
+
+            /* Expand replacement string */
+            gchar *expanded = g_match_info_expand_references(matchInfo, glibRep->str, &error);
+            if (expanded) {
+                GString *resultStr = g_string_new("");
+                g_string_append_len(resultStr, subject, start);
+                g_string_append(resultStr, expanded);
+                g_string_append(resultStr, subject + end);
+                resultObj = hostNewString(resultStr->str, resultStr->len);
+                g_string_free(resultStr, TRUE);
+                g_free(expanded);
+            }
+            g_match_info_free(matchInfo);
+        } else {
+            /* No match - return original */
+            resultObj = hostNewString(subject, strLen);
+        }
+    }
+
+    g_string_free(glibRep, TRUE);
+    g_regex_unref(regex);
+    g_free(pattern);
+    g_free(subject);
+    g_free(replacement);
+    if (error) g_error_free(error);
+
+    return resultObj;
 }
 
 static int64_t hostClockSeconds(void) { return 0; }

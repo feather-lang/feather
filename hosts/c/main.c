@@ -20,6 +20,9 @@ extern TclResult tclEvalScript(TclInterp *interp, const char *script, size_t len
 extern TclInterp *tclInterpNew(const TclHost *host, void *hostCtx);
 extern void tclInterpFree(TclInterp *interp);
 
+/* External: set current interpreter for event callbacks */
+extern void hostSetCurrentInterp(TclInterp *interp);
+
 /* Read entire file into buffer */
 static gchar *readFile(const gchar *filename, gsize *sizeOut) {
     GError *error = NULL;
@@ -89,6 +92,9 @@ int main(int argc, char **argv) {
 
     /* Set script file for error reporting */
     interp->scriptFile = filename;
+
+    /* Set current interpreter for event callbacks */
+    hostSetCurrentInterp(interp);
 
     /* Evaluate script */
     TclResult result = tclEvalScript(interp, script, scriptLen);
