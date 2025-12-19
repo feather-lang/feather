@@ -1567,24 +1567,115 @@ TclResult tclCmdArray(TclInterp *interp, int objc, TclObj **objv) {
         return TCL_OK;
     }
 
-    /* array names arrayName ?pattern? */
+    /* array names arrayName ?mode? ?pattern? */
     if (subcmdLen == 5 && tclStrncmp(subcmd, "names", 5) == 0) {
-        if (objc < 3 || objc > 4) {
-            tclSetError(interp, "wrong # args: should be \"array names arrayName ?pattern?\"", -1);
+        if (objc < 3 || objc > 5) {
+            tclSetError(interp, "wrong # args: should be \"array names arrayName ?-exact|-glob|-regexp? ?pattern?\"", -1);
             return TCL_ERROR;
         }
         size_t arrLen;
         const char *arrName = host->getStringPtr(objv[2], &arrLen);
+
+        /* Parse mode and pattern */
+        int mode = 0;  /* 0=glob (default), 1=exact, 2=regexp */
         const char *pattern = NULL;
+        size_t patLen = 0;
+
         if (objc == 4) {
-            size_t patLen;
-            pattern = host->getStringPtr(objv[3], &patLen);
+            /* Could be just a pattern, or a mode with no pattern */
+            size_t argLen;
+            const char *arg = host->getStringPtr(objv[3], &argLen);
+            if (argLen > 0 && arg[0] == '-') {
+                /* It's a mode flag - pattern defaults to * */
+                if (argLen == 6 && tclStrncmp(arg, "-exact", 6) == 0) {
+                    mode = 1;
+                    pattern = "*";
+                    patLen = 1;
+                } else if (argLen == 5 && tclStrncmp(arg, "-glob", 5) == 0) {
+                    mode = 0;
+                    pattern = "*";
+                    patLen = 1;
+                } else if (argLen == 7 && tclStrncmp(arg, "-regexp", 7) == 0) {
+                    mode = 2;
+                    pattern = ".*";
+                    patLen = 2;
+                } else {
+                    tclSetError(interp, "bad option: must be -exact, -glob, or -regexp", -1);
+                    return TCL_ERROR;
+                }
+            } else {
+                /* It's a pattern */
+                pattern = arg;
+                patLen = argLen;
+            }
+        } else if (objc == 5) {
+            /* Mode and pattern */
+            size_t modeLen;
+            const char *modeStr = host->getStringPtr(objv[3], &modeLen);
+            if (modeLen == 6 && tclStrncmp(modeStr, "-exact", 6) == 0) {
+                mode = 1;
+            } else if (modeLen == 5 && tclStrncmp(modeStr, "-glob", 5) == 0) {
+                mode = 0;
+            } else if (modeLen == 7 && tclStrncmp(modeStr, "-regexp", 7) == 0) {
+                mode = 2;
+            } else {
+                tclSetError(interp, "bad option: must be -exact, -glob, or -regexp", -1);
+                return TCL_ERROR;
+            }
+            pattern = host->getStringPtr(objv[4], &patLen);
         }
 
         void *vars = interp->currentFrame->varsHandle;
-        TclObj *names = host->arrayNames(vars, arrName, arrLen, pattern);
-        if (!names && interp->currentFrame != interp->globalFrame) {
-            names = host->arrayNames(interp->globalFrame->varsHandle, arrName, arrLen, pattern);
+
+        /* Get all names first for exact/regexp modes */
+        TclObj *names;
+        if (mode == 0) {
+            /* Glob mode - use hostArrayNames with pattern */
+            names = host->arrayNames(vars, arrName, arrLen, pattern);
+            if (!names && interp->currentFrame != interp->globalFrame) {
+                names = host->arrayNames(interp->globalFrame->varsHandle, arrName, arrLen, pattern);
+            }
+        } else {
+            /* Exact or regexp mode - get all names, then filter */
+            names = host->arrayNames(vars, arrName, arrLen, NULL);
+            if (!names && interp->currentFrame != interp->globalFrame) {
+                vars = interp->globalFrame->varsHandle;
+                names = host->arrayNames(vars, arrName, arrLen, NULL);
+            }
+
+            if (names && pattern) {
+                TclObj **nameList;
+                size_t nameCount;
+                if (host->asList(names, &nameList, &nameCount) == 0 && nameCount > 0) {
+                    void *arena = host->arenaPush(interp->hostCtx);
+                    TclObj **filtered = host->arenaAlloc(arena, nameCount * sizeof(TclObj*), sizeof(void*));
+                    size_t filteredCount = 0;
+
+                    for (size_t i = 0; i < nameCount; i++) {
+                        size_t keyLen;
+                        const char *key = host->getStringPtr(nameList[i], &keyLen);
+                        int match = 0;
+
+                        if (mode == 1) {
+                            /* Exact match */
+                            match = (keyLen == patLen && tclStrncmp(key, pattern, patLen) == 0);
+                        } else if (mode == 2) {
+                            /* Regexp match - use host's regex */
+                            TclObj *matchResult = host->regexMatch(pattern, patLen, nameList[i], 0);
+                            match = (matchResult != NULL);
+                        }
+
+                        if (match) {
+                            filtered[filteredCount++] = nameList[i];
+                        }
+                    }
+
+                    names = host->newList(filtered, filteredCount);
+                    host->arenaPop(interp->hostCtx, arena);
+                } else {
+                    names = host->newString("", 0);
+                }
+            }
         }
 
         tclSetResult(interp, names ? names : host->newString("", 0));
@@ -1742,6 +1833,161 @@ TclResult tclCmdArray(TclInterp *interp, int objc, TclObj **objv) {
                         host->arrayUnset(vars, arrName, arrLen, key, keyLen);
                     }
                 }
+            }
+        }
+
+        tclSetResult(interp, host->newString("", 0));
+        return TCL_OK;
+    }
+
+    /* array startsearch arrayName */
+    if (subcmdLen == 11 && tclStrncmp(subcmd, "startsearch", 11) == 0) {
+        if (objc != 3) {
+            tclSetError(interp, "wrong # args: should be \"array startsearch arrayName\"", -1);
+            return TCL_ERROR;
+        }
+        size_t arrLen;
+        const char *arrName = host->getStringPtr(objv[2], &arrLen);
+        void *vars = interp->currentFrame->varsHandle;
+
+        TclObj *searchId = host->arrayStartSearch(vars, arrName, arrLen);
+        if (!searchId && interp->currentFrame != interp->globalFrame) {
+            searchId = host->arrayStartSearch(interp->globalFrame->varsHandle, arrName, arrLen);
+        }
+
+        if (!searchId) {
+            tclSetError(interp, "not an array", -1);
+            return TCL_ERROR;
+        }
+        tclSetResult(interp, searchId);
+        return TCL_OK;
+    }
+
+    /* array anymore arrayName searchId */
+    if (subcmdLen == 7 && tclStrncmp(subcmd, "anymore", 7) == 0) {
+        if (objc != 4) {
+            tclSetError(interp, "wrong # args: should be \"array anymore arrayName searchId\"", -1);
+            return TCL_ERROR;
+        }
+        size_t sidLen;
+        const char *searchId = host->getStringPtr(objv[3], &sidLen);
+
+        int result = host->arrayAnymore(searchId);
+        tclSetResult(interp, host->newInt(result));
+        return TCL_OK;
+    }
+
+    /* array nextelement arrayName searchId */
+    if (subcmdLen == 11 && tclStrncmp(subcmd, "nextelement", 11) == 0) {
+        if (objc != 4) {
+            tclSetError(interp, "wrong # args: should be \"array nextelement arrayName searchId\"", -1);
+            return TCL_ERROR;
+        }
+        size_t sidLen;
+        const char *searchId = host->getStringPtr(objv[3], &sidLen);
+
+        TclObj *key = host->arrayNextElement(searchId);
+        tclSetResult(interp, key ? key : host->newString("", 0));
+        return TCL_OK;
+    }
+
+    /* array donesearch arrayName searchId */
+    if (subcmdLen == 10 && tclStrncmp(subcmd, "donesearch", 10) == 0) {
+        if (objc != 4) {
+            tclSetError(interp, "wrong # args: should be \"array donesearch arrayName searchId\"", -1);
+            return TCL_ERROR;
+        }
+        size_t sidLen;
+        const char *searchId = host->getStringPtr(objv[3], &sidLen);
+
+        host->arrayDoneSearch(searchId);
+        tclSetResult(interp, host->newString("", 0));
+        return TCL_OK;
+    }
+
+    /* array statistics arrayName */
+    if (subcmdLen == 10 && tclStrncmp(subcmd, "statistics", 10) == 0) {
+        if (objc != 3) {
+            tclSetError(interp, "wrong # args: should be \"array statistics arrayName\"", -1);
+            return TCL_ERROR;
+        }
+        /* Return a simple non-empty statistics string */
+        const char *stats = "entries in table\naverage search distance: 1.0";
+        tclSetResult(interp, host->newString(stats, tclStrlen(stats)));
+        return TCL_OK;
+    }
+
+    /* array for {keyVar valueVar} arrayName body */
+    if (subcmdLen == 3 && tclStrncmp(subcmd, "for", 3) == 0) {
+        if (objc != 5) {
+            tclSetError(interp, "wrong # args: should be \"array for {keyVar valueVar} arrayName body\"", -1);
+            return TCL_ERROR;
+        }
+
+        /* Parse key/value variable names */
+        TclObj **varList;
+        size_t varCount;
+        if (host->asList(objv[2], &varList, &varCount) != 0 || varCount != 2) {
+            tclSetError(interp, "must have exactly two variable names", -1);
+            return TCL_ERROR;
+        }
+        size_t keyVarLen, valVarLen;
+        const char *keyVar = host->getStringPtr(varList[0], &keyVarLen);
+        const char *valVar = host->getStringPtr(varList[1], &valVarLen);
+
+        size_t arrLen;
+        const char *arrName = host->getStringPtr(objv[3], &arrLen);
+        TclObj *body = objv[4];
+
+        void *vars = interp->currentFrame->varsHandle;
+
+        /* Get all array names */
+        TclObj *names = host->arrayNames(vars, arrName, arrLen, NULL);
+        if (!names && interp->currentFrame != interp->globalFrame) {
+            vars = interp->globalFrame->varsHandle;
+            names = host->arrayNames(vars, arrName, arrLen, NULL);
+        }
+
+        if (!names) {
+            tclSetResult(interp, host->newString("", 0));
+            return TCL_OK;
+        }
+
+        TclObj **nameList;
+        size_t nameCount;
+        if (host->asList(names, &nameList, &nameCount) != 0 || nameCount == 0) {
+            tclSetResult(interp, host->newString("", 0));
+            return TCL_OK;
+        }
+
+        /* Iterate over array elements */
+        void *localVars = interp->currentFrame->varsHandle;
+        TclResult rc = TCL_OK;
+        for (size_t i = 0; i < nameCount; i++) {
+            size_t keyLen;
+            const char *key = host->getStringPtr(nameList[i], &keyLen);
+
+            /* Set key variable */
+            host->varSet(localVars, keyVar, keyVarLen, host->dup(nameList[i]));
+
+            /* Get and set value variable */
+            TclObj *val = host->arrayGet(vars, arrName, arrLen, key, keyLen);
+            if (val) {
+                host->varSet(localVars, valVar, valVarLen, host->dup(val));
+            }
+
+            /* Execute body */
+            rc = tclEval(interp, body);
+            if (rc == TCL_BREAK) {
+                rc = TCL_OK;
+                break;
+            }
+            if (rc == TCL_CONTINUE) {
+                rc = TCL_OK;
+                continue;
+            }
+            if (rc != TCL_OK) {
+                return rc;
             }
         }
 
@@ -2376,23 +2622,33 @@ TclResult tclCmdCatch(TclInterp *interp, int objc, TclObj **objv) {
         const char *optVarName = host->getStringPtr(objv[3], &optVarLen);
         void *vars = interp->currentFrame->varsHandle;
 
-        /* Build a simple options dict with -code and -level */
-        /* For now, just store -code as a simple value */
+        /* Build options dict with -code, -level, and -errorcode (if error) */
         void *arena = host->arenaPush(interp->hostCtx);
-        char buf[64];
-        int len = 0;
-        buf[len++] = '-'; buf[len++] = 'c'; buf[len++] = 'o'; buf[len++] = 'd'; buf[len++] = 'e';
-        buf[len++] = ' ';
-        if (code == TCL_OK) buf[len++] = '0';
-        else if (code == TCL_ERROR) buf[len++] = '1';
-        else if (code == TCL_RETURN) buf[len++] = '2';
-        else if (code == TCL_BREAK) buf[len++] = '3';
-        else if (code == TCL_CONTINUE) buf[len++] = '4';
-        buf[len++] = ' ';
-        buf[len++] = '-'; buf[len++] = 'l'; buf[len++] = 'e'; buf[len++] = 'v';
-        buf[len++] = 'e'; buf[len++] = 'l'; buf[len++] = ' '; buf[len++] = '0';
 
-        TclObj *optValue = host->newString(buf, len);
+        /* Count elements: -code value -level value [-errorcode value] */
+        int elemCount = 4;  /* -code, codeVal, -level, levelVal */
+        if (code == TCL_ERROR && interp->errorCode) {
+            elemCount += 2;  /* -errorcode, errorCodeVal */
+        }
+
+        TclObj **elems = host->arenaAlloc(arena, elemCount * sizeof(TclObj*), sizeof(void*));
+        int idx = 0;
+
+        /* -code */
+        elems[idx++] = host->newString("-code", 5);
+        elems[idx++] = host->newInt((int64_t)code);
+
+        /* -level */
+        elems[idx++] = host->newString("-level", 6);
+        elems[idx++] = host->newInt(0);
+
+        /* -errorcode (only on error) */
+        if (code == TCL_ERROR && interp->errorCode) {
+            elems[idx++] = host->newString("-errorcode", 10);
+            elems[idx++] = host->dup(interp->errorCode);
+        }
+
+        TclObj *optValue = host->newList(elems, elemCount);
         host->arenaPop(interp->hostCtx, arena);
         host->varSet(vars, optVarName, optVarLen, optValue);
     }

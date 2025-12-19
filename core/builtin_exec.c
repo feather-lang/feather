@@ -362,13 +362,7 @@ static TclResult execPipeline(TclInterp *interp, ExecState *state) {
         int exitCode = 0;
         host->processWait(proc, &exitCode);
 
-        /* Strip trailing newline unless -keepnewline */
-        if (!state->keepNewline && outLen > 0 && outBuf[outLen - 1] == '\n') {
-            outLen--;
-            outBuf[outLen] = '\0';
-        }
-
-        /* Merge stderr with stdout if 2>@1 */
+        /* Merge stderr with stdout if 2>@1 (before stripping newlines) */
         if (state->stderrType == REDIR_ERROR_TO_OUT && errLen > 0) {
             /* Append stderr to stdout */
             if (outLen + errLen < 65535) {
@@ -376,14 +370,14 @@ static TclResult execPipeline(TclInterp *interp, ExecState *state) {
                     outBuf[outLen++] = errBuf[j];
                 }
                 outBuf[outLen] = '\0';
-
-                /* Strip trailing newline again */
-                if (!state->keepNewline && outLen > 0 && outBuf[outLen - 1] == '\n') {
-                    outLen--;
-                    outBuf[outLen] = '\0';
-                }
             }
             errLen = 0;  /* Don't report as error */
+        }
+
+        /* Strip trailing newline unless -keepnewline */
+        if (!state->keepNewline && outLen > 0 && outBuf[outLen - 1] == '\n') {
+            outLen--;
+            outBuf[outLen] = '\0';
         }
 
         /* Check for errors */
@@ -451,10 +445,162 @@ static TclResult execPipeline(TclInterp *interp, ExecState *state) {
         return TCL_OK;
     }
 
-    /* Multi-command pipeline - simplified implementation */
-    /* TODO: Implement full pipeline with inter-process pipes */
-    tclSetError(interp, "pipeline execution not yet implemented", -1);
-    return TCL_ERROR;
+    /* Multi-command pipeline - execute via shell */
+    void *arena = host->arenaPush(interp->hostCtx);
+
+    /* Build shell command string from all pipeline commands */
+    size_t totalLen = 0;
+    for (int c = 0; c < state->cmdCount; c++) {
+        for (int a = 0; a < state->cmds[c].argc; a++) {
+            totalLen += tclStrlen(state->cmds[c].argv[a]) + 3;  /* word + quotes + space */
+        }
+        if (c < state->cmdCount - 1) {
+            totalLen += 3;  /* " | " */
+        }
+    }
+
+    char *shellCmd = host->arenaAlloc(arena, totalLen + 1, 1);
+    char *p = shellCmd;
+
+    for (int c = 0; c < state->cmdCount; c++) {
+        for (int a = 0; a < state->cmds[c].argc; a++) {
+            if (a > 0) *p++ = ' ';
+            /* Quote the argument */
+            const char *arg = state->cmds[c].argv[a];
+            int needQuote = 0;
+            for (const char *s = arg; *s; s++) {
+                if (*s == ' ' || *s == '\t' || *s == '"' || *s == '\'' ||
+                    *s == '\\' || *s == '$' || *s == '`' || *s == '\n') {
+                    needQuote = 1;
+                    break;
+                }
+            }
+            if (needQuote || *arg == '\0') {
+                *p++ = '\'';
+                for (const char *s = arg; *s; s++) {
+                    if (*s == '\'') {
+                        *p++ = '\'';
+                        *p++ = '\\';
+                        *p++ = '\'';
+                        *p++ = '\'';
+                    } else {
+                        *p++ = *s;
+                    }
+                }
+                *p++ = '\'';
+            } else {
+                for (const char *s = arg; *s; s++) {
+                    *p++ = *s;
+                }
+            }
+        }
+        if (c < state->cmdCount - 1) {
+            *p++ = ' ';
+            *p++ = '|';
+            *p++ = ' ';
+        }
+    }
+    *p = '\0';
+
+    /* Execute via /bin/sh -c */
+    const char *shArgv[4] = {"/bin/sh", "-c", shellCmd, NULL};
+    int flags = TCL_PROCESS_PIPE_STDOUT;
+
+    if (state->stdinType == REDIR_INPUT_STRING) {
+        flags |= TCL_PROCESS_PIPE_STDIN;
+    }
+    if (!state->ignoreStderr) {
+        flags |= TCL_PROCESS_PIPE_STDERR;
+    }
+
+    TclChannel *pipeIn = NULL;
+    TclChannel *pipeOut = NULL;
+    TclChannel *pipeErr = NULL;
+
+    TclProcess *proc = host->processSpawn(shArgv, 3, flags, &pipeIn, &pipeOut, &pipeErr);
+
+    if (proc == NULL) {
+        tclSetError(interp, "couldn't execute pipeline", -1);
+        host->arenaPop(interp->hostCtx, arena);
+        return TCL_ERROR;
+    }
+
+    /* Write stdin if needed */
+    if (state->stdinType == REDIR_INPUT_STRING && pipeIn != NULL) {
+        host->chanWrite(pipeIn, state->stdinValue, state->stdinLen);
+        host->chanClose(interp->hostCtx, pipeIn);
+    }
+
+    /* Read stdout */
+    char *outBuf = host->arenaAlloc(arena, 65536, 1);
+    size_t outLen = 0;
+
+    if (pipeOut != NULL) {
+        int n;
+        while ((n = host->chanRead(pipeOut, outBuf + outLen, 65536 - outLen - 1)) > 0) {
+            outLen += n;
+            if (outLen >= 65535) break;
+        }
+        host->chanClose(interp->hostCtx, pipeOut);
+    }
+    outBuf[outLen] = '\0';
+
+    /* Read stderr */
+    char *errBuf = host->arenaAlloc(arena, 65536, 1);
+    size_t errLen = 0;
+
+    if (pipeErr != NULL) {
+        int n;
+        while ((n = host->chanRead(pipeErr, errBuf + errLen, 65536 - errLen - 1)) > 0) {
+            errLen += n;
+            if (errLen >= 65535) break;
+        }
+        host->chanClose(interp->hostCtx, pipeErr);
+    }
+    errBuf[errLen] = '\0';
+
+    /* Wait for shell process */
+    int exitCode = 0;
+    host->processWait(proc, &exitCode);
+
+    /* Strip trailing newline unless -keepnewline */
+    if (!state->keepNewline && outLen > 0 && outBuf[outLen - 1] == '\n') {
+        outLen--;
+        outBuf[outLen] = '\0';
+    }
+
+    /* Check for errors */
+    if (exitCode != 0) {
+        tclSetResult(interp, host->newString(outBuf, outLen));
+
+        void *ecArena = host->arenaPush(interp->hostCtx);
+        TclObj **ecParts = host->arenaAlloc(ecArena, 3 * sizeof(TclObj*), sizeof(void*));
+        ecParts[0] = host->newString("CHILDSTATUS", 11);
+        ecParts[1] = host->newInt(host->processPid(proc));
+        ecParts[2] = host->newInt(exitCode);
+        TclObj *errorCode = host->newList(ecParts, 3);
+        tclSetErrorCode(interp, errorCode);
+        host->arenaPop(interp->hostCtx, ecArena);
+
+        if (errLen > 0) {
+            tclSetError(interp, errBuf, (int)errLen);
+        } else {
+            tclSetError(interp, "child process exited abnormally", -1);
+        }
+        host->arenaPop(interp->hostCtx, arena);
+        return TCL_ERROR;
+    }
+
+    if (errLen > 0 && !state->ignoreStderr) {
+        tclSetResult(interp, host->newString(outBuf, outLen));
+        tclSetError(interp, errBuf, (int)errLen);
+        host->arenaPop(interp->hostCtx, arena);
+        return TCL_ERROR;
+    }
+
+    tclSetResult(interp, host->newString(outBuf, outLen));
+    host->arenaPop(interp->hostCtx, arena);
+    return TCL_OK;
 }
 
 /* Main exec command */

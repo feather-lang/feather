@@ -18,6 +18,20 @@ extern TclResult tclEvalBracketed(TclInterp *interp, const char *cmd, size_t len
  * Returns number of input characters consumed (including backslash).
  * Writes output character to *out.
  */
+/* Helper to convert hex char to value */
+static int hexDigit(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+/* Helper to convert octal char to value */
+static int octDigit(char c) {
+    if (c >= '0' && c <= '7') return c - '0';
+    return -1;
+}
+
 int tclSubstBackslashChar(const char *src, const char *end, char *out) {
     if (src >= end || *src != '\\') {
         return 0;
@@ -48,6 +62,61 @@ int tclSubstBackslashChar(const char *src, const char *end, char *out) {
             /* Backslash-newline: replace with single space, skip following whitespace */
             *out = ' ';
             return 2;  /* Caller should handle skipping whitespace */
+        case 'x': {
+            /* Hex escape: \xNN (1-2 hex digits) */
+            int val = 0;
+            int consumed = 2;  /* \x */
+            const char *p = src + 2;
+            while (p < end && consumed < 4) {  /* Up to 2 hex digits */
+                int d = hexDigit(*p);
+                if (d < 0) break;
+                val = (val << 4) | d;
+                p++;
+                consumed++;
+            }
+            if (consumed == 2) {
+                /* No hex digits - output literal 'x' */
+                *out = 'x';
+                return 2;
+            }
+            *out = (char)val;
+            return consumed;
+        }
+        case 'u': {
+            /* Unicode escape: \uNNNN (4 hex digits) */
+            if (src + 5 < end) {
+                int val = 0;
+                for (int i = 0; i < 4; i++) {
+                    int d = hexDigit(src[2 + i]);
+                    if (d < 0) {
+                        *out = 'u';
+                        return 2;
+                    }
+                    val = (val << 4) | d;
+                }
+                /* For now, just output low byte (ASCII/Latin-1) */
+                *out = (char)(val & 0xFF);
+                return 6;
+            }
+            *out = 'u';
+            return 2;
+        }
+        case '0': case '1': case '2': case '3':
+        case '4': case '5': case '6': case '7': {
+            /* Octal escape: \NNN (1-3 octal digits) */
+            int val = 0;
+            int consumed = 1;  /* \ */
+            const char *p = src + 1;
+            while (p < end && consumed < 4) {  /* Up to 3 octal digits */
+                int d = octDigit(*p);
+                if (d < 0) break;
+                val = (val << 3) | d;
+                p++;
+                consumed++;
+            }
+            *out = (char)val;
+            return consumed;
+        }
         default:
             /* Unknown escape: just pass through the character */
             *out = c;

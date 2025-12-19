@@ -377,6 +377,12 @@ struct TclHost {
                           const char *key, size_t keyLen);
     size_t  (*arraySize)(void *vars, const char *arr, size_t arrLen);
 
+    /* Array search/iteration */
+    TclObj* (*arrayStartSearch)(void *vars, const char *arr, size_t arrLen);
+    int     (*arrayAnymore)(const char *searchId);
+    TclObj* (*arrayNextElement)(const char *searchId);
+    void    (*arrayDoneSearch)(const char *searchId);
+
     /* ==================================================================
      * Variable Traces
      *

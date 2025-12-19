@@ -29,6 +29,38 @@ struct VarTable {
     GHashTable *vars;        /* Maps gchar* -> VarEntry* */
 };
 
+/* ========================================================================
+ * Array Search State
+ * ======================================================================== */
+
+/* Search state for array iteration */
+typedef struct ArraySearch {
+    gchar    *arrayName;      /* Name of the array being searched */
+    GPtrArray *keys;          /* Snapshot of array keys at search start */
+    guint     index;          /* Current position in keys array */
+} ArraySearch;
+
+/* Global search table - maps search ID string to ArraySearch* */
+static GHashTable *searchTable = NULL;
+static int nextSearchId = 1;
+
+static void arraySearchFree(gpointer data) {
+    ArraySearch *search = data;
+    if (search) {
+        g_free(search->arrayName);
+        if (search->keys) {
+            g_ptr_array_free(search->keys, TRUE);
+        }
+        g_free(search);
+    }
+}
+
+static void initSearchTable(void) {
+    if (!searchTable) {
+        searchTable = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, arraySearchFree);
+    }
+}
+
 /* Free a variable entry */
 static void varEntryFree(gpointer data) {
     VarEntry *entry = data;
@@ -280,6 +312,7 @@ typedef struct {
     GPtrArray *names;
     const gchar *prefix;
     gsize prefixLen;
+    const gchar *pattern;  /* glob pattern to filter keys */
 } ArrayNamesData;
 
 static void collectArrayNames(gpointer key, gpointer value, gpointer userData) {
@@ -289,21 +322,28 @@ static void collectArrayNames(gpointer key, gpointer value, gpointer userData) {
     gsize nameLen = strlen(name);
 
     /* Check if name starts with prefix( */
-    if (nameLen > data->prefixLen + 2 &&
+    if (nameLen >= data->prefixLen + 2 &&
         strncmp(name, data->prefix, data->prefixLen) == 0 &&
         name[data->prefixLen] == '(') {
         /* Extract key (between parentheses) */
         const gchar *keyStart = name + data->prefixLen + 1;
         const gchar *keyEnd = name + nameLen - 1;
         if (*keyEnd == ')') {
-            g_ptr_array_add(data->names, g_strndup(keyStart, keyEnd - keyStart));
+            gchar *arrKey = g_strndup(keyStart, keyEnd - keyStart);
+
+            /* Apply pattern filter if present */
+            if (data->pattern == NULL ||
+                g_pattern_match_simple(data->pattern, arrKey)) {
+                g_ptr_array_add(data->names, arrKey);
+            } else {
+                g_free(arrKey);
+            }
         }
     }
 }
 
 TclObj *hostArrayNames(void *vars, const char *arr, size_t arrLen,
                        const char *pattern) {
-    (void)pattern;  /* TODO: pattern matching */
     VarTable *table = vars;
     if (!table) return hostNewString("", 0);
 
@@ -311,7 +351,8 @@ TclObj *hostArrayNames(void *vars, const char *arr, size_t arrLen,
     ArrayNamesData data = {
         .names = g_ptr_array_new_with_free_func(g_free),
         .prefix = prefix,
-        .prefixLen = arrLen
+        .prefixLen = arrLen,
+        .pattern = pattern
     };
 
     g_hash_table_foreach(table->vars, collectArrayNames, &data);
@@ -356,7 +397,7 @@ static void countArrayElements(gpointer key, gpointer value, gpointer userData) 
     const gchar *name = key;
     gsize nameLen = strlen(name);
 
-    if (nameLen > data->prefixLen + 2 &&
+    if (nameLen >= data->prefixLen + 2 &&
         strncmp(name, data->prefix, data->prefixLen) == 0 &&
         name[data->prefixLen] == '(') {
         data->count++;
@@ -378,4 +419,104 @@ size_t hostArraySize(void *vars, const char *arr, size_t arrLen) {
     g_free(prefix);
 
     return data.count;
+}
+
+/* ========================================================================
+ * Array Search Functions
+ * ======================================================================== */
+
+/* Helper: collect array keys into a GPtrArray */
+typedef struct {
+    GPtrArray *keys;
+    const gchar *prefix;
+    gsize prefixLen;
+} CollectKeysData;
+
+static void collectArrayKeys(gpointer key, gpointer value, gpointer userData) {
+    (void)value;
+    CollectKeysData *data = userData;
+    const gchar *name = key;
+    gsize nameLen = strlen(name);
+
+    /* Check if name starts with prefix( */
+    if (nameLen >= data->prefixLen + 2 &&
+        strncmp(name, data->prefix, data->prefixLen) == 0 &&
+        name[data->prefixLen] == '(') {
+        /* Extract key (between parentheses) */
+        const gchar *keyStart = name + data->prefixLen + 1;
+        const gchar *keyEnd = name + nameLen - 1;
+        if (*keyEnd == ')') {
+            g_ptr_array_add(data->keys, g_strndup(keyStart, keyEnd - keyStart));
+        }
+    }
+}
+
+/* Start a search on an array - returns search ID or NULL on error */
+TclObj *hostArrayStartSearch(void *vars, const char *arr, size_t arrLen) {
+    VarTable *table = vars;
+    if (!table) return NULL;
+
+    initSearchTable();
+
+    /* Collect all array keys */
+    gchar *prefix = g_strndup(arr, arrLen);
+    CollectKeysData data = {
+        .keys = g_ptr_array_new_with_free_func(g_free),
+        .prefix = prefix,
+        .prefixLen = arrLen
+    };
+
+    g_hash_table_foreach(table->vars, collectArrayKeys, &data);
+    g_free(prefix);
+
+    /* Create search state */
+    ArraySearch *search = g_new0(ArraySearch, 1);
+    search->arrayName = g_strndup(arr, arrLen);
+    search->keys = data.keys;
+    search->index = 0;
+
+    /* Generate search ID */
+    gchar *searchId = g_strdup_printf("s-%d-%.*s", nextSearchId++, (int)arrLen, arr);
+
+    /* Store in search table */
+    g_hash_table_insert(searchTable, searchId, search);
+
+    return hostNewString(searchId, strlen(searchId));
+}
+
+/* Check if more elements are available */
+int hostArrayAnymore(const char *searchId) {
+    initSearchTable();
+    if (!searchId) return 0;
+
+    ArraySearch *search = g_hash_table_lookup(searchTable, searchId);
+    if (!search) return 0;
+
+    return search->index < search->keys->len ? 1 : 0;
+}
+
+/* Get next element key */
+TclObj *hostArrayNextElement(const char *searchId) {
+    initSearchTable();
+    if (!searchId) return NULL;
+
+    ArraySearch *search = g_hash_table_lookup(searchTable, searchId);
+    if (!search) return NULL;
+
+    if (search->index >= search->keys->len) {
+        return hostNewString("", 0);
+    }
+
+    const gchar *key = g_ptr_array_index(search->keys, search->index);
+    search->index++;
+
+    return hostNewString(key, strlen(key));
+}
+
+/* End a search */
+void hostArrayDoneSearch(const char *searchId) {
+    initSearchTable();
+    if (!searchId) return;
+
+    g_hash_table_remove(searchTable, searchId);
 }

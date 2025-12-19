@@ -145,6 +145,51 @@ static int lexQuotes(TclLexer *lex, TclWord *word, TclInterp *interp) {
         if (*lex->pos == '\\' && lex->pos + 1 < lex->end) {
             if (lex->pos[1] == '\n') lex->line++;
             lex->pos += 2;
+        } else if (*lex->pos == '[') {
+            /* Command substitution - skip to matching ] */
+            int depth = 1;
+            lex->pos++;
+            while (lex->pos < lex->end && depth > 0) {
+                char ch = *lex->pos;
+                if (ch == '\\' && lex->pos + 1 < lex->end) {
+                    lex->pos += 2;
+                } else if (ch == '[') {
+                    depth++;
+                    lex->pos++;
+                } else if (ch == ']') {
+                    depth--;
+                    if (depth > 0) lex->pos++;
+                } else if (ch == '{') {
+                    /* Skip braced content */
+                    int braceDepth = 1;
+                    lex->pos++;
+                    while (lex->pos < lex->end && braceDepth > 0) {
+                        if (*lex->pos == '\\' && lex->pos + 1 < lex->end) {
+                            lex->pos += 2;
+                        } else {
+                            if (*lex->pos == '{') braceDepth++;
+                            else if (*lex->pos == '}') braceDepth--;
+                            if (braceDepth > 0) lex->pos++;
+                        }
+                    }
+                    if (lex->pos < lex->end) lex->pos++;  /* Skip } */
+                } else if (ch == '"') {
+                    /* Skip quoted content within command */
+                    lex->pos++;
+                    while (lex->pos < lex->end && *lex->pos != '"') {
+                        if (*lex->pos == '\\' && lex->pos + 1 < lex->end) {
+                            lex->pos += 2;
+                        } else {
+                            lex->pos++;
+                        }
+                    }
+                    if (lex->pos < lex->end) lex->pos++;  /* Skip " */
+                } else {
+                    if (ch == '\n') lex->line++;
+                    lex->pos++;
+                }
+            }
+            if (lex->pos < lex->end) lex->pos++;  /* Skip ] */
         } else {
             if (*lex->pos == '\n') lex->line++;
             lex->pos++;
@@ -171,6 +216,12 @@ static int lexQuotes(TclLexer *lex, TclWord *word, TclInterp *interp) {
 static int lexBareWord(TclLexer *lex, TclWord *word, TclInterp *interp) {
     const char *start = lex->pos;
     int startLine = lex->line;
+
+    /* Check for {*} expansion prefix at start */
+    if (lex->pos + 2 < lex->end &&
+        lex->pos[0] == '{' && lex->pos[1] == '*' && lex->pos[2] == '}') {
+        lex->pos += 3;  /* Skip {*} prefix, continue parsing the rest */
+    }
 
     while (lex->pos < lex->end) {
         char c = *lex->pos;
@@ -199,6 +250,33 @@ static int lexBareWord(TclLexer *lex, TclWord *word, TclInterp *interp) {
                 lex->pos++;
             }
             if (lex->pos < lex->end) lex->pos++;  /* Skip } */
+            continue;
+        }
+
+        /* $varname or $varname(key) - handle array element syntax */
+        if (c == '$') {
+            lex->pos++;  /* Skip $ */
+            /* Skip variable name */
+            while (lex->pos < lex->end) {
+                char vc = *lex->pos;
+                if ((vc >= 'a' && vc <= 'z') || (vc >= 'A' && vc <= 'Z') ||
+                    (vc >= '0' && vc <= '9') || vc == '_') {
+                    lex->pos++;
+                } else {
+                    break;
+                }
+            }
+            /* Check for (key) - array element */
+            if (lex->pos < lex->end && *lex->pos == '(') {
+                int parenDepth = 1;
+                lex->pos++;  /* Skip ( */
+                while (lex->pos < lex->end && parenDepth > 0) {
+                    if (*lex->pos == '(') parenDepth++;
+                    else if (*lex->pos == ')') parenDepth--;
+                    if (parenDepth > 0) lex->pos++;
+                }
+                if (lex->pos < lex->end) lex->pos++;  /* Skip ) */
+            }
             continue;
         }
 
@@ -281,6 +359,12 @@ int tclLexerNextWord(TclLexer *lex, TclWord *word, TclInterp *interp) {
     char c = *lex->pos;
 
     if (c == '{') {
+        /* Check for {*} expansion prefix */
+        if (lex->pos + 2 < lex->end && lex->pos[1] == '*' && lex->pos[2] == '}') {
+            /* This is {*}... expansion - parse the rest as a bare word */
+            /* Include the {*} in the word so eval can detect it */
+            return lexBareWord(lex, word, interp);
+        }
         lex->pos++;  /* Skip opening { */
         return lexBraces(lex, word, interp);
     } else if (c == '"') {

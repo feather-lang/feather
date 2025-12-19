@@ -197,23 +197,91 @@ TclEvalStatus tclEvalStep(TclInterp *interp, TclEvalState *state) {
         }
 
         case EVAL_PHASE_SUBST: {
-            /* Substitute each word */
+            /* Substitute each word, handling {*} expansion */
+            /* Use a separate output index since expansion can produce more words */
+            int outIndex = state->substCount;  /* Where to write next */
+            int maxWords = state->currentCmd.wordCount * 8;  /* Allow some expansion */
+
             while (state->wordIndex < state->currentCmd.wordCount) {
                 TclWord *word = &state->currentCmd.words[state->wordIndex];
-                TclObj *substed = tclSubstWord(interp, word, TCL_SUBST_ALL);
 
-                if (!substed) {
-                    /* Substitution error */
-                    state->phase = EVAL_PHASE_DONE;
-                    interp->resultCode = TCL_ERROR;
-                    return EVAL_DONE;
+                /* Check for {*} expansion prefix */
+                int isExpansion = 0;
+                const char *wordStart = word->start;
+                size_t wordLen = word->len;
+
+                if (word->type == TCL_WORD_BARE && wordLen >= 3 &&
+                    wordStart[0] == '{' && wordStart[1] == '*' && wordStart[2] == '}') {
+                    isExpansion = 1;
+                    wordStart += 3;
+                    wordLen -= 3;
                 }
 
-                state->substWords[state->wordIndex] = substed;
+                if (isExpansion) {
+                    /* Substitute the part after {*} */
+                    TclWord expandWord = *word;
+                    expandWord.start = wordStart;
+                    expandWord.len = wordLen;
+                    TclObj *substed = tclSubstWord(interp, &expandWord, TCL_SUBST_ALL);
+
+                    if (!substed) {
+                        state->phase = EVAL_PHASE_DONE;
+                        interp->resultCode = TCL_ERROR;
+                        return EVAL_DONE;
+                    }
+
+                    /* Get list length and expand each element */
+                    size_t elemCount = host->listLength(substed);
+
+                    /* Ensure we have enough space */
+                    if (outIndex + (int)elemCount > maxWords) {
+                        /* Reallocate */
+                        maxWords = (outIndex + (int)elemCount) * 2;
+                        TclObj **newWords = host->arenaAlloc(state->parser.arena,
+                                                              maxWords * sizeof(TclObj*),
+                                                              sizeof(void*));
+                        for (int i = 0; i < outIndex; i++) {
+                            newWords[i] = state->substWords[i];
+                        }
+                        state->substWords = newWords;
+                    }
+
+                    /* Add each list element */
+                    for (size_t i = 0; i < elemCount; i++) {
+                        TclObj *elem = host->listIndex(substed, i);
+                        if (elem) {
+                            state->substWords[outIndex++] = elem;
+                        }
+                    }
+                } else {
+                    /* Normal substitution */
+                    TclObj *substed = tclSubstWord(interp, word, TCL_SUBST_ALL);
+
+                    if (!substed) {
+                        state->phase = EVAL_PHASE_DONE;
+                        interp->resultCode = TCL_ERROR;
+                        return EVAL_DONE;
+                    }
+
+                    /* Ensure we have space */
+                    if (outIndex >= maxWords) {
+                        maxWords = maxWords * 2;
+                        TclObj **newWords = host->arenaAlloc(state->parser.arena,
+                                                              maxWords * sizeof(TclObj*),
+                                                              sizeof(void*));
+                        for (int i = 0; i < outIndex; i++) {
+                            newWords[i] = state->substWords[i];
+                        }
+                        state->substWords = newWords;
+                    }
+
+                    state->substWords[outIndex++] = substed;
+                }
+
                 state->wordIndex++;
             }
 
-            state->substCount = state->currentCmd.wordCount;
+            state->substCount = outIndex;
             state->phase = EVAL_PHASE_LOOKUP;
             return EVAL_CONTINUE;
         }

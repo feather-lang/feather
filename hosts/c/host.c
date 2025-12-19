@@ -55,6 +55,12 @@ extern void hostArrayUnset(void *vars, const char *arr, size_t arrLen,
                            const char *key, size_t keyLen);
 extern size_t hostArraySize(void *vars, const char *arr, size_t arrLen);
 
+/* Array search functions */
+extern TclObj *hostArrayStartSearch(void *vars, const char *arr, size_t arrLen);
+extern int hostArrayAnymore(const char *searchId);
+extern TclObj *hostArrayNextElement(const char *searchId);
+extern void hostArrayDoneSearch(const char *searchId);
+
 /* External functions from arena.c */
 extern void *hostArenaPush(void *ctx);
 extern void hostArenaPop(void *ctx, void *arena);
@@ -904,10 +910,7 @@ static TclProcess *hostProcessSpawn(const char **argv, int argc, int flags,
     GPid child_pid;
     gint stdin_fd = -1, stdout_fd = -1, stderr_fd = -1;
 
-    GSpawnFlags spawn_flags = G_SPAWN_SEARCH_PATH;
-    if (flags & TCL_PROCESS_BACKGROUND) {
-        spawn_flags |= G_SPAWN_DO_NOT_REAP_CHILD;
-    }
+    GSpawnFlags spawn_flags = G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD;
 
     gboolean success = g_spawn_async_with_pipes(
         NULL,           /* working directory (inherit) */
@@ -1048,13 +1051,38 @@ static int64_t hostFileAtime(const char *path) {
     return (int64_t)buf.st_atime;
 }
 
+static int deleteRecursive(const char *path);
+
 static int hostFileDelete(const char *path, int force) {
-    (void)force;
-    /* Check if directory */
+    if (!g_file_test(path, G_FILE_TEST_EXISTS)) {
+        return force ? 0 : -1;
+    }
     if (g_file_test(path, G_FILE_TEST_IS_DIR)) {
+        if (force) {
+            return deleteRecursive(path);
+        }
         return g_rmdir(path) == 0 ? 0 : -1;
     }
     return g_unlink(path) == 0 ? 0 : -1;
+}
+
+static int deleteRecursive(const char *path) {
+    GDir *dir = g_dir_open(path, 0, NULL);
+    if (!dir) {
+        return -1;
+    }
+    const char *name;
+    while ((name = g_dir_read_name(dir)) != NULL) {
+        char *child = g_build_filename(path, name, NULL);
+        if (g_file_test(child, G_FILE_TEST_IS_DIR)) {
+            deleteRecursive(child);
+        } else {
+            g_unlink(child);
+        }
+        g_free(child);
+    }
+    g_dir_close(dir);
+    return g_rmdir(path) == 0 ? 0 : -1;
 }
 
 static int hostFileRename(const char *old, const char *new_, int force) {
@@ -1388,7 +1416,29 @@ static TclObj *hostSysExecutable(void) { return hostNewString("", 0); }
 static int hostSysPid(void) { return 0; }
 
 static TclObj *hostRegexMatch(const char *pat, size_t patLen, TclObj *str, int flags) {
-    (void)pat; (void)patLen; (void)str; (void)flags; return NULL;
+    (void)flags;
+    if (!pat || !str) return NULL;
+
+    /* Get string to match */
+    size_t strLen;
+    const char *strPtr = hostGetStringPtr(str, &strLen);
+    if (!strPtr) return NULL;
+
+    /* Create null-terminated pattern */
+    gchar *pattern = g_strndup(pat, patLen);
+    gchar *subject = g_strndup(strPtr, strLen);
+
+    /* Use GLib regex for matching */
+    gboolean matched = g_regex_match_simple(pattern, subject, 0, 0);
+
+    g_free(pattern);
+    g_free(subject);
+
+    if (matched) {
+        /* Return a simple result indicating match - just return 1 */
+        return hostNewInt(1);
+    }
+    return NULL;
 }
 static TclObj *hostRegexSubst(const char *pat, size_t patLen, TclObj *str, TclObj *rep, int flags) {
     (void)pat; (void)patLen; (void)str; (void)rep; (void)flags; return NULL;
@@ -1500,6 +1550,10 @@ const TclHost cHost = {
     .arrayNames = hostArrayNames,
     .arrayUnset = hostArrayUnset,
     .arraySize = hostArraySize,
+    .arrayStartSearch = hostArrayStartSearch,
+    .arrayAnymore = hostArrayAnymore,
+    .arrayNextElement = hostArrayNextElement,
+    .arrayDoneSearch = hostArrayDoneSearch,
 
     /* Traces */
     .traceVarAdd = hostTraceVarAdd,
