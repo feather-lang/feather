@@ -168,7 +168,7 @@ static int lexQuotes(TclLexer *lex, TclWord *word, TclInterp *interp) {
 }
 
 /* Parse a bare (unquoted) word */
-static int lexBareWord(TclLexer *lex, TclWord *word) {
+static int lexBareWord(TclLexer *lex, TclWord *word, TclInterp *interp) {
     const char *start = lex->pos;
     int startLine = lex->line;
 
@@ -217,6 +217,12 @@ static int lexBareWord(TclLexer *lex, TclWord *word) {
                 if (*lex->pos == '\n') lex->line++;
                 if (depth > 0) lex->pos++;
             }
+            if (depth != 0) {
+                if (interp) {
+                    tclSetError(interp, "missing close-bracket", -1);
+                }
+                return -1;
+            }
             if (lex->pos < lex->end) lex->pos++;  /* Skip ] */
             continue;
         }
@@ -254,6 +260,6 @@ int tclLexerNextWord(TclLexer *lex, TclWord *word, TclInterp *interp) {
         lex->pos++;  /* Skip opening " */
         return lexQuotes(lex, word, interp);
     } else {
-        return lexBareWord(lex, word);
+        return lexBareWord(lex, word, interp);
     }
 }
