@@ -40,7 +40,33 @@ This document describes the architecture of TCLC, a reimplementation of the TCL 
 
 ## Design Principles
 
-### 1. No Allocation in C
+### 1. No Preprocessor Constants
+
+The C core does not use `#define` for constants because preprocessor macros are invisible to the compiler and make generating bindings (e.g., for Go via CGO) difficult. Instead:
+
+- **Use `enum` for integer constants** - Enums are proper C symbols visible to tooling
+- **Use `static const` for typed constants** - When a specific type is needed
+- **Const enums work for array sizing** - `enum { BUFFER_SIZE = 256 };` is valid for array declarations
+
+```c
+// BAD - invisible to binding generators
+#define TCL_OK 0
+#define TCL_ERROR 1
+#define MAX_WORDS 128
+
+// GOOD - visible to compilers and binding tools
+typedef enum {
+    TCL_OK = 0,
+    TCL_ERROR = 1,
+    TCL_RETURN = 2,
+    TCL_BREAK = 3,
+    TCL_CONTINUE = 4,
+} TclResult;
+
+enum { MAX_WORDS = 128 };
+```
+
+### 2. No Allocation in C
 
 The C core does not call `malloc`, `free`, or any standard library allocation functions. All dynamic memory is managed by the Go host through callbacks:
 

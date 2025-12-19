@@ -96,39 +96,53 @@ typedef void (*TclTraceProc)(
 );
 
 /* Trace operation flags */
-#define TCL_TRACE_READ   (1 << 0)
-#define TCL_TRACE_WRITE  (1 << 1)
-#define TCL_TRACE_UNSET  (1 << 2)
+typedef enum TclTraceOp {
+    TCL_TRACE_READ   = (1 << 0),
+    TCL_TRACE_WRITE  = (1 << 1),
+    TCL_TRACE_UNSET  = (1 << 2),
+} TclTraceOp;
 
 /* Event loop flags */
-#define TCL_EVENT_FILE   (1 << 0)
-#define TCL_EVENT_TIMER  (1 << 1)
-#define TCL_EVENT_IDLE   (1 << 2)
-#define TCL_EVENT_ALL    (0xFF)
-#define TCL_EVENT_NOWAIT (1 << 8)
+typedef enum TclEventFlag {
+    TCL_EVENT_FILE   = (1 << 0),
+    TCL_EVENT_TIMER  = (1 << 1),
+    TCL_EVENT_IDLE   = (1 << 2),
+    TCL_EVENT_ALL    = 0xFF,
+    TCL_EVENT_NOWAIT = (1 << 8),
+} TclEventFlag;
 
 /* Channel event mask */
-#define TCL_READABLE     (1 << 0)
-#define TCL_WRITABLE     (1 << 1)
+typedef enum TclChannelMask {
+    TCL_READABLE = (1 << 0),
+    TCL_WRITABLE = (1 << 1),
+} TclChannelMask;
 
 /* Process spawn flags */
-#define TCL_PROCESS_PIPE_STDIN  (1 << 0)
-#define TCL_PROCESS_PIPE_STDOUT (1 << 1)
-#define TCL_PROCESS_PIPE_STDERR (1 << 2)
-#define TCL_PROCESS_BACKGROUND  (1 << 3)
+typedef enum TclProcessFlag {
+    TCL_PROCESS_PIPE_STDIN  = (1 << 0),
+    TCL_PROCESS_PIPE_STDOUT = (1 << 1),
+    TCL_PROCESS_PIPE_STDERR = (1 << 2),
+    TCL_PROCESS_BACKGROUND  = (1 << 3),
+} TclProcessFlag;
 
 /* Socket flags */
-#define TCL_SOCKET_ASYNC        (1 << 0)
+typedef enum TclSocketFlag {
+    TCL_SOCKET_ASYNC = (1 << 0),
+} TclSocketFlag;
 
 /* Glob type flags */
-#define TCL_GLOB_TYPE_FILE      (1 << 0)
-#define TCL_GLOB_TYPE_DIR       (1 << 1)
-#define TCL_GLOB_TYPE_LINK      (1 << 2)
+typedef enum TclGlobType {
+    TCL_GLOB_TYPE_FILE = (1 << 0),
+    TCL_GLOB_TYPE_DIR  = (1 << 1),
+    TCL_GLOB_TYPE_LINK = (1 << 2),
+} TclGlobType;
 
 /* Seek whence */
-#define TCL_SEEK_SET 0
-#define TCL_SEEK_CUR 1
-#define TCL_SEEK_END 2
+typedef enum TclSeekWhence {
+    TCL_SEEK_SET = 0,
+    TCL_SEEK_CUR = 1,
+    TCL_SEEK_END = 2,
+} TclSeekWhence;
 
 /* ========================================================================
  * Activation Record (Frame)
@@ -137,10 +151,12 @@ typedef void (*TclTraceProc)(
  * C core defines the structure.
  * ======================================================================== */
 
-#define TCL_FRAME_PROC      (1 << 0)  /* Frame is a proc call */
-#define TCL_FRAME_GLOBAL    (1 << 1)  /* Global frame */
-#define TCL_FRAME_NAMESPACE (1 << 2)  /* Namespace eval frame */
-#define TCL_FRAME_COROUTINE (1 << 3)  /* Coroutine base frame */
+typedef enum TclFrameFlag {
+    TCL_FRAME_PROC      = (1 << 0),  /* Frame is a proc call */
+    TCL_FRAME_GLOBAL    = (1 << 1),  /* Global frame */
+    TCL_FRAME_NAMESPACE = (1 << 2),  /* Namespace eval frame */
+    TCL_FRAME_COROUTINE = (1 << 3),  /* Coroutine base frame */
+} TclFrameFlag;
 
 struct TclFrame {
     TclFrame   *parent;         /* Calling frame (NULL for global) */
@@ -556,10 +572,12 @@ TclResult tclExprBool(TclInterp *interp, TclObj *expr, int *resultOut);
 /* Substitution (for subst command) */
 TclResult tclSubst(TclInterp *interp, TclObj *str, int flags, TclObj **resultOut);
 
-#define TCL_SUBST_COMMANDS  (1 << 0)
-#define TCL_SUBST_VARIABLES (1 << 1)
-#define TCL_SUBST_BACKSLASH (1 << 2)
-#define TCL_SUBST_ALL       (TCL_SUBST_COMMANDS | TCL_SUBST_VARIABLES | TCL_SUBST_BACKSLASH)
+typedef enum TclSubstFlag {
+    TCL_SUBST_COMMANDS  = (1 << 0),
+    TCL_SUBST_VARIABLES = (1 << 1),
+    TCL_SUBST_BACKSLASH = (1 << 2),
+    TCL_SUBST_ALL       = (TCL_SUBST_COMMANDS | TCL_SUBST_VARIABLES | TCL_SUBST_BACKSLASH),
+} TclSubstFlag;
 
 #ifdef __cplusplus
 }

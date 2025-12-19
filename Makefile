@@ -11,12 +11,24 @@ TCLSH ?= tclsh
 
 # Directories
 CORE_DIR = core
-HOST_DIR = hosts/go
+HOST_C_DIR = hosts/c
+HOST_GO_DIR = hosts/go
 SPEC_DIR = spec
 HARNESS_DIR = harness
 BUILD_DIR = build
 
-# Harness binary
+# Source files
+CORE_SRCS = $(CORE_DIR)/lexer.c $(CORE_DIR)/parser.c $(CORE_DIR)/subst.c \
+            $(CORE_DIR)/eval.c $(CORE_DIR)/builtins.c
+HOST_C_SRCS = $(HOST_C_DIR)/host.c $(HOST_C_DIR)/object.c $(HOST_C_DIR)/vars.c \
+              $(HOST_C_DIR)/arena.c $(HOST_C_DIR)/channel.c $(HOST_C_DIR)/main.c
+
+# Object files
+CORE_OBJS = $(patsubst $(CORE_DIR)/%.c,$(BUILD_DIR)/%.o,$(CORE_SRCS))
+HOST_C_OBJS = $(patsubst $(HOST_C_DIR)/%.c,$(BUILD_DIR)/host_%.o,$(HOST_C_SRCS))
+
+# Binaries
+TCLC = $(BUILD_DIR)/tclc
 HARNESS = $(BUILD_DIR)/harness
 
 # Default target
@@ -56,20 +68,34 @@ $(HARNESS): $(BUILD_DIR) $(wildcard $(HARNESS_DIR)/*.go)
 
 harness: $(HARNESS)
 
-# Build
-build:
-	@echo "Building C core..."
-	@if ls $(CORE_DIR)/*.c 1> /dev/null 2>&1; then \
-		$(CC) $(CFLAGS) -c $(CORE_DIR)/*.c -I$(CORE_DIR); \
-		mv *.o $(BUILD_DIR)/; \
-	else \
-		echo "No C source files yet in $(CORE_DIR)/"; \
-	fi
+# Build directory (use a .stamp file to avoid circular dependency)
+$(BUILD_DIR)/.stamp:
+	mkdir -p $(BUILD_DIR)
+	touch $(BUILD_DIR)/.stamp
+
+# Core object files
+$(BUILD_DIR)/%.o: $(CORE_DIR)/%.c $(CORE_DIR)/tclc.h $(CORE_DIR)/internal.h $(BUILD_DIR)/.stamp
+	$(CC) $(CFLAGS) -I$(CORE_DIR) -c -o $@ $<
+
+# Host C object files
+$(BUILD_DIR)/host_%.o: $(HOST_C_DIR)/%.c $(CORE_DIR)/tclc.h $(BUILD_DIR)/.stamp
+	$(CC) $(CFLAGS) -I$(CORE_DIR) -c -o $@ $<
+
+# Build tclc interpreter
+$(TCLC): $(CORE_OBJS) $(HOST_C_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^
+
+# Build target
+build: $(TCLC)
+	@echo "Built $(TCLC)"
+
+# Build Go host (if present)
+build-go:
 	@echo "Building Go host..."
-	@if [ -f "$(HOST_DIR)/go.mod" ]; then \
-		cd $(HOST_DIR) && $(GO) build ./...; \
+	@if [ -f "$(HOST_GO_DIR)/go.mod" ]; then \
+		cd $(HOST_GO_DIR) && $(GO) build ./...; \
 	else \
-		echo "No Go module yet in $(HOST_DIR)/"; \
+		echo "No Go module yet in $(HOST_GO_DIR)/"; \
 	fi
 
 # Clean
@@ -112,11 +138,11 @@ endif
 	@TCLSH=$(TCLSH) $(HARNESS) oracle $(FEATURE)
 
 # Differential Testing - Compare our implementation against oracle
-diff: $(HARNESS)
+diff: $(HARNESS) $(TCLC)
 ifndef FEATURE
 	$(error FEATURE is required. Usage: make diff FEATURE=lexer)
 endif
-	@$(HARNESS) diff $(FEATURE)
+	@TCLC_INTERP=$(TCLC) $(HARNESS) diff $(FEATURE)
 
 # Agent Prompt Generation
 prompt: $(HARNESS)
@@ -126,11 +152,11 @@ endif
 	@$(HARNESS) prompt $(FEATURE)
 
 # Feedback Loop - Iterate until all tests pass
-loop: $(HARNESS)
+loop: $(HARNESS) $(TCLC)
 ifndef FEATURE
 	$(error FEATURE is required. Usage: make loop FEATURE=lexer)
 endif
-	@TCLSH=$(TCLSH) $(HARNESS) loop $(FEATURE)
+	@TCLSH=$(TCLSH) TCLC_INTERP=$(TCLC) $(HARNESS) loop $(FEATURE)
 
 # Feature Information
 features: $(HARNESS)
