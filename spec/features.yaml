@@ -158,7 +158,7 @@ features:
     description: "Array manipulation commands"
     depends: [variables]
     phase: 3
-    status: pending
+    status: complete
     tests: ["array-*"]
     source_files:
       - path: core/builtins.c
@@ -181,7 +181,7 @@ features:
     description: "I/O commands (puts, gets, open, close, read, chan)"
     depends: [eval]
     phase: 4
-    status: pending
+    status: complete
     tests: ["io-*", "chan-*"]
     source_files:
       - path: core/builtins.c
@@ -227,7 +227,7 @@ features:
     description: "Subprocess execution"
     depends: [io]
     phase: 6
-    status: pending
+    status: complete
     tests: ["exec-*"]
     source_files:
       - path: core/builtins.c
@@ -237,7 +237,7 @@ features:
     description: "File system commands"
     depends: [io]
     phase: 6
-    status: pending
+    status: complete
     tests: ["file-*"]
     source_files:
       - path: core/builtins.c
@@ -267,7 +267,7 @@ features:
     description: "Introspection commands"
     depends: [eval, proc, variables]
     phase: 6
-    status: pending
+    status: complete
     tests: ["info-*"]
     source_files:
       - path: core/builtins.c
