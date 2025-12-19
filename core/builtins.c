@@ -1987,6 +1987,7 @@ static const TclBuiltinEntry builtinTable[] = {
     {"break",    tclCmdBreak},
     {"catch",    tclCmdCatch},
     {"continue", tclCmdContinue},
+    {"dict",     tclCmdDict},
     {"error",    tclCmdError},
     {"expr",     tclCmdExpr},
     {"for",      tclCmdFor},

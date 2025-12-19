@@ -206,6 +206,9 @@ TclResult tclCmdGlobal(TclInterp *interp, int objc, TclObj **objv);
 TclResult tclCmdUpvar(TclInterp *interp, int objc, TclObj **objv);
 TclResult tclCmdUplevel(TclInterp *interp, int objc, TclObj **objv);
 
+/* Dict command (builtin_dict.c) */
+TclResult tclCmdDict(TclInterp *interp, int objc, TclObj **objv);
+
 /* ========================================================================
  * Interpreter Functions (from tclc.h, implemented in eval.c)
  * ======================================================================== */

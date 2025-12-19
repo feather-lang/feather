@@ -123,11 +123,9 @@ static int needsListQuoting(const char *s, size_t len) {
     int hasUnbalancedBrace = 0;
     int hasQuote = 0;
 
-    /* Check if starts with { or ends with } - these need quoting */
-    int startsWithBrace = (len > 0 && s[0] == '{');
-    int endsWithBrace = (len > 0 && s[len-1] == '}');
-
-    if (startsWithBrace || endsWithBrace) needsQuote = 1;
+    /* If string starts with { it could be parsed as a braced word - needs quoting */
+    int startsWithBrace = (s[0] == '{');
+    if (startsWithBrace) needsQuote = 1;
 
     for (size_t i = 0; i < len; i++) {
         char c = s[i];
