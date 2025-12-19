@@ -9,71 +9,108 @@ extern const TclHost* tclGetGoHost(void);
 */
 import "C"
 import (
-	"sync"
+	"runtime/cgo"
 	"unsafe"
 )
 
+// TclCmdFunc is the signature for extension command functions
+type TclCmdFunc func(interp *TclInterp, args []*TclObj) (*TclObj, error)
+
+// ExtCmd represents an extension command
+type ExtCmd struct {
+	handle cgo.Handle
+	name   string
+	fn     TclCmdFunc
+}
+
+// TclInterp wraps the C interpreter for extension commands
+type TclInterp struct {
+	cPtr *C.TclInterp
+}
+
 // HostContext holds interpreter-level state
 type HostContext struct {
+	handle     cgo.Handle
 	globalVars *VarTable
 	procs      map[string]*ProcDef
+	commands   map[string]*ExtCmd // Extension commands
 }
 
 // ProcDef represents a procedure definition
 type ProcDef struct {
+	handle  cgo.Handle
 	name    string
 	argList *TclObj
 	body    *TclObj
 }
 
-// Context handle management
-var (
-	ctxMu      sync.RWMutex
-	ctxHandles = make(map[uintptr]*HostContext)
-	nextCtxID  uintptr = 1
-)
-
-func allocCtxHandle(ctx *HostContext) uintptr {
-	ctxMu.Lock()
-	defer ctxMu.Unlock()
-	id := nextCtxID
-	nextCtxID++
-	ctxHandles[id] = ctx
-	return id
+// Handle returns the stable handle for this HostContext
+func (ctx *HostContext) Handle() uintptr {
+	if ctx == nil {
+		return 0
+	}
+	return uintptr(ctx.handle)
 }
 
+// getCtx retrieves a HostContext by handle using cgo.Handle
 func getCtx(h uintptr) *HostContext {
-	ctxMu.RLock()
-	defer ctxMu.RUnlock()
-	return ctxHandles[h]
+	if h == 0 {
+		return nil
+	}
+	return cgo.Handle(h).Value().(*HostContext)
 }
 
-func freeCtxHandle(h uintptr) {
-	ctxMu.Lock()
-	defer ctxMu.Unlock()
-	delete(ctxHandles, h)
+// freeCtx frees the HostContext's handle
+func freeCtx(ctx *HostContext) {
+	if ctx == nil {
+		return
+	}
+	if ctx.handle != 0 {
+		ctx.handle.Delete()
+		ctx.handle = 0
+	}
 }
 
-// Proc handle management
-var (
-	procMu      sync.RWMutex
-	procHandles = make(map[uintptr]*ProcDef)
-	nextProcID  uintptr = 1
-)
-
-func allocProcHandle(proc *ProcDef) uintptr {
-	procMu.Lock()
-	defer procMu.Unlock()
-	id := nextProcID
-	nextProcID++
-	procHandles[id] = proc
-	return id
+// Handle returns the stable handle for this ProcDef
+func (p *ProcDef) Handle() uintptr {
+	if p == nil {
+		return 0
+	}
+	return uintptr(p.handle)
 }
 
+// getProc retrieves a ProcDef by handle using cgo.Handle
 func getProc(h uintptr) *ProcDef {
-	procMu.RLock()
-	defer procMu.RUnlock()
-	return procHandles[h]
+	if h == 0 {
+		return nil
+	}
+	return cgo.Handle(h).Value().(*ProcDef)
+}
+
+// Handle returns the stable handle for this ExtCmd
+func (e *ExtCmd) Handle() uintptr {
+	if e == nil {
+		return 0
+	}
+	return uintptr(e.handle)
+}
+
+// getExtCmd retrieves an ExtCmd by handle using cgo.Handle
+func getExtCmd(h uintptr) *ExtCmd {
+	if h == 0 {
+		return nil
+	}
+	return cgo.Handle(h).Value().(*ExtCmd)
+}
+
+// RegisterCommand registers an extension command
+func (ctx *HostContext) RegisterCommand(name string, fn TclCmdFunc) {
+	if ctx.commands == nil {
+		ctx.commands = make(map[string]*ExtCmd)
+	}
+	cmd := &ExtCmd{name: name, fn: fn}
+	cmd.handle = cgo.NewHandle(cmd)
+	ctx.commands[name] = cmd
 }
 
 //export goInterpContextNew
@@ -81,14 +118,16 @@ func goInterpContextNew(parentCtx unsafe.Pointer, safe C.int) C.uintptr_t {
 	ctx := &HostContext{
 		globalVars: NewVarTable(),
 		procs:      make(map[string]*ProcDef),
+		commands:   make(map[string]*ExtCmd),
 	}
-	h := allocCtxHandle(ctx)
-	return C.uintptr_t(h)
+	ctx.handle = cgo.NewHandle(ctx)
+	return C.uintptr_t(ctx.Handle())
 }
 
 //export goInterpContextFree
 func goInterpContextFree(ctxHandle C.uintptr_t) {
-	freeCtxHandle(uintptr(ctxHandle))
+	ctx := getCtx(uintptr(ctxHandle))
+	freeCtx(ctx)
 }
 
 //export goFrameAlloc
@@ -103,9 +142,8 @@ func goFrameAlloc(ctxHandle C.uintptr_t) C.uintptr_t {
 
 	// Create variable table for this frame
 	varsTable := NewVarTable()
-	varsHandle := allocVarsHandle(varsTable)
 	// Store handle as uintptr cast to void* - this is just a number, not a Go pointer
-	frame.varsHandle = unsafe.Pointer(varsHandle)
+	frame.varsHandle = unsafe.Pointer(varsTable.Handle())
 
 	return C.uintptr_t(uintptr(unsafe.Pointer(frame)))
 }
@@ -121,7 +159,8 @@ func goFrameFree(ctxHandle C.uintptr_t, framePtr C.uintptr_t) {
 	// Free variable table
 	if frame.varsHandle != nil {
 		varsHandle := uintptr(frame.varsHandle)
-		freeVarsHandle(varsHandle)
+		varsTable := getVars(varsHandle)
+		freeVars(varsTable)
 	}
 
 	C.free(unsafe.Pointer(frame))
@@ -137,12 +176,17 @@ func goCmdLookup(ctxHandle C.uintptr_t, name *C.char, nameLen C.size_t, out *C.T
 
 	goName := C.GoStringN(name, C.int(nameLen))
 
-	// Look for a proc with this name
-	proc, ok := ctx.procs[goName]
-	if ok {
+	// Check extension commands first
+	if cmd, ok := ctx.commands[goName]; ok {
+		out._type = C.TCL_CMD_EXTENSION
+		*(*uintptr)(unsafe.Pointer(&out.u)) = cmd.Handle()
+		return 0
+	}
+
+	// Then check procs
+	if proc, ok := ctx.procs[goName]; ok {
 		out._type = C.TCL_CMD_PROC
-		// Store proc handle in the union
-		*(*uintptr)(unsafe.Pointer(&out.u)) = allocProcHandle(proc)
+		*(*uintptr)(unsafe.Pointer(&out.u)) = proc.Handle()
 		return 0
 	}
 
@@ -167,9 +211,10 @@ func goProcRegister(ctxHandle C.uintptr_t, name *C.char, nameLen C.size_t,
 		argList: argList.Dup(),
 		body:    body.Dup(),
 	}
+	proc.handle = cgo.NewHandle(proc)
 
 	ctx.procs[goName] = proc
-	return C.uintptr_t(allocProcHandle(proc))
+	return C.uintptr_t(proc.Handle())
 }
 
 //export goProcGetDef
@@ -179,9 +224,44 @@ func goProcGetDef(handle C.uintptr_t, argListOut, bodyOut *C.uintptr_t) C.int {
 		return -1
 	}
 
-	*argListOut = C.uintptr_t(allocObjHandle(proc.argList))
-	*bodyOut = C.uintptr_t(allocObjHandle(proc.body))
+	// Return existing handles instead of allocating new ones
+	*argListOut = C.uintptr_t(proc.argList.Handle())
+	*bodyOut = C.uintptr_t(proc.body.Handle())
 	return 0
+}
+
+//export goExtInvoke
+func goExtInvoke(interpPtr *C.TclInterp, handle C.uintptr_t,
+	objc C.int, objv **C.uintptr_t) C.TclResult {
+	cmd := getExtCmd(uintptr(handle))
+	if cmd == nil {
+		return C.TCL_ERROR
+	}
+
+	// Convert arguments
+	args := make([]*TclObj, int(objc))
+	if objc > 0 {
+		objvSlice := unsafe.Slice(objv, int(objc))
+		for i := range args {
+			args[i] = getObj(uintptr(*objvSlice[i]))
+		}
+	}
+
+	// Create Interp wrapper
+	interp := &TclInterp{cPtr: interpPtr}
+
+	// Call Go function
+	result, err := cmd.fn(interp, args)
+	if err != nil {
+		// TODO: Set error message in interpreter
+		return C.TCL_ERROR
+	}
+
+	if result != nil {
+		// TODO: Set result in interpreter
+		_ = result
+	}
+	return C.TCL_OK
 }
 
 // GetGoHost returns the Go host callback table for C code

@@ -2,13 +2,8 @@ package main
 
 /*
 #cgo CFLAGS: -I../../core
-#cgo LDFLAGS: -lm
+#cgo LDFLAGS: -L../../build -ltclc -lm
 #include "../../core/tclc.h"
-#include "../../core/lexer.c"
-#include "../../core/parser.c"
-#include "../../core/subst.c"
-#include "../../core/eval.c"
-#include "../../core/builtins.c"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>

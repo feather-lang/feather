@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"io"
 	"os"
+	"runtime/cgo"
 	"strings"
 	"sync"
 	"unsafe"
@@ -16,6 +17,7 @@ import (
 
 // Channel represents an I/O channel
 type Channel struct {
+	handle   cgo.Handle
 	name     string
 	file     *os.File
 	reader   *bufio.Reader
@@ -26,44 +28,46 @@ type Channel struct {
 	eof      bool
 }
 
-// Channel handle management
-var (
-	chanMu      sync.RWMutex
-	chanHandles = make(map[uintptr]*Channel)
-	nextChanID  uintptr = 1
+// Handle returns the stable handle for this Channel
+func (ch *Channel) Handle() uintptr {
+	if ch == nil {
+		return 0
+	}
+	return uintptr(ch.handle)
+}
 
-	// Standard channels (initialized lazily)
-	stdinChan  *Channel
-	stdoutChan *Channel
-	stderrChan *Channel
+// getChan retrieves a Channel by handle using cgo.Handle
+func getChan(h uintptr) *Channel {
+	if h == 0 {
+		return nil
+	}
+	return cgo.Handle(h).Value().(*Channel)
+}
+
+// freeChan frees the Channel's handle
+func freeChan(ch *Channel) {
+	if ch == nil {
+		return
+	}
+	if ch.handle != 0 {
+		ch.handle.Delete()
+		ch.handle = 0
+	}
+}
+
+// Standard channel handles (fixed values, initialized once)
+var (
+	stdinChan    *Channel
+	stdoutChan   *Channel
+	stderrChan   *Channel
+	stdinHandle  uintptr
+	stdoutHandle uintptr
+	stderrHandle uintptr
+	stdOnce      sync.Once
 )
 
-func allocChanHandle(ch *Channel) uintptr {
-	chanMu.Lock()
-	defer chanMu.Unlock()
-	id := nextChanID
-	nextChanID++
-	chanHandles[id] = ch
-	return id
-}
-
-func getChan(h uintptr) *Channel {
-	chanMu.RLock()
-	defer chanMu.RUnlock()
-	return chanHandles[h]
-}
-
-func freeChanHandle(h uintptr) {
-	chanMu.Lock()
-	defer chanMu.Unlock()
-	delete(chanHandles, h)
-}
-
 func initStdChannels() {
-	chanMu.Lock()
-	defer chanMu.Unlock()
-
-	if stdinChan == nil {
+	stdOnce.Do(func() {
 		stdinChan = &Channel{
 			name:     "stdin",
 			file:     os.Stdin,
@@ -71,9 +75,9 @@ func initStdChannels() {
 			readable: true,
 			isStd:    true,
 		}
-		chanHandles[allocChanHandleInternal(stdinChan)] = stdinChan
-	}
-	if stdoutChan == nil {
+		stdinChan.handle = cgo.NewHandle(stdinChan)
+		stdinHandle = uintptr(stdinChan.handle)
+
 		stdoutChan = &Channel{
 			name:     "stdout",
 			file:     os.Stdout,
@@ -81,9 +85,9 @@ func initStdChannels() {
 			writable: true,
 			isStd:    true,
 		}
-		chanHandles[allocChanHandleInternal(stdoutChan)] = stdoutChan
-	}
-	if stderrChan == nil {
+		stdoutChan.handle = cgo.NewHandle(stdoutChan)
+		stdoutHandle = uintptr(stdoutChan.handle)
+
 		stderrChan = &Channel{
 			name:     "stderr",
 			file:     os.Stderr,
@@ -91,14 +95,9 @@ func initStdChannels() {
 			writable: true,
 			isStd:    true,
 		}
-		chanHandles[allocChanHandleInternal(stderrChan)] = stderrChan
-	}
-}
-
-func allocChanHandleInternal(ch *Channel) uintptr {
-	id := nextChanID
-	nextChanID++
-	return id
+		stderrChan.handle = cgo.NewHandle(stderrChan)
+		stderrHandle = uintptr(stderrChan.handle)
+	})
 }
 
 // OpenChannel opens a file channel
@@ -144,6 +143,7 @@ func OpenChannel(name, mode string) (*Channel, error) {
 		ch.writer = bufio.NewWriter(file)
 	}
 
+	ch.handle = cgo.NewHandle(ch)
 	return ch, nil
 }
 
@@ -249,7 +249,7 @@ func goChanOpen(ctxHandle uintptr, name *C.char, mode *C.char) uintptr {
 		return 0
 	}
 
-	return allocChanHandle(ch)
+	return ch.Handle()
 }
 
 //export goChanClose
@@ -260,25 +260,25 @@ func goChanClose(ctxHandle uintptr, chanHandle uintptr) {
 	}
 
 	ch.Close()
-	freeChanHandle(chanHandle)
+	freeChan(ch)
 }
 
 //export goChanStdin
 func goChanStdin(ctxHandle uintptr) uintptr {
 	initStdChannels()
-	return allocChanHandle(stdinChan)
+	return stdinHandle // Always return the same fixed handle
 }
 
 //export goChanStdout
 func goChanStdout(ctxHandle uintptr) uintptr {
 	initStdChannels()
-	return allocChanHandle(stdoutChan)
+	return stdoutHandle // Always return the same fixed handle
 }
 
 //export goChanStderr
 func goChanStderr(ctxHandle uintptr) uintptr {
 	initStdChannels()
-	return allocChanHandle(stderrChan)
+	return stderrHandle // Always return the same fixed handle
 }
 
 //export goChanRead
@@ -338,7 +338,7 @@ func goChanGets(chanHandle uintptr, eofOut *C.int) uintptr {
 	}
 
 	obj := NewString(line)
-	return allocObjHandle(obj)
+	return obj.Handle()
 }
 
 //export goChanFlush
@@ -403,13 +403,13 @@ func goChanConfigure(chanHandle uintptr, opt *C.char, valHandle uintptr) C.int {
 //export goChanCget
 func goChanCget(chanHandle uintptr, opt *C.char) uintptr {
 	obj := NewString("")
-	return allocObjHandle(obj)
+	return obj.Handle()
 }
 
 //export goChanNames
 func goChanNames(ctxHandle uintptr, pattern *C.char) uintptr {
 	obj := NewString("stdin stdout stderr")
-	return allocObjHandle(obj)
+	return obj.Handle()
 }
 
 //export goChanShare

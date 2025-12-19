@@ -6,12 +6,13 @@ package main
 import "C"
 import (
 	"path/filepath"
+	"runtime/cgo"
 	"strings"
-	"sync"
 )
 
 // VarTable stores variables in a hash map
 type VarTable struct {
+	handle cgo.Handle
 	vars   map[string]*TclObj
 	arrays map[string]map[string]*TclObj // arrayName -> key -> value
 	links  map[string]*VarLink           // variable links (upvar/global)
@@ -23,41 +24,42 @@ type VarLink struct {
 	targetName  string
 }
 
-// Variable table handle management
-var (
-	varsMu      sync.RWMutex
-	varsHandles = make(map[uintptr]*VarTable)
-	nextVarsID  uintptr = 1
-)
-
-func allocVarsHandle(table *VarTable) uintptr {
-	varsMu.Lock()
-	defer varsMu.Unlock()
-	id := nextVarsID
-	nextVarsID++
-	varsHandles[id] = table
-	return id
+// Handle returns the stable handle for this VarTable
+func (t *VarTable) Handle() uintptr {
+	if t == nil {
+		return 0
+	}
+	return uintptr(t.handle)
 }
 
+// getVars retrieves a VarTable by handle using cgo.Handle
 func getVars(h uintptr) *VarTable {
-	varsMu.RLock()
-	defer varsMu.RUnlock()
-	return varsHandles[h]
+	if h == 0 {
+		return nil
+	}
+	return cgo.Handle(h).Value().(*VarTable)
 }
 
-func freeVarsHandle(h uintptr) {
-	varsMu.Lock()
-	defer varsMu.Unlock()
-	delete(varsHandles, h)
+// freeVars frees the VarTable's handle
+func freeVars(table *VarTable) {
+	if table == nil {
+		return
+	}
+	if table.handle != 0 {
+		table.handle.Delete()
+		table.handle = 0
+	}
 }
 
 // NewVarTable creates a new variable table
 func NewVarTable() *VarTable {
-	return &VarTable{
+	t := &VarTable{
 		vars:   make(map[string]*TclObj),
 		arrays: make(map[string]map[string]*TclObj),
 		links:  make(map[string]*VarLink),
 	}
+	t.handle = cgo.NewHandle(t)
+	return t
 }
 
 // Get retrieves a variable value
@@ -195,12 +197,13 @@ func matchPattern(pattern, str string) bool {
 //export goVarsNew
 func goVarsNew(ctxHandle uintptr) uintptr {
 	table := NewVarTable()
-	return allocVarsHandle(table)
+	return table.Handle()
 }
 
 //export goVarsFree
 func goVarsFree(ctxHandle uintptr, varsHandle uintptr) {
-	freeVarsHandle(varsHandle)
+	table := getVars(varsHandle)
+	freeVars(table)
 }
 
 //export goVarGet
@@ -216,7 +219,8 @@ func goVarGet(varsHandle uintptr, name *C.char, nameLen C.size_t) uintptr {
 		return 0
 	}
 
-	return allocObjHandle(obj)
+	// Return existing handle instead of allocating new one
+	return obj.Handle()
 }
 
 //export goVarSet
@@ -264,7 +268,7 @@ func goVarExists(varsHandle uintptr, name *C.char, nameLen C.size_t) C.int {
 func goVarNames(varsHandle uintptr, pattern *C.char) uintptr {
 	table := getVars(varsHandle)
 	if table == nil {
-		return allocObjHandle(NewString(""))
+		return NewString("").Handle()
 	}
 
 	var pat string
@@ -274,7 +278,7 @@ func goVarNames(varsHandle uintptr, pattern *C.char) uintptr {
 
 	names := table.Names(pat)
 	result := NewString(strings.Join(names, " "))
-	return allocObjHandle(result)
+	return result.Handle()
 }
 
 //export goVarLink
@@ -325,7 +329,8 @@ func goArrayGet(varsHandle uintptr, arr *C.char, arrLen C.size_t,
 		return 0
 	}
 
-	return allocObjHandle(obj)
+	// Return existing handle instead of allocating new one
+	return obj.Handle()
 }
 
 //export goArrayExists
@@ -348,7 +353,7 @@ func goArrayExists(varsHandle uintptr, arr *C.char, arrLen C.size_t,
 func goArrayNames(varsHandle uintptr, arr *C.char, arrLen C.size_t, pattern *C.char) uintptr {
 	table := getVars(varsHandle)
 	if table == nil {
-		return allocObjHandle(NewString(""))
+		return NewString("").Handle()
 	}
 
 	goArr := C.GoStringN(arr, C.int(arrLen))
@@ -359,7 +364,7 @@ func goArrayNames(varsHandle uintptr, arr *C.char, arrLen C.size_t, pattern *C.c
 
 	names := table.ArrayNames(goArr, pat)
 	result := NewString(strings.Join(names, " "))
-	return allocObjHandle(result)
+	return result.Handle()
 }
 
 //export goArrayUnset

@@ -3,86 +3,99 @@ package main
 /*
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 */
 import "C"
 import (
 	"fmt"
+	"runtime/cgo"
 	"strconv"
 	"strings"
-	"sync"
 	"unicode/utf8"
 	"unsafe"
 )
 
 // TclObj represents a TCL value with lazy type conversion (shimmering).
 type TclObj struct {
-	stringRep string    // Always valid
-	intRep    *int64    // Cached integer representation
-	doubleRep *float64  // Cached double representation
-	listRep   []*TclObj // Cached list representation
+	handle     cgo.Handle // Stable identity, assigned at creation
+	stringRep  string     // Always valid
+	intRep     *int64     // Cached integer representation
+	doubleRep  *float64   // Cached double representation
+	listRep    []*TclObj  // Cached list representation
+	cachedCStr *C.char    // Cached C string for getStringPtr
 }
 
-// Object handle management - maps handles to Go objects
-var (
-	objMu      sync.RWMutex
-	objHandles = make(map[uintptr]*TclObj)
-	nextObjID  uintptr = 1
-)
-
-// allocObjHandle allocates a handle for a TclObj
-func allocObjHandle(obj *TclObj) uintptr {
-	objMu.Lock()
-	defer objMu.Unlock()
-	id := nextObjID
-	nextObjID++
-	objHandles[id] = obj
-	return id
+// Handle returns the stable handle for this object
+func (o *TclObj) Handle() uintptr {
+	if o == nil {
+		return 0
+	}
+	return uintptr(o.handle)
 }
 
-// getObj retrieves a TclObj by handle
+// getObj retrieves a TclObj by handle using cgo.Handle
 func getObj(h uintptr) *TclObj {
-	objMu.RLock()
-	defer objMu.RUnlock()
-	return objHandles[h]
+	if h == 0 {
+		return nil
+	}
+	return cgo.Handle(h).Value().(*TclObj)
 }
 
-// freeObjHandle removes an object handle (for future GC integration)
-func freeObjHandle(h uintptr) {
-	objMu.Lock()
-	defer objMu.Unlock()
-	delete(objHandles, h)
+// freeObj frees the object's handle and cached C string
+func freeObj(obj *TclObj) {
+	if obj == nil {
+		return
+	}
+	if obj.cachedCStr != nil {
+		C.free(unsafe.Pointer(obj.cachedCStr))
+		obj.cachedCStr = nil
+	}
+	if obj.handle != 0 {
+		obj.handle.Delete()
+		obj.handle = 0
+	}
 }
 
 // NewString creates a new string object
 func NewString(s string) *TclObj {
-	return &TclObj{stringRep: s}
+	obj := &TclObj{stringRep: s}
+	obj.handle = cgo.NewHandle(obj)
+	return obj
 }
 
 // NewInt creates a new integer object
 func NewInt(val int64) *TclObj {
-	return &TclObj{
+	obj := &TclObj{
 		stringRep: strconv.FormatInt(val, 10),
 		intRep:    &val,
 	}
+	obj.handle = cgo.NewHandle(obj)
+	return obj
 }
 
 // NewDouble creates a new double object
 func NewDouble(val float64) *TclObj {
 	s := strconv.FormatFloat(val, 'g', -1, 64)
-	return &TclObj{
+	obj := &TclObj{
 		stringRep: s,
 		doubleRep: &val,
 	}
+	obj.handle = cgo.NewHandle(obj)
+	return obj
 }
 
 // NewBool creates a new boolean object
 func NewBool(val bool) *TclObj {
+	var obj *TclObj
 	if val {
 		one := int64(1)
-		return &TclObj{stringRep: "1", intRep: &one}
+		obj = &TclObj{stringRep: "1", intRep: &one}
+	} else {
+		zero := int64(0)
+		obj = &TclObj{stringRep: "0", intRep: &zero}
 	}
-	zero := int64(0)
-	return &TclObj{stringRep: "0", intRep: &zero}
+	obj.handle = cgo.NewHandle(obj)
+	return obj
 }
 
 // NewList creates a new list object
@@ -91,15 +104,19 @@ func NewList(elems []*TclObj) *TclObj {
 	for _, e := range elems {
 		parts = append(parts, listQuote(e.stringRep))
 	}
-	return &TclObj{
+	obj := &TclObj{
 		stringRep: strings.Join(parts, " "),
 		listRep:   elems,
 	}
+	obj.handle = cgo.NewHandle(obj)
+	return obj
 }
 
 // NewDict creates a new empty dict object
 func NewDict() *TclObj {
-	return &TclObj{stringRep: ""}
+	obj := &TclObj{stringRep: ""}
+	obj.handle = cgo.NewHandle(obj)
+	return obj
 }
 
 // Dup duplicates an object
@@ -120,6 +137,7 @@ func (o *TclObj) Dup() *TclObj {
 		dup.listRep = make([]*TclObj, len(o.listRep))
 		copy(dup.listRep, o.listRep)
 	}
+	dup.handle = cgo.NewHandle(dup)
 	return dup
 }
 
@@ -237,19 +255,51 @@ func listQuote(s string) string {
 	}
 
 	needsQuoting := false
+	braceBalance := 0
+	hasBackslash := false
+
 	for _, c := range s {
-		if c == ' ' || c == '\t' || c == '\n' || c == '\r' ||
-			c == '{' || c == '}' || c == '"' || c == '\\' {
+		switch c {
+		case ' ', '\t', '\n', '\r', '"':
 			needsQuoting = true
-			break
+		case '\\':
+			hasBackslash = true
+			needsQuoting = true
+		case '{':
+			braceBalance++
+		case '}':
+			braceBalance--
+			if braceBalance < 0 {
+				needsQuoting = true
+			}
 		}
 	}
 
-	if !needsQuoting {
+	// Simple case: no special chars and balanced braces
+	if !needsQuoting && braceBalance == 0 {
 		return s
 	}
 
-	return "{" + s + "}"
+	// Can use braces if balanced and no backslashes
+	if braceBalance == 0 && !hasBackslash {
+		return "{" + s + "}"
+	}
+
+	// Fall back to backslash quoting
+	return backslashQuote(s)
+}
+
+// backslashQuote escapes special characters with backslashes
+func backslashQuote(s string) string {
+	var b strings.Builder
+	for _, c := range s {
+		switch c {
+		case ' ', '\t', '\n', '\r', '{', '}', '"', '\\', '[', ']', '$':
+			b.WriteRune('\\')
+		}
+		b.WriteRune(c)
+	}
+	return b.String()
 }
 
 // parseList parses a TCL list string into elements
@@ -327,32 +377,32 @@ func isListSpace(c byte) bool {
 func goNewString(s *C.char, length C.size_t) uintptr {
 	goStr := C.GoStringN(s, C.int(length))
 	obj := NewString(goStr)
-	return allocObjHandle(obj)
+	return obj.Handle()
 }
 
 //export goNewInt
 func goNewInt(val C.int64_t) uintptr {
 	obj := NewInt(int64(val))
-	return allocObjHandle(obj)
+	return obj.Handle()
 }
 
 //export goNewDouble
 func goNewDouble(val C.double) uintptr {
 	obj := NewDouble(float64(val))
-	return allocObjHandle(obj)
+	return obj.Handle()
 }
 
 //export goNewBool
 func goNewBool(val C.int) uintptr {
 	obj := NewBool(val != 0)
-	return allocObjHandle(obj)
+	return obj.Handle()
 }
 
 //export goNewList
 func goNewList(elemsPtr *uintptr, count C.size_t) uintptr {
 	if count == 0 {
 		obj := NewList(nil)
-		return allocObjHandle(obj)
+		return obj.Handle()
 	}
 
 	elems := make([]*TclObj, int(count))
@@ -362,13 +412,13 @@ func goNewList(elemsPtr *uintptr, count C.size_t) uintptr {
 	}
 
 	obj := NewList(elems)
-	return allocObjHandle(obj)
+	return obj.Handle()
 }
 
 //export goNewDict
 func goNewDict() uintptr {
 	obj := NewDict()
-	return allocObjHandle(obj)
+	return obj.Handle()
 }
 
 //export goDup
@@ -378,7 +428,7 @@ func goDup(h uintptr) uintptr {
 		return 0
 	}
 	dup := obj.Dup()
-	return allocObjHandle(dup)
+	return dup.Handle()
 }
 
 //export goGetStringPtr
@@ -388,16 +438,18 @@ func goGetStringPtr(h uintptr, lenOut *C.size_t) *C.char {
 		if lenOut != nil {
 			*lenOut = 0
 		}
-		return C.CString("")
+		return nil
 	}
 
 	if lenOut != nil {
 		*lenOut = C.size_t(len(obj.stringRep))
 	}
 
-	// Note: This allocates memory that C must not free
-	// In a real implementation, we'd use a different strategy
-	return C.CString(obj.stringRep)
+	// Cache the C string in the object to avoid repeated allocation
+	if obj.cachedCStr == nil {
+		obj.cachedCStr = C.CString(obj.stringRep)
+	}
+	return obj.cachedCStr
 }
 
 //export goAsInt
@@ -505,7 +557,8 @@ func goAsList(h uintptr, elemsOut **C.uintptr_t, countOut *C.size_t) C.int {
 
 	arr := (*[1 << 20]C.uintptr_t)(arrPtr)[:len(list):len(list)]
 	for i, elem := range list {
-		arr[i] = C.uintptr_t(allocObjHandle(elem.Dup()))
+		// Return existing handles instead of duplicating
+		arr[i] = C.uintptr_t(elem.Handle())
 	}
 
 	*elemsOut = (*C.uintptr_t)(arrPtr)
@@ -543,8 +596,8 @@ func goListIndex(h uintptr, idx C.size_t) uintptr {
 		return 0
 	}
 
-	elem := list[idx].Dup()
-	return allocObjHandle(elem)
+	// Return existing handle instead of duplicating
+	return list[idx].Handle()
 }
 
 //export goListAppend
@@ -566,5 +619,5 @@ func goListAppend(h uintptr, elemH uintptr) uintptr {
 	}
 
 	result := NewList(list)
-	return allocObjHandle(result)
+	return result.Handle()
 }
