@@ -52,7 +52,6 @@ GPATH
 
 # Debug
 *.dSYM/
-core
 vgcore.*
 
 # Coverage

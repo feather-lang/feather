@@ -1,0 +1,62 @@
+{
+  "feature": "lexer",
+  "tclsh": "tclsh",
+  "tests": [
+    {
+      "name": "backslash-1.1",
+      "file": "spec/tests/lexer/backslash-1.1.tcl",
+      "script": "# Test: backslash-newline continuation\n# Backslash at end of line continues command\n\nputs hel\\\nlo\nputs \"hel\\\nlo\"\n",
+      "stdout": "",
+      "stderr": "can not find channel named \"hel\"\n    while executing\n\"puts hel\\\nlo\"\n    (file \"spec/tests/lexer/backslash-1.1.tcl\" line 4)\n",
+      "returncode": 1
+    },
+    {
+      "name": "braces-1.1",
+      "file": "spec/tests/lexer/braces-1.1.tcl",
+      "script": "# Test: brace quoting preserves literal content\n# Braces prevent substitution and preserve whitespace\n\nputs {hello world}\nputs {hello   world}\nputs {$notavar}\nputs {[notacmd]}\n",
+      "stdout": "hello world\nhello   world\n$notavar\n[notacmd]\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "braces-1.2",
+      "file": "spec/tests/lexer/braces-1.2.tcl",
+      "script": "# Test: nested braces\n# Braces can be nested and preserve internal braces\n\nputs {a{b}c}\nputs {{nested}}\nputs {a{b{c}d}e}\nputs {open { close }}\n",
+      "stdout": "a{b}c\n{nested}\na{b{c}d}e\nopen { close }\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "comments-1.1",
+      "file": "spec/tests/lexer/comments-1.1.tcl",
+      "script": "# Test: comments\n# Hash at start of command begins a comment\n\n# this is a comment\nputs hello\n# another comment\nputs world\nputs notacomment ;# inline comment\n",
+      "stdout": "hello\nworld\nnotacomment\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "quotes-1.1",
+      "file": "spec/tests/lexer/quotes-1.1.tcl",
+      "script": "# Test: double quote grouping\n# Double quotes group words but allow substitution\n\nputs \"hello world\"\nputs \"hello   world\"\nputs \"line1\nline2\"\n",
+      "stdout": "hello world\nhello   world\nline1\nline2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "semicolon-1.1",
+      "file": "spec/tests/lexer/semicolon-1.1.tcl",
+      "script": "# Test: semicolon command separator\n# Semicolons separate commands on the same line\n\nputs hello; puts world\nputs a; puts b; puts c\n",
+      "stdout": "hello\nworld\na\nb\nc\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "words-1.1",
+      "file": "spec/tests/lexer/words-1.1.tcl",
+      "script": "# Test: basic word splitting\n# Words are separated by whitespace\n\nputs hello\nputs hello world\nputs    hello    world\n",
+      "stdout": "hello\n",
+      "stderr": "can not find channel named \"hello\"\n    while executing\n\"puts hello world\"\n    (file \"spec/tests/lexer/words-1.1.tcl\" line 5)\n",
+      "returncode": 1
+    }
+  ]
+}
