@@ -10,9 +10,10 @@
 TclResult tclCmdGlobal(TclInterp *interp, int objc, TclObj **objv) {
     const TclHost *host = interp->host;
 
+    /* global with no args is valid - just returns empty string */
     if (objc < 2) {
-        tclSetError(interp, "wrong # args: should be \"global varName ?varName ...?\"", -1);
-        return TCL_ERROR;
+        tclSetResult(interp, host->newString("", 0));
+        return TCL_OK;
     }
 
     /* If already at global scope, nothing to do */
