@@ -71,7 +71,7 @@ features:
     status: complete
     tests: ["expr-*"]
     source_files:
-      - path: core/expr.c
+      - path: core/builtin_expr.c
         description: Expression evaluator
 
   - id: control
@@ -134,21 +134,23 @@ features:
     description: "String manipulation commands"
     depends: [eval]
     phase: 3
-    status: pending
+    status: complete
     tests: ["string-*", "format-*", "scan-*"]
     source_files:
+      - path: core/builtin_string.c
+        description: String command implementation
       - path: core/builtins.c
         description: Built-in commands
-      - path: core/format.c
-        description: Format/scan implementation
 
   - id: dict
     description: "Dictionary manipulation commands"
     depends: [eval]
     phase: 3
-    status: pending
+    status: complete
     tests: ["dict-*"]
     source_files:
+      - path: core/builtin_dict.c
+        description: Dict command implementation
       - path: core/builtins.c
         description: Built-in commands
 
