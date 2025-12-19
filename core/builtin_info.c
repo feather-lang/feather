@@ -531,6 +531,26 @@ TclResult tclCmdInfo(TclInterp *interp, int objc, TclObj **objv) {
         return TCL_OK;
     }
 
+    /* info patchlevel */
+    if (subcmdLen == 10 && tclStrncmp(subcmd, "patchlevel", 10) == 0) {
+        if (objc != 2) {
+            tclSetError(interp, "wrong # args: should be \"info patchlevel\"", -1);
+            return TCL_ERROR;
+        }
+        tclSetResult(interp, host->newString("9.0.2", 5));
+        return TCL_OK;
+    }
+
+    /* info tclversion */
+    if (subcmdLen == 10 && tclStrncmp(subcmd, "tclversion", 10) == 0) {
+        if (objc != 2) {
+            tclSetError(interp, "wrong # args: should be \"info tclversion\"", -1);
+            return TCL_ERROR;
+        }
+        tclSetResult(interp, host->newString("9.0", 3));
+        return TCL_OK;
+    }
+
     /* info script ?filename? */
     if (subcmdLen == 6 && tclStrncmp(subcmd, "script", 6) == 0) {
         if (objc > 3) {

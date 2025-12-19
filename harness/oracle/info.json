@@ -435,6 +435,22 @@
       "returncode": 0
     },
     {
+      "name": "patchlevel-14.0",
+      "file": "spec/tests/info/patchlevel-14.0.tcl",
+      "script": "# Test: info patchlevel - returns version string\nputs [info patchlevel]\n",
+      "stdout": "9.0.2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "patchlevel-14.1",
+      "file": "spec/tests/info/patchlevel-14.1.tcl",
+      "script": "# Test: info patchlevel - wrong # args\ncatch {info patchlevel extra} result\nputs $result\n",
+      "stdout": "wrong # args: should be \"info patchlevel\"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
       "name": "procs-11.0",
       "file": "spec/tests/info/procs-11.0.tcl",
       "script": "# Test: info procs - list includes user-defined proc\nproc myproc1 {} { return 1 }\nputs [expr {\"myproc1\" in [info procs]}]\n",
@@ -503,6 +519,22 @@
       "file": "spec/tests/info/script-13.4.tcl",
       "script": "# Test: info script - nested proc still returns script\nproc getScript {} {\n    return [info script]\n}\nputs [expr {[getScript] ne \"\"}]\n",
       "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "tclversion-15.0",
+      "file": "spec/tests/info/tclversion-15.0.tcl",
+      "script": "# Test: info tclversion - returns major.minor version\nputs [info tclversion]\n",
+      "stdout": "9.0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "tclversion-15.1",
+      "file": "spec/tests/info/tclversion-15.1.tcl",
+      "script": "# Test: info tclversion - wrong # args\ncatch {info tclversion extra} result\nputs $result\n",
+      "stdout": "wrong # args: should be \"info tclversion\"\n",
       "stderr": "",
       "returncode": 0
     },
