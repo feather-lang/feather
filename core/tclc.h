@@ -144,6 +144,19 @@ typedef enum TclSeekWhence {
     TCL_SEEK_END = 2,
 } TclSeekWhence;
 
+/* Path type (for file pathtype) */
+typedef enum TclPathType {
+    TCL_PATH_ABSOLUTE = 0,
+    TCL_PATH_RELATIVE = 1,
+    TCL_PATH_VOLUMERELATIVE = 2,
+} TclPathType;
+
+/* Link type (for file link) */
+typedef enum TclLinkType {
+    TCL_LINK_SYMBOLIC = 0,
+    TCL_LINK_HARD = 1,
+} TclLinkType;
+
 /* ========================================================================
  * Activation Record (Frame)
  *
@@ -422,6 +435,10 @@ struct TclHost {
     TclObj*     (*chanNames)(void *ctx, const char *pattern);
     void        (*chanShare)(void *fromCtx, void *toCtx, TclChannel *chan);
     void        (*chanTransfer)(void *fromCtx, void *toCtx, TclChannel *chan);
+    int         (*chanTruncate)(TclChannel *chan, int64_t length);
+    int64_t     (*chanCopy)(TclChannel *src, TclChannel *dst, int64_t size);
+    int64_t     (*chanPending)(TclChannel *chan, int input);
+    int         (*chanPipe)(void *ctx, TclChannel **readChan, TclChannel **writeChan);
 
     /* ==================================================================
      * Event Loop
@@ -486,6 +503,21 @@ struct TclHost {
     TclObj* (*fileSplit)(const char *path);
     TclObj* (*fileType)(const char *path);
     TclObj* (*glob)(const char *pattern, int types, const char *directory);
+    int     (*filePathtype)(const char *path);  /* Returns TclPathType */
+    TclObj* (*fileSeparator)(void);
+    TclObj* (*fileStat)(const char *path);      /* Returns dict with atime,ctime,dev,gid,ino,mode,mtime,nlink,size,type,uid */
+    TclObj* (*fileLstat)(const char *path);     /* Like fileStat but doesn't follow symlinks */
+    TclObj* (*fileNativename)(const char *path);
+    int     (*fileOwned)(const char *path);
+    TclObj* (*fileTempfile)(void *ctx, const char *template);  /* Returns channel, sets name in template if non-NULL */
+    TclObj* (*fileTempdir)(const char *template);
+    TclObj* (*fileHome)(const char *user);      /* NULL for current user */
+    int     (*fileLink)(const char *linkName, const char *target, int linkType);  /* linkType: TclLinkType */
+    TclObj* (*fileReadlink)(const char *linkName);
+    TclObj* (*fileSystem)(const char *path);    /* Returns list: {fstype ?detail?} */
+    TclObj* (*fileVolumes)(void);               /* Returns list of volume mount points */
+    TclObj* (*fileAttributes)(const char *path, const char *option);  /* NULL option = get all */
+    int     (*fileAttributesSet)(const char *path, const char *option, TclObj *value);
 
     /* ==================================================================
      * System
