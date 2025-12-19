@@ -41,6 +41,7 @@ const promptTemplate = `# TCL Core Implementation Task
 ## Your Task
 
 1. Analyze the failing tests and identify the root cause
+1.2	 If no tests exist, use the add-tests skill to tests first.
 2. Implement or fix the relevant code in the C core
 3. Ensure your changes don't break other tests
 4. Run ` + "`make diff FEATURE=%s`" + ` to check against oracle

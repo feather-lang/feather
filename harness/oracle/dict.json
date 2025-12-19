@@ -1,0 +1,582 @@
+{
+  "feature": "dict",
+  "tclsh": "tclsh",
+  "tests": [
+    {
+      "name": "dict-append-1.0",
+      "file": "spec/tests/dict/dict-append-1.0.tcl",
+      "script": "# Test: dict append - basic\nset d [dict create a hello]\nputs [dict append d a \" world\"]\nputs $d\n",
+      "stdout": "a {hello world}\na {hello world}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-append-1.1",
+      "file": "spec/tests/dict/dict-append-1.1.tcl",
+      "script": "# Test: dict append - new key\nset d [dict create]\nputs [dict append d newkey value]\nputs $d\n",
+      "stdout": "newkey value\nnewkey value\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-append-1.2",
+      "file": "spec/tests/dict/dict-append-1.2.tcl",
+      "script": "# Test: dict append - multiple strings\nset d [dict create a x]\nputs [dict append d a y z]\nputs $d\n",
+      "stdout": "a xyz\na xyz\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-create-1.0",
+      "file": "spec/tests/dict/dict-create-1.0.tcl",
+      "script": "# Test: dict create - basic creation\nputs [dict create]\nputs [dict create a 1]\nputs [dict create a 1 b 2]\nputs [dict create a 1 b 2 c 3]\n",
+      "stdout": "\na 1\na 1 b 2\na 1 b 2 c 3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-create-1.1",
+      "file": "spec/tests/dict/dict-create-1.1.tcl",
+      "script": "# Test: dict create - special characters in keys/values\nputs [dict create \"key with spaces\" \"value with spaces\"]\nputs [dict create {key{brace}} {val{brace}}]\nputs [dict create \"a\\tb\" \"c\\nd\"]\n",
+      "stdout": "{key with spaces} {value with spaces}\nkey{brace} val{brace}\n{a\tb} {c\nd}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-create-1.2",
+      "file": "spec/tests/dict/dict-create-1.2.tcl",
+      "script": "# Test: dict create - duplicate keys (last value wins)\nputs [dict create a 1 a 2]\nputs [dict create a 1 b 2 a 3]\n",
+      "stdout": "a 2\na 3 b 2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-error-1.0",
+      "file": "spec/tests/dict/dict-error-1.0.tcl",
+      "script": "# Test: dict - wrong number of args\ncatch {dict} err\nputs $err\n",
+      "stdout": "wrong # args: should be \"dict subcommand ?arg ...?\"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-error-1.1",
+      "file": "spec/tests/dict/dict-error-1.1.tcl",
+      "script": "# Test: dict - unknown subcommand\ncatch {dict unknown arg} err\nputs $err\n",
+      "stdout": "unknown or ambiguous subcommand \"unknown\": must be append, create, exists, filter, for, get, getdef, getwithdefault, incr, info, keys, lappend, map, merge, remove, replace, set, size, unset, update, values, or with\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-error-1.2",
+      "file": "spec/tests/dict/dict-error-1.2.tcl",
+      "script": "# Test: dict create - odd number of args\ncatch {dict create a} err\nputs $err\n",
+      "stdout": "wrong # args: should be \"dict create ?key value ...?\"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-error-1.3",
+      "file": "spec/tests/dict/dict-error-1.3.tcl",
+      "script": "# Test: dict - not a valid dict\ncatch {dict size \"a b c\"} err\nputs $err\n",
+      "stdout": "missing value to go with key\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-error-1.4",
+      "file": "spec/tests/dict/dict-error-1.4.tcl",
+      "script": "# Test: dict incr - non-integer value\nset d [dict create a hello]\ncatch {dict incr d a} err\nputs $err\n",
+      "stdout": "expected integer but got \"hello\"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-exists-1.0",
+      "file": "spec/tests/dict/dict-exists-1.0.tcl",
+      "script": "# Test: dict exists - basic checks\nset d [dict create a 1 b 2]\nputs [dict exists $d a]\nputs [dict exists $d b]\nputs [dict exists $d c]\n",
+      "stdout": "1\n1\n0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-exists-1.1",
+      "file": "spec/tests/dict/dict-exists-1.1.tcl",
+      "script": "# Test: dict exists - nested path\nset d [dict create outer [dict create inner value]]\nputs [dict exists $d outer]\nputs [dict exists $d outer inner]\nputs [dict exists $d outer missing]\nputs [dict exists $d missing inner]\n",
+      "stdout": "1\n1\n0\n0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-filter-1.0",
+      "file": "spec/tests/dict/dict-filter-1.0.tcl",
+      "script": "# Test: dict filter key - basic pattern matching\nset d [dict create apple 1 banana 2 apricot 3 cherry 4]\nputs [dict filter $d key a*]\nputs [dict filter $d key *a*]\n",
+      "stdout": "apple 1 apricot 3\napple 1 banana 2 apricot 3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-filter-1.1",
+      "file": "spec/tests/dict/dict-filter-1.1.tcl",
+      "script": "# Test: dict filter value - basic pattern matching\nset d [dict create a red b green c blue d red]\nputs [dict filter $d value red]\nputs [dict filter $d value *e*]\n",
+      "stdout": "a red d red\na red b green c blue d red\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-filter-1.2",
+      "file": "spec/tests/dict/dict-filter-1.2.tcl",
+      "script": "# Test: dict filter script - basic\nset d [dict create a 1 b 2 c 3 d 4]\nputs [dict filter $d script {k v} {expr {$v \u003e 2}}]\n",
+      "stdout": "c 3 d 4\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-filter-1.3",
+      "file": "spec/tests/dict/dict-filter-1.3.tcl",
+      "script": "# Test: dict filter script - break\nset d [dict create a 1 b 2 c 3 d 4 e 5]\nputs [dict filter $d script {k v} {\n    if {$v \u003e 3} break\n    expr {$v % 2 == 1}\n}]\n",
+      "stdout": "a 1 c 3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-filter-1.4",
+      "file": "spec/tests/dict/dict-filter-1.4.tcl",
+      "script": "# Test: dict filter key - multiple patterns\nset d [dict create apple 1 banana 2 apricot 3 cherry 4]\nputs [dict filter $d key a* c*]\n",
+      "stdout": "apple 1 apricot 3 cherry 4\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-for-1.0",
+      "file": "spec/tests/dict/dict-for-1.0.tcl",
+      "script": "# Test: dict for - basic iteration\nset d [dict create a 1 b 2 c 3]\ndict for {k v} $d {\n    puts \"$k=$v\"\n}\n",
+      "stdout": "a=1\nb=2\nc=3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-for-1.1",
+      "file": "spec/tests/dict/dict-for-1.1.tcl",
+      "script": "# Test: dict for - empty dict\ndict for {k v} {} {\n    puts \"should not print\"\n}\nputs \"done\"\n",
+      "stdout": "done\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-for-1.2",
+      "file": "spec/tests/dict/dict-for-1.2.tcl",
+      "script": "# Test: dict for - break\nset d [dict create a 1 b 2 c 3 d 4]\ndict for {k v} $d {\n    puts \"$k=$v\"\n    if {$k eq \"b\"} break\n}\nputs \"after break\"\n",
+      "stdout": "a=1\nb=2\nafter break\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-for-1.3",
+      "file": "spec/tests/dict/dict-for-1.3.tcl",
+      "script": "# Test: dict for - continue\nset d [dict create a 1 b 2 c 3]\ndict for {k v} $d {\n    if {$k eq \"b\"} continue\n    puts \"$k=$v\"\n}\n",
+      "stdout": "a=1\nc=3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-for-1.4",
+      "file": "spec/tests/dict/dict-for-1.4.tcl",
+      "script": "# Test: dict for - result is empty string\nset d [dict create a 1 b 2]\nset result [dict for {k v} $d {\n    puts \"$k=$v\"\n}]\nputs \"result=\u003c$result\u003e\"\n",
+      "stdout": "a=1\nb=2\nresult=\u003c\u003e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-get-1.0",
+      "file": "spec/tests/dict/dict-get-1.0.tcl",
+      "script": "# Test: dict get - basic retrieval\nset d [dict create a 1 b 2 c 3]\nputs [dict get $d a]\nputs [dict get $d b]\nputs [dict get $d c]\n",
+      "stdout": "1\n2\n3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-get-1.1",
+      "file": "spec/tests/dict/dict-get-1.1.tcl",
+      "script": "# Test: dict get - no keys returns all pairs\nset d [dict create a 1 b 2]\nputs [dict get $d]\n",
+      "stdout": "a 1 b 2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-get-1.2",
+      "file": "spec/tests/dict/dict-get-1.2.tcl",
+      "script": "# Test: dict get - nested dictionary access\nset d [dict create outer [dict create inner value]]\nputs [dict get $d outer inner]\nputs [dict get $d outer]\n",
+      "stdout": "value\ninner value\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-get-1.3",
+      "file": "spec/tests/dict/dict-get-1.3.tcl",
+      "script": "# Test: dict get - error on missing key\nset d [dict create a 1]\ncatch {dict get $d nonexistent} err\nputs $err\n",
+      "stdout": "key \"nonexistent\" not known in dictionary\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-getdef-1.0",
+      "file": "spec/tests/dict/dict-getdef-1.0.tcl",
+      "script": "# Test: dict getdef - basic with existing key\nset d [dict create a 1 b 2]\nputs [dict getdef $d a default]\nputs [dict getdef $d b default]\n",
+      "stdout": "1\n2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-getdef-1.1",
+      "file": "spec/tests/dict/dict-getdef-1.1.tcl",
+      "script": "# Test: dict getdef - missing key returns default\nset d [dict create a 1]\nputs [dict getdef $d missing default]\nputs [dict getdef $d another \"not found\"]\n",
+      "stdout": "default\nnot found\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-getdef-1.2",
+      "file": "spec/tests/dict/dict-getdef-1.2.tcl",
+      "script": "# Test: dict getdef - nested path\nset d [dict create outer [dict create inner value]]\nputs [dict getdef $d outer inner default]\nputs [dict getdef $d outer missing default]\n",
+      "stdout": "value\ndefault\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-getwithdefault-1.0",
+      "file": "spec/tests/dict/dict-getwithdefault-1.0.tcl",
+      "script": "# Test: dict getwithdefault - alias for getdef\nset d [dict create a 1]\nputs [dict getwithdefault $d a default]\nputs [dict getwithdefault $d missing default]\n",
+      "stdout": "1\ndefault\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-incr-1.0",
+      "file": "spec/tests/dict/dict-incr-1.0.tcl",
+      "script": "# Test: dict incr - basic increment\nset d [dict create count 5]\nputs [dict incr d count]\nputs $d\n",
+      "stdout": "count 6\ncount 6\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-incr-1.1",
+      "file": "spec/tests/dict/dict-incr-1.1.tcl",
+      "script": "# Test: dict incr - with explicit increment\nset d [dict create count 5]\nputs [dict incr d count 10]\nputs [dict incr d count -3]\nputs $d\n",
+      "stdout": "count 15\ncount 12\ncount 12\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-incr-1.2",
+      "file": "spec/tests/dict/dict-incr-1.2.tcl",
+      "script": "# Test: dict incr - new key starts at 0\nset d [dict create]\nputs [dict incr d newkey]\nputs [dict incr d another 5]\nputs $d\n",
+      "stdout": "newkey 1\nnewkey 1 another 5\nnewkey 1 another 5\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-info-1.0",
+      "file": "spec/tests/dict/dict-info-1.0.tcl",
+      "script": "# Test: dict info - returns implementation info\nset d [dict create a 1 b 2 c 3]\nset info [dict info $d]\nputs [expr {[string length $info] \u003e 0}]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-keys-1.0",
+      "file": "spec/tests/dict/dict-keys-1.0.tcl",
+      "script": "# Test: dict keys - basic\nset d [dict create a 1 b 2 c 3]\nputs [dict keys $d]\n",
+      "stdout": "a b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-keys-1.1",
+      "file": "spec/tests/dict/dict-keys-1.1.tcl",
+      "script": "# Test: dict keys - with pattern\nset d [dict create apple 1 banana 2 apricot 3 cherry 4]\nputs [dict keys $d]\nputs [dict keys $d a*]\nputs [dict keys $d *a*]\n",
+      "stdout": "apple banana apricot cherry\napple apricot\napple banana apricot\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-keys-1.2",
+      "file": "spec/tests/dict/dict-keys-1.2.tcl",
+      "script": "# Test: dict keys - empty dict\nputs [dict keys {}]\n",
+      "stdout": "\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-lappend-1.0",
+      "file": "spec/tests/dict/dict-lappend-1.0.tcl",
+      "script": "# Test: dict lappend - basic\nset d [dict create items {a b}]\nputs [dict lappend d items c]\nputs $d\n",
+      "stdout": "items {a b c}\nitems {a b c}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-lappend-1.1",
+      "file": "spec/tests/dict/dict-lappend-1.1.tcl",
+      "script": "# Test: dict lappend - new key\nset d [dict create]\nputs [dict lappend d newlist x y z]\nputs $d\n",
+      "stdout": "newlist {x y z}\nnewlist {x y z}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-lappend-1.2",
+      "file": "spec/tests/dict/dict-lappend-1.2.tcl",
+      "script": "# Test: dict lappend - no values\nset d [dict create items {a b c}]\nputs [dict lappend d items]\nputs $d\n",
+      "stdout": "items {a b c}\nitems {a b c}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-map-1.0",
+      "file": "spec/tests/dict/dict-map-1.0.tcl",
+      "script": "# Test: dict map - basic transformation\nset d [dict create a 1 b 2 c 3]\nputs [dict map {k v} $d {expr {$v * 2}}]\n",
+      "stdout": "a 2 b 4 c 6\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-map-1.1",
+      "file": "spec/tests/dict/dict-map-1.1.tcl",
+      "script": "# Test: dict map - empty dict\nputs [dict map {k v} {} {expr {$v * 2}}]\n",
+      "stdout": "\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-map-1.2",
+      "file": "spec/tests/dict/dict-map-1.2.tcl",
+      "script": "# Test: dict map - break\nset d [dict create a 1 b 2 c 3 d 4]\nputs [dict map {k v} $d {\n    if {$v \u003e 2} break\n    expr {$v * 10}\n}]\n",
+      "stdout": "\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-map-1.3",
+      "file": "spec/tests/dict/dict-map-1.3.tcl",
+      "script": "# Test: dict map - continue skips entry\nset d [dict create a 1 b 2 c 3]\nputs [dict map {k v} $d {\n    if {$k eq \"b\"} continue\n    expr {$v * 10}\n}]\n",
+      "stdout": "a 10 c 30\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-merge-1.0",
+      "file": "spec/tests/dict/dict-merge-1.0.tcl",
+      "script": "# Test: dict merge - basic\nputs [dict merge]\nputs [dict merge {a 1}]\nputs [dict merge {a 1} {b 2}]\nputs [dict merge {a 1 b 2} {c 3 d 4}]\n",
+      "stdout": "\na 1\na 1 b 2\na 1 b 2 c 3 d 4\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-merge-1.1",
+      "file": "spec/tests/dict/dict-merge-1.1.tcl",
+      "script": "# Test: dict merge - overlapping keys (last wins)\nputs [dict merge {a 1 b 2} {b 20 c 3}]\nputs [dict merge {a 1} {a 2} {a 3}]\n",
+      "stdout": "a 1 b 20 c 3\na 3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-order-1.0",
+      "file": "spec/tests/dict/dict-order-1.0.tcl",
+      "script": "# Test: dict preserves insertion order\nset d [dict create z 1 a 2 m 3]\nputs [dict keys $d]\ndict set d b 4\nputs [dict keys $d]\n",
+      "stdout": "z a m\nz a m b\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-remove-1.0",
+      "file": "spec/tests/dict/dict-remove-1.0.tcl",
+      "script": "# Test: dict remove - basic\nset d [dict create a 1 b 2 c 3]\nputs [dict remove $d b]\nputs [dict remove $d a c]\nputs [dict remove $d]\n",
+      "stdout": "a 1 c 3\nb 2\na 1 b 2 c 3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-remove-1.1",
+      "file": "spec/tests/dict/dict-remove-1.1.tcl",
+      "script": "# Test: dict remove - nonexistent key (no error)\nset d [dict create a 1 b 2]\nputs [dict remove $d nonexistent]\nputs [dict remove $d a nonexistent b]\n",
+      "stdout": "a 1 b 2\n\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-replace-1.0",
+      "file": "spec/tests/dict/dict-replace-1.0.tcl",
+      "script": "# Test: dict replace - basic\nset d [dict create a 1 b 2]\nputs [dict replace $d b 20]\nputs [dict replace $d c 3]\nputs [dict replace $d a 10 b 20 c 30]\n",
+      "stdout": "a 1 b 20\na 1 b 2 c 3\na 10 b 20 c 30\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-replace-1.1",
+      "file": "spec/tests/dict/dict-replace-1.1.tcl",
+      "script": "# Test: dict replace - no changes\nset d [dict create a 1 b 2]\nputs [dict replace $d]\n",
+      "stdout": "a 1 b 2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-replace-1.2",
+      "file": "spec/tests/dict/dict-replace-1.2.tcl",
+      "script": "# Test: dict replace - error on odd args\ncatch {dict replace {a 1} b} err\nputs $err\n",
+      "stdout": "wrong # args: should be \"dict replace dictionary ?key value ...?\"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-set-1.0",
+      "file": "spec/tests/dict/dict-set-1.0.tcl",
+      "script": "# Test: dict set - basic set\nset d [dict create a 1]\nputs [dict set d b 2]\nputs $d\n",
+      "stdout": "a 1 b 2\na 1 b 2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-set-1.1",
+      "file": "spec/tests/dict/dict-set-1.1.tcl",
+      "script": "# Test: dict set - update existing key\nset d [dict create a 1 b 2]\nputs [dict set d a 10]\nputs $d\n",
+      "stdout": "a 10 b 2\na 10 b 2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-set-1.2",
+      "file": "spec/tests/dict/dict-set-1.2.tcl",
+      "script": "# Test: dict set - nested key path\nset d [dict create]\nputs [dict set d a b c value]\nputs [dict get $d a b c]\n",
+      "stdout": "a {b {c value}}\nvalue\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-set-1.3",
+      "file": "spec/tests/dict/dict-set-1.3.tcl",
+      "script": "# Test: dict set - create variable if not exists\nunset -nocomplain newvar\ndict set newvar key value\nputs $newvar\n",
+      "stdout": "key value\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-size-1.0",
+      "file": "spec/tests/dict/dict-size-1.0.tcl",
+      "script": "# Test: dict size - basic\nputs [dict size {}]\nputs [dict size {a 1}]\nputs [dict size {a 1 b 2 c 3}]\n",
+      "stdout": "0\n1\n3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-unset-1.0",
+      "file": "spec/tests/dict/dict-unset-1.0.tcl",
+      "script": "# Test: dict unset - basic\nset d [dict create a 1 b 2 c 3]\nputs [dict unset d b]\nputs $d\n",
+      "stdout": "a 1 c 3\na 1 c 3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-unset-1.1",
+      "file": "spec/tests/dict/dict-unset-1.1.tcl",
+      "script": "# Test: dict unset - nested key path\nset d [dict create outer [dict create inner1 a inner2 b]]\nputs [dict unset d outer inner1]\nputs $d\n",
+      "stdout": "outer {inner2 b}\nouter {inner2 b}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-unset-1.2",
+      "file": "spec/tests/dict/dict-unset-1.2.tcl",
+      "script": "# Test: dict unset - nonexistent key (no error)\nset d [dict create a 1 b 2]\nputs [dict unset d nonexistent]\nputs $d\n",
+      "stdout": "a 1 b 2\na 1 b 2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-update-1.0",
+      "file": "spec/tests/dict/dict-update-1.0.tcl",
+      "script": "# Test: dict update - basic\nset d [dict create a 1 b 2]\ndict update d a x b y {\n    puts \"x=$x y=$y\"\n    set x 10\n    set y 20\n}\nputs $d\n",
+      "stdout": "x=1 y=2\na 10 b 20\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-update-1.1",
+      "file": "spec/tests/dict/dict-update-1.1.tcl",
+      "script": "# Test: dict update - missing key\nset d [dict create a 1]\ndict update d a x missing y {\n    puts \"x=$x\"\n    puts [info exists y]\n}\nputs $d\n",
+      "stdout": "x=1\n0\na 1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-update-1.2",
+      "file": "spec/tests/dict/dict-update-1.2.tcl",
+      "script": "# Test: dict update - unset variable removes key\nset d [dict create a 1 b 2]\ndict update d a x b y {\n    unset x\n}\nputs $d\n",
+      "stdout": "b 2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-update-1.3",
+      "file": "spec/tests/dict/dict-update-1.3.tcl",
+      "script": "# Test: dict update - add new variable creates key\nset d [dict create a 1]\ndict update d a x b y {\n    set y 2\n}\nputs $d\n",
+      "stdout": "a 1 b 2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-values-1.0",
+      "file": "spec/tests/dict/dict-values-1.0.tcl",
+      "script": "# Test: dict values - basic\nset d [dict create a 1 b 2 c 3]\nputs [dict values $d]\n",
+      "stdout": "1 2 3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-values-1.1",
+      "file": "spec/tests/dict/dict-values-1.1.tcl",
+      "script": "# Test: dict values - with pattern\nset d [dict create a apple b banana c cherry]\nputs [dict values $d]\nputs [dict values $d a*]\nputs [dict values $d *a*]\n",
+      "stdout": "apple banana cherry\napple\napple banana\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-with-1.0",
+      "file": "spec/tests/dict/dict-with-1.0.tcl",
+      "script": "# Test: dict with - basic\nset d [dict create a 1 b 2 c 3]\ndict with d {\n    puts \"a=$a b=$b c=$c\"\n    set a 10\n}\nputs $d\n",
+      "stdout": "a=1 b=2 c=3\na 10 b 2 c 3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-with-1.1",
+      "file": "spec/tests/dict/dict-with-1.1.tcl",
+      "script": "# Test: dict with - nested path\nset d [dict create outer [dict create x 1 y 2]]\ndict with d outer {\n    puts \"x=$x y=$y\"\n    set x 10\n}\nputs [dict get $d outer x]\n",
+      "stdout": "x=1 y=2\n10\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-with-1.2",
+      "file": "spec/tests/dict/dict-with-1.2.tcl",
+      "script": "# Test: dict with - unset removes key\nset d [dict create a 1 b 2]\ndict with d {\n    unset a\n}\nputs $d\n",
+      "stdout": "b 2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-with-1.3",
+      "file": "spec/tests/dict/dict-with-1.3.tcl",
+      "script": "# Test: dict with - add new variable creates key\nset d [dict create a 1]\ndict with d {\n    set b 2\n}\nputs $d\n",
+      "stdout": "a 1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "dict-with-1.4",
+      "file": "spec/tests/dict/dict-with-1.4.tcl",
+      "script": "# Test: dict with - empty dict\nset d [dict create]\ndict with d {\n    set a 1\n}\nputs $d\n",
+      "stdout": "\n",
+      "stderr": "",
+      "returncode": 0
+    }
+  ]
+}
