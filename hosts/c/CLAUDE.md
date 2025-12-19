@@ -1,6 +1,12 @@
 # C Host Implementation
 
-This directory contains the C host implementation for the TCL core.
+This directory contains the C host implementation for the TCL core using GLib-2.0.
+
+## Dependencies
+
+- **GLib-2.0**: Used for hash tables, memory management, string utilities, and other core data structures.
+  - Install on macOS: `brew install glib`
+  - Install on Debian/Ubuntu: `apt install libglib2.0-dev`
 
 ## Architecture
 
@@ -19,7 +25,7 @@ This directory contains the C host implementation for the TCL core.
 │  main.c ─────► Entry point, REPL, script execution      │
 │  host.c ─────► TclHost callback implementations          │
 │  object.c ───► TclObj creation and manipulation          │
-│  vars.c ─────► Variable table (hash map)                 │
+│  vars.c ─────► Variable table (GHashTable)               │
 │  arena.c ────► Arena allocator for temporaries           │
 │  channel.c ──► I/O channels (stdin/stdout/files)         │
 └─────────────────────────────────────────────────────────┘
@@ -41,22 +47,42 @@ This directory contains the C host implementation for the TCL core.
 
 | File | Purpose |
 |------|---------|
-| `main.c` | Entry point. Reads script from file or stdin. |
-| `host.c` | Implements all `TclHost` callbacks that the core calls back into. |
-| `object.c` | `TclObj` implementation with string/int/double/list representations. |
-| `vars.c` | Hash table for variable storage, supports arrays. |
-| `arena.c` | Stack-based arena allocator for temporary memory during eval. |
-| `channel.c` | File I/O channels (open, read, write, close). |
+| `main.c` | Entry point. Reads script from file or stdin. Uses `g_file_get_contents()` for file I/O. |
+| `host.c` | Implements all `TclHost` callbacks. Uses `GHashTable` for proc storage. |
+| `object.c` | `TclObj` implementation with `g_malloc`/`g_free`, `g_strndup`, `GPtrArray`. |
+| `vars.c` | `GHashTable` for variable storage, supports arrays and variable linking (upvar/global). |
+| `arena.c` | Stack-based arena allocator using GLib memory functions. |
+| `channel.c` | File I/O channels using `g_fopen`, `GString` for line reading. |
+| `Makefile` | Local build configuration with `pkg-config` for GLib. |
 
 ## Build
 
 ```bash
-# Build just the C host
-make build          # Creates bin/tclc
+# Build from hosts/c directory
+cd hosts/c
+make              # Creates ../../bin/tclc
 
-# Build with libraries
-make build-all      # Creates bin/tclc + build/libtclc.{a,dylib}
+# Or build from project root
+make build        # Creates bin/tclc
+
+# Show build configuration
+make info
 ```
+
+## GLib Usage
+
+The host implementation uses these GLib features:
+
+| Feature | Usage |
+|---------|-------|
+| `GHashTable` | Variable tables (`vars.c`), procedure storage (`host.c`) |
+| `GPtrArray` | List parsing, collecting elements |
+| `GString` | Building result strings, reading lines |
+| `g_malloc/g_free/g_new0` | All memory allocation |
+| `g_strndup/g_strdup_printf` | String manipulation |
+| `g_ascii_strtoll/g_ascii_strtod` | Number parsing |
+| `g_ascii_strcasecmp/g_ascii_tolower` | Case-insensitive comparisons |
+| `g_file_get_contents` | Reading files |
 
 ## How Core and Host Connect
 
@@ -78,11 +104,15 @@ make diff-all
 
 # Run tests for a specific feature
 make diff FEATURE=string
+
+# Quick test
+echo 'puts "Hello!"' | bin/tclc
 ```
 
 ## Key Design Decisions
 
-1. **No libc in core** - The C host provides string operations, memory, etc.
-2. **Hash tables in host** - Core doesn't implement hash tables; host provides them via callbacks.
-3. **Simple object model** - Objects shimmer between string/int/double/list representations.
-4. **Arena for temporaries** - Parsing and eval use arena allocation, freed in bulk.
+1. **GLib for data structures** - Uses battle-tested `GHashTable` instead of custom hash tables
+2. **GLib for memory** - Uses `g_malloc`/`g_free` throughout for consistency
+3. **Simple object model** - Objects shimmer between string/int/double/list representations
+4. **Arena for temporaries** - Parsing and eval use arena allocation, freed in bulk
+5. **pkg-config integration** - Build automatically finds GLib headers and libraries

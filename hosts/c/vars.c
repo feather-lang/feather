@@ -1,53 +1,51 @@
 /*
- * vars.c - Variable Table Implementation for C Host
+ * vars.c - Variable Table Implementation for C Host (GLib version)
  *
- * Simple hash table for variable storage.
+ * Uses GHashTable for variable storage.
  */
 
 #include "../../core/tclc.h"
-#include <stdlib.h>
+#include <glib.h>
 #include <string.h>
 
 /* External object functions from object.c */
 extern TclObj *hostNewString(const char *s, size_t len);
+extern TclObj *hostDup(TclObj *obj);
 extern void hostFreeObj(TclObj *obj);
 extern const char *hostGetStringPtr(TclObj *obj, size_t *lenOut);
 
 /* Forward declaration */
 typedef struct VarTable VarTable;
 
-/* Hash table entry */
+/* Variable entry - stores either a value or a link */
 typedef struct VarEntry {
-    char            *name;      /* Variable name */
-    size_t           nameLen;   /* Name length */
-    TclObj          *value;     /* Variable value (NULL if linked) */
-    struct VarEntry *next;      /* Next in chain */
-    /* Link information for upvar/global */
-    VarTable        *linkTable; /* Target table (NULL if not linked) */
-    char            *linkName;  /* Target variable name */
-    size_t           linkNameLen;
+    TclObj   *value;         /* Variable value (NULL if linked) */
+    VarTable *linkTable;     /* Target table (NULL if not linked) */
+    gchar    *linkName;      /* Target variable name */
 } VarEntry;
 
-/* Hash table */
-#define VAR_TABLE_SIZE 256
-
+/* Variable table using GHashTable */
 struct VarTable {
-    VarEntry *buckets[VAR_TABLE_SIZE];
+    GHashTable *vars;        /* Maps gchar* -> VarEntry* */
 };
 
-/* Simple hash function */
-static unsigned int hashName(const char *name, size_t len) {
-    unsigned int hash = 0;
-    for (size_t i = 0; i < len; i++) {
-        hash = hash * 31 + (unsigned char)name[i];
+/* Free a variable entry */
+static void varEntryFree(gpointer data) {
+    VarEntry *entry = data;
+    if (entry) {
+        if (entry->value) hostFreeObj(entry->value);
+        g_free(entry->linkName);
+        g_free(entry);
     }
-    return hash % VAR_TABLE_SIZE;
 }
 
 /* Create new variable table */
 void *hostVarsNew(void *ctx) {
     (void)ctx;
-    VarTable *table = calloc(1, sizeof(VarTable));
+    VarTable *table = g_new0(VarTable, 1);
+    if (!table) return NULL;
+
+    table->vars = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, varEntryFree);
     return table;
 }
 
@@ -57,32 +55,8 @@ void hostVarsFree(void *ctx, void *vars) {
     VarTable *table = vars;
     if (!table) return;
 
-    for (int i = 0; i < VAR_TABLE_SIZE; i++) {
-        VarEntry *entry = table->buckets[i];
-        while (entry) {
-            VarEntry *next = entry->next;
-            free(entry->name);
-            if (entry->value) hostFreeObj(entry->value);
-            if (entry->linkName) free(entry->linkName);
-            free(entry);
-            entry = next;
-        }
-    }
-    free(table);
-}
-
-/* Find entry by name */
-static VarEntry *findEntry(VarTable *table, const char *name, size_t len) {
-    unsigned int h = hashName(name, len);
-    VarEntry *entry = table->buckets[h];
-
-    while (entry) {
-        if (entry->nameLen == len && memcmp(entry->name, name, len) == 0) {
-            return entry;
-        }
-        entry = entry->next;
-    }
-    return NULL;
+    g_hash_table_destroy(table->vars);
+    g_free(table);
 }
 
 /* Get variable value (follows links) */
@@ -90,12 +64,15 @@ TclObj *hostVarGet(void *vars, const char *name, size_t len) {
     VarTable *table = vars;
     if (!table) return NULL;
 
-    VarEntry *entry = findEntry(table, name, len);
+    gchar *key = g_strndup(name, len);
+    VarEntry *entry = g_hash_table_lookup(table->vars, key);
+    g_free(key);
+
     if (!entry) return NULL;
 
     /* Follow link if this is a linked variable */
     if (entry->linkTable) {
-        return hostVarGet(entry->linkTable, entry->linkName, entry->linkNameLen);
+        return hostVarGet(entry->linkTable, entry->linkName, strlen(entry->linkName));
     }
 
     return entry->value;
@@ -106,38 +83,28 @@ void hostVarSet(void *vars, const char *name, size_t len, TclObj *val) {
     VarTable *table = vars;
     if (!table) return;
 
-    VarEntry *entry = findEntry(table, name, len);
+    gchar *key = g_strndup(name, len);
+    VarEntry *entry = g_hash_table_lookup(table->vars, key);
+
     if (entry) {
         /* Follow link if this is a linked variable */
         if (entry->linkTable) {
-            hostVarSet(entry->linkTable, entry->linkName, entry->linkNameLen, val);
+            g_free(key);
+            hostVarSet(entry->linkTable, entry->linkName, strlen(entry->linkName), val);
             return;
         }
         /* Replace existing value */
         if (entry->value) hostFreeObj(entry->value);
         entry->value = val;
+        g_free(key);
     } else {
         /* Create new entry */
-        entry = malloc(sizeof(VarEntry));
-        if (!entry) return;
-
-        entry->name = malloc(len + 1);
-        if (!entry->name) {
-            free(entry);
-            return;
-        }
-        memcpy(entry->name, name, len);
-        entry->name[len] = '\0';
-        entry->nameLen = len;
+        entry = g_new0(VarEntry, 1);
         entry->value = val;
         entry->linkTable = NULL;
         entry->linkName = NULL;
-        entry->linkNameLen = 0;
 
-        /* Insert at head of bucket */
-        unsigned int h = hashName(name, len);
-        entry->next = table->buckets[h];
-        table->buckets[h] = entry;
+        g_hash_table_insert(table->vars, key, entry);
     }
 }
 
@@ -146,20 +113,9 @@ void hostVarUnset(void *vars, const char *name, size_t len) {
     VarTable *table = vars;
     if (!table) return;
 
-    unsigned int h = hashName(name, len);
-    VarEntry **pp = &table->buckets[h];
-
-    while (*pp) {
-        VarEntry *entry = *pp;
-        if (entry->nameLen == len && memcmp(entry->name, name, len) == 0) {
-            *pp = entry->next;
-            free(entry->name);
-            hostFreeObj(entry->value);
-            free(entry);
-            return;
-        }
-        pp = &entry->next;
-    }
+    gchar *key = g_strndup(name, len);
+    g_hash_table_remove(table->vars, key);
+    g_free(key);
 }
 
 /* Check if variable exists (follows links) */
@@ -167,15 +123,35 @@ int hostVarExists(void *vars, const char *name, size_t len) {
     VarTable *table = vars;
     if (!table) return 0;
 
-    VarEntry *entry = findEntry(table, name, len);
+    gchar *key = g_strndup(name, len);
+    VarEntry *entry = g_hash_table_lookup(table->vars, key);
+    g_free(key);
+
     if (!entry) return 0;
 
     /* Follow link if this is a linked variable */
     if (entry->linkTable) {
-        return hostVarExists(entry->linkTable, entry->linkName, entry->linkNameLen);
+        return hostVarExists(entry->linkTable, entry->linkName, strlen(entry->linkName));
     }
 
     return entry->value != NULL;
+}
+
+/* Helper for collecting variable names */
+typedef struct {
+    GPtrArray *names;
+    const gchar *pattern;
+} VarNamesData;
+
+static void collectVarNames(gpointer key, gpointer value, gpointer userData) {
+    (void)value;
+    VarNamesData *data = userData;
+    const gchar *name = key;
+
+    /* Simple pattern matching: NULL or "*" matches all */
+    if (!data->pattern || data->pattern[0] == '*') {
+        g_ptr_array_add(data->names, g_strdup(name));
+    }
 }
 
 /* Get list of variable names matching pattern (NULL for all) */
@@ -183,46 +159,30 @@ TclObj *hostVarNames(void *vars, const char *pattern) {
     VarTable *table = vars;
     if (!table) return hostNewString("", 0);
 
-    /* Count and collect names */
-    size_t totalLen = 0;
-    int count = 0;
+    VarNamesData data = {
+        .names = g_ptr_array_new_with_free_func(g_free),
+        .pattern = pattern
+    };
 
-    for (int i = 0; i < VAR_TABLE_SIZE; i++) {
-        VarEntry *entry = table->buckets[i];
-        while (entry) {
-            if (!pattern || pattern[0] == '*') {
-                totalLen += entry->nameLen + 1; /* +1 for space */
-                count++;
-            }
-            entry = entry->next;
-        }
-    }
+    g_hash_table_foreach(table->vars, collectVarNames, &data);
 
-    if (count == 0) {
+    if (data.names->len == 0) {
+        g_ptr_array_free(data.names, TRUE);
         return hostNewString("", 0);
     }
 
-    char *buf = malloc(totalLen);
-    if (!buf) return hostNewString("", 0);
-
-    char *p = buf;
-    int first = 1;
-    for (int i = 0; i < VAR_TABLE_SIZE; i++) {
-        VarEntry *entry = table->buckets[i];
-        while (entry) {
-            if (!pattern || pattern[0] == '*') {
-                if (!first) *p++ = ' ';
-                memcpy(p, entry->name, entry->nameLen);
-                p += entry->nameLen;
-                first = 0;
-            }
-            entry = entry->next;
-        }
+    /* Build space-separated list */
+    GString *result = g_string_new(NULL);
+    for (guint i = 0; i < data.names->len; i++) {
+        if (i > 0) g_string_append_c(result, ' ');
+        g_string_append(result, g_ptr_array_index(data.names, i));
     }
 
-    TclObj *result = hostNewString(buf, p - buf);
-    free(buf);
-    return result;
+    g_ptr_array_free(data.names, TRUE);
+
+    TclObj *obj = hostNewString(result->str, result->len);
+    g_string_free(result, TRUE);
+    return obj;
 }
 
 /* Link a local variable to another variable */
@@ -231,52 +191,28 @@ void hostVarLink(void *localVars, const char *localName, size_t localLen,
     VarTable *table = localVars;
     if (!table || !targetVars) return;
 
-    /* Find or create the local entry */
-    VarEntry *entry = findEntry(table, localName, localLen);
+    gchar *key = g_strndup(localName, localLen);
+    VarEntry *entry = g_hash_table_lookup(table->vars, key);
+
     if (!entry) {
         /* Create new entry */
-        entry = malloc(sizeof(VarEntry));
-        if (!entry) return;
-
-        entry->name = malloc(localLen + 1);
-        if (!entry->name) {
-            free(entry);
-            return;
+        entry = g_new0(VarEntry, 1);
+        g_hash_table_insert(table->vars, key, entry);
+    } else {
+        /* Clear any existing value (we're now a link) */
+        if (entry->value) {
+            hostFreeObj(entry->value);
+            entry->value = NULL;
         }
-        memcpy(entry->name, localName, localLen);
-        entry->name[localLen] = '\0';
-        entry->nameLen = localLen;
-        entry->value = NULL;
-        entry->next = NULL;
-        entry->linkTable = NULL;
-        entry->linkName = NULL;
-        entry->linkNameLen = 0;
-
-        /* Insert at head of bucket */
-        unsigned int h = hashName(localName, localLen);
-        entry->next = table->buckets[h];
-        table->buckets[h] = entry;
-    }
-
-    /* Clear any existing value (we're now a link) */
-    if (entry->value) {
-        hostFreeObj(entry->value);
-        entry->value = NULL;
+        g_free(key);
     }
 
     /* Clear any existing link name */
-    if (entry->linkName) {
-        free(entry->linkName);
-    }
+    g_free(entry->linkName);
 
     /* Set up the link */
     entry->linkTable = targetVars;
-    entry->linkName = malloc(targetLen + 1);
-    if (entry->linkName) {
-        memcpy(entry->linkName, targetName, targetLen);
-        entry->linkName[targetLen] = '\0';
-        entry->linkNameLen = targetLen;
-    }
+    entry->linkName = g_strndup(targetName, targetLen);
 }
 
 /* Array operations - store as varName(key) in same table */
@@ -284,142 +220,129 @@ void hostVarLink(void *localVars, const char *localName, size_t localLen,
 void hostArraySet(void *vars, const char *arr, size_t arrLen,
                   const char *key, size_t keyLen, TclObj *val) {
     /* Build name: arr(key) */
-    size_t nameLen = arrLen + 1 + keyLen + 1;
-    char *name = malloc(nameLen + 1);
-    if (!name) return;
-
-    memcpy(name, arr, arrLen);
-    name[arrLen] = '(';
-    memcpy(name + arrLen + 1, key, keyLen);
-    name[arrLen + 1 + keyLen] = ')';
-    name[nameLen] = '\0';
-
-    hostVarSet(vars, name, nameLen, val);
-    free(name);
+    gchar *name = g_strdup_printf("%.*s(%.*s)", (int)arrLen, arr, (int)keyLen, key);
+    hostVarSet(vars, name, strlen(name), val);
+    g_free(name);
 }
 
 TclObj *hostArrayGet(void *vars, const char *arr, size_t arrLen,
                      const char *key, size_t keyLen) {
     /* Build name: arr(key) */
-    size_t nameLen = arrLen + 1 + keyLen + 1;
-    char *name = malloc(nameLen + 1);
-    if (!name) return NULL;
-
-    memcpy(name, arr, arrLen);
-    name[arrLen] = '(';
-    memcpy(name + arrLen + 1, key, keyLen);
-    name[arrLen + 1 + keyLen] = ')';
-    name[nameLen] = '\0';
-
-    TclObj *result = hostVarGet(vars, name, nameLen);
-    free(name);
+    gchar *name = g_strdup_printf("%.*s(%.*s)", (int)arrLen, arr, (int)keyLen, key);
+    TclObj *result = hostVarGet(vars, name, strlen(name));
+    g_free(name);
     return result;
 }
 
 int hostArrayExists(void *vars, const char *arr, size_t arrLen,
                     const char *key, size_t keyLen) {
-    size_t nameLen = arrLen + 1 + keyLen + 1;
-    char *name = malloc(nameLen + 1);
-    if (!name) return 0;
-
-    memcpy(name, arr, arrLen);
-    name[arrLen] = '(';
-    memcpy(name + arrLen + 1, key, keyLen);
-    name[arrLen + 1 + keyLen] = ')';
-    name[nameLen] = '\0';
-
-    int result = hostVarExists(vars, name, nameLen);
-    free(name);
+    gchar *name = g_strdup_printf("%.*s(%.*s)", (int)arrLen, arr, (int)keyLen, key);
+    int result = hostVarExists(vars, name, strlen(name));
+    g_free(name);
     return result;
+}
+
+/* Helper for collecting array names */
+typedef struct {
+    GPtrArray *names;
+    const gchar *prefix;
+    gsize prefixLen;
+} ArrayNamesData;
+
+static void collectArrayNames(gpointer key, gpointer value, gpointer userData) {
+    (void)value;
+    ArrayNamesData *data = userData;
+    const gchar *name = key;
+    gsize nameLen = strlen(name);
+
+    /* Check if name starts with prefix( */
+    if (nameLen > data->prefixLen + 2 &&
+        strncmp(name, data->prefix, data->prefixLen) == 0 &&
+        name[data->prefixLen] == '(') {
+        /* Extract key (between parentheses) */
+        const gchar *keyStart = name + data->prefixLen + 1;
+        const gchar *keyEnd = name + nameLen - 1;
+        if (*keyEnd == ')') {
+            g_ptr_array_add(data->names, g_strndup(keyStart, keyEnd - keyStart));
+        }
+    }
 }
 
 TclObj *hostArrayNames(void *vars, const char *arr, size_t arrLen,
                        const char *pattern) {
+    (void)pattern;  /* TODO: pattern matching */
     VarTable *table = vars;
     if (!table) return hostNewString("", 0);
 
-    /* Find all entries starting with arr( */
-    size_t totalLen = 0;
-    int count = 0;
+    gchar *prefix = g_strndup(arr, arrLen);
+    ArrayNamesData data = {
+        .names = g_ptr_array_new_with_free_func(g_free),
+        .prefix = prefix,
+        .prefixLen = arrLen
+    };
 
-    for (int i = 0; i < VAR_TABLE_SIZE; i++) {
-        VarEntry *entry = table->buckets[i];
-        while (entry) {
-            if (entry->nameLen > arrLen + 2 &&
-                memcmp(entry->name, arr, arrLen) == 0 &&
-                entry->name[arrLen] == '(') {
-                /* Extract key length (without parentheses) */
-                size_t keyLen = entry->nameLen - arrLen - 2;
-                totalLen += keyLen + 1;
-                count++;
-            }
-            entry = entry->next;
-        }
-    }
+    g_hash_table_foreach(table->vars, collectArrayNames, &data);
+    g_free(prefix);
 
-    if (count == 0) {
+    if (data.names->len == 0) {
+        g_ptr_array_free(data.names, TRUE);
         return hostNewString("", 0);
     }
 
-    char *buf = malloc(totalLen);
-    if (!buf) return hostNewString("", 0);
-
-    char *p = buf;
-    int first = 1;
-    for (int i = 0; i < VAR_TABLE_SIZE; i++) {
-        VarEntry *entry = table->buckets[i];
-        while (entry) {
-            if (entry->nameLen > arrLen + 2 &&
-                memcmp(entry->name, arr, arrLen) == 0 &&
-                entry->name[arrLen] == '(') {
-                if (!first) *p++ = ' ';
-                /* Copy key (between parentheses) */
-                size_t keyLen = entry->nameLen - arrLen - 2;
-                memcpy(p, entry->name + arrLen + 1, keyLen);
-                p += keyLen;
-                first = 0;
-            }
-            entry = entry->next;
-        }
+    /* Build space-separated list */
+    GString *result = g_string_new(NULL);
+    for (guint i = 0; i < data.names->len; i++) {
+        if (i > 0) g_string_append_c(result, ' ');
+        g_string_append(result, g_ptr_array_index(data.names, i));
     }
 
-    TclObj *result = hostNewString(buf, p - buf);
-    free(buf);
-    (void)pattern; /* TODO: pattern matching */
-    return result;
+    g_ptr_array_free(data.names, TRUE);
+
+    TclObj *obj = hostNewString(result->str, result->len);
+    g_string_free(result, TRUE);
+    return obj;
 }
 
 void hostArrayUnset(void *vars, const char *arr, size_t arrLen,
                     const char *key, size_t keyLen) {
-    size_t nameLen = arrLen + 1 + keyLen + 1;
-    char *name = malloc(nameLen + 1);
-    if (!name) return;
+    gchar *name = g_strdup_printf("%.*s(%.*s)", (int)arrLen, arr, (int)keyLen, key);
+    hostVarUnset(vars, name, strlen(name));
+    g_free(name);
+}
 
-    memcpy(name, arr, arrLen);
-    name[arrLen] = '(';
-    memcpy(name + arrLen + 1, key, keyLen);
-    name[arrLen + 1 + keyLen] = ')';
-    name[nameLen] = '\0';
+/* Helper for counting array size */
+typedef struct {
+    const gchar *prefix;
+    gsize prefixLen;
+    gsize count;
+} ArraySizeData;
 
-    hostVarUnset(vars, name, nameLen);
-    free(name);
+static void countArrayElements(gpointer key, gpointer value, gpointer userData) {
+    (void)value;
+    ArraySizeData *data = userData;
+    const gchar *name = key;
+    gsize nameLen = strlen(name);
+
+    if (nameLen > data->prefixLen + 2 &&
+        strncmp(name, data->prefix, data->prefixLen) == 0 &&
+        name[data->prefixLen] == '(') {
+        data->count++;
+    }
 }
 
 size_t hostArraySize(void *vars, const char *arr, size_t arrLen) {
     VarTable *table = vars;
     if (!table) return 0;
 
-    size_t count = 0;
-    for (int i = 0; i < VAR_TABLE_SIZE; i++) {
-        VarEntry *entry = table->buckets[i];
-        while (entry) {
-            if (entry->nameLen > arrLen + 2 &&
-                memcmp(entry->name, arr, arrLen) == 0 &&
-                entry->name[arrLen] == '(') {
-                count++;
-            }
-            entry = entry->next;
-        }
-    }
-    return count;
+    gchar *prefix = g_strndup(arr, arrLen);
+    ArraySizeData data = {
+        .prefix = prefix,
+        .prefixLen = arrLen,
+        .count = 0
+    };
+
+    g_hash_table_foreach(table->vars, countArrayElements, &data);
+    g_free(prefix);
+
+    return data.count;
 }

@@ -1,12 +1,13 @@
 /*
- * main.c - Entry Point for C Host
+ * main.c - Entry Point for C Host (GLib version)
  *
  * Creates interpreter, reads script, evaluates, exits.
  */
 
 #include "../../core/tclc.h"
+#include <glib.h>
+#include <glib/gstdio.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 /* External: get the C host table */
@@ -20,80 +21,51 @@ extern TclInterp *tclInterpNew(const TclHost *host, void *hostCtx);
 extern void tclInterpFree(TclInterp *interp);
 
 /* Read entire file into buffer */
-static char *readFile(const char *filename, size_t *sizeOut) {
-    FILE *f = fopen(filename, "rb");
-    if (!f) {
+static gchar *readFile(const gchar *filename, gsize *sizeOut) {
+    GError *error = NULL;
+    gchar *contents = NULL;
+
+    if (!g_file_get_contents(filename, &contents, sizeOut, &error)) {
+        g_printerr("couldn't read file \"%s\": %s\n", filename, error->message);
+        g_error_free(error);
         *sizeOut = 0;
         return NULL;
     }
 
-    fseek(f, 0, SEEK_END);
-    long size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-
-    char *buf = malloc(size + 1);
-    if (!buf) {
-        fclose(f);
-        *sizeOut = 0;
-        return NULL;
-    }
-
-    size_t read = fread(buf, 1, size, f);
-    buf[read] = '\0';
-    fclose(f);
-
-    *sizeOut = read;
-    return buf;
+    return contents;
 }
 
 /* Read from stdin */
-static char *readStdin(size_t *sizeOut) {
-    size_t capacity = 4096;
-    size_t size = 0;
-    char *buf = malloc(capacity);
-    if (!buf) {
-        *sizeOut = 0;
-        return NULL;
+static gchar *readStdin(gsize *sizeOut) {
+    GString *content = g_string_new(NULL);
+    gchar buf[4096];
+    gsize bytes_read;
+
+    while ((bytes_read = fread(buf, 1, sizeof(buf), stdin)) > 0) {
+        g_string_append_len(content, buf, bytes_read);
     }
 
-    int c;
-    while ((c = getchar()) != EOF) {
-        if (size + 1 >= capacity) {
-            capacity *= 2;
-            char *newBuf = realloc(buf, capacity);
-            if (!newBuf) {
-                free(buf);
-                *sizeOut = 0;
-                return NULL;
-            }
-            buf = newBuf;
-        }
-        buf[size++] = (char)c;
-    }
-    buf[size] = '\0';
-
-    *sizeOut = size;
-    return buf;
+    *sizeOut = content->len;
+    return g_string_free(content, FALSE);
 }
 
 int main(int argc, char **argv) {
-    const char *filename = NULL;
-    char *script = NULL;
-    size_t scriptLen = 0;
+    const gchar *filename = NULL;
+    gchar *script = NULL;
+    gsize scriptLen = 0;
 
     /* Parse arguments */
     if (argc > 1) {
         filename = argv[1];
         script = readFile(filename, &scriptLen);
         if (!script) {
-            fprintf(stderr, "couldn't read file \"%s\": no such file or directory\n", filename);
             return 1;
         }
     } else {
         /* Read from stdin */
         script = readStdin(&scriptLen);
         if (!script) {
-            fprintf(stderr, "error reading from stdin\n");
+            g_printerr("error reading from stdin\n");
             return 1;
         }
     }
@@ -102,16 +74,16 @@ int main(int argc, char **argv) {
     const TclHost *host = tclGetCHost();
     void *hostCtx = host->interpContextNew(NULL, 0);
     if (!hostCtx) {
-        fprintf(stderr, "failed to create host context\n");
-        free(script);
+        g_printerr("failed to create host context\n");
+        g_free(script);
         return 1;
     }
 
     TclInterp *interp = tclInterpNew(host, hostCtx);
     if (!interp) {
-        fprintf(stderr, "failed to create interpreter\n");
+        g_printerr("failed to create interpreter\n");
         host->interpContextFree(hostCtx);
-        free(script);
+        g_free(script);
         return 1;
     }
 
@@ -128,14 +100,14 @@ int main(int argc, char **argv) {
         if (interp->result) {
             size_t len;
             const char *msg = host->getStringPtr(interp->result, &len);
-            fprintf(stderr, "%.*s\n", (int)len, msg);
+            g_printerr("%.*s\n", (int)len, msg);
         }
 
         /* Print error info (stack trace) */
         if (interp->errorInfo) {
             size_t len;
             const char *info = host->getStringPtr(interp->errorInfo, &len);
-            fprintf(stderr, "%.*s\n", (int)len, info);
+            g_printerr("%.*s\n", (int)len, info);
         }
 
         exitCode = 1;
@@ -144,7 +116,7 @@ int main(int argc, char **argv) {
     /* Cleanup */
     tclInterpFree(interp);
     host->interpContextFree(hostCtx);
-    free(script);
+    g_free(script);
 
     return exitCode;
 }

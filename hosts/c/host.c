@@ -1,11 +1,11 @@
 /*
- * host.c - TclHost Callback Table for C Host
+ * host.c - TclHost Callback Table for C Host (GLib version)
  *
- * Assembles all host callbacks into the TclHost structure.
+ * Assembles all host callbacks into the TclHost structure using GLib.
  */
 
 #include "../../core/tclc.h"
-#include <stdlib.h>
+#include <glib.h>
 #include <string.h>
 
 /* External functions from object.c */
@@ -82,11 +82,10 @@ extern void hostChanTransfer(void *fromCtx, void *toCtx, TclChannel *chan);
  * ======================================================================== */
 
 typedef struct ProcDef {
-    char    *name;      /* Procedure name */
-    size_t   nameLen;   /* Name length */
+    gchar   *name;      /* Procedure name */
+    gsize    nameLen;   /* Name length */
     TclObj  *argList;   /* Argument list */
     TclObj  *body;      /* Procedure body */
-    struct ProcDef *next;
 } ProcDef;
 
 /* ========================================================================
@@ -94,19 +93,30 @@ typedef struct ProcDef {
  * ======================================================================== */
 
 typedef struct HostContext {
-    void    *globalVars;   /* Global variable table */
-    ProcDef *procs;        /* Linked list of procedures */
+    void       *globalVars;   /* Global variable table */
+    GHashTable *procs;        /* Procedure definitions: name -> ProcDef* */
 } HostContext;
+
+/* Free a proc definition */
+static void procDefFree(gpointer data) {
+    ProcDef *proc = data;
+    if (proc) {
+        g_free(proc->name);
+        hostFreeObj(proc->argList);
+        hostFreeObj(proc->body);
+        g_free(proc);
+    }
+}
 
 static void *hostInterpContextNew(void *parentCtx, int safe) {
     (void)parentCtx;
     (void)safe;
 
-    HostContext *ctx = calloc(1, sizeof(HostContext));
+    HostContext *ctx = g_new0(HostContext, 1);
     if (!ctx) return NULL;
 
     ctx->globalVars = hostVarsNew(ctx);
-    ctx->procs = NULL;
+    ctx->procs = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, procDefFree);
     return ctx;
 }
 
@@ -114,18 +124,9 @@ static void hostInterpContextFree(void *ctxPtr) {
     HostContext *ctx = ctxPtr;
     if (!ctx) return;
 
-    /* Free all procedures */
-    ProcDef *proc = ctx->procs;
-    while (proc) {
-        ProcDef *next = proc->next;
-        free(proc->name);
-        /* Note: argList and body are TclObj - would need proper cleanup */
-        free(proc);
-        proc = next;
-    }
-
+    g_hash_table_destroy(ctx->procs);
     hostVarsFree(ctx, ctx->globalVars);
-    free(ctx);
+    g_free(ctx);
 }
 
 /* ========================================================================
@@ -133,8 +134,7 @@ static void hostInterpContextFree(void *ctxPtr) {
  * ======================================================================== */
 
 static TclFrame *hostFrameAlloc(void *ctx) {
-    (void)ctx;
-    TclFrame *frame = calloc(1, sizeof(TclFrame));
+    TclFrame *frame = g_new0(TclFrame, 1);
     if (frame) {
         frame->varsHandle = hostVarsNew(ctx);
     }
@@ -144,7 +144,7 @@ static TclFrame *hostFrameAlloc(void *ctx) {
 static void hostFrameFree(void *ctx, TclFrame *frame) {
     if (frame) {
         hostVarsFree(ctx, frame->varsHandle);
-        free(frame);
+        g_free(frame);
     }
 }
 
@@ -152,22 +152,13 @@ static void hostFrameFree(void *ctx, TclFrame *frame) {
  * Command Lookup - finds procedures registered via proc command
  * ======================================================================== */
 
-static ProcDef *findProc(HostContext *ctx, const char *name, size_t len) {
-    ProcDef *proc = ctx->procs;
-    while (proc) {
-        if (proc->nameLen == len && memcmp(proc->name, name, len) == 0) {
-            return proc;
-        }
-        proc = proc->next;
-    }
-    return NULL;
-}
-
 static int hostCmdLookup(void *ctxPtr, const char *name, size_t len, TclCmdInfo *out) {
     HostContext *ctx = ctxPtr;
 
-    /* Look for a proc with this name */
-    ProcDef *proc = findProc(ctx, name, len);
+    gchar *key = g_strndup(name, len);
+    ProcDef *proc = g_hash_table_lookup(ctx->procs, key);
+    g_free(key);
+
     if (proc) {
         out->type = TCL_CMD_PROC;
         out->u.procHandle = proc;
@@ -182,34 +173,27 @@ static void *hostProcRegister(void *ctxPtr, const char *name, size_t len,
                               TclObj *argList, TclObj *body) {
     HostContext *ctx = ctxPtr;
 
-    /* Check if proc already exists */
-    ProcDef *existing = findProc(ctx, name, len);
+    gchar *key = g_strndup(name, len);
+    ProcDef *existing = g_hash_table_lookup(ctx->procs, key);
+
     if (existing) {
         /* Replace the existing definition */
+        hostFreeObj(existing->argList);
+        hostFreeObj(existing->body);
         existing->argList = hostDup(argList);
         existing->body = hostDup(body);
+        g_free(key);
         return existing;
     }
 
     /* Create new proc definition */
-    ProcDef *proc = malloc(sizeof(ProcDef));
-    if (!proc) return NULL;
-
-    proc->name = malloc(len + 1);
-    if (!proc->name) {
-        free(proc);
-        return NULL;
-    }
-    memcpy(proc->name, name, len);
-    proc->name[len] = '\0';
+    ProcDef *proc = g_new0(ProcDef, 1);
+    proc->name = g_strndup(name, len);
     proc->nameLen = len;
     proc->argList = hostDup(argList);
     proc->body = hostDup(body);
 
-    /* Add to front of list */
-    proc->next = ctx->procs;
-    ctx->procs = proc;
-
+    g_hash_table_insert(ctx->procs, key, proc);
     return proc;
 }
 
@@ -299,7 +283,7 @@ static TclObj *hostListRange(TclObj *list, size_t first, size_t last) {
     }
 
     size_t count = last - first + 1;
-    TclObj **elems = malloc(count * sizeof(TclObj*));
+    TclObj **elems = g_new(TclObj*, count);
     if (!elems) return hostNewString("", 0);
 
     for (size_t i = 0; i < count; i++) {
@@ -307,7 +291,7 @@ static TclObj *hostListRange(TclObj *list, size_t first, size_t last) {
     }
 
     TclObj *result = hostNewList(elems, count);
-    free(elems);
+    g_free(elems);
     return result;
 }
 
@@ -324,7 +308,7 @@ static TclObj *hostListAppend(TclObj *list, TclObj *elem) {
     size_t listLen = list ? hostListLengthImpl(list) : 0;
     size_t newCount = listLen + 1;
 
-    TclObj **elems = malloc(newCount * sizeof(TclObj*));
+    TclObj **elems = g_new(TclObj*, newCount);
     if (!elems) return list ? hostDup(list) : hostNewString("", 0);
 
     /* Copy existing elements */
@@ -335,7 +319,7 @@ static TclObj *hostListAppend(TclObj *list, TclObj *elem) {
     elems[listLen] = elem;
 
     TclObj *result = hostNewList(elems, newCount);
-    free(elems);
+    g_free(elems);
     return result;
 }
 
@@ -354,46 +338,34 @@ static TclObj *hostListInsert(TclObj *list, size_t idx, TclObj **elems, size_t c
 }
 
 /* Compare function for qsort - ascending string */
-static int cmpStrAsc(const void *a, const void *b) {
+static gint cmpStrAsc(gconstpointer a, gconstpointer b) {
     TclObj *oa = *(TclObj **)a;
     TclObj *ob = *(TclObj **)b;
     return hostStringCompare(oa, ob);
 }
 
 /* Compare function for qsort - descending string */
-static int cmpStrDesc(const void *a, const void *b) {
+static gint cmpStrDesc(gconstpointer a, gconstpointer b) {
     return -cmpStrAsc(a, b);
 }
 
-/* Case-insensitive string comparison */
-static int strcasecmpTcl(const char *a, const char *b) {
-    while (*a && *b) {
-        char ca = *a, cb = *b;
-        if (ca >= 'A' && ca <= 'Z') ca += 32;
-        if (cb >= 'A' && cb <= 'Z') cb += 32;
-        if (ca != cb) return (unsigned char)ca - (unsigned char)cb;
-        a++; b++;
-    }
-    return (unsigned char)*a - (unsigned char)*b;
-}
-
 /* Compare function for qsort - ascending string nocase */
-static int cmpStrNocaseAsc(const void *a, const void *b) {
+static gint cmpStrNocaseAsc(gconstpointer a, gconstpointer b) {
     TclObj *oa = *(TclObj **)a;
     TclObj *ob = *(TclObj **)b;
     size_t lenA, lenB;
     const char *sa = hostGetStringPtr(oa, &lenA);
     const char *sb = hostGetStringPtr(ob, &lenB);
-    return strcasecmpTcl(sa, sb);
+    return g_ascii_strcasecmp(sa, sb);
 }
 
 /* Compare function for qsort - descending string nocase */
-static int cmpStrNocaseDesc(const void *a, const void *b) {
+static gint cmpStrNocaseDesc(gconstpointer a, gconstpointer b) {
     return -cmpStrNocaseAsc(a, b);
 }
 
 /* Compare function for qsort - ascending integer */
-static int cmpIntAsc(const void *a, const void *b) {
+static gint cmpIntAsc(gconstpointer a, gconstpointer b) {
     TclObj *oa = *(TclObj **)a;
     TclObj *ob = *(TclObj **)b;
     int64_t ia, ib;
@@ -405,12 +377,12 @@ static int cmpIntAsc(const void *a, const void *b) {
 }
 
 /* Compare function for qsort - descending integer */
-static int cmpIntDesc(const void *a, const void *b) {
+static gint cmpIntDesc(gconstpointer a, gconstpointer b) {
     return -cmpIntAsc(a, b);
 }
 
 /* Compare function for qsort - ascending real */
-static int cmpRealAsc(const void *a, const void *b) {
+static gint cmpRealAsc(gconstpointer a, gconstpointer b) {
     TclObj *oa = *(TclObj **)a;
     TclObj *ob = *(TclObj **)b;
     double da, db;
@@ -422,34 +394,33 @@ static int cmpRealAsc(const void *a, const void *b) {
 }
 
 /* Compare function for qsort - descending real */
-static int cmpRealDesc(const void *a, const void *b) {
+static gint cmpRealDesc(gconstpointer a, gconstpointer b) {
     return -cmpRealAsc(a, b);
 }
 
 /* Dictionary comparison - case insensitive with embedded numbers */
-static int dictcmp(const char *a, const char *b) {
+static gint dictcmp(const gchar *a, const gchar *b) {
     while (*a && *b) {
         /* Check if both are digits */
-        if ((*a >= '0' && *a <= '9') && (*b >= '0' && *b <= '9')) {
+        if (g_ascii_isdigit(*a) && g_ascii_isdigit(*b)) {
             /* Compare as numbers */
-            long na = 0, nb = 0;
-            while (*a >= '0' && *a <= '9') { na = na * 10 + (*a - '0'); a++; }
-            while (*b >= '0' && *b <= '9') { nb = nb * 10 + (*b - '0'); b++; }
+            glong na = 0, nb = 0;
+            while (g_ascii_isdigit(*a)) { na = na * 10 + (*a - '0'); a++; }
+            while (g_ascii_isdigit(*b)) { nb = nb * 10 + (*b - '0'); b++; }
             if (na != nb) return (na < nb) ? -1 : 1;
         } else {
             /* Compare as case-insensitive chars */
-            char ca = *a, cb = *b;
-            if (ca >= 'A' && ca <= 'Z') ca += 32;
-            if (cb >= 'A' && cb <= 'Z') cb += 32;
-            if (ca != cb) return (unsigned char)ca - (unsigned char)cb;
+            gchar ca = g_ascii_tolower(*a);
+            gchar cb = g_ascii_tolower(*b);
+            if (ca != cb) return (guchar)ca - (guchar)cb;
             a++; b++;
         }
     }
-    return (unsigned char)*a - (unsigned char)*b;
+    return (guchar)*a - (guchar)*b;
 }
 
 /* Compare function for qsort - ascending dictionary */
-static int cmpDictAsc(const void *a, const void *b) {
+static gint cmpDictAsc(gconstpointer a, gconstpointer b) {
     TclObj *oa = *(TclObj **)a;
     TclObj *ob = *(TclObj **)b;
     size_t lenA, lenB;
@@ -459,7 +430,7 @@ static int cmpDictAsc(const void *a, const void *b) {
 }
 
 /* Compare function for qsort - descending dictionary */
-static int cmpDictDesc(const void *a, const void *b) {
+static gint cmpDictDesc(gconstpointer a, gconstpointer b) {
     return -cmpDictAsc(a, b);
 }
 
@@ -471,7 +442,7 @@ static TclObj *hostListSort(TclObj *list, int flags) {
     if (listLen == 1) return hostDup(list);
 
     /* Get all elements */
-    TclObj **elems = malloc(listLen * sizeof(TclObj*));
+    TclObj **elems = g_new(TclObj*, listLen);
     if (!elems) return hostDup(list);
 
     for (size_t i = 0; i < listLen; i++) {
@@ -479,15 +450,15 @@ static TclObj *hostListSort(TclObj *list, int flags) {
     }
 
     /* flags: 1=decreasing, 2=integer, 4=nocase, 8=unique, 16=dictionary, 32=real */
-    int decreasing = flags & 1;
-    int integer = flags & 2;
-    int nocase = flags & 4;
-    int unique = flags & 8;
-    int dictionary = flags & 16;
-    int real = flags & 32;
+    gboolean decreasing = flags & 1;
+    gboolean integer = flags & 2;
+    gboolean nocase = flags & 4;
+    gboolean unique = flags & 8;
+    gboolean dictionary = flags & 16;
+    gboolean real = flags & 32;
 
     /* Select comparison function */
-    int (*cmpfn)(const void*, const void*);
+    GCompareFunc cmpfn;
     if (integer) {
         cmpfn = decreasing ? cmpIntDesc : cmpIntAsc;
     } else if (real) {
@@ -508,7 +479,7 @@ static TclObj *hostListSort(TclObj *list, int flags) {
         /* Remove duplicates in-place - use same comparison for equality */
         size_t writeIdx = 1;
         for (size_t i = 1; i < listLen; i++) {
-            int same = 0;
+            gboolean same = FALSE;
             if (integer) {
                 int64_t a, b;
                 hostAsInt(elems[writeIdx-1], &a);
@@ -523,7 +494,7 @@ static TclObj *hostListSort(TclObj *list, int flags) {
                 size_t lenA, lenB;
                 const char *sa = hostGetStringPtr(elems[writeIdx-1], &lenA);
                 const char *sb = hostGetStringPtr(elems[i], &lenB);
-                same = (strcasecmpTcl(sa, sb) == 0);
+                same = (g_ascii_strcasecmp(sa, sb) == 0);
             } else {
                 same = (hostStringCompare(elems[writeIdx-1], elems[i]) == 0);
             }
@@ -548,7 +519,7 @@ static TclObj *hostListSort(TclObj *list, int flags) {
     for (size_t i = 0; i < listLen; i++) {
         if (elems[i]) hostFreeObj(elems[i]);
     }
-    free(elems);
+    g_free(elems);
     return result;
 }
 
@@ -622,15 +593,19 @@ static TclObj *hostStringConcat(TclObj **parts, size_t count) {
 }
 
 static int hostStringCompareNocase(TclObj *a, TclObj *b) {
-    (void)a;
-    (void)b;
-    return 0;
+    if (!a && !b) return 0;
+    if (!a) return -1;
+    if (!b) return 1;
+    size_t lenA, lenB;
+    const char *sa = hostGetStringPtr(a, &lenA);
+    const char *sb = hostGetStringPtr(b, &lenB);
+    return g_ascii_strcasecmp(sa, sb);
 }
 
 /* Helper for glob pattern matching */
-static int globMatch(const char *pat, size_t patLen, const char *str, size_t strLen, int nocase) {
-    size_t p = 0, s = 0;
-    size_t starP = (size_t)-1, starS = (size_t)-1;
+static gboolean globMatch(const gchar *pat, gsize patLen, const gchar *str, gsize strLen, gboolean nocase) {
+    gsize p = 0, s = 0;
+    gsize starP = (gsize)-1, starS = (gsize)-1;
 
     while (s < strLen) {
         if (p < patLen && pat[p] == '*') {
@@ -644,28 +619,28 @@ static int globMatch(const char *pat, size_t patLen, const char *str, size_t str
         } else if (p < patLen && pat[p] == '[') {
             /* Character class */
             p++;
-            int invert = 0;
+            gboolean invert = FALSE;
             if (p < patLen && pat[p] == '!') {
-                invert = 1;
+                invert = TRUE;
                 p++;
             }
-            int matched = 0;
-            char sc = nocase && str[s] >= 'A' && str[s] <= 'Z' ? str[s] + 32 : str[s];
+            gboolean matched = FALSE;
+            gchar sc = nocase ? g_ascii_tolower(str[s]) : str[s];
             while (p < patLen && pat[p] != ']') {
-                char c1 = nocase && pat[p] >= 'A' && pat[p] <= 'Z' ? pat[p] + 32 : pat[p];
+                gchar c1 = nocase ? g_ascii_tolower(pat[p]) : pat[p];
                 if (p + 2 < patLen && pat[p + 1] == '-' && pat[p + 2] != ']') {
-                    char c2 = nocase && pat[p + 2] >= 'A' && pat[p + 2] <= 'Z' ? pat[p + 2] + 32 : pat[p + 2];
-                    if (sc >= c1 && sc <= c2) matched = 1;
+                    gchar c2 = nocase ? g_ascii_tolower(pat[p + 2]) : pat[p + 2];
+                    if (sc >= c1 && sc <= c2) matched = TRUE;
                     p += 3;
                 } else {
-                    if (sc == c1) matched = 1;
+                    if (sc == c1) matched = TRUE;
                     p++;
                 }
             }
             if (p < patLen) p++; /* skip ] */
             if (matched == invert) {
                 /* No match, try backtracking */
-                if (starP == (size_t)-1) return 0;
+                if (starP == (gsize)-1) return FALSE;
                 p = starP + 1;
                 s = ++starS;
             } else {
@@ -674,43 +649,43 @@ static int globMatch(const char *pat, size_t patLen, const char *str, size_t str
         } else if (p < patLen && pat[p] == '\\' && p + 1 < patLen) {
             /* Escaped character */
             p++;
-            char pc = pat[p];
-            char sc = str[s];
+            gchar pc = pat[p];
+            gchar sc = str[s];
             if (nocase) {
-                if (pc >= 'A' && pc <= 'Z') pc += 32;
-                if (sc >= 'A' && sc <= 'Z') sc += 32;
+                pc = g_ascii_tolower(pc);
+                sc = g_ascii_tolower(sc);
             }
             if (pc == sc) {
                 p++;
                 s++;
-            } else if (starP != (size_t)-1) {
+            } else if (starP != (gsize)-1) {
                 p = starP + 1;
                 s = ++starS;
             } else {
-                return 0;
+                return FALSE;
             }
         } else if (p < patLen) {
             /* Literal character */
-            char pc = pat[p];
-            char sc = str[s];
+            gchar pc = pat[p];
+            gchar sc = str[s];
             if (nocase) {
-                if (pc >= 'A' && pc <= 'Z') pc += 32;
-                if (sc >= 'A' && sc <= 'Z') sc += 32;
+                pc = g_ascii_tolower(pc);
+                sc = g_ascii_tolower(sc);
             }
             if (pc == sc) {
                 p++;
                 s++;
-            } else if (starP != (size_t)-1) {
+            } else if (starP != (gsize)-1) {
                 p = starP + 1;
                 s = ++starS;
             } else {
-                return 0;
+                return FALSE;
             }
-        } else if (starP != (size_t)-1) {
+        } else if (starP != (gsize)-1) {
             p = starP + 1;
             s = ++starS;
         } else {
-            return 0;
+            return FALSE;
         }
     }
 
@@ -723,8 +698,7 @@ static int globMatch(const char *pat, size_t patLen, const char *str, size_t str
 static int hostStringMatch(const char *pattern, TclObj *str, int nocase) {
     size_t strLen;
     const char *strPtr = hostGetStringPtr(str, &strLen);
-    size_t patLen = 0;
-    while (pattern[patLen]) patLen++;
+    gsize patLen = strlen(pattern);
     return globMatch(pattern, patLen, strPtr, strLen, nocase);
 }
 

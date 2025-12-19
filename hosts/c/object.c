@@ -1,44 +1,40 @@
 /*
- * object.c - TclObj Implementation for C Host
+ * object.c - TclObj Implementation for C Host (GLib version)
  *
  * Implements TCL value objects with string representation and
- * optional cached numeric representations.
+ * optional cached numeric representations using GLib.
  */
 
 #include "../../core/tclc.h"
-#include <stdlib.h>
+#include <glib.h>
 #include <string.h>
-#include <stdio.h>
-#include <errno.h>
-#include <limits.h>
+#include <math.h>
 
 /* Object structure - opaque to core */
 struct TclObj {
-    char   *stringRep;      /* String representation (always valid) */
-    size_t  stringLen;      /* Length of string */
-    int     hasInt;         /* Has cached integer value */
-    int64_t intRep;         /* Cached integer value */
-    int     hasDouble;      /* Has cached double value */
-    double  doubleRep;      /* Cached double value */
-    int     refCount;       /* Reference count (for future use) */
+    gchar   *stringRep;      /* String representation (always valid) */
+    gsize    stringLen;      /* Length of string */
+    gboolean hasInt;         /* Has cached integer value */
+    gint64   intRep;         /* Cached integer value */
+    gboolean hasDouble;      /* Has cached double value */
+    gdouble  doubleRep;      /* Cached double value */
+    gint     refCount;       /* Reference count (for future use) */
 };
 
 /* Create a new string object */
 TclObj *hostNewString(const char *s, size_t len) {
-    TclObj *obj = malloc(sizeof(TclObj));
+    TclObj *obj = g_new0(TclObj, 1);
     if (!obj) return NULL;
 
-    obj->stringRep = malloc(len + 1);
+    obj->stringRep = g_strndup(s, len);
     if (!obj->stringRep) {
-        free(obj);
+        g_free(obj);
         return NULL;
     }
 
-    memcpy(obj->stringRep, s, len);
-    obj->stringRep[len] = '\0';
     obj->stringLen = len;
-    obj->hasInt = 0;
-    obj->hasDouble = 0;
+    obj->hasInt = FALSE;
+    obj->hasDouble = FALSE;
     obj->refCount = 1;
 
     return obj;
@@ -46,46 +42,37 @@ TclObj *hostNewString(const char *s, size_t len) {
 
 /* Create a new integer object */
 TclObj *hostNewInt(int64_t val) {
-    char buf[32];
-    int len = snprintf(buf, sizeof(buf), "%lld", (long long)val);
+    gchar *buf = g_strdup_printf("%" G_GINT64_FORMAT, val);
+    gsize len = strlen(buf);
 
     TclObj *obj = hostNewString(buf, len);
+    g_free(buf);
+
     if (obj) {
-        obj->hasInt = 1;
+        obj->hasInt = TRUE;
         obj->intRep = val;
     }
     return obj;
 }
 
-/* Helper to check if value is infinite */
-static int isInf(double val) {
-    return val > 1e308 || val < -1e308;
-}
-
-/* Helper to check if value is NaN */
-static int isNaN(double val) {
-    return val != val;
-}
-
 /* Create a new double object */
 TclObj *hostNewDouble(double val) {
-    char buf[64];
-    int len;
+    gchar buf[64];
+    gint len;
 
     /* Handle special values */
-    if (isNaN(val)) {
-        len = snprintf(buf, sizeof(buf), "NaN");
-    } else if (isInf(val)) {
-        len = snprintf(buf, sizeof(buf), val > 0 ? "Inf" : "-Inf");
+    if (isnan(val)) {
+        len = g_snprintf(buf, sizeof(buf), "NaN");
+    } else if (isinf(val)) {
+        len = g_snprintf(buf, sizeof(buf), val > 0 ? "Inf" : "-Inf");
     } else {
-        len = snprintf(buf, sizeof(buf), "%g", val);
+        len = g_snprintf(buf, sizeof(buf), "%g", val);
 
         /* Tcl always shows at least ".0" for floats that are whole numbers */
-        /* Check if we need to add ".0" - if no '.' or 'e' in the output */
-        int hasDot = 0, hasE = 0;
-        for (int i = 0; i < len; i++) {
-            if (buf[i] == '.') hasDot = 1;
-            if (buf[i] == 'e' || buf[i] == 'E') hasE = 1;
+        gboolean hasDot = FALSE, hasE = FALSE;
+        for (gint i = 0; i < len; i++) {
+            if (buf[i] == '.') hasDot = TRUE;
+            if (buf[i] == 'e' || buf[i] == 'E') hasE = TRUE;
         }
         if (!hasDot && !hasE && len < 62) {
             buf[len++] = '.';
@@ -96,7 +83,7 @@ TclObj *hostNewDouble(double val) {
 
     TclObj *obj = hostNewString(buf, len);
     if (obj) {
-        obj->hasDouble = 1;
+        obj->hasDouble = TRUE;
         obj->doubleRep = val;
     }
     return obj;
@@ -112,51 +99,51 @@ TclObj *hostNewBool(int val) {
  * 1 = can use brace quoting
  * 2 = needs backslash quoting (unbalanced braces, odd trailing \, or ")
  */
-static int needsListQuoting(const char *s, size_t len) {
+static gint needsListQuoting(const gchar *s, gsize len) {
     if (len == 0) return 1;  /* Empty string needs braces */
 
     /* Check if starts with # (needs brace quoting to prevent comment) */
-    int startsWithHash = (s[0] == '#');
+    gboolean startsWithHash = (s[0] == '#');
 
-    int needsQuote = startsWithHash;
-    int braceDepth = 0;
-    int hasUnbalancedBrace = 0;
-    int hasQuote = 0;
+    gboolean needsQuote = startsWithHash;
+    gint braceDepth = 0;
+    gboolean hasUnbalancedBrace = FALSE;
+    gboolean hasQuote = FALSE;
 
     /* If string starts with { it could be parsed as a braced word - needs quoting */
-    int startsWithBrace = (s[0] == '{');
-    if (startsWithBrace) needsQuote = 1;
+    gboolean startsWithBrace = (s[0] == '{');
+    if (startsWithBrace) needsQuote = TRUE;
 
-    for (size_t i = 0; i < len; i++) {
-        char c = s[i];
+    for (gsize i = 0; i < len; i++) {
+        gchar c = s[i];
         if (c == '{') {
             braceDepth++;
         } else if (c == '}') {
             braceDepth--;
-            if (braceDepth < 0) hasUnbalancedBrace = 1;
+            if (braceDepth < 0) hasUnbalancedBrace = TRUE;
         } else if (c == '"') {
-            hasQuote = 1;
-            needsQuote = 1;
+            hasQuote = TRUE;
+            needsQuote = TRUE;
         } else if (c == '\\') {
-            needsQuote = 1;
+            needsQuote = TRUE;
         } else if (c == ' ' || c == '\t' || c == '\n' || c == '\r' ||
                    c == '$' || c == '[' || c == ']' || c == ';') {
-            needsQuote = 1;
+            needsQuote = TRUE;
         }
     }
 
-    if (braceDepth != 0) hasUnbalancedBrace = 1;
+    if (braceDepth != 0) hasUnbalancedBrace = TRUE;
 
     /* Unbalanced braces need quoting */
-    if (hasUnbalancedBrace) needsQuote = 1;
+    if (hasUnbalancedBrace) needsQuote = TRUE;
 
     /* Count trailing backslashes - odd count can't use brace quoting */
-    int trailingBackslashes = 0;
-    for (size_t i = len; i > 0; i--) {
+    gint trailingBackslashes = 0;
+    for (gsize i = len; i > 0; i--) {
         if (s[i-1] == '\\') trailingBackslashes++;
         else break;
     }
-    int hasOddTrailingBackslash = (trailingBackslashes % 2 == 1);
+    gboolean hasOddTrailingBackslash = (trailingBackslashes % 2 == 1);
 
     if (!needsQuote) return 0;
     /* Can't use brace quoting if: unbalanced braces, has quotes, or odd trailing backslash */
@@ -165,10 +152,10 @@ static int needsListQuoting(const char *s, size_t len) {
 }
 
 /* Count backslash-escaped length for an element */
-static size_t backslashQuotedLen(const char *s, size_t len) {
-    size_t result = 0;
-    for (size_t i = 0; i < len; i++) {
-        char c = s[i];
+static gsize backslashQuotedLen(const gchar *s, gsize len) {
+    gsize result = 0;
+    for (gsize i = 0; i < len; i++) {
+        gchar c = s[i];
         if (c == '{' || c == '}' || c == '\\' || c == '"' ||
             c == '$' || c == '[' || c == ']' || c == ' ' || c == ';') {
             result += 2;  /* backslash + char */
@@ -180,9 +167,9 @@ static size_t backslashQuotedLen(const char *s, size_t len) {
 }
 
 /* Write backslash-quoted string */
-static char *writeBackslashQuoted(char *p, const char *s, size_t len) {
-    for (size_t i = 0; i < len; i++) {
-        char c = s[i];
+static gchar *writeBackslashQuoted(gchar *p, const gchar *s, gsize len) {
+    for (gsize i = 0; i < len; i++) {
+        gchar c = s[i];
         if (c == '{' || c == '}' || c == '\\' || c == '"' ||
             c == '$' || c == '[' || c == ']' || c == ' ' || c == ';') {
             *p++ = '\\';
@@ -199,9 +186,9 @@ TclObj *hostNewList(TclObj **elems, size_t count) {
     }
 
     /* Calculate total length needed */
-    size_t totalLen = 0;
-    for (size_t i = 0; i < count; i++) {
-        int quoteType = needsListQuoting(elems[i]->stringRep, elems[i]->stringLen);
+    gsize totalLen = 0;
+    for (gsize i = 0; i < count; i++) {
+        gint quoteType = needsListQuoting(elems[i]->stringRep, elems[i]->stringLen);
         if (quoteType == 2) {
             /* Backslash quoting */
             totalLen += backslashQuotedLen(elems[i]->stringRep, elems[i]->stringLen);
@@ -213,13 +200,13 @@ TclObj *hostNewList(TclObj **elems, size_t count) {
         if (i > 0) totalLen++;  /* space separator */
     }
 
-    char *buf = malloc(totalLen + 1);
+    gchar *buf = g_malloc(totalLen + 1);
     if (!buf) return NULL;
 
-    char *p = buf;
-    for (size_t i = 0; i < count; i++) {
+    gchar *p = buf;
+    for (gsize i = 0; i < count; i++) {
         if (i > 0) *p++ = ' ';
-        int quoteType = needsListQuoting(elems[i]->stringRep, elems[i]->stringLen);
+        gint quoteType = needsListQuoting(elems[i]->stringRep, elems[i]->stringLen);
         if (quoteType == 2) {
             /* Backslash quoting */
             p = writeBackslashQuoted(p, elems[i]->stringRep, elems[i]->stringLen);
@@ -236,7 +223,7 @@ TclObj *hostNewList(TclObj **elems, size_t count) {
     *p = '\0';
 
     TclObj *obj = hostNewString(buf, p - buf);
-    free(buf);
+    g_free(buf);
     return obj;
 }
 
@@ -261,8 +248,8 @@ TclObj *hostDup(TclObj *obj) {
 /* Free an object */
 void hostFreeObj(TclObj *obj) {
     if (obj) {
-        free(obj->stringRep);
-        free(obj);
+        g_free(obj->stringRep);
+        g_free(obj);
     }
 }
 
@@ -286,12 +273,11 @@ int hostAsInt(TclObj *obj, int64_t *out) {
     }
 
     /* Try to parse */
-    char *endptr;
-    errno = 0;
-    long long val = strtoll(obj->stringRep, &endptr, 0);
+    gchar *endptr;
+    gint64 val = g_ascii_strtoll(obj->stringRep, &endptr, 0);
 
     /* Check for errors */
-    if (errno == ERANGE || endptr == obj->stringRep) {
+    if (endptr == obj->stringRep) {
         return -1;
     }
 
@@ -301,7 +287,7 @@ int hostAsInt(TclObj *obj, int64_t *out) {
         return -1;
     }
 
-    obj->hasInt = 1;
+    obj->hasInt = TRUE;
     obj->intRep = val;
     *out = val;
     return 0;
@@ -317,12 +303,11 @@ int hostAsDouble(TclObj *obj, double *out) {
     }
 
     /* Try to parse */
-    char *endptr;
-    errno = 0;
-    double val = strtod(obj->stringRep, &endptr);
+    gchar *endptr;
+    gdouble val = g_ascii_strtod(obj->stringRep, &endptr);
 
     /* Check for errors */
-    if (errno == ERANGE || endptr == obj->stringRep) {
+    if (endptr == obj->stringRep) {
         return -1;
     }
 
@@ -332,7 +317,7 @@ int hostAsDouble(TclObj *obj, double *out) {
         return -1;
     }
 
-    obj->hasDouble = 1;
+    obj->hasDouble = TRUE;
     obj->doubleRep = val;
     *out = val;
     return 0;
@@ -343,30 +328,30 @@ int hostAsBool(TclObj *obj, int *out) {
     if (!obj) return -1;
 
     /* Check for common boolean strings */
-    const char *s = obj->stringRep;
-    size_t len = obj->stringLen;
+    const gchar *s = obj->stringRep;
+    gsize len = obj->stringLen;
 
     if (len == 1) {
         if (s[0] == '0') { *out = 0; return 0; }
         if (s[0] == '1') { *out = 1; return 0; }
     }
 
-    if ((len == 4 && strncmp(s, "true", 4) == 0) ||
-        (len == 3 && strncmp(s, "yes", 3) == 0) ||
-        (len == 2 && strncmp(s, "on", 2) == 0)) {
+    if (g_ascii_strcasecmp(s, "true") == 0 ||
+        g_ascii_strcasecmp(s, "yes") == 0 ||
+        g_ascii_strcasecmp(s, "on") == 0) {
         *out = 1;
         return 0;
     }
 
-    if ((len == 5 && strncmp(s, "false", 5) == 0) ||
-        (len == 2 && strncmp(s, "no", 2) == 0) ||
-        (len == 3 && strncmp(s, "off", 3) == 0)) {
+    if (g_ascii_strcasecmp(s, "false") == 0 ||
+        g_ascii_strcasecmp(s, "no") == 0 ||
+        g_ascii_strcasecmp(s, "off") == 0) {
         *out = 0;
         return 0;
     }
 
     /* Try as integer */
-    int64_t ival;
+    gint64 ival;
     if (hostAsInt(obj, &ival) == 0) {
         *out = (ival != 0);
         return 0;
@@ -382,7 +367,7 @@ int hostAsBool(TclObj *obj, int *out) {
  * Elements can be quoted with braces {}, double quotes "", or bare words.
  * ======================================================================== */
 
-static int isListSpace(char c) {
+static gboolean isListSpace(gchar c) {
     return c == ' ' || c == '\t' || c == '\n' || c == '\r';
 }
 
@@ -390,8 +375,8 @@ static int isListSpace(char c) {
  * Updates *pos to point past the element.
  * Returns a new TclObj for the element, or NULL on error.
  */
-static TclObj *parseListElement(const char **pos, const char *end) {
-    const char *p = *pos;
+static TclObj *parseListElement(const gchar **pos, const gchar *end) {
+    const gchar *p = *pos;
 
     /* Skip leading whitespace */
     while (p < end && isListSpace(*p)) p++;
@@ -401,14 +386,14 @@ static TclObj *parseListElement(const char **pos, const char *end) {
         return NULL;  /* No more elements */
     }
 
-    const char *start;
-    size_t len;
+    const gchar *start;
+    gsize len;
 
     if (*p == '{') {
         /* Braced element - find matching close brace */
         p++;  /* Skip { */
         start = p;
-        int depth = 1;
+        gint depth = 1;
         while (p < end && depth > 0) {
             if (*p == '{') depth++;
             else if (*p == '}') depth--;
@@ -441,11 +426,11 @@ static TclObj *parseListElement(const char **pos, const char *end) {
 
     /* Bare word - read until unescaped whitespace, and unescape backslashes */
     start = p;
-    int hasEscape = 0;
-    const char *scanP = p;
+    gboolean hasEscape = FALSE;
+    const gchar *scanP = p;
     while (scanP < end) {
         if (*scanP == '\\' && scanP + 1 < end) {
-            hasEscape = 1;
+            hasEscape = TRUE;
             scanP += 2;
         } else if (isListSpace(*scanP)) {
             break;
@@ -461,10 +446,10 @@ static TclObj *parseListElement(const char **pos, const char *end) {
     }
 
     /* Need to unescape backslashes */
-    char *buf = malloc(len + 1);
+    gchar *buf = g_malloc(len + 1);
     if (!buf) return hostNewString(start, len);
 
-    char *out = buf;
+    gchar *out = buf;
     p = start;
     while (p < scanP) {
         if (*p == '\\' && p + 1 < scanP) {
@@ -477,31 +462,27 @@ static TclObj *parseListElement(const char **pos, const char *end) {
     *out = '\0';
 
     TclObj *result = hostNewString(buf, out - buf);
-    free(buf);
+    g_free(buf);
     return result;
 }
 
 /* Parse list into array of elements.
  * Caller must free the array and its elements.
  */
-static int parseList(TclObj *obj, TclObj ***elemsOut, size_t *countOut) {
+static gint parseList(TclObj *obj, TclObj ***elemsOut, gsize *countOut) {
     if (!obj) {
         *elemsOut = NULL;
         *countOut = 0;
         return 0;
     }
 
-    const char *str = obj->stringRep;
-    size_t strLen = obj->stringLen;
-    const char *end = str + strLen;
+    const gchar *str = obj->stringRep;
+    gsize strLen = obj->stringLen;
+    const gchar *end = str + strLen;
 
-    /* Count elements first (estimate) */
-    size_t capacity = 16;
-    TclObj **elems = malloc(capacity * sizeof(TclObj*));
-    if (!elems) return -1;
-
-    size_t count = 0;
-    const char *pos = str;
+    /* Use GPtrArray to collect elements */
+    GPtrArray *elems = g_ptr_array_new();
+    const gchar *pos = str;
 
     while (pos < end) {
         /* Skip whitespace */
@@ -512,40 +493,27 @@ static int parseList(TclObj *obj, TclObj ***elemsOut, size_t *countOut) {
         if (!elem) break;
         if (elem == (TclObj *)(intptr_t)-1) {
             /* Parse error - unclosed brace/quote */
-            for (size_t i = 0; i < count; i++) {
-                free(elems[i]->stringRep);
-                free(elems[i]);
+            for (guint i = 0; i < elems->len; i++) {
+                hostFreeObj(g_ptr_array_index(elems, i));
             }
-            free(elems);
+            g_ptr_array_free(elems, TRUE);
             return -1;
         }
 
-        /* Grow array if needed */
-        if (count >= capacity) {
-            capacity *= 2;
-            TclObj **newElems = realloc(elems, capacity * sizeof(TclObj*));
-            if (!newElems) {
-                for (size_t i = 0; i < count; i++) {
-                    free(elems[i]->stringRep);
-                    free(elems[i]);
-                }
-                free(elems);
-                return -1;
-            }
-            elems = newElems;
-        }
-
-        elems[count++] = elem;
+        g_ptr_array_add(elems, elem);
     }
 
-    *elemsOut = elems;
-    *countOut = count;
+    *countOut = elems->len;
+    *elemsOut = (TclObj **)g_ptr_array_free(elems, FALSE);
     return 0;
 }
 
 /* Convert to list */
 int hostAsList(TclObj *obj, TclObj ***elemsOut, size_t *countOut) {
-    return parseList(obj, elemsOut, countOut);
+    gsize count;
+    gint result = parseList(obj, elemsOut, &count);
+    *countOut = count;
+    return result;
 }
 
 /* Get list length */
@@ -553,15 +521,14 @@ size_t hostListLengthImpl(TclObj *list) {
     if (!list || list->stringLen == 0) return 0;
 
     TclObj **elems;
-    size_t count;
+    gsize count;
     if (parseList(list, &elems, &count) != 0) return 0;
 
     /* Free the parsed elements */
-    for (size_t i = 0; i < count; i++) {
-        free(elems[i]->stringRep);
-        free(elems[i]);
+    for (gsize i = 0; i < count; i++) {
+        hostFreeObj(elems[i]);
     }
-    free(elems);
+    g_free(elems);
 
     return count;
 }
@@ -571,7 +538,7 @@ TclObj *hostListIndexImpl(TclObj *list, size_t idx) {
     if (!list) return NULL;
 
     TclObj **elems;
-    size_t count;
+    gsize count;
     if (parseList(list, &elems, &count) != 0) return NULL;
 
     TclObj *result = NULL;
@@ -580,11 +547,10 @@ TclObj *hostListIndexImpl(TclObj *list, size_t idx) {
     }
 
     /* Free the parsed elements */
-    for (size_t i = 0; i < count; i++) {
-        free(elems[i]->stringRep);
-        free(elems[i]);
+    for (gsize i = 0; i < count; i++) {
+        hostFreeObj(elems[i]);
     }
-    free(elems);
+    g_free(elems);
 
     return result;
 }

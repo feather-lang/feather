@@ -1,12 +1,13 @@
 /*
- * channel.c - I/O Channel Implementation for C Host
+ * channel.c - I/O Channel Implementation for C Host (GLib version)
  *
- * FILE*-based channels for stdin, stdout, stderr, and files.
+ * FILE*-based channels for stdin, stdout, stderr, and files using GLib.
  */
 
 #include "../../core/tclc.h"
+#include <glib.h>
+#include <glib/gstdio.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 /* External object functions from object.c */
@@ -15,24 +16,24 @@ extern TclObj *hostNewString(const char *s, size_t len);
 /* Channel structure */
 struct TclChannel {
     FILE       *fp;
-    char       *name;
-    int         isStd;      /* Is standard stream (don't close) */
-    int         readable;
-    int         writable;
+    gchar      *name;
+    gboolean    isStd;      /* Is standard stream (don't close) */
+    gboolean    readable;
+    gboolean    writable;
 };
 
 /* Standard channels */
-static TclChannel stdinChan  = {NULL, "stdin",  1, 1, 0};
-static TclChannel stdoutChan = {NULL, "stdout", 1, 0, 1};
-static TclChannel stderrChan = {NULL, "stderr", 1, 0, 1};
-static int stdInitialized = 0;
+static TclChannel stdinChan  = {NULL, "stdin",  TRUE, TRUE, FALSE};
+static TclChannel stdoutChan = {NULL, "stdout", TRUE, FALSE, TRUE};
+static TclChannel stderrChan = {NULL, "stderr", TRUE, FALSE, TRUE};
+static gboolean stdInitialized = FALSE;
 
 static void initStdChannels(void) {
     if (!stdInitialized) {
         stdinChan.fp = stdin;
         stdoutChan.fp = stdout;
         stderrChan.fp = stderr;
-        stdInitialized = 1;
+        stdInitialized = TRUE;
     }
 }
 
@@ -40,18 +41,18 @@ static void initStdChannels(void) {
 TclChannel *hostChanOpen(void *ctx, const char *name, const char *mode) {
     (void)ctx;
 
-    FILE *fp = fopen(name, mode);
+    FILE *fp = g_fopen(name, mode);
     if (!fp) return NULL;
 
-    TclChannel *chan = malloc(sizeof(TclChannel));
+    TclChannel *chan = g_new0(TclChannel, 1);
     if (!chan) {
         fclose(fp);
         return NULL;
     }
 
     chan->fp = fp;
-    chan->name = strdup(name);
-    chan->isStd = 0;
+    chan->name = g_strdup(name);
+    chan->isStd = FALSE;
     chan->readable = (strchr(mode, 'r') != NULL);
     chan->writable = (strchr(mode, 'w') != NULL || strchr(mode, 'a') != NULL);
 
@@ -64,8 +65,8 @@ void hostChanClose(void *ctx, TclChannel *chan) {
     if (!chan || chan->isStd) return;
 
     fclose(chan->fp);
-    free(chan->name);
-    free(chan);
+    g_free(chan->name);
+    g_free(chan);
 }
 
 /* Get standard channels */
@@ -106,21 +107,25 @@ TclObj *hostChanGets(TclChannel *chan, int *eofOut) {
         return NULL;
     }
 
-    char buf[4096];
-    if (!fgets(buf, sizeof(buf), chan->fp)) {
+    GString *line = g_string_new(NULL);
+    gint c;
+
+    while ((c = fgetc(chan->fp)) != EOF) {
+        if (c == '\n') break;
+        g_string_append_c(line, c);
+    }
+
+    if (c == EOF && line->len == 0) {
         if (eofOut) *eofOut = 1;
+        g_string_free(line, TRUE);
         return NULL;
     }
 
     if (eofOut) *eofOut = 0;
 
-    /* Remove trailing newline */
-    size_t len = strlen(buf);
-    if (len > 0 && buf[len - 1] == '\n') {
-        buf[--len] = '\0';
-    }
-
-    return hostNewString(buf, len);
+    TclObj *obj = hostNewString(line->str, line->len);
+    g_string_free(line, TRUE);
+    return obj;
 }
 
 /* Flush channel */
