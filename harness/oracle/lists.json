@@ -1,0 +1,1062 @@
+{
+  "feature": "lists",
+  "tclsh": "tclsh",
+  "tests": [
+    {
+      "name": "join-1.0",
+      "file": "spec/tests/lists/join-1.0.tcl",
+      "script": "# Test: join with default separator\nputs [join {a b c}]\n",
+      "stdout": "a b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "join-1.1",
+      "file": "spec/tests/lists/join-1.1.tcl",
+      "script": "# Test: join with custom separator\nputs [join {a b c} -]\nputs [join {a b c} \", \"]\n",
+      "stdout": "a-b-c\na, b, c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "join-1.2",
+      "file": "spec/tests/lists/join-1.2.tcl",
+      "script": "# Test: join with empty separator\nputs [join {a b c} \"\"]\n",
+      "stdout": "abc\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "join-1.3",
+      "file": "spec/tests/lists/join-1.3.tcl",
+      "script": "# Test: join empty list returns empty string\nputs \"[join {}].\"\n",
+      "stdout": ".\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "join-1.4",
+      "file": "spec/tests/lists/join-1.4.tcl",
+      "script": "# Test: join single element\nputs [join {hello}]\n",
+      "stdout": "hello\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "join-1.5",
+      "file": "spec/tests/lists/join-1.5.tcl",
+      "script": "# Test: join flattens list by one level\nset data {1 {2 3} 4 {5 {6 7} 8}}\nputs [join $data]\n",
+      "stdout": "1 2 3 4 5 {6 7} 8\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "join-1.6",
+      "file": "spec/tests/lists/join-1.6.tcl",
+      "script": "# Test: join with multi-character separator\nset data {1 2 3 4 5}\nputs [join $data \", \"]\n",
+      "stdout": "1, 2, 3, 4, 5\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "join-1.7",
+      "file": "spec/tests/lists/join-1.7.tcl",
+      "script": "# Test: join with newline separator\nputs [join {a b c} \"\\n\"]\n",
+      "stdout": "a\nb\nc\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "join-2.0",
+      "file": "spec/tests/lists/join-2.0.tcl",
+      "script": "# Test: join with braced elements - removes one level of bracing\nputs [join {{a b} {c d}}]\n",
+      "stdout": "a b c d\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "join-2.1",
+      "file": "spec/tests/lists/join-2.1.tcl",
+      "script": "# Test: join nested lists - only flattens one level\nputs [join {a {b {c d}} e}]\n",
+      "stdout": "a b {c d} e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "join-2.2",
+      "file": "spec/tests/lists/join-2.2.tcl",
+      "script": "# Test: join with tab separator\nputs [join {a b c} \"\\t\"]\n",
+      "stdout": "a\tb\tc\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "join-2.3",
+      "file": "spec/tests/lists/join-2.3.tcl",
+      "script": "# Test: join with special characters in separator\nputs [join {1 2 3} \" + \"]\n",
+      "stdout": "1 + 2 + 3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "join-3.0",
+      "file": "spec/tests/lists/join-3.0.tcl",
+      "script": "# Test: join single element list with custom separator\nputs [join {only} \"::\"]\n",
+      "stdout": "only\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "join-3.1",
+      "file": "spec/tests/lists/join-3.1.tcl",
+      "script": "# Test: join with empty elements in list\nputs \"[join {{} a {} b {}}].\"\n",
+      "stdout": " a  b .\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "join-3.2",
+      "file": "spec/tests/lists/join-3.2.tcl",
+      "script": "# Test: join with separator containing special chars\nputs [join {a b c} {$}]\n",
+      "stdout": "a$b$c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "join-3.3",
+      "file": "spec/tests/lists/join-3.3.tcl",
+      "script": "# Test: join result is not a list (spaces become part of string)\nset result [join {\"a b\" \"c d\"} :]\nputs $result\n",
+      "stdout": "a b:c d\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lappend-1.0",
+      "file": "spec/tests/lists/lappend-1.0.tcl",
+      "script": "# Test: lappend to empty variable\nlappend x a b c\nputs $x\n",
+      "stdout": "a b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lappend-1.1",
+      "file": "spec/tests/lists/lappend-1.1.tcl",
+      "script": "# Test: lappend to existing list\nset x {a b}\nlappend x c d\nputs $x\n",
+      "stdout": "a b c d\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lappend-1.2",
+      "file": "spec/tests/lists/lappend-1.2.tcl",
+      "script": "# Test: lappend builds up a list incrementally\nset var 1\nlappend var 2\nputs $var\nlappend var 3 4 5\nputs $var\n",
+      "stdout": "1 2\n1 2 3 4 5\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lappend-1.3",
+      "file": "spec/tests/lists/lappend-1.3.tcl",
+      "script": "# Test: lappend with no values returns current value\nset x {a b c}\nputs [lappend x]\n",
+      "stdout": "a b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lappend-1.4",
+      "file": "spec/tests/lists/lappend-1.4.tcl",
+      "script": "# Test: lappend properly quotes elements with spaces\nset x {a b}\nlappend x \"c d\"\nputs $x\n",
+      "stdout": "a b {c d}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lappend-1.5",
+      "file": "spec/tests/lists/lappend-1.5.tcl",
+      "script": "# Test: lappend returns the new list value\nset x {a}\nputs [lappend x b c]\n",
+      "stdout": "a b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lappend-2.0",
+      "file": "spec/tests/lists/lappend-2.0.tcl",
+      "script": "# Test: lappend with empty string element\nset x {a b}\nlappend x \"\"\nputs $x\nputs [llength $x]\n",
+      "stdout": "a b {}\n3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lappend-2.1",
+      "file": "spec/tests/lists/lappend-2.1.tcl",
+      "script": "# Test: lappend treats list value as single element\nset x {a}\nlappend x {b c d}\nputs $x\nputs [llength $x]\n",
+      "stdout": "a {b c d}\n2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lappend-2.2",
+      "file": "spec/tests/lists/lappend-2.2.tcl",
+      "script": "# Test: lappend to non-existent variable with no values\nlappend newvar\nputs \"[llength $newvar].\"\n",
+      "stdout": "0.\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lappend-3.0",
+      "file": "spec/tests/lists/lappend-3.0.tcl",
+      "script": "# Test: lappend with special characters needing quoting\nset x {a}\nlappend x {$var} {[cmd]}\nputs $x\n",
+      "stdout": "a {$var} {[cmd]}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lappend-3.1",
+      "file": "spec/tests/lists/lappend-3.1.tcl",
+      "script": "# Test: lappend multiple values at once to new variable\nlappend brand_new a b c d e\nputs $brand_new\nputs [llength $brand_new]\n",
+      "stdout": "a b c d e\n5\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lappend-3.2",
+      "file": "spec/tests/lists/lappend-3.2.tcl",
+      "script": "# Test: lappend with braces in element\nset x {a}\nlappend x \"b{c}d\"\nputs $x\n",
+      "stdout": "a b{c}d\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lappend-3.3",
+      "file": "spec/tests/lists/lappend-3.3.tcl",
+      "script": "# Test: chained lappend calls\nset x {}\nlappend x a\nlappend x b\nlappend x c\nputs $x\n",
+      "stdout": "a b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lindex-1.0",
+      "file": "spec/tests/lists/lindex-1.0.tcl",
+      "script": "# Test: lindex basic indexing\nputs [lindex {a b c} 0]\nputs [lindex {a b c} 1]\nputs [lindex {a b c} 2]\n",
+      "stdout": "a\nb\nc\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lindex-1.1",
+      "file": "spec/tests/lists/lindex-1.1.tcl",
+      "script": "# Test: lindex with end index\nputs [lindex {a b c} end]\nputs [lindex {a b c} end-1]\n",
+      "stdout": "c\nb\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lindex-1.2",
+      "file": "spec/tests/lists/lindex-1.2.tcl",
+      "script": "# Test: lindex with no index returns the list\nputs [lindex {a b c}]\nputs [lindex {a b c} {}]\n",
+      "stdout": "a b c\na b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lindex-1.3",
+      "file": "spec/tests/lists/lindex-1.3.tcl",
+      "script": "# Test: lindex out of bounds returns empty\nputs \"[lindex {a b c} 5].\"\nputs \"[lindex {a b c} -1].\"\n",
+      "stdout": ".\n.\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lindex-1.4",
+      "file": "spec/tests/lists/lindex-1.4.tcl",
+      "script": "# Test: lindex nested list with multiple indices\nputs [lindex {{a b c} {d e f} {g h i}} 2 1]\n",
+      "stdout": "h\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lindex-1.5",
+      "file": "spec/tests/lists/lindex-1.5.tcl",
+      "script": "# Test: lindex deeply nested\nputs [lindex {{{a b} {c d}} {{e f} {g h}}} 1 1 0]\n",
+      "stdout": "g\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lindex-1.6",
+      "file": "spec/tests/lists/lindex-1.6.tcl",
+      "script": "# Test: lindex end-2\nputs [lindex {a b c d e} end-2]\n",
+      "stdout": "c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lindex-2.0",
+      "file": "spec/tests/lists/lindex-2.0.tcl",
+      "script": "# Test: lindex with indices as list argument\nputs [lindex {{a b c} {d e f} {g h i}} {2 1}]\n",
+      "stdout": "h\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lindex-2.1",
+      "file": "spec/tests/lists/lindex-2.1.tcl",
+      "script": "# Test: lindex with deeply nested indices as list\nputs [lindex {{{a b} {c d}} {{e f} {g h}}} {1 1 0}]\n",
+      "stdout": "g\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lindex-2.2",
+      "file": "spec/tests/lists/lindex-2.2.tcl",
+      "script": "# Test: lindex on empty list\nputs \"[lindex {} 0].\"\n",
+      "stdout": ".\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lindex-2.3",
+      "file": "spec/tests/lists/lindex-2.3.tcl",
+      "script": "# Test: lindex extracts braced element correctly\nputs [lindex {{hello world} foo} 0]\n",
+      "stdout": "hello world\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lindex-3.0",
+      "file": "spec/tests/lists/lindex-3.0.tcl",
+      "script": "# Test: lindex with end-N where N equals list length (returns empty)\nputs \"[lindex {a b c} end-3].\"\n",
+      "stdout": ".\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lindex-3.1",
+      "file": "spec/tests/lists/lindex-3.1.tcl",
+      "script": "# Test: lindex with index having leading zeros\nputs [lindex {a b c d e} 02]\n",
+      "stdout": "c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lindex-3.2",
+      "file": "spec/tests/lists/lindex-3.2.tcl",
+      "script": "# Test: lindex multiple separate index arguments\nputs [lindex {{{a b} {c d}} {{e f} {g h}}} 0 1 1]\n",
+      "stdout": "d\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lindex-3.3",
+      "file": "spec/tests/lists/lindex-3.3.tcl",
+      "script": "# Test: lindex with single element list\nputs [lindex {only} 0]\nputs [lindex {only} end]\n",
+      "stdout": "only\nonly\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lindex-3.4",
+      "file": "spec/tests/lists/lindex-3.4.tcl",
+      "script": "# Test: lindex on list with empty elements\nputs \"[lindex {{} a {} b {}} 0].\"\nputs [lindex {{} a {} b {}} 1]\nputs \"[lindex {{} a {} b {}} 2].\"\n",
+      "stdout": ".\na\n.\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "list-1.0",
+      "file": "spec/tests/lists/list-1.0.tcl",
+      "script": "# Test: list with no arguments returns empty list\nputs [list]\n",
+      "stdout": "\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "list-1.1",
+      "file": "spec/tests/lists/list-1.1.tcl",
+      "script": "# Test: list with single argument\nputs [list a]\n",
+      "stdout": "a\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "list-1.2",
+      "file": "spec/tests/lists/list-1.2.tcl",
+      "script": "# Test: list with multiple arguments\nputs [list a b c]\n",
+      "stdout": "a b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "list-1.3",
+      "file": "spec/tests/lists/list-1.3.tcl",
+      "script": "# Test: list properly quotes elements with spaces\nputs [list a \"b c\" d]\n",
+      "stdout": "a {b c} d\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "list-1.4",
+      "file": "spec/tests/lists/list-1.4.tcl",
+      "script": "# Test: list with element containing braces\nputs [list a {b c} d]\n",
+      "stdout": "a {b c} d\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "list-1.5",
+      "file": "spec/tests/lists/list-1.5.tcl",
+      "script": "# Test: list example from manual page\nputs [list a b \"c d e  \" \"  f {g h}\"]\n",
+      "stdout": "a b {c d e  } {  f {g h}}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "list-1.6",
+      "file": "spec/tests/lists/list-1.6.tcl",
+      "script": "# Test: list preserves empty elements\nputs [list \"\" a \"\" b \"\"]\n",
+      "stdout": "{} a {} b {}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "list-1.7",
+      "file": "spec/tests/lists/list-1.7.tcl",
+      "script": "# Test: list with newlines and tabs\nputs [list \"a\\nb\" \"c\\td\"]\n",
+      "stdout": "{a\nb} {c\td}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "list-2.0",
+      "file": "spec/tests/lists/list-2.0.tcl",
+      "script": "# Test: list roundtrip - lindex can extract original elements\nset mylist [list a \"b c\" {d e}]\nputs [lindex $mylist 0]\nputs [lindex $mylist 1]\nputs [lindex $mylist 2]\n",
+      "stdout": "a\nb c\nd e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "list-2.1",
+      "file": "spec/tests/lists/list-2.1.tcl",
+      "script": "# Test: list with backslash characters\nputs [list \"a\\\\b\" \"c\\td\"]\n",
+      "stdout": "{a\\b} {c\td}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "list-2.2",
+      "file": "spec/tests/lists/list-2.2.tcl",
+      "script": "# Test: list with special list characters - brackets\nputs [list \"\\[a\\]\" \"\\{b\\}\"]\n",
+      "stdout": "{[a]} {{b}}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "list-2.3",
+      "file": "spec/tests/lists/list-2.3.tcl",
+      "script": "# Test: list with dollar sign (braced, no substitution)\nputs [list {$var} {$x}]\n",
+      "stdout": "{$var} {$x}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "list-3.0",
+      "file": "spec/tests/lists/list-3.0.tcl",
+      "script": "# Test: list with semicolons (command separator)\nputs [list \"a;b\" \"c;d;e\"]\n",
+      "stdout": "{a;b} {c;d;e}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "list-3.1",
+      "file": "spec/tests/lists/list-3.1.tcl",
+      "script": "# Test: list with embedded quotes\nputs [list {a\"b} {c\"d\"e}]\n",
+      "stdout": "a\\\"b c\\\"d\\\"e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "list-3.2",
+      "file": "spec/tests/lists/list-3.2.tcl",
+      "script": "# Test: list with trailing backslash\nputs [list \"a\\\\\" \"b\\\\\\\\\"]\n",
+      "stdout": "a\\\\ {b\\\\}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "list-3.3",
+      "file": "spec/tests/lists/list-3.3.tcl",
+      "script": "# Test: list with whitespace-only elements\nputs [list \" \" \"  \" \"\\t\"]\n",
+      "stdout": "{ } {  } {\t}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "list-3.4",
+      "file": "spec/tests/lists/list-3.4.tcl",
+      "script": "# Test: list with hash character (comment in TCL)\nputs [list \"#comment\" \"a#b\"]\n",
+      "stdout": "{#comment} a#b\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "list-3.5",
+      "file": "spec/tests/lists/list-3.5.tcl",
+      "script": "# Test: nested list creation\nset inner [list a b c]\nset outer [list $inner x y]\nputs $outer\n",
+      "stdout": "{a b c} x y\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "llength-1.0",
+      "file": "spec/tests/lists/llength-1.0.tcl",
+      "script": "# Test: llength of empty list\nputs [llength {}]\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "llength-1.1",
+      "file": "spec/tests/lists/llength-1.1.tcl",
+      "script": "# Test: llength of list with elements\nputs [llength {a b c}]\n",
+      "stdout": "3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "llength-1.2",
+      "file": "spec/tests/lists/llength-1.2.tcl",
+      "script": "# Test: llength with braced elements\nputs [llength {a b {c d} e}]\n",
+      "stdout": "4\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "llength-1.3",
+      "file": "spec/tests/lists/llength-1.3.tcl",
+      "script": "# Test: llength with empty braced element\nputs [llength {a b { } c d e}]\n",
+      "stdout": "6\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "llength-1.4",
+      "file": "spec/tests/lists/llength-1.4.tcl",
+      "script": "# Test: llength of whitespace-only string is 0\nset var { }\nputs [llength $var]\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "llength-1.5",
+      "file": "spec/tests/lists/llength-1.5.tcl",
+      "script": "# Test: llength single element\nputs [llength {hello}]\nputs [llength hello]\n",
+      "stdout": "1\n1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "llength-2.0",
+      "file": "spec/tests/lists/llength-2.0.tcl",
+      "script": "# Test: llength with deeply nested list\nputs [llength {a {b {c {d}}}}]\n",
+      "stdout": "2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "llength-2.1",
+      "file": "spec/tests/lists/llength-2.1.tcl",
+      "script": "# Test: llength with quoted strings\nputs [llength {\"hello world\" \"foo bar\"}]\n",
+      "stdout": "2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "llength-2.2",
+      "file": "spec/tests/lists/llength-2.2.tcl",
+      "script": "# Test: llength with multiple consecutive spaces in list (treated as one separator)\nputs [llength {a    b    c}]\n",
+      "stdout": "3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "llength-3.0",
+      "file": "spec/tests/lists/llength-3.0.tcl",
+      "script": "# Test: llength with newlines as separators\nputs [llength {a\nb\nc}]\n",
+      "stdout": "3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "llength-3.1",
+      "file": "spec/tests/lists/llength-3.1.tcl",
+      "script": "# Test: llength with tabs as separators\nputs [llength \"a\\tb\\tc\"]\n",
+      "stdout": "3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "llength-3.2",
+      "file": "spec/tests/lists/llength-3.2.tcl",
+      "script": "# Test: llength with mixed leading/trailing whitespace\nputs [llength \"  a b c  \"]\n",
+      "stdout": "3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "llength-3.3",
+      "file": "spec/tests/lists/llength-3.3.tcl",
+      "script": "# Test: llength with element containing backslash\nputs [llength {a\\ b c}]\n",
+      "stdout": "2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lrange-1.0",
+      "file": "spec/tests/lists/lrange-1.0.tcl",
+      "script": "# Test: lrange basic\nputs [lrange {a b c d e} 1 3]\n",
+      "stdout": "b c d\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lrange-1.1",
+      "file": "spec/tests/lists/lrange-1.1.tcl",
+      "script": "# Test: lrange with end\nputs [lrange {a b c d e} 2 end]\nputs [lrange {a b c d e} 0 end-1]\n",
+      "stdout": "c d e\na b c d\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lrange-1.2",
+      "file": "spec/tests/lists/lrange-1.2.tcl",
+      "script": "# Test: lrange first two elements\nputs [lrange {a b c d e} 0 1]\n",
+      "stdout": "a b\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lrange-1.3",
+      "file": "spec/tests/lists/lrange-1.3.tcl",
+      "script": "# Test: lrange last three elements\nputs [lrange {a b c d e} end-2 end]\n",
+      "stdout": "c d e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lrange-1.4",
+      "file": "spec/tests/lists/lrange-1.4.tcl",
+      "script": "# Test: lrange everything except first and last\nputs [lrange {a b c d e} 1 end-1]\n",
+      "stdout": "b c d\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lrange-1.5",
+      "file": "spec/tests/lists/lrange-1.5.tcl",
+      "script": "# Test: lrange first \u003e last returns empty\nputs \"[lrange {a b c} 2 0].\"\n",
+      "stdout": ".\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lrange-1.6",
+      "file": "spec/tests/lists/lrange-1.6.tcl",
+      "script": "# Test: lrange with negative first (treated as 0)\nputs [lrange {a b c d e} -5 2]\n",
+      "stdout": "a b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lrange-1.7",
+      "file": "spec/tests/lists/lrange-1.7.tcl",
+      "script": "# Test: lrange with last past end (treated as end)\nputs [lrange {a b c d e} 2 100]\n",
+      "stdout": "c d e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lrange-1.8",
+      "file": "spec/tests/lists/lrange-1.8.tcl",
+      "script": "# Test: lrange vs lindex for braced elements\nset var {some {elements to} select}\nputs [lindex $var 1]\nputs [lrange $var 1 1]\n",
+      "stdout": "elements to\n{elements to}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lrange-2.0",
+      "file": "spec/tests/lists/lrange-2.0.tcl",
+      "script": "# Test: lrange on empty list\nputs \"[lrange {} 0 1].\"\n",
+      "stdout": ".\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lrange-2.1",
+      "file": "spec/tests/lists/lrange-2.1.tcl",
+      "script": "# Test: lrange full list extraction\nputs [lrange {a b c d e} 0 end]\n",
+      "stdout": "a b c d e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lrange-2.2",
+      "file": "spec/tests/lists/lrange-2.2.tcl",
+      "script": "# Test: lrange single element list\nputs [lrange {only} 0 0]\n",
+      "stdout": "only\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lrange-2.3",
+      "file": "spec/tests/lists/lrange-2.3.tcl",
+      "script": "# Test: lrange preserves bracing\nputs [lrange {{a b} {c d} {e f}} 0 1]\n",
+      "stdout": "{a b} {c d}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lrange-3.0",
+      "file": "spec/tests/lists/lrange-3.0.tcl",
+      "script": "# Test: lrange with end-N where N is large (first becomes negative)\nputs \"[lrange {a b c} end-10 end-10].\"\n",
+      "stdout": ".\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lrange-3.1",
+      "file": "spec/tests/lists/lrange-3.1.tcl",
+      "script": "# Test: lrange with first=end, last=end\nputs [lrange {a b c d e} end end]\n",
+      "stdout": "e\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lrange-3.2",
+      "file": "spec/tests/lists/lrange-3.2.tcl",
+      "script": "# Test: lrange preserves empty elements\nputs [lrange {{} a {} b {}} 0 2]\n",
+      "stdout": "{} a {}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lrange-3.3",
+      "file": "spec/tests/lists/lrange-3.3.tcl",
+      "script": "# Test: lrange with mixed end and number indices\nputs [lrange {a b c d e} 1 end-2]\n",
+      "stdout": "b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsort-1.0",
+      "file": "spec/tests/lists/lsort-1.0.tcl",
+      "script": "# Test: lsort alphabetically\nputs [lsort {banana apple cherry}]\n",
+      "stdout": "apple banana cherry\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsort-1.1",
+      "file": "spec/tests/lists/lsort-1.1.tcl",
+      "script": "# Test: lsort decreasing\nputs [lsort -decreasing {a b c}]\n",
+      "stdout": "c b a\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsort-1.2",
+      "file": "spec/tests/lists/lsort-1.2.tcl",
+      "script": "# Test: lsort integer\nputs [lsort -integer {10 2 5 1}]\n",
+      "stdout": "1 2 5 10\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsort-1.3",
+      "file": "spec/tests/lists/lsort-1.3.tcl",
+      "script": "# Test: lsort ASCII sorting (default)\nputs [lsort {a10 B2 b1 a1 a2}]\n",
+      "stdout": "B2 a1 a10 a2 b1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsort-1.4",
+      "file": "spec/tests/lists/lsort-1.4.tcl",
+      "script": "# Test: lsort integer with various formats\nputs [lsort -integer {5 3 1 2 11 4}]\n",
+      "stdout": "1 2 3 4 5 11\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsort-1.5",
+      "file": "spec/tests/lists/lsort-1.5.tcl",
+      "script": "# Test: lsort decreasing integer\nputs [lsort -decreasing -integer {5 3 1 2 11 4}]\n",
+      "stdout": "11 5 4 3 2 1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsort-1.6",
+      "file": "spec/tests/lists/lsort-1.6.tcl",
+      "script": "# Test: lsort empty list\nputs \"[lsort {}].\"\n",
+      "stdout": ".\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsort-1.7",
+      "file": "spec/tests/lists/lsort-1.7.tcl",
+      "script": "# Test: lsort single element\nputs [lsort {hello}]\n",
+      "stdout": "hello\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsort-1.8",
+      "file": "spec/tests/lists/lsort-1.8.tcl",
+      "script": "# Test: lsort with -increasing (explicit, same as default)\nputs [lsort -increasing {c b a}]\n",
+      "stdout": "a b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsort-1.9",
+      "file": "spec/tests/lists/lsort-1.9.tcl",
+      "script": "# Test: lsort with negative integers\nputs [lsort -integer {-5 3 -1 0 2}]\n",
+      "stdout": "-5 -1 0 2 3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsort-2.0",
+      "file": "spec/tests/lists/lsort-2.0.tcl",
+      "script": "# Test: lsort with duplicate elements\nputs [lsort {c a b a c b}]\n",
+      "stdout": "a a b b c c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsort-2.1",
+      "file": "spec/tests/lists/lsort-2.1.tcl",
+      "script": "# Test: lsort preserves list element structure\nputs [lsort {{z first} {a second} {m third}}]\n",
+      "stdout": "{a second} {m third} {z first}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsort-2.2",
+      "file": "spec/tests/lists/lsort-2.2.tcl",
+      "script": "# Test: lsort integer decreasing combined\nputs [lsort -integer -decreasing {1 10 2 20 3}]\n",
+      "stdout": "20 10 3 2 1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsort-2.3",
+      "file": "spec/tests/lists/lsort-2.3.tcl",
+      "script": "# Test: lsort ascii is case-sensitive (uppercase before lowercase)\nputs [lsort {a B c A b C}]\n",
+      "stdout": "A B C a b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsort-3.0",
+      "file": "spec/tests/lists/lsort-3.0.tcl",
+      "script": "# Test: lsort -nocase\nputs [lsort -nocase {Banana apple Cherry}]\n",
+      "stdout": "apple Banana Cherry\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsort-3.1",
+      "file": "spec/tests/lists/lsort-3.1.tcl",
+      "script": "# Test: lsort -unique removes duplicates\nputs [lsort -unique {c a b a c b a}]\n",
+      "stdout": "a b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsort-3.2",
+      "file": "spec/tests/lists/lsort-3.2.tcl",
+      "script": "# Test: lsort -real for floating point numbers\nputs [lsort -real {3.14 2.71 1.41 1.73}]\n",
+      "stdout": "1.41 1.73 2.71 3.14\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsort-3.3",
+      "file": "spec/tests/lists/lsort-3.3.tcl",
+      "script": "# Test: lsort -dictionary\nputs [lsort -dictionary {a10 a2 a1 a20}]\n",
+      "stdout": "a1 a2 a10 a20\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsort-3.4",
+      "file": "spec/tests/lists/lsort-3.4.tcl",
+      "script": "# Test: lsort -unique -integer combined\nputs [lsort -unique -integer {3 1 2 1 3 2}]\n",
+      "stdout": "1 2 3\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "lsort-3.5",
+      "file": "spec/tests/lists/lsort-3.5.tcl",
+      "script": "# Test: lsort -nocase -decreasing combined\nputs [lsort -nocase -decreasing {a B c A b C}]\n",
+      "stdout": "c C B b a A\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "split-1.0",
+      "file": "spec/tests/lists/split-1.0.tcl",
+      "script": "# Test: split with default separator\nputs [split \"a b c\"]\n",
+      "stdout": "a b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "split-1.1",
+      "file": "spec/tests/lists/split-1.1.tcl",
+      "script": "# Test: split with custom separator\nputs [split \"a-b-c\" -]\nputs [split \"a,b,c\" ,]\n",
+      "stdout": "a b c\na b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "split-1.2",
+      "file": "spec/tests/lists/split-1.2.tcl",
+      "script": "# Test: split into characters\nputs [split \"abc\" \"\"]\n",
+      "stdout": "a b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "split-1.3",
+      "file": "spec/tests/lists/split-1.3.tcl",
+      "script": "# Test: split on dot for path-like strings\nputs [split \"comp.lang.tcl\" .]\n",
+      "stdout": "comp lang tcl\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "split-1.4",
+      "file": "spec/tests/lists/split-1.4.tcl",
+      "script": "# Test: split with adjacent separators creates empty elements\nputs [split \"a::b\" :]\n",
+      "stdout": "a {} b\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "split-1.5",
+      "file": "spec/tests/lists/split-1.5.tcl",
+      "script": "# Test: split with separator at start and end\nputs [split \":a:b:\" :]\n",
+      "stdout": "{} a b {}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "split-1.6",
+      "file": "spec/tests/lists/split-1.6.tcl",
+      "script": "# Test: split into characters (Hello world example from manual)\nputs [split \"Hello world\" {}]\n",
+      "stdout": "H e l l o { } w o r l d\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "split-1.7",
+      "file": "spec/tests/lists/split-1.7.tcl",
+      "script": "# Test: split empty string\nputs [llength [split \"\" :]]\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "split-1.8",
+      "file": "spec/tests/lists/split-1.8.tcl",
+      "script": "# Test: split on multiple characters\nputs [split \"a:b,c:d\" :,]\n",
+      "stdout": "a b c d\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "split-2.0",
+      "file": "spec/tests/lists/split-2.0.tcl",
+      "script": "# Test: split with only separator characters\nputs [llength [split \":::\" :]]\n",
+      "stdout": "4\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "split-2.1",
+      "file": "spec/tests/lists/split-2.1.tcl",
+      "script": "# Test: split single character string\nputs [split \"x\" \"\"]\n",
+      "stdout": "x\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "split-2.2",
+      "file": "spec/tests/lists/split-2.2.tcl",
+      "script": "# Test: split with no separator matches (returns single element list)\nputs [split \"hello\" :]\nputs [llength [split \"hello\" :]]\n",
+      "stdout": "hello\n1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "split-2.3",
+      "file": "spec/tests/lists/split-2.3.tcl",
+      "script": "# Test: split handles special list characters - creates valid list\nset result [split \"a{b}c\" \"\"]\nputs [llength $result]\n",
+      "stdout": "5\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "split-2.4",
+      "file": "spec/tests/lists/split-2.4.tcl",
+      "script": "# Test: split with tab and newline in splitChars\nputs [split \"a\\tb\\nc\" \"\\t\\n\"]\n",
+      "stdout": "a b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "split-3.0",
+      "file": "spec/tests/lists/split-3.0.tcl",
+      "script": "# Test: split produces valid list from string with braces\nset result [split \"a}b{c\" \"\"]\nputs [lindex $result 0]\nputs [lindex $result 1]\nputs [lindex $result 2]\n",
+      "stdout": "a\n}\nb\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "split-3.1",
+      "file": "spec/tests/lists/split-3.1.tcl",
+      "script": "# Test: split roundtrip with join\nset original \"a:b:c:d\"\nset parts [split $original :]\nset rejoined [join $parts :]\nputs $rejoined\n",
+      "stdout": "a:b:c:d\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "split-3.2",
+      "file": "spec/tests/lists/split-3.2.tcl",
+      "script": "# Test: split preserves spaces in elements when not splitting on space\nputs [split \"a b:c d\" :]\n",
+      "stdout": "{a b} {c d}\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "split-3.3",
+      "file": "spec/tests/lists/split-3.3.tcl",
+      "script": "# Test: split with dollar sign character\nset result [split {a$b$c} {$}]\nputs [llength $result]\nputs [lindex $result 1]\n",
+      "stdout": "3\nb\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "split-3.4",
+      "file": "spec/tests/lists/split-3.4.tcl",
+      "script": "# Test: split string containing backslash\nset result [split {a\\b\\c} \"\\\\\"]\nputs [llength $result]\n",
+      "stdout": "3\n",
+      "stderr": "",
+      "returncode": 0
+    }
+  ]
+}

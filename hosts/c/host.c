@@ -16,6 +16,7 @@ extern TclObj *hostNewBool(int val);
 extern TclObj *hostNewList(TclObj **elems, size_t count);
 extern TclObj *hostNewDict(void);
 extern TclObj *hostDup(TclObj *obj);
+extern void hostFreeObj(TclObj *obj);
 extern const char *hostGetStringPtr(TclObj *obj, size_t *lenOut);
 extern int hostAsInt(TclObj *obj, int64_t *out);
 extern int hostAsDouble(TclObj *obj, double *out);
@@ -285,10 +286,29 @@ static TclObj *hostListIndex(TclObj *list, size_t idx) {
 }
 
 static TclObj *hostListRange(TclObj *list, size_t first, size_t last) {
-    (void)list;
-    (void)first;
-    (void)last;
-    return hostNewString("", 0);
+    if (!list || first > last) {
+        return hostNewString("", 0);
+    }
+
+    size_t listLen = hostListLengthImpl(list);
+    if (first >= listLen) {
+        return hostNewString("", 0);
+    }
+    if (last >= listLen) {
+        last = listLen - 1;
+    }
+
+    size_t count = last - first + 1;
+    TclObj **elems = malloc(count * sizeof(TclObj*));
+    if (!elems) return hostNewString("", 0);
+
+    for (size_t i = 0; i < count; i++) {
+        elems[i] = hostListIndexImpl(list, first + i);
+    }
+
+    TclObj *result = hostNewList(elems, count);
+    free(elems);
+    return result;
 }
 
 static TclObj *hostListSet(TclObj *list, size_t idx, TclObj *val) {
@@ -299,9 +319,24 @@ static TclObj *hostListSet(TclObj *list, size_t idx, TclObj *val) {
 }
 
 static TclObj *hostListAppend(TclObj *list, TclObj *elem) {
-    (void)list;
-    (void)elem;
-    return NULL;
+    if (!elem) return list ? hostDup(list) : hostNewString("", 0);
+
+    size_t listLen = list ? hostListLengthImpl(list) : 0;
+    size_t newCount = listLen + 1;
+
+    TclObj **elems = malloc(newCount * sizeof(TclObj*));
+    if (!elems) return list ? hostDup(list) : hostNewString("", 0);
+
+    /* Copy existing elements */
+    for (size_t i = 0; i < listLen; i++) {
+        elems[i] = hostListIndexImpl(list, i);
+    }
+    /* Add new element */
+    elems[listLen] = elem;
+
+    TclObj *result = hostNewList(elems, newCount);
+    free(elems);
+    return result;
 }
 
 static TclObj *hostListConcat(TclObj *a, TclObj *b) {
@@ -316,6 +351,205 @@ static TclObj *hostListInsert(TclObj *list, size_t idx, TclObj **elems, size_t c
     (void)elems;
     (void)count;
     return NULL;
+}
+
+/* Compare function for qsort - ascending string */
+static int cmpStrAsc(const void *a, const void *b) {
+    TclObj *oa = *(TclObj **)a;
+    TclObj *ob = *(TclObj **)b;
+    return hostStringCompare(oa, ob);
+}
+
+/* Compare function for qsort - descending string */
+static int cmpStrDesc(const void *a, const void *b) {
+    return -cmpStrAsc(a, b);
+}
+
+/* Case-insensitive string comparison */
+static int strcasecmpTcl(const char *a, const char *b) {
+    while (*a && *b) {
+        char ca = *a, cb = *b;
+        if (ca >= 'A' && ca <= 'Z') ca += 32;
+        if (cb >= 'A' && cb <= 'Z') cb += 32;
+        if (ca != cb) return (unsigned char)ca - (unsigned char)cb;
+        a++; b++;
+    }
+    return (unsigned char)*a - (unsigned char)*b;
+}
+
+/* Compare function for qsort - ascending string nocase */
+static int cmpStrNocaseAsc(const void *a, const void *b) {
+    TclObj *oa = *(TclObj **)a;
+    TclObj *ob = *(TclObj **)b;
+    size_t lenA, lenB;
+    const char *sa = hostGetStringPtr(oa, &lenA);
+    const char *sb = hostGetStringPtr(ob, &lenB);
+    return strcasecmpTcl(sa, sb);
+}
+
+/* Compare function for qsort - descending string nocase */
+static int cmpStrNocaseDesc(const void *a, const void *b) {
+    return -cmpStrNocaseAsc(a, b);
+}
+
+/* Compare function for qsort - ascending integer */
+static int cmpIntAsc(const void *a, const void *b) {
+    TclObj *oa = *(TclObj **)a;
+    TclObj *ob = *(TclObj **)b;
+    int64_t ia, ib;
+    hostAsInt(oa, &ia);
+    hostAsInt(ob, &ib);
+    if (ia < ib) return -1;
+    if (ia > ib) return 1;
+    return 0;
+}
+
+/* Compare function for qsort - descending integer */
+static int cmpIntDesc(const void *a, const void *b) {
+    return -cmpIntAsc(a, b);
+}
+
+/* Compare function for qsort - ascending real */
+static int cmpRealAsc(const void *a, const void *b) {
+    TclObj *oa = *(TclObj **)a;
+    TclObj *ob = *(TclObj **)b;
+    double da, db;
+    hostAsDouble(oa, &da);
+    hostAsDouble(ob, &db);
+    if (da < db) return -1;
+    if (da > db) return 1;
+    return 0;
+}
+
+/* Compare function for qsort - descending real */
+static int cmpRealDesc(const void *a, const void *b) {
+    return -cmpRealAsc(a, b);
+}
+
+/* Dictionary comparison - case insensitive with embedded numbers */
+static int dictcmp(const char *a, const char *b) {
+    while (*a && *b) {
+        /* Check if both are digits */
+        if ((*a >= '0' && *a <= '9') && (*b >= '0' && *b <= '9')) {
+            /* Compare as numbers */
+            long na = 0, nb = 0;
+            while (*a >= '0' && *a <= '9') { na = na * 10 + (*a - '0'); a++; }
+            while (*b >= '0' && *b <= '9') { nb = nb * 10 + (*b - '0'); b++; }
+            if (na != nb) return (na < nb) ? -1 : 1;
+        } else {
+            /* Compare as case-insensitive chars */
+            char ca = *a, cb = *b;
+            if (ca >= 'A' && ca <= 'Z') ca += 32;
+            if (cb >= 'A' && cb <= 'Z') cb += 32;
+            if (ca != cb) return (unsigned char)ca - (unsigned char)cb;
+            a++; b++;
+        }
+    }
+    return (unsigned char)*a - (unsigned char)*b;
+}
+
+/* Compare function for qsort - ascending dictionary */
+static int cmpDictAsc(const void *a, const void *b) {
+    TclObj *oa = *(TclObj **)a;
+    TclObj *ob = *(TclObj **)b;
+    size_t lenA, lenB;
+    const char *sa = hostGetStringPtr(oa, &lenA);
+    const char *sb = hostGetStringPtr(ob, &lenB);
+    return dictcmp(sa, sb);
+}
+
+/* Compare function for qsort - descending dictionary */
+static int cmpDictDesc(const void *a, const void *b) {
+    return -cmpDictAsc(a, b);
+}
+
+static TclObj *hostListSort(TclObj *list, int flags) {
+    if (!list) return hostNewString("", 0);
+
+    size_t listLen = hostListLengthImpl(list);
+    if (listLen == 0) return hostNewString("", 0);
+    if (listLen == 1) return hostDup(list);
+
+    /* Get all elements */
+    TclObj **elems = malloc(listLen * sizeof(TclObj*));
+    if (!elems) return hostDup(list);
+
+    for (size_t i = 0; i < listLen; i++) {
+        elems[i] = hostListIndexImpl(list, i);
+    }
+
+    /* flags: 1=decreasing, 2=integer, 4=nocase, 8=unique, 16=dictionary, 32=real */
+    int decreasing = flags & 1;
+    int integer = flags & 2;
+    int nocase = flags & 4;
+    int unique = flags & 8;
+    int dictionary = flags & 16;
+    int real = flags & 32;
+
+    /* Select comparison function */
+    int (*cmpfn)(const void*, const void*);
+    if (integer) {
+        cmpfn = decreasing ? cmpIntDesc : cmpIntAsc;
+    } else if (real) {
+        cmpfn = decreasing ? cmpRealDesc : cmpRealAsc;
+    } else if (dictionary) {
+        cmpfn = decreasing ? cmpDictDesc : cmpDictAsc;
+    } else if (nocase) {
+        cmpfn = decreasing ? cmpStrNocaseDesc : cmpStrNocaseAsc;
+    } else {
+        cmpfn = decreasing ? cmpStrDesc : cmpStrAsc;
+    }
+
+    qsort(elems, listLen, sizeof(TclObj*), cmpfn);
+
+    /* Apply -unique if requested */
+    size_t resultLen = listLen;
+    if (unique && listLen > 1) {
+        /* Remove duplicates in-place - use same comparison for equality */
+        size_t writeIdx = 1;
+        for (size_t i = 1; i < listLen; i++) {
+            int same = 0;
+            if (integer) {
+                int64_t a, b;
+                hostAsInt(elems[writeIdx-1], &a);
+                hostAsInt(elems[i], &b);
+                same = (a == b);
+            } else if (real) {
+                double a, b;
+                hostAsDouble(elems[writeIdx-1], &a);
+                hostAsDouble(elems[i], &b);
+                same = (a == b);
+            } else if (dictionary || nocase) {
+                size_t lenA, lenB;
+                const char *sa = hostGetStringPtr(elems[writeIdx-1], &lenA);
+                const char *sb = hostGetStringPtr(elems[i], &lenB);
+                same = (strcasecmpTcl(sa, sb) == 0);
+            } else {
+                same = (hostStringCompare(elems[writeIdx-1], elems[i]) == 0);
+            }
+            if (!same) {
+                if (writeIdx != i) {
+                    hostFreeObj(elems[writeIdx]);
+                    elems[writeIdx] = elems[i];
+                    elems[i] = NULL;
+                }
+                writeIdx++;
+            } else {
+                hostFreeObj(elems[i]);
+                elems[i] = NULL;
+            }
+        }
+        resultLen = writeIdx;
+    }
+
+    TclObj *result = hostNewList(elems, resultLen);
+
+    /* Free remaining elements */
+    for (size_t i = 0; i < listLen; i++) {
+        if (elems[i]) hostFreeObj(elems[i]);
+    }
+    free(elems);
+    return result;
 }
 
 /* ========================================================================
@@ -646,6 +880,7 @@ const TclHost cHost = {
     .listAppend = hostListAppend,
     .listConcat = hostListConcat,
     .listInsert = hostListInsert,
+    .listSort = hostListSort,
 
     /* Dicts */
     .dictGet = hostDictGet,

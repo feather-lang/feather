@@ -75,7 +75,94 @@ TclObj *hostNewBool(int val) {
     return hostNewString(val ? "1" : "0", 1);
 }
 
-/* Create a new list object (space-separated for now) */
+/* Check if a string needs quoting in a list - returns:
+ * 0 = no quoting needed
+ * 1 = can use brace quoting
+ * 2 = needs backslash quoting (unbalanced braces, odd trailing \, or ")
+ */
+static int needsListQuoting(const char *s, size_t len) {
+    if (len == 0) return 1;  /* Empty string needs braces */
+
+    /* Check if starts with # (needs brace quoting to prevent comment) */
+    int startsWithHash = (s[0] == '#');
+
+    int needsQuote = startsWithHash;
+    int braceDepth = 0;
+    int hasUnbalancedBrace = 0;
+    int hasQuote = 0;
+
+    /* Check if starts with { or ends with } - these need quoting */
+    int startsWithBrace = (len > 0 && s[0] == '{');
+    int endsWithBrace = (len > 0 && s[len-1] == '}');
+
+    if (startsWithBrace || endsWithBrace) needsQuote = 1;
+
+    for (size_t i = 0; i < len; i++) {
+        char c = s[i];
+        if (c == '{') {
+            braceDepth++;
+        } else if (c == '}') {
+            braceDepth--;
+            if (braceDepth < 0) hasUnbalancedBrace = 1;
+        } else if (c == '"') {
+            hasQuote = 1;
+            needsQuote = 1;
+        } else if (c == '\\') {
+            needsQuote = 1;
+        } else if (c == ' ' || c == '\t' || c == '\n' || c == '\r' ||
+                   c == '$' || c == '[' || c == ']' || c == ';') {
+            needsQuote = 1;
+        }
+    }
+
+    if (braceDepth != 0) hasUnbalancedBrace = 1;
+
+    /* Unbalanced braces need quoting */
+    if (hasUnbalancedBrace) needsQuote = 1;
+
+    /* Count trailing backslashes - odd count can't use brace quoting */
+    int trailingBackslashes = 0;
+    for (size_t i = len; i > 0; i--) {
+        if (s[i-1] == '\\') trailingBackslashes++;
+        else break;
+    }
+    int hasOddTrailingBackslash = (trailingBackslashes % 2 == 1);
+
+    if (!needsQuote) return 0;
+    /* Can't use brace quoting if: unbalanced braces, has quotes, or odd trailing backslash */
+    if (hasUnbalancedBrace || hasQuote || hasOddTrailingBackslash) return 2;
+    return 1;  /* can use brace quoting */
+}
+
+/* Count backslash-escaped length for an element */
+static size_t backslashQuotedLen(const char *s, size_t len) {
+    size_t result = 0;
+    for (size_t i = 0; i < len; i++) {
+        char c = s[i];
+        if (c == '{' || c == '}' || c == '\\' || c == '"' ||
+            c == '$' || c == '[' || c == ']' || c == ' ' || c == ';') {
+            result += 2;  /* backslash + char */
+        } else {
+            result += 1;
+        }
+    }
+    return result;
+}
+
+/* Write backslash-quoted string */
+static char *writeBackslashQuoted(char *p, const char *s, size_t len) {
+    for (size_t i = 0; i < len; i++) {
+        char c = s[i];
+        if (c == '{' || c == '}' || c == '\\' || c == '"' ||
+            c == '$' || c == '[' || c == ']' || c == ' ' || c == ';') {
+            *p++ = '\\';
+        }
+        *p++ = c;
+    }
+    return p;
+}
+
+/* Create a new list object with proper quoting */
 TclObj *hostNewList(TclObj **elems, size_t count) {
     if (count == 0) {
         return hostNewString("", 0);
@@ -84,8 +171,16 @@ TclObj *hostNewList(TclObj **elems, size_t count) {
     /* Calculate total length needed */
     size_t totalLen = 0;
     for (size_t i = 0; i < count; i++) {
-        totalLen += elems[i]->stringLen;
-        if (i > 0) totalLen++; /* space separator */
+        int quoteType = needsListQuoting(elems[i]->stringRep, elems[i]->stringLen);
+        if (quoteType == 2) {
+            /* Backslash quoting */
+            totalLen += backslashQuotedLen(elems[i]->stringRep, elems[i]->stringLen);
+        } else if (quoteType == 1) {
+            totalLen += elems[i]->stringLen + 2;  /* Add {} */
+        } else {
+            totalLen += elems[i]->stringLen;
+        }
+        if (i > 0) totalLen++;  /* space separator */
     }
 
     char *buf = malloc(totalLen + 1);
@@ -94,12 +189,23 @@ TclObj *hostNewList(TclObj **elems, size_t count) {
     char *p = buf;
     for (size_t i = 0; i < count; i++) {
         if (i > 0) *p++ = ' ';
-        memcpy(p, elems[i]->stringRep, elems[i]->stringLen);
-        p += elems[i]->stringLen;
+        int quoteType = needsListQuoting(elems[i]->stringRep, elems[i]->stringLen);
+        if (quoteType == 2) {
+            /* Backslash quoting */
+            p = writeBackslashQuoted(p, elems[i]->stringRep, elems[i]->stringLen);
+        } else if (quoteType == 1) {
+            *p++ = '{';
+            memcpy(p, elems[i]->stringRep, elems[i]->stringLen);
+            p += elems[i]->stringLen;
+            *p++ = '}';
+        } else {
+            memcpy(p, elems[i]->stringRep, elems[i]->stringLen);
+            p += elems[i]->stringLen;
+        }
     }
     *p = '\0';
 
-    TclObj *obj = hostNewString(buf, totalLen);
+    TclObj *obj = hostNewString(buf, p - buf);
     free(buf);
     return obj;
 }
@@ -298,14 +404,46 @@ static TclObj *parseListElement(const char **pos, const char *end) {
         return hostNewString(start, len);
     }
 
-    /* Bare word - read until whitespace */
+    /* Bare word - read until unescaped whitespace, and unescape backslashes */
     start = p;
-    while (p < end && !isListSpace(*p)) {
-        p++;
+    int hasEscape = 0;
+    const char *scanP = p;
+    while (scanP < end) {
+        if (*scanP == '\\' && scanP + 1 < end) {
+            hasEscape = 1;
+            scanP += 2;
+        } else if (isListSpace(*scanP)) {
+            break;
+        } else {
+            scanP++;
+        }
     }
-    len = p - start;
-    *pos = p;
-    return hostNewString(start, len);
+    len = scanP - start;
+    *pos = scanP;
+
+    if (!hasEscape) {
+        return hostNewString(start, len);
+    }
+
+    /* Need to unescape backslashes */
+    char *buf = malloc(len + 1);
+    if (!buf) return hostNewString(start, len);
+
+    char *out = buf;
+    p = start;
+    while (p < scanP) {
+        if (*p == '\\' && p + 1 < scanP) {
+            p++;  /* Skip backslash */
+            *out++ = *p++;
+        } else {
+            *out++ = *p++;
+        }
+    }
+    *out = '\0';
+
+    TclObj *result = hostNewString(buf, out - buf);
+    free(buf);
+    return result;
 }
 
 /* Parse list into array of elements.

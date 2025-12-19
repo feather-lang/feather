@@ -1,0 +1,8 @@
+{
+  "feature": "lists",
+  "passed": 0,
+  "failed": 0,
+  "total": 0,
+  "tests": null,
+  "error": "no oracle found for feature \"lists\"\nRun: make oracle FEATURE=lists"
+}

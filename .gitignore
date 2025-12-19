@@ -65,3 +65,4 @@ coverage.html
 *.tmp
 *.temp
 *.log
+hosts/go/go

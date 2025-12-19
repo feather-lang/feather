@@ -276,6 +276,7 @@ struct TclHost {
     TclObj* (*listAppend)(TclObj *list, TclObj *elem);
     TclObj* (*listConcat)(TclObj *a, TclObj *b);
     TclObj* (*listInsert)(TclObj *list, size_t idx, TclObj **elems, size_t count);
+    TclObj* (*listSort)(TclObj *list, int flags);  /* flags: 1=decreasing, 2=integer */
 
     /* ==================================================================
      * Dict Operations
