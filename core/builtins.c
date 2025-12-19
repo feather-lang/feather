@@ -2091,6 +2091,7 @@ static const TclBuiltinEntry builtinTable[] = {
     {"expr",     tclCmdExpr},
     {"for",      tclCmdFor},
     {"foreach",  tclCmdForeach},
+    {"global",   tclCmdGlobal},
     {"if",       tclCmdIf},
     {"incr",     tclCmdIncr},
     {"info",     tclCmdInfo},
@@ -2111,6 +2112,8 @@ static const TclBuiltinEntry builtinTable[] = {
     {"throw",    tclCmdThrow},
     {"try",      tclCmdTry},
     {"unset",    tclCmdUnset},
+    {"uplevel",  tclCmdUplevel},
+    {"upvar",    tclCmdUpvar},
     {"while",    tclCmdWhile},
 };
 

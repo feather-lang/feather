@@ -13,20 +13,27 @@ extern TclObj *hostNewString(const char *s, size_t len);
 extern void hostFreeObj(TclObj *obj);
 extern const char *hostGetStringPtr(TclObj *obj, size_t *lenOut);
 
+/* Forward declaration */
+typedef struct VarTable VarTable;
+
 /* Hash table entry */
 typedef struct VarEntry {
     char            *name;      /* Variable name */
     size_t           nameLen;   /* Name length */
-    TclObj          *value;     /* Variable value */
+    TclObj          *value;     /* Variable value (NULL if linked) */
     struct VarEntry *next;      /* Next in chain */
+    /* Link information for upvar/global */
+    VarTable        *linkTable; /* Target table (NULL if not linked) */
+    char            *linkName;  /* Target variable name */
+    size_t           linkNameLen;
 } VarEntry;
 
 /* Hash table */
 #define VAR_TABLE_SIZE 256
 
-typedef struct VarTable {
+struct VarTable {
     VarEntry *buckets[VAR_TABLE_SIZE];
-} VarTable;
+};
 
 /* Simple hash function */
 static unsigned int hashName(const char *name, size_t len) {
@@ -55,7 +62,8 @@ void hostVarsFree(void *ctx, void *vars) {
         while (entry) {
             VarEntry *next = entry->next;
             free(entry->name);
-            hostFreeObj(entry->value);
+            if (entry->value) hostFreeObj(entry->value);
+            if (entry->linkName) free(entry->linkName);
             free(entry);
             entry = next;
         }
@@ -77,24 +85,36 @@ static VarEntry *findEntry(VarTable *table, const char *name, size_t len) {
     return NULL;
 }
 
-/* Get variable value */
+/* Get variable value (follows links) */
 TclObj *hostVarGet(void *vars, const char *name, size_t len) {
     VarTable *table = vars;
     if (!table) return NULL;
 
     VarEntry *entry = findEntry(table, name, len);
-    return entry ? entry->value : NULL;
+    if (!entry) return NULL;
+
+    /* Follow link if this is a linked variable */
+    if (entry->linkTable) {
+        return hostVarGet(entry->linkTable, entry->linkName, entry->linkNameLen);
+    }
+
+    return entry->value;
 }
 
-/* Set variable value */
+/* Set variable value (follows links) */
 void hostVarSet(void *vars, const char *name, size_t len, TclObj *val) {
     VarTable *table = vars;
     if (!table) return;
 
     VarEntry *entry = findEntry(table, name, len);
     if (entry) {
+        /* Follow link if this is a linked variable */
+        if (entry->linkTable) {
+            hostVarSet(entry->linkTable, entry->linkName, entry->linkNameLen, val);
+            return;
+        }
         /* Replace existing value */
-        hostFreeObj(entry->value);
+        if (entry->value) hostFreeObj(entry->value);
         entry->value = val;
     } else {
         /* Create new entry */
@@ -110,6 +130,9 @@ void hostVarSet(void *vars, const char *name, size_t len, TclObj *val) {
         entry->name[len] = '\0';
         entry->nameLen = len;
         entry->value = val;
+        entry->linkTable = NULL;
+        entry->linkName = NULL;
+        entry->linkNameLen = 0;
 
         /* Insert at head of bucket */
         unsigned int h = hashName(name, len);
@@ -139,11 +162,20 @@ void hostVarUnset(void *vars, const char *name, size_t len) {
     }
 }
 
-/* Check if variable exists */
+/* Check if variable exists (follows links) */
 int hostVarExists(void *vars, const char *name, size_t len) {
     VarTable *table = vars;
     if (!table) return 0;
-    return findEntry(table, name, len) != NULL;
+
+    VarEntry *entry = findEntry(table, name, len);
+    if (!entry) return 0;
+
+    /* Follow link if this is a linked variable */
+    if (entry->linkTable) {
+        return hostVarExists(entry->linkTable, entry->linkName, entry->linkNameLen);
+    }
+
+    return entry->value != NULL;
 }
 
 /* Get list of variable names matching pattern (NULL for all) */
@@ -193,16 +225,58 @@ TclObj *hostVarNames(void *vars, const char *pattern) {
     return result;
 }
 
-/* Link a local variable to another variable (stub) */
+/* Link a local variable to another variable */
 void hostVarLink(void *localVars, const char *localName, size_t localLen,
                  void *targetVars, const char *targetName, size_t targetLen) {
-    /* TODO: Implement upvar/global linking */
-    (void)localVars;
-    (void)localName;
-    (void)localLen;
-    (void)targetVars;
-    (void)targetName;
-    (void)targetLen;
+    VarTable *table = localVars;
+    if (!table || !targetVars) return;
+
+    /* Find or create the local entry */
+    VarEntry *entry = findEntry(table, localName, localLen);
+    if (!entry) {
+        /* Create new entry */
+        entry = malloc(sizeof(VarEntry));
+        if (!entry) return;
+
+        entry->name = malloc(localLen + 1);
+        if (!entry->name) {
+            free(entry);
+            return;
+        }
+        memcpy(entry->name, localName, localLen);
+        entry->name[localLen] = '\0';
+        entry->nameLen = localLen;
+        entry->value = NULL;
+        entry->next = NULL;
+        entry->linkTable = NULL;
+        entry->linkName = NULL;
+        entry->linkNameLen = 0;
+
+        /* Insert at head of bucket */
+        unsigned int h = hashName(localName, localLen);
+        entry->next = table->buckets[h];
+        table->buckets[h] = entry;
+    }
+
+    /* Clear any existing value (we're now a link) */
+    if (entry->value) {
+        hostFreeObj(entry->value);
+        entry->value = NULL;
+    }
+
+    /* Clear any existing link name */
+    if (entry->linkName) {
+        free(entry->linkName);
+    }
+
+    /* Set up the link */
+    entry->linkTable = targetVars;
+    entry->linkName = malloc(targetLen + 1);
+    if (entry->linkName) {
+        memcpy(entry->linkName, targetName, targetLen);
+        entry->linkName[targetLen] = '\0';
+        entry->linkNameLen = targetLen;
+    }
 }
 
 /* Array operations - store as varName(key) in same table */

@@ -201,6 +201,11 @@ TclResult tclCmdString(TclInterp *interp, int objc, TclObj **objv);
 TclResult tclCmdExpr(TclInterp *interp, int objc, TclObj **objv);
 TclResult tclCmdSubst(TclInterp *interp, int objc, TclObj **objv);
 
+/* Scope commands (builtin_global.c, builtin_upvar.c, builtin_uplevel.c) */
+TclResult tclCmdGlobal(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdUpvar(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdUplevel(TclInterp *interp, int objc, TclObj **objv);
+
 /* ========================================================================
  * Interpreter Functions (from tclc.h, implemented in eval.c)
  * ======================================================================== */

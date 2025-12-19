@@ -109,11 +109,15 @@ features:
     description: "Scope manipulation (upvar, uplevel, global)"
     depends: [proc]
     phase: 2
-    status: pending
+    status: complete
     tests: ["upvar-*", "uplevel-*", "global-*"]
     source_files:
-      - path: core/builtins.c
-        description: Built-in commands
+      - path: core/builtin_global.c
+        description: global command implementation
+      - path: core/builtin_upvar.c
+        description: upvar command implementation
+      - path: core/builtin_uplevel.c
+        description: uplevel command implementation
 
   # Phase 3: Data Structures
   - id: list

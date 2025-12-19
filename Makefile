@@ -19,7 +19,8 @@ BUILD_DIR = build
 
 # Source files
 CORE_SRCS = $(CORE_DIR)/lexer.c $(CORE_DIR)/parser.c $(CORE_DIR)/subst.c \
-            $(CORE_DIR)/eval.c $(CORE_DIR)/builtins.c $(CORE_DIR)/builtin_expr.c
+            $(CORE_DIR)/eval.c $(CORE_DIR)/builtins.c $(CORE_DIR)/builtin_expr.c \
+            $(CORE_DIR)/builtin_global.c $(CORE_DIR)/builtin_upvar.c $(CORE_DIR)/builtin_uplevel.c
 HOST_C_SRCS = $(HOST_C_DIR)/host.c $(HOST_C_DIR)/object.c $(HOST_C_DIR)/vars.c \
               $(HOST_C_DIR)/arena.c $(HOST_C_DIR)/channel.c $(HOST_C_DIR)/main.c
 
