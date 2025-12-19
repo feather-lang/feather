@@ -1,0 +1,271 @@
+# TCL Core Feature Queue
+# Features are ordered by dependency - implement in order
+
+features:
+  # Phase 1: Core Language
+  - id: lexer
+    description: "Tokenize TCL source into words, respecting quoting rules"
+    depends: []
+    phase: 1
+    status: pending
+    tests: ["lexer-*"]
+    source_files:
+      - path: core/lexer.c
+        description: Lexer implementation
+
+  - id: parser
+    description: "Parse token stream into command structure"
+    depends: [lexer]
+    phase: 1
+    status: pending
+    tests: ["parser-*"]
+    source_files:
+      - path: core/parser.c
+        description: Parser implementation
+
+  - id: subst
+    description: "Variable, command, and backslash substitution"
+    depends: [lexer, parser]
+    phase: 1
+    status: pending
+    tests: ["subst-*"]
+    source_files:
+      - path: core/subst.c
+        description: Substitution implementation
+
+  - id: variables
+    description: "Variable storage and retrieval (set, unset)"
+    depends: [lexer, parser]
+    phase: 1
+    status: pending
+    tests: ["var-*"]
+    source_files:
+      - path: core/builtins.c
+        description: Built-in commands
+
+  - id: commands
+    description: "Command dispatch infrastructure"
+    depends: [lexer, parser]
+    phase: 1
+    status: pending
+    tests: ["cmd-*"]
+    source_files:
+      - path: core/eval.c
+        description: Evaluation loop
+
+  - id: eval
+    description: "Command evaluation trampoline"
+    depends: [subst, variables, commands]
+    phase: 1
+    status: pending
+    tests: ["eval-*"]
+    source_files:
+      - path: core/eval.c
+        description: Evaluation loop
+
+  # Phase 2: Control Flow and Procedures
+  - id: expr
+    description: "Expression parser and evaluator"
+    depends: [eval]
+    phase: 2
+    status: pending
+    tests: ["expr-*"]
+    source_files:
+      - path: core/expr.c
+        description: Expression evaluator
+
+  - id: control
+    description: "Control flow commands (if, while, for, foreach, switch)"
+    depends: [eval, expr]
+    phase: 2
+    status: pending
+    tests: ["if-*", "while-*", "for-*", "foreach-*", "switch-*", "break-*", "continue-*"]
+    source_files:
+      - path: core/builtins.c
+        description: Built-in commands
+
+  - id: proc
+    description: "Procedure definition and invocation"
+    depends: [eval]
+    phase: 2
+    status: pending
+    tests: ["proc-*"]
+    source_files:
+      - path: core/builtins.c
+        description: Built-in commands
+      - path: core/eval.c
+        description: Evaluation loop
+
+  - id: scope
+    description: "Scope manipulation (upvar, uplevel, global)"
+    depends: [proc]
+    phase: 2
+    status: pending
+    tests: ["upvar-*", "uplevel-*", "global-*"]
+    source_files:
+      - path: core/builtins.c
+        description: Built-in commands
+
+  # Phase 3: Data Structures
+  - id: list
+    description: "List manipulation commands"
+    depends: [eval]
+    phase: 3
+    status: pending
+    tests: ["list-*"]
+    source_files:
+      - path: core/builtins.c
+        description: Built-in commands
+
+  - id: string
+    description: "String manipulation commands"
+    depends: [eval]
+    phase: 3
+    status: pending
+    tests: ["string-*", "format-*", "scan-*"]
+    source_files:
+      - path: core/builtins.c
+        description: Built-in commands
+      - path: core/format.c
+        description: Format/scan implementation
+
+  - id: dict
+    description: "Dictionary manipulation commands"
+    depends: [eval]
+    phase: 3
+    status: pending
+    tests: ["dict-*"]
+    source_files:
+      - path: core/builtins.c
+        description: Built-in commands
+
+  - id: array
+    description: "Array manipulation commands"
+    depends: [variables]
+    phase: 3
+    status: pending
+    tests: ["array-*"]
+    source_files:
+      - path: core/builtins.c
+        description: Built-in commands
+
+  # Phase 4: Error Handling and I/O
+  - id: error
+    description: "Error handling (catch, try, throw, error)"
+    depends: [eval]
+    phase: 4
+    status: pending
+    tests: ["catch-*", "try-*", "error-*", "throw-*"]
+    source_files:
+      - path: core/builtins.c
+        description: Built-in commands
+      - path: core/eval.c
+        description: Evaluation loop
+
+  - id: io
+    description: "I/O commands (puts, gets, open, close, read)"
+    depends: [eval]
+    phase: 4
+    status: pending
+    tests: ["io-*", "chan-*"]
+    source_files:
+      - path: core/builtins.c
+        description: Built-in commands
+
+  # Phase 5: Advanced Features
+  - id: event
+    description: "Event loop (after, vwait, fileevent)"
+    depends: [io]
+    phase: 5
+    status: pending
+    tests: ["after-*", "vwait-*", "fileevent-*"]
+    source_files:
+      - path: core/builtins.c
+        description: Built-in commands
+
+  - id: interp
+    description: "Multiple interpreter support"
+    depends: [eval]
+    phase: 5
+    status: pending
+    tests: ["interp-*"]
+    source_files:
+      - path: core/interp.c
+        description: Interpreter management
+      - path: core/builtins.c
+        description: Built-in commands
+
+  - id: coroutine
+    description: "Coroutine support (coroutine, yield, yieldto)"
+    depends: [eval, proc]
+    phase: 5
+    status: pending
+    tests: ["coro-*"]
+    source_files:
+      - path: core/coro.c
+        description: Coroutine management
+      - path: core/eval.c
+        description: Evaluation loop
+
+  # Phase 6: System Integration
+  - id: exec
+    description: "Subprocess execution"
+    depends: [io]
+    phase: 6
+    status: pending
+    tests: ["exec-*"]
+    source_files:
+      - path: core/builtins.c
+        description: Built-in commands
+
+  - id: file
+    description: "File system commands"
+    depends: [io]
+    phase: 6
+    status: pending
+    tests: ["file-*"]
+    source_files:
+      - path: core/builtins.c
+        description: Built-in commands
+
+  - id: socket
+    description: "Network socket support"
+    depends: [io, event]
+    phase: 6
+    status: pending
+    tests: ["socket-*"]
+    source_files:
+      - path: core/builtins.c
+        description: Built-in commands
+
+  - id: regex
+    description: "Regular expression support (regexp, regsub)"
+    depends: [eval]
+    phase: 6
+    status: pending
+    tests: ["regexp-*", "regsub-*"]
+    source_files:
+      - path: core/builtins.c
+        description: Built-in commands
+
+  - id: info
+    description: "Introspection commands"
+    depends: [eval, proc, variables]
+    phase: 6
+    status: pending
+    tests: ["info-*"]
+    source_files:
+      - path: core/builtins.c
+        description: Built-in commands
+
+  - id: namespace
+    description: "Namespace support"
+    depends: [eval, proc, variables]
+    phase: 6
+    status: pending
+    tests: ["namespace-*"]
+    source_files:
+      - path: core/namespace.c
+        description: Namespace implementation
+      - path: core/eval.c
+        description: Evaluation loop

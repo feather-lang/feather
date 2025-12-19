@@ -1,0 +1,68 @@
+# Build artifacts
+/build/
+*.o
+*.a
+*.so
+*.dylib
+
+# C executables (no extension)
+/tclc
+/test_runner
+
+# Go
+/host/host
+*.exe
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.egg-info/
+.eggs/
+
+# Test results and generated files
+/harness/results/
+/harness/oracle/*.out
+/prompt.md
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.*.sw?
+\#*\#
+.#*
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+
+# Tags
+TAGS
+tags
+GTAGS
+GRTAGS
+GPATH
+
+# Debug
+*.dSYM/
+core
+vgcore.*
+
+# Coverage
+*.gcov
+*.gcda
+*.gcno
+coverage.out
+coverage.html
+
+# Temporary
+*.tmp
+*.temp
+*.log
