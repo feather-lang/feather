@@ -1,0 +1,510 @@
+{
+  "feature": "info",
+  "tclsh": "tclsh",
+  "tests": [
+    {
+      "name": "args-3.0",
+      "file": "spec/tests/info/args-3.0.tcl",
+      "script": "# Test: info args - procedure with no arguments\nproc noargs {} { return 1 }\nputs [info args noargs]\n",
+      "stdout": "\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "args-3.1",
+      "file": "spec/tests/info/args-3.1.tcl",
+      "script": "# Test: info args - procedure with one argument\nproc onearg {x} { return $x }\nputs [info args onearg]\n",
+      "stdout": "x\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "args-3.2",
+      "file": "spec/tests/info/args-3.2.tcl",
+      "script": "# Test: info args - procedure with multiple arguments\nproc multiargs {a b c} { return \"$a $b $c\" }\nputs [info args multiargs]\n",
+      "stdout": "a b c\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "args-3.3",
+      "file": "spec/tests/info/args-3.3.tcl",
+      "script": "# Test: info args - procedure with default argument\nproc withdefault {x {y 10}} { return \"$x $y\" }\nputs [info args withdefault]\n",
+      "stdout": "x y\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "args-3.4",
+      "file": "spec/tests/info/args-3.4.tcl",
+      "script": "# Test: info args - procedure with args parameter\nproc varargs {x args} { return $x }\nputs [info args varargs]\n",
+      "stdout": "x args\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "args-3.5",
+      "file": "spec/tests/info/args-3.5.tcl",
+      "script": "# Test: info args - nonexistent procedure\ncatch {info args nonexistent} err\nputs $err\n",
+      "stdout": "\"nonexistent\" isn't a procedure\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "body-4.0",
+      "file": "spec/tests/info/body-4.0.tcl",
+      "script": "# Test: info body - simple procedure\nproc simple {} { return hello }\nputs [info body simple]\n",
+      "stdout": " return hello \n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "body-4.1",
+      "file": "spec/tests/info/body-4.1.tcl",
+      "script": "# Test: info body - multi-line procedure\nproc multiline {x} {\n    set y [expr {$x + 1}]\n    return $y\n}\nputs [info body multiline]\n",
+      "stdout": "\n    set y [expr {$x + 1}]\n    return $y\n\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "body-4.2",
+      "file": "spec/tests/info/body-4.2.tcl",
+      "script": "# Test: info body - empty body\nproc emptybody {} {}\nputs [info body emptybody]\n",
+      "stdout": "\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "body-4.3",
+      "file": "spec/tests/info/body-4.3.tcl",
+      "script": "# Test: info body - nonexistent procedure\ncatch {info body nonexistent} err\nputs $err\n",
+      "stdout": "\"nonexistent\" isn't a procedure\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "commands-5.0",
+      "file": "spec/tests/info/commands-5.0.tcl",
+      "script": "# Test: info commands - check if returns a list containing set\nputs [expr {\"set\" in [info commands]}]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "commands-5.1",
+      "file": "spec/tests/info/commands-5.1.tcl",
+      "script": "# Test: info commands - pattern matching\nproc testcmd1 {} {}\nproc testcmd2 {} {}\nputs [lsort [info commands testcmd*]]\n",
+      "stdout": "testcmd1 testcmd2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "commands-5.2",
+      "file": "spec/tests/info/commands-5.2.tcl",
+      "script": "# Test: info commands - pattern with no matches\nputs [info commands zzzznonexistent*]\n",
+      "stdout": "\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "commands-5.3",
+      "file": "spec/tests/info/commands-5.3.tcl",
+      "script": "# Test: info commands - includes user-defined procs\nproc myproc {} { return 1 }\nputs [expr {\"myproc\" in [info commands]}]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "complete-6.0",
+      "file": "spec/tests/info/complete-6.0.tcl",
+      "script": "# Test: info complete - complete command\nputs [info complete {set x 1}]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "complete-6.1",
+      "file": "spec/tests/info/complete-6.1.tcl",
+      "script": "# Test: info complete - incomplete brace\nputs [info complete {set x {}]\n",
+      "stdout": "",
+      "stderr": "missing close-brace\n    while executing\n\"puts [info complete {\"\n    (file \"spec/tests/info/complete-6.1.tcl\" line 2)\n",
+      "returncode": 1
+    },
+    {
+      "name": "complete-6.2",
+      "file": "spec/tests/info/complete-6.2.tcl",
+      "script": "# Test: info complete - incomplete quote\nputs [info complete {set x \"hello}]\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "complete-6.3",
+      "file": "spec/tests/info/complete-6.3.tcl",
+      "script": "# Test: info complete - incomplete bracket\nputs [info complete {set x [expr 1}]\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "complete-6.4",
+      "file": "spec/tests/info/complete-6.4.tcl",
+      "script": "# Test: info complete - empty string\nputs [info complete {}]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "complete-6.5",
+      "file": "spec/tests/info/complete-6.5.tcl",
+      "script": "# Test: info complete - multiline complete command\nputs [info complete {if {1} {\n    puts hello\n}}]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "default-7.0",
+      "file": "spec/tests/info/default-7.0.tcl",
+      "script": "# Test: info default - parameter with default value\nproc withdef {x {y 42}} { return \"$x $y\" }\nputs [info default withdef y defval]\nputs $defval\n",
+      "stdout": "1\n42\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "default-7.1",
+      "file": "spec/tests/info/default-7.1.tcl",
+      "script": "# Test: info default - parameter without default value\nproc nodef {x y} { return \"$x $y\" }\nputs [info default nodef x defval]\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "default-7.2",
+      "file": "spec/tests/info/default-7.2.tcl",
+      "script": "# Test: info default - empty string default\nproc emptydef {x {y {}}} { return $x }\nputs [info default emptydef y defval]\nputs \"value:$defval:\"\n",
+      "stdout": "1\nvalue::\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "default-7.3",
+      "file": "spec/tests/info/default-7.3.tcl",
+      "script": "# Test: info default - nonexistent procedure\ncatch {info default nonexistent x defval} err\nputs $err\n",
+      "stdout": "\"nonexistent\" isn't a procedure\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "default-7.4",
+      "file": "spec/tests/info/default-7.4.tcl",
+      "script": "# Test: info default - nonexistent parameter\nproc someproc {a b} { return 1 }\ncatch {info default someproc z defval} err\nputs $err\n",
+      "stdout": "procedure \"someproc\" doesn't have an argument \"z\"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "error-2.0",
+      "file": "spec/tests/info/error-2.0.tcl",
+      "script": "# Test: info with no subcommand\ncatch {info} err\nputs $err\n",
+      "stdout": "wrong # args: should be \"info subcommand ?arg ...?\"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "error-2.1",
+      "file": "spec/tests/info/error-2.1.tcl",
+      "script": "# Test: info exists with no varname\ncatch {info exists} err\nputs $err\n",
+      "stdout": "wrong # args: should be \"info exists varName\"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "error-2.2",
+      "file": "spec/tests/info/error-2.2.tcl",
+      "script": "# Test: info exists with too many arguments\ncatch {info exists a b} err\nputs $err\n",
+      "stdout": "wrong # args: should be \"info exists varName\"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "error-2.3",
+      "file": "spec/tests/info/error-2.3.tcl",
+      "script": "# Test: info with unknown subcommand\ncatch {info unknown} err\nputs $err\n",
+      "stdout": "unknown or ambiguous subcommand \"unknown\": must be args, body, class, cmdcount, cmdtype, commands, complete, constant, consts, coroutine, default, errorstack, exists, frame, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, object, patchlevel, procs, script, sharedlibextension, tclversion, or vars\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "exists-1.0",
+      "file": "spec/tests/info/exists-1.0.tcl",
+      "script": "# Test: info exists - variable that exists\nset x 42\nputs [info exists x]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "exists-1.1",
+      "file": "spec/tests/info/exists-1.1.tcl",
+      "script": "# Test: info exists - variable that doesn't exist\nputs [info exists nonexistent]\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "exists-1.2",
+      "file": "spec/tests/info/exists-1.2.tcl",
+      "script": "# Test: info exists - global variable with :: prefix\nset ::globalvar 100\nputs [info exists ::globalvar]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "exists-1.3",
+      "file": "spec/tests/info/exists-1.3.tcl",
+      "script": "# Test: info exists - local variable in proc\nproc testLocal {} {\n    set localvar 10\n    puts [info exists localvar]\n}\ntestLocal\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "exists-1.4",
+      "file": "spec/tests/info/exists-1.4.tcl",
+      "script": "# Test: info exists - nonexistent local variable in proc\nproc testNonexistent {} {\n    puts [info exists undefined]\n}\ntestNonexistent\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "exists-1.5",
+      "file": "spec/tests/info/exists-1.5.tcl",
+      "script": "# Test: info exists - global variable from within proc using :: prefix\nset ::topvar 99\nproc checkGlobal {} {\n    puts [info exists ::topvar]\n}\ncheckGlobal\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "exists-1.6",
+      "file": "spec/tests/info/exists-1.6.tcl",
+      "script": "# Test: info exists - array element that exists\nset arr(key) value\nputs [info exists arr(key)]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "exists-1.7",
+      "file": "spec/tests/info/exists-1.7.tcl",
+      "script": "# Test: info exists - array element that doesn't exist\nset arr(one) 1\nputs [info exists arr(two)]\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "exists-1.8",
+      "file": "spec/tests/info/exists-1.8.tcl",
+      "script": "# Test: info exists - array name without subscript (array exists)\nset arr(x) 1\nputs [info exists arr]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "exists-1.9",
+      "file": "spec/tests/info/exists-1.9.tcl",
+      "script": "# Test: info exists - empty string variable name\nset {} hello\nputs [info exists {}]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "globals-8.0",
+      "file": "spec/tests/info/globals-8.0.tcl",
+      "script": "# Test: info globals - basic global variables\nset gvar1 10\nset gvar2 20\nputs [expr {\"gvar1\" in [info globals]}]\nputs [expr {\"gvar2\" in [info globals]}]\n",
+      "stdout": "1\n1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "globals-8.1",
+      "file": "spec/tests/info/globals-8.1.tcl",
+      "script": "# Test: info globals - pattern matching\nset testglobal1 1\nset testglobal2 2\nset other 3\nputs [lsort [info globals testglobal*]]\n",
+      "stdout": "testglobal1 testglobal2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "globals-8.2",
+      "file": "spec/tests/info/globals-8.2.tcl",
+      "script": "# Test: info globals - pattern with no match\nputs [info globals zzzznonexistent*]\n",
+      "stdout": "\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "globals-8.3",
+      "file": "spec/tests/info/globals-8.3.tcl",
+      "script": "# Test: info globals - from within proc\nset myglobal 100\nproc checkglobals {} {\n    puts [expr {\"myglobal\" in [info globals]}]\n}\ncheckglobals\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "level-9.0",
+      "file": "spec/tests/info/level-9.0.tcl",
+      "script": "# Test: info level - at global level\nputs [info level]\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "level-9.1",
+      "file": "spec/tests/info/level-9.1.tcl",
+      "script": "# Test: info level - one level deep\nproc level1 {} {\n    puts [info level]\n}\nlevel1\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "level-9.2",
+      "file": "spec/tests/info/level-9.2.tcl",
+      "script": "# Test: info level - two levels deep\nproc level2 {} {\n    puts [info level]\n}\nproc level1 {} {\n    level2\n}\nlevel1\n",
+      "stdout": "2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "level-9.3",
+      "file": "spec/tests/info/level-9.3.tcl",
+      "script": "# Test: info level - get command at specific level\nproc inner {a b} {\n    puts [info level 1]\n}\nproc outer {} {\n    inner x y\n}\nouter\n",
+      "stdout": "outer\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "level-9.4",
+      "file": "spec/tests/info/level-9.4.tcl",
+      "script": "# Test: info level - negative level (relative)\nproc inner {} {\n    puts [info level -1]\n}\nproc outer {x y} {\n    inner\n}\nouter a b\n",
+      "stdout": "outer a b\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "level-9.5",
+      "file": "spec/tests/info/level-9.5.tcl",
+      "script": "# Test: info level 0 - current command\nproc showme {arg1 arg2} {\n    puts [info level 0]\n}\nshowme hello world\n",
+      "stdout": "showme hello world\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "locals-10.0",
+      "file": "spec/tests/info/locals-10.0.tcl",
+      "script": "# Test: info locals - in procedure\nproc testlocals {} {\n    set a 1\n    set b 2\n    puts [lsort [info locals]]\n}\ntestlocals\n",
+      "stdout": "a b\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "locals-10.1",
+      "file": "spec/tests/info/locals-10.1.tcl",
+      "script": "# Test: info locals - includes proc arguments\nproc testargs {x y} {\n    set z 3\n    puts [lsort [info locals]]\n}\ntestargs 1 2\n",
+      "stdout": "x y z\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "locals-10.2",
+      "file": "spec/tests/info/locals-10.2.tcl",
+      "script": "# Test: info locals - pattern matching\nproc testpattern {} {\n    set foo1 1\n    set foo2 2\n    set bar 3\n    puts [lsort [info locals foo*]]\n}\ntestpattern\n",
+      "stdout": "foo1 foo2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "locals-10.3",
+      "file": "spec/tests/info/locals-10.3.tcl",
+      "script": "# Test: info locals - at global level (no locals)\nset x 1\nputs [info locals]\n",
+      "stdout": "\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "locals-10.4",
+      "file": "spec/tests/info/locals-10.4.tcl",
+      "script": "# Test: info locals - excludes global linked variables\nset ::gvar 100\nproc testglobal {} {\n    global gvar\n    set localvar 1\n    puts [lsort [info locals]]\n}\ntestglobal\n",
+      "stdout": "localvar\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "procs-11.0",
+      "file": "spec/tests/info/procs-11.0.tcl",
+      "script": "# Test: info procs - list includes user-defined proc\nproc myproc1 {} { return 1 }\nputs [expr {\"myproc1\" in [info procs]}]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "procs-11.1",
+      "file": "spec/tests/info/procs-11.1.tcl",
+      "script": "# Test: info procs - pattern matching\nproc testproc1 {} {}\nproc testproc2 {} {}\nproc otherproc {} {}\nputs [lsort [info procs testproc*]]\n",
+      "stdout": "testproc1 testproc2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "procs-11.2",
+      "file": "spec/tests/info/procs-11.2.tcl",
+      "script": "# Test: info procs - does not include builtins\nputs [expr {\"set\" in [info procs]}]\n",
+      "stdout": "0\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "procs-11.3",
+      "file": "spec/tests/info/procs-11.3.tcl",
+      "script": "# Test: info procs - pattern with no match\nputs [info procs zzzznonexistent*]\n",
+      "stdout": "\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "vars-12.0",
+      "file": "spec/tests/info/vars-12.0.tcl",
+      "script": "# Test: info vars - at global level\nset myvar1 10\nset myvar2 20\nputs [expr {\"myvar1\" in [info vars]}]\nputs [expr {\"myvar2\" in [info vars]}]\n",
+      "stdout": "1\n1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "vars-12.1",
+      "file": "spec/tests/info/vars-12.1.tcl",
+      "script": "# Test: info vars - pattern matching\nset testvar1 1\nset testvar2 2\nset other 3\nputs [lsort [info vars testvar*]]\n",
+      "stdout": "testvar1 testvar2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "vars-12.2",
+      "file": "spec/tests/info/vars-12.2.tcl",
+      "script": "# Test: info vars - in procedure shows local vars\nproc testvars {} {\n    set localvar1 1\n    set localvar2 2\n    puts [lsort [info vars localvar*]]\n}\ntestvars\n",
+      "stdout": "localvar1 localvar2\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "vars-12.3",
+      "file": "spec/tests/info/vars-12.3.tcl",
+      "script": "# Test: info vars - includes linked global vars\nset ::gvar 100\nproc testvars {} {\n    global gvar\n    set localvar 1\n    puts [expr {\"gvar\" in [info vars]}]\n    puts [expr {\"localvar\" in [info vars]}]\n}\ntestvars\n",
+      "stdout": "1\n1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "vars-12.4",
+      "file": "spec/tests/info/vars-12.4.tcl",
+      "script": "# Test: info vars - pattern with no match\nputs [info vars zzzznonexistent*]\n",
+      "stdout": "\n",
+      "stderr": "",
+      "returncode": 0
+    }
+  ]
+}
