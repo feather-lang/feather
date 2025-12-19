@@ -1,0 +1,46 @@
+{
+  "feature": "error",
+  "tclsh": "tclsh",
+  "tests": [
+    {
+      "name": "error-1.1",
+      "file": "spec/tests/error/error-1.1.tcl",
+      "script": "# Test: basic error with message\nerror \"something went wrong\"\n",
+      "stdout": "",
+      "stderr": "something went wrong\n    while executing\n\"error \"something went wrong\"\"\n    (file \"spec/tests/error/error-1.1.tcl\" line 2)\n",
+      "returncode": 1
+    },
+    {
+      "name": "error-1.2",
+      "file": "spec/tests/error/error-1.2.tcl",
+      "script": "# Test: error with custom info\nerror \"file not found\" \"in procedure open_file\"\n",
+      "stdout": "",
+      "stderr": "in procedure open_file\n    (file \"spec/tests/error/error-1.2.tcl\" line 1)\n",
+      "returncode": 1
+    },
+    {
+      "name": "error-1.3",
+      "file": "spec/tests/error/error-1.3.tcl",
+      "script": "# Test: error with code\nerror \"permission denied\" \"\" {POSIX EACCES}\n",
+      "stdout": "",
+      "stderr": "permission denied\n    while executing\n\"error \"permission denied\" \"\" {POSIX EACCES}\"\n    (file \"spec/tests/error/error-1.3.tcl\" line 2)\n",
+      "returncode": 1
+    },
+    {
+      "name": "error-1.4",
+      "file": "spec/tests/error/error-1.4.tcl",
+      "script": "# Test: error in conditional - error not reached\nif {0} {\n    error \"this should not happen\"\n}\nputs \"ok\"\n",
+      "stdout": "ok\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "error-1.5",
+      "file": "spec/tests/error/error-1.5.tcl",
+      "script": "# Test: error with variable interpolation\nset msg \"invalid value\"\nerror $msg\n",
+      "stdout": "",
+      "stderr": "invalid value\n    while executing\n\"error $msg\"\n    (file \"spec/tests/error/error-1.5.tcl\" line 3)\n",
+      "returncode": 1
+    }
+  ]
+}

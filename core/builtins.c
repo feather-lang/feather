@@ -1365,6 +1365,43 @@ TclResult tclCmdInfo(TclInterp *interp, int objc, TclObj **objv) {
 }
 
 /* ========================================================================
+ * error Command
+ * ======================================================================== */
+
+TclResult tclCmdError(TclInterp *interp, int objc, TclObj **objv) {
+    const TclHost *host = interp->host;
+
+    if (objc < 2 || objc > 4) {
+        tclSetError(interp, "wrong # args: should be \"error message ?info? ?code?\"", -1);
+        return TCL_ERROR;
+    }
+
+    /* Get the error message */
+    size_t msgLen;
+    const char *msg = host->getStringPtr(objv[1], &msgLen);
+
+    /* Set the error message */
+    tclSetError(interp, msg, (int)msgLen);
+
+    /* Handle optional info argument (errorInfo) */
+    if (objc >= 3) {
+        size_t infoLen;
+        const char *info = host->getStringPtr(objv[2], &infoLen);
+        if (infoLen > 0) {
+            /* Set errorInfo directly instead of letting it accumulate */
+            interp->errorInfo = host->newString(info, infoLen);
+        }
+    }
+
+    /* Handle optional code argument (errorCode) */
+    if (objc >= 4) {
+        tclSetErrorCode(interp, objv[3]);
+    }
+
+    return TCL_ERROR;
+}
+
+/* ========================================================================
  * Builtin Table
  * ======================================================================== */
 
@@ -1374,6 +1411,7 @@ static const TclBuiltinEntry builtinTable[] = {
     {"array",    tclCmdArray},
     {"break",    tclCmdBreak},
     {"continue", tclCmdContinue},
+    {"error",    tclCmdError},
     {"expr",     tclCmdExpr},
     {"for",      tclCmdFor},
     {"foreach",  tclCmdForeach},
