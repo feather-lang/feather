@@ -7,7 +7,7 @@ features:
     description: "Tokenize TCL source into words, respecting quoting rules"
     depends: []
     phase: 1
-    status: pending
+    status: complete
     tests: ["lexer-*"]
     source_files:
       - path: core/lexer.c
@@ -79,7 +79,16 @@ features:
     depends: [eval, expr]
     phase: 2
     status: pending
-    tests: ["if-*", "while-*", "for-*", "foreach-*", "switch-*", "break-*", "continue-*"]
+    tests:
+      [
+        "if-*",
+        "while-*",
+        "for-*",
+        "foreach-*",
+        "switch-*",
+        "break-*",
+        "continue-*",
+      ]
     source_files:
       - path: core/builtins.c
         description: Built-in commands

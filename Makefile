@@ -57,7 +57,7 @@ $(HARNESS): $(BUILD_DIR) $(wildcard $(HARNESS_DIR)/*.go)
 harness: $(HARNESS)
 
 # Build
-build: $(BUILD_DIR)
+build:
 	@echo "Building C core..."
 	@if ls $(CORE_DIR)/*.c 1> /dev/null 2>&1; then \
 		$(CC) $(CFLAGS) -c $(CORE_DIR)/*.c -I$(CORE_DIR); \
