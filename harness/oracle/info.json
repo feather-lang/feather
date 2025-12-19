@@ -467,6 +467,46 @@
       "returncode": 0
     },
     {
+      "name": "script-13.0",
+      "file": "spec/tests/info/script-13.0.tcl",
+      "script": "# Test: info script - returns current script path\nputs [info script]\n",
+      "stdout": "spec/tests/info/script-13.0.tcl\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "script-13.1",
+      "file": "spec/tests/info/script-13.1.tcl",
+      "script": "# Test: info script - returns non-empty when run from file\nputs [expr {[info script] ne \"\"}]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "script-13.2",
+      "file": "spec/tests/info/script-13.2.tcl",
+      "script": "# Test: info script - set and get script name\nset original [info script]\ninfo script \"/tmp/test.tcl\"\nputs [info script]\ninfo script $original\n",
+      "stdout": "/tmp/test.tcl\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "script-13.3",
+      "file": "spec/tests/info/script-13.3.tcl",
+      "script": "# Test: info script - too many args\ncatch {info script a b} result\nputs $result\n",
+      "stdout": "wrong # args: should be \"info script ?filename?\"\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "script-13.4",
+      "file": "spec/tests/info/script-13.4.tcl",
+      "script": "# Test: info script - nested proc still returns script\nproc getScript {} {\n    return [info script]\n}\nputs [expr {[getScript] ne \"\"}]\n",
+      "stdout": "1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
       "name": "vars-12.0",
       "file": "spec/tests/info/vars-12.0.tcl",
       "script": "# Test: info vars - at global level\nset myvar1 10\nset myvar2 20\nputs [expr {\"myvar1\" in [info vars]}]\nputs [expr {\"myvar2\" in [info vars]}]\n",

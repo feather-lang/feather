@@ -531,6 +531,45 @@ TclResult tclCmdInfo(TclInterp *interp, int objc, TclObj **objv) {
         return TCL_OK;
     }
 
+    /* info script ?filename? */
+    if (subcmdLen == 6 && tclStrncmp(subcmd, "script", 6) == 0) {
+        if (objc > 3) {
+            tclSetError(interp, "wrong # args: should be \"info script ?filename?\"", -1);
+            return TCL_ERROR;
+        }
+
+        /* Get the current script path */
+        const char *currentScript = interp->scriptFile ? interp->scriptFile : "";
+
+        if (objc == 3) {
+            /* Set new script path, return old one */
+            size_t newPathLen;
+            const char *newPath = host->getStringPtr(objv[2], &newPathLen);
+
+            /* Return the old script path */
+            tclSetResult(interp, host->newString(currentScript, tclStrlen(currentScript)));
+
+            /* Set the new script path - need to copy the string since objv might be freed */
+            /* The host should provide a way to store this, but for now we use the arena */
+            if (newPathLen > 0) {
+                void *arena = host->arenaPush(interp->hostCtx);
+                char *newScriptPath = host->arenaAlloc(arena, newPathLen + 1, 1);
+                for (size_t i = 0; i < newPathLen; i++) {
+                    newScriptPath[i] = newPath[i];
+                }
+                newScriptPath[newPathLen] = '\0';
+                interp->scriptFile = newScriptPath;
+                /* Note: arena is intentionally not popped - the string needs to persist */
+            } else {
+                interp->scriptFile = NULL;
+            }
+        } else {
+            /* Just return current script path */
+            tclSetResult(interp, host->newString(currentScript, tclStrlen(currentScript)));
+        }
+        return TCL_OK;
+    }
+
     /* Use static error message - subcmd name is embedded as literal */
     /* This matches what string/dict commands do */
     (void)subcmd;  /* Unused for now - using literal "unknown" */
