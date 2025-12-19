@@ -41,6 +41,70 @@
       "stdout": "",
       "stderr": "invalid value\n    while executing\n\"error $msg\"\n    (file \"spec/tests/error/error-1.5.tcl\" line 3)\n",
       "returncode": 1
+    },
+    {
+      "name": "error-2.1",
+      "file": "spec/tests/error/error-2.1.tcl",
+      "script": "# Test: error caught by catch\nset result [catch {error \"test error\"} msg]\nputs \"result: $result\"\nputs \"msg: $msg\"\n",
+      "stdout": "result: 1\nmsg: test error\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "error-2.2",
+      "file": "spec/tests/error/error-2.2.tcl",
+      "script": "# Test: error with all three arguments\ncatch {error \"test message\" \"custom info\" {CUSTOM CODE}} msg\nputs \"msg: $msg\"\n",
+      "stdout": "msg: test message\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "error-2.3",
+      "file": "spec/tests/error/error-2.3.tcl",
+      "script": "# Test: empty error message\ncatch {error \"\"} msg\nputs \"msg: '$msg'\"\n",
+      "stdout": "msg: ''\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "error-2.4",
+      "file": "spec/tests/error/error-2.4.tcl",
+      "script": "# Test: error in proc\nproc fail {} {\n    error \"proc failed\"\n}\ncatch {fail} msg\nputs \"msg: $msg\"\n",
+      "stdout": "msg: proc failed\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "error-2.5",
+      "file": "spec/tests/error/error-2.5.tcl",
+      "script": "# Test: errorInfo variable after error\ncatch {error \"test error\"}\nputs \"errorInfo exists: [info exists ::errorInfo]\"\n",
+      "stdout": "errorInfo exists: 1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "error-2.6",
+      "file": "spec/tests/error/error-2.6.tcl",
+      "script": "# Test: errorCode variable after error with code\ncatch {error \"test\" \"\" {POSIX ENOENT}}\nputs \"errorCode exists: [info exists ::errorCode]\"\n",
+      "stdout": "errorCode exists: 1\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "error-2.7",
+      "file": "spec/tests/error/error-2.7.tcl",
+      "script": "# Test: error with special characters in message\ncatch {error \"error with \\{braces\\} and \\$dollar\"} msg\nputs \"msg: $msg\"\n",
+      "stdout": "msg: error with {braces} and $dollar\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "error-2.8",
+      "file": "spec/tests/error/error-2.8.tcl",
+      "script": "# Test: nested proc error\nproc inner {} {\n    error \"inner error\"\n}\nproc outer {} {\n    inner\n}\ncatch {outer} msg\nputs \"msg: $msg\"\n",
+      "stdout": "msg: inner error\n",
+      "stderr": "",
+      "returncode": 0
     }
   ]
 }

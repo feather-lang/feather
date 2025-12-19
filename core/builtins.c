@@ -1282,10 +1282,19 @@ TclResult tclCmdInfo(TclInterp *interp, int objc, TclObj **objv) {
         }
         size_t nameLen;
         const char *name = host->getStringPtr(objv[2], &nameLen);
-        void *vars = interp->currentFrame->varsHandle;
+
+        /* Handle :: prefix for global variables */
+        int forceGlobal = 0;
+        if (nameLen >= 2 && name[0] == ':' && name[1] == ':') {
+            name += 2;
+            nameLen -= 2;
+            forceGlobal = 1;
+        }
+
+        void *vars = forceGlobal ? interp->globalFrame->varsHandle : interp->currentFrame->varsHandle;
 
         int exists = host->varExists(vars, name, nameLen);
-        if (!exists && interp->currentFrame != interp->globalFrame) {
+        if (!exists && !forceGlobal && interp->currentFrame != interp->globalFrame) {
             exists = host->varExists(interp->globalFrame->varsHandle, name, nameLen);
         }
 
@@ -1352,6 +1361,25 @@ TclResult tclCmdCatch(TclInterp *interp, int objc, TclObj **objv) {
 
     /* Execute the script and capture the result code */
     TclResult code = tclEvalScript(interp, script, scriptLen);
+
+    /* Set global errorInfo and errorCode variables after catching an error */
+    if (code == TCL_ERROR) {
+        void *globalVars = interp->globalFrame->varsHandle;
+
+        /* Set ::errorInfo */
+        if (interp->errorInfo) {
+            host->varSet(globalVars, "errorInfo", 9, host->dup(interp->errorInfo));
+        } else if (interp->result) {
+            host->varSet(globalVars, "errorInfo", 9, host->dup(interp->result));
+        }
+
+        /* Set ::errorCode */
+        if (interp->errorCode) {
+            host->varSet(globalVars, "errorCode", 9, host->dup(interp->errorCode));
+        } else {
+            host->varSet(globalVars, "errorCode", 9, host->newString("NONE", 4));
+        }
+    }
 
     /* Store result in variable if requested */
     if (objc >= 3) {
