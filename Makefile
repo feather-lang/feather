@@ -1,7 +1,7 @@
 # TCLC Makefile
 # TCL Core Implementation - Build and Test Orchestration
 
-.PHONY: all clean test test-c test-integration oracle oracle-all diff loop prompt help features deps check-tools harness
+.PHONY: all clean test test-c test-integration oracle oracle-all diff diff-all loop prompt help features deps check-tools harness
 
 # Configuration
 CC ?= clang
@@ -48,6 +48,7 @@ help:
 	@echo "  make test-c         - Run C unit tests only"
 	@echo "  make test-integration - Run integration tests"
 	@echo "  make diff FEATURE=x - Run differential tests for feature x"
+	@echo "  make diff-all       - Run differential tests for all features"
 	@echo ""
 	@echo "Oracle targets:"
 	@echo "  make oracle-all     - Generate oracle for all features"
@@ -143,6 +144,12 @@ ifndef FEATURE
 	$(error FEATURE is required. Usage: make diff FEATURE=lexer)
 endif
 	@TCLC_INTERP=$(TCLC) $(HARNESS) diff $(FEATURE)
+
+# Run differential tests for all features (auto-discovered from spec/tests/)
+diff-all: $(HARNESS) $(TCLC)
+	@for feature in $$(ls -d $(SPEC_DIR)/tests/*/ 2>/dev/null | xargs -n1 basename); do \
+		TCLC_INTERP=$(TCLC) $(HARNESS) diff $$feature; \
+	done
 
 # Agent Prompt Generation
 prompt: $(HARNESS)
