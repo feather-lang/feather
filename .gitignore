@@ -1,5 +1,6 @@
 # Build artifacts
 /build/
+/bin/
 *.o
 *.a
 *.so
@@ -65,5 +66,3 @@ coverage.html
 *.tmp
 *.temp
 *.log
-hosts/go/go
-bin/harness

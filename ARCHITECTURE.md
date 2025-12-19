@@ -447,29 +447,40 @@ tclc/
 ├── ARCHITECTURE.md          # This file
 ├── Makefile                 # Build orchestration
 │
-├── core/                    # C implementation
-│   ├── tclc.h              # Host interface (public)
+├── core/                    # C core library (no main)
+│   ├── tclc.h              # Host interface (public API)
 │   ├── internal.h          # Internal declarations
-│   ├── lexer.c
-│   ├── parser.c
-│   ├── subst.c
-│   ├── expr.c
-│   ├── eval.c
-│   ├── builtins.c
-│   ├── coro.c
-│   ├── interp.c
-│   └── test/
-│       ├── mock_host.c
-│       └── test_*.c
+│   ├── lexer.c             # Tokenizer
+│   ├── parser.c            # Command parser
+│   ├── subst.c             # Substitution engine
+│   ├── eval.c              # Evaluation trampoline
+│   ├── builtins.c          # Built-in commands
+│   ├── builtin_expr.c      # Expression evaluator
+│   ├── builtin_global.c    # global command
+│   ├── builtin_upvar.c     # upvar command
+│   └── builtin_uplevel.c   # uplevel command
 │
-├── host/                    # Go implementation
-│   ├── host.go             # TclHost callbacks
-│   ├── object.go           # TclObj implementation
-│   ├── arena.go            # Arena allocator
-│   ├── vars.go             # Variable tables
-│   ├── channel.go          # I/O channels
-│   ├── event.go            # Event loop
-│   └── interp.go           # High-level API
+├── hosts/                   # Host implementations
+│   ├── c/                  # C host (primary)
+│   │   ├── host.c          # TclHost callback implementations
+│   │   ├── object.c        # TclObj implementation
+│   │   ├── vars.c          # Variable tables
+│   │   ├── arena.c         # Arena allocator
+│   │   ├── channel.c       # I/O channels
+│   │   └── main.c          # Entry point
+│   │
+│   └── go/                 # Go host (CGO wrapper)
+│       └── (future)
+│
+├── build/                   # Build artifacts (generated)
+│   ├── *.o                 # Object files
+│   ├── libtclc.a           # Static library
+│   └── libtclc.dylib       # Dynamic library
+│
+├── bin/                     # Executables (generated)
+│   ├── tclc                # C host interpreter
+│   ├── tclgo               # Go host interpreter
+│   └── harness             # Test harness
 │
 ├── spec/                    # Specifications
 │   ├── features.yaml
@@ -479,8 +490,8 @@ tclc/
     ├── README.md
     ├── AGENT_PROMPT.md
     ├── FEATURES.md
-    ├── oracle/
-    └── tests/
+    ├── oracle/             # Expected outputs from tclsh
+    └── tests/              # Test scripts
 ```
 
 ## Future Considerations

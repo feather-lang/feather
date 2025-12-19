@@ -11,7 +11,7 @@ Generate a prompt for a specific feature:
 make prompt FEATURE=subst
 
 # Direct harness invocation
-./build/harness prompt subst
+./bin/harness prompt subst
 
 # Save to file
 make prompt FEATURE=subst > prompt.md

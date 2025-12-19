@@ -1,7 +1,7 @@
 # TCLC Makefile
 # TCL Core Implementation - Build and Test Orchestration
 
-.PHONY: all clean test test-c test-integration oracle oracle-all diff diff-all loop prompt help features deps check-tools harness
+.PHONY: all clean test test-c test-integration oracle oracle-all diff diff-all loop prompt help features deps check-tools harness libs build build-all build-go
 
 # Configuration
 CC ?= clang
@@ -16,6 +16,7 @@ HOST_GO_DIR = hosts/go
 SPEC_DIR = spec
 HARNESS_DIR = harness
 BUILD_DIR = build
+BIN_DIR = bin
 
 # Source files
 CORE_SRCS = $(CORE_DIR)/lexer.c $(CORE_DIR)/parser.c $(CORE_DIR)/subst.c \
@@ -28,9 +29,14 @@ HOST_C_SRCS = $(HOST_C_DIR)/host.c $(HOST_C_DIR)/object.c $(HOST_C_DIR)/vars.c \
 CORE_OBJS = $(patsubst $(CORE_DIR)/%.c,$(BUILD_DIR)/%.o,$(CORE_SRCS))
 HOST_C_OBJS = $(patsubst $(HOST_C_DIR)/%.c,$(BUILD_DIR)/host_%.o,$(HOST_C_SRCS))
 
+# Libraries
+LIBTCLC_STATIC = $(BUILD_DIR)/libtclc.a
+LIBTCLC_DYNAMIC = $(BUILD_DIR)/libtclc.dylib
+
 # Binaries
-TCLC = $(BUILD_DIR)/tclc
-HARNESS = $(BUILD_DIR)/harness
+TCLC = $(BIN_DIR)/tclc
+TCLGO = $(BIN_DIR)/tclgo
+HARNESS = $(BIN_DIR)/harness
 
 # Default target
 all: help
@@ -40,8 +46,11 @@ help:
 	@echo "TCLC - TCL Core Implementation"
 	@echo ""
 	@echo "Build targets:"
-	@echo "  make build          - Build the C core and Go host"
-	@echo "  make harness        - Build the test harness"
+	@echo "  make build          - Build bin/tclc (C host)"
+	@echo "  make build-go       - Build bin/tclgo (Go host)"
+	@echo "  make build-all      - Build all binaries and libraries"
+	@echo "  make libs           - Build libraries only (build/libtclc.a, build/libtclc.dylib)"
+	@echo "  make harness        - Build bin/harness (test harness)"
 	@echo "  make clean          - Remove build artifacts"
 	@echo ""
 	@echo "Test targets:"
@@ -65,15 +74,19 @@ help:
 	@echo "  make check-tools    - Verify required tools are installed"
 
 # Build harness
-$(HARNESS): $(BUILD_DIR) $(wildcard $(HARNESS_DIR)/*.go)
+$(HARNESS): $(BIN_DIR)/.stamp $(wildcard $(HARNESS_DIR)/*.go)
 	cd $(HARNESS_DIR) && $(GO) build -o ../$(HARNESS) .
 
 harness: $(HARNESS)
 
-# Build directory (use a .stamp file to avoid circular dependency)
+# Directory creation (use stamp files to avoid circular dependency)
 $(BUILD_DIR)/.stamp:
 	mkdir -p $(BUILD_DIR)
 	touch $(BUILD_DIR)/.stamp
+
+$(BIN_DIR)/.stamp:
+	mkdir -p $(BIN_DIR)
+	touch $(BIN_DIR)/.stamp
 
 # Core object files
 $(BUILD_DIR)/%.o: $(CORE_DIR)/%.c $(CORE_DIR)/tclc.h $(CORE_DIR)/internal.h $(BUILD_DIR)/.stamp
@@ -83,32 +96,52 @@ $(BUILD_DIR)/%.o: $(CORE_DIR)/%.c $(CORE_DIR)/tclc.h $(CORE_DIR)/internal.h $(BU
 $(BUILD_DIR)/host_%.o: $(HOST_C_DIR)/%.c $(CORE_DIR)/tclc.h $(BUILD_DIR)/.stamp
 	$(CC) $(CFLAGS) -I$(CORE_DIR) -c -o $@ $<
 
-# Build tclc interpreter
-$(TCLC): $(CORE_OBJS) $(HOST_C_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^
+# Static library
+$(LIBTCLC_STATIC): $(CORE_OBJS)
+	ar rcs $@ $^
 
-# Build target
+# Dynamic library
+$(LIBTCLC_DYNAMIC): $(CORE_OBJS)
+	$(CC) $(CFLAGS) -dynamiclib -o $@ $^
+
+# Library targets
+libs: $(LIBTCLC_STATIC) $(LIBTCLC_DYNAMIC)
+
+# Build tclc interpreter (links statically)
+$(TCLC): $(BIN_DIR)/.stamp $(HOST_C_OBJS) $(LIBTCLC_STATIC)
+	$(CC) $(CFLAGS) -o $@ $(HOST_C_OBJS) $(LIBTCLC_STATIC)
+
+# Build Go host
+$(TCLGO): $(BIN_DIR)/.stamp $(LIBTCLC_STATIC)
+	@if [ -f "$(HOST_GO_DIR)/go.mod" ]; then \
+		cd $(HOST_GO_DIR) && CGO_LDFLAGS="-L../../$(BUILD_DIR)" $(GO) build -o ../../$(TCLGO) .; \
+	else \
+		echo "No Go module yet in $(HOST_GO_DIR)/"; \
+		exit 1; \
+	fi
+
+# Build target (all binaries)
 build: $(TCLC)
 	@echo "Built $(TCLC)"
 
-# Build Go host (if present)
-build-go:
-	@echo "Building Go host..."
-	@if [ -f "$(HOST_GO_DIR)/go.mod" ]; then \
-		cd $(HOST_GO_DIR) && $(GO) build ./...; \
-	else \
-		echo "No Go module yet in $(HOST_GO_DIR)/"; \
-	fi
+# Build all including Go host
+build-all: $(TCLC) $(TCLGO) libs
+	@echo "Built $(TCLC), $(TCLGO), and libraries"
+
+# Build Go host only
+build-go: $(TCLGO)
+	@echo "Built $(TCLGO)"
 
 # Clean
 clean:
 	rm -rf $(BUILD_DIR)
+	rm -rf $(BIN_DIR)
 	rm -f *.o
 	rm -f $(HARNESS_DIR)/results/*.json
 	rm -f prompt.md
 
 # C Unit Tests
-test-c: $(BUILD_DIR)
+test-c: $(BUILD_DIR)/.stamp
 	@echo "Running C unit tests..."
 	@if [ -d "$(CORE_DIR)/test" ] && ls $(CORE_DIR)/test/*.c 1> /dev/null 2>&1; then \
 		$(CC) $(CFLAGS) -I$(CORE_DIR) $(CORE_DIR)/test/*.c -lm -o $(BUILD_DIR)/test_runner && \
