@@ -6,7 +6,12 @@
 
 #include "../../core/tclc.h"
 #include <glib.h>
+#include <glib/gstdio.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <signal.h>
 
 /* External functions from object.c */
 extern TclObj *hostNewString(const char *s, size_t len);
@@ -77,6 +82,12 @@ extern TclObj *hostChanCget(TclChannel *chan, const char *opt);
 extern TclObj *hostChanNames(void *ctx, const char *pattern);
 extern void hostChanShare(void *fromCtx, void *toCtx, TclChannel *chan);
 extern void hostChanTransfer(void *fromCtx, void *toCtx, TclChannel *chan);
+extern int hostChanTruncate(TclChannel *chan, int64_t length);
+extern int64_t hostChanCopy(TclChannel *src, TclChannel *dst, int64_t size);
+extern int64_t hostChanPending(TclChannel *chan, int input);
+extern int hostChanPipe(void *ctx, TclChannel **readChan, TclChannel **writeChan);
+extern TclChannel *hostChanLookup(void *ctx, const char *name);
+extern const char *hostChanGetName(TclChannel *chan);
 
 /* ========================================================================
  * Proc Storage
@@ -874,26 +885,110 @@ static int hostDoOneEvent(void *ctx, int flags) {
  * Process/Socket/File stubs
  * ======================================================================== */
 
+/* Process structure */
+typedef struct {
+    GPid pid;
+    gint exit_status;
+    gboolean exited;
+} HostProcess;
+
+/* External channel creation from channel.c */
+extern TclChannel *hostChanFromFd(int fd, gboolean readable, gboolean writable);
+
 static TclProcess *hostProcessSpawn(const char **argv, int argc, int flags,
                                     TclChannel **pipeIn, TclChannel **pipeOut,
                                     TclChannel **pipeErr) {
-    (void)argv; (void)argc; (void)flags;
-    (void)pipeIn; (void)pipeOut; (void)pipeErr;
-    return NULL;
+    (void)argc;
+
+    GError *error = NULL;
+    GPid child_pid;
+    gint stdin_fd = -1, stdout_fd = -1, stderr_fd = -1;
+
+    GSpawnFlags spawn_flags = G_SPAWN_SEARCH_PATH;
+    if (flags & TCL_PROCESS_BACKGROUND) {
+        spawn_flags |= G_SPAWN_DO_NOT_REAP_CHILD;
+    }
+
+    gboolean success = g_spawn_async_with_pipes(
+        NULL,           /* working directory (inherit) */
+        (gchar **)argv, /* argv */
+        NULL,           /* envp (inherit) */
+        spawn_flags,
+        NULL,           /* child setup */
+        NULL,           /* user data */
+        &child_pid,
+        (flags & TCL_PROCESS_PIPE_STDIN) ? &stdin_fd : NULL,
+        (flags & TCL_PROCESS_PIPE_STDOUT) ? &stdout_fd : NULL,
+        (flags & TCL_PROCESS_PIPE_STDERR) ? &stderr_fd : NULL,
+        &error
+    );
+
+    if (!success) {
+        if (error) {
+            g_error_free(error);
+        }
+        return NULL;
+    }
+
+    HostProcess *proc = g_new0(HostProcess, 1);
+    proc->pid = child_pid;
+    proc->exit_status = 0;
+    proc->exited = FALSE;
+
+    /* Create pipe channels if requested */
+    if (pipeIn && stdin_fd >= 0) {
+        *pipeIn = hostChanFromFd(stdin_fd, FALSE, TRUE);
+    }
+
+    if (pipeOut && stdout_fd >= 0) {
+        *pipeOut = hostChanFromFd(stdout_fd, TRUE, FALSE);
+    }
+
+    if (pipeErr && stderr_fd >= 0) {
+        *pipeErr = hostChanFromFd(stderr_fd, TRUE, FALSE);
+    }
+
+    return (TclProcess *)proc;
 }
 
-static int hostProcessWait(TclProcess *proc, int *exitCode) {
-    (void)proc; (void)exitCode;
+static int hostProcessWait(TclProcess *tproc, int *exitCode) {
+    HostProcess *proc = (HostProcess *)tproc;
+    if (!proc) return -1;
+
+    if (proc->exited) {
+        if (exitCode) *exitCode = proc->exit_status;
+        return 0;
+    }
+
+    gint status;
+    GPid result = waitpid(proc->pid, &status, 0);
+    if (result == proc->pid) {
+        proc->exited = TRUE;
+        if (WIFEXITED(status)) {
+            proc->exit_status = WEXITSTATUS(status);
+        } else if (WIFSIGNALED(status)) {
+            proc->exit_status = 128 + WTERMSIG(status);
+        } else {
+            proc->exit_status = -1;
+        }
+        if (exitCode) *exitCode = proc->exit_status;
+        g_spawn_close_pid(proc->pid);
+        return 0;
+    }
+
     return -1;
 }
 
-static int hostProcessPid(TclProcess *proc) {
-    (void)proc;
-    return -1;
+static int hostProcessPid(TclProcess *tproc) {
+    HostProcess *proc = (HostProcess *)tproc;
+    if (!proc) return -1;
+    return (int)proc->pid;
 }
 
-static void hostProcessKill(TclProcess *proc, int signal) {
-    (void)proc; (void)signal;
+static void hostProcessKill(TclProcess *tproc, int signal) {
+    HostProcess *proc = (HostProcess *)tproc;
+    if (!proc || proc->exited) return;
+    kill(proc->pid, signal);
 }
 
 static TclChannel *hostSocketOpen(const char *host, int port, int flags) {
@@ -911,33 +1006,379 @@ static void hostSocketListenClose(void *listener) {
     (void)listener;
 }
 
-static int hostFileExists(const char *path) { (void)path; return 0; }
-static int hostFileIsFile(const char *path) { (void)path; return 0; }
-static int hostFileIsDir(const char *path) { (void)path; return 0; }
-static int hostFileReadable(const char *path) { (void)path; return 0; }
-static int hostFileWritable(const char *path) { (void)path; return 0; }
-static int hostFileExecutable(const char *path) { (void)path; return 0; }
-static int64_t hostFileSize(const char *path) { (void)path; return -1; }
-static int64_t hostFileMtime(const char *path) { (void)path; return -1; }
-static int64_t hostFileAtime(const char *path) { (void)path; return -1; }
-static int hostFileDelete(const char *path, int force) { (void)path; (void)force; return -1; }
+static int hostFileExists(const char *path) {
+    return g_file_test(path, G_FILE_TEST_EXISTS) ? 1 : 0;
+}
+
+static int hostFileIsFile(const char *path) {
+    return g_file_test(path, G_FILE_TEST_IS_REGULAR) ? 1 : 0;
+}
+
+static int hostFileIsDir(const char *path) {
+    return g_file_test(path, G_FILE_TEST_IS_DIR) ? 1 : 0;
+}
+
+static int hostFileReadable(const char *path) {
+    return g_access(path, R_OK) == 0 ? 1 : 0;
+}
+
+static int hostFileWritable(const char *path) {
+    return g_access(path, W_OK) == 0 ? 1 : 0;
+}
+
+static int hostFileExecutable(const char *path) {
+    return g_access(path, X_OK) == 0 ? 1 : 0;
+}
+
+static int64_t hostFileSize(const char *path) {
+    GStatBuf buf;
+    if (g_stat(path, &buf) != 0) return -1;
+    return (int64_t)buf.st_size;
+}
+
+static int64_t hostFileMtime(const char *path) {
+    GStatBuf buf;
+    if (g_stat(path, &buf) != 0) return -1;
+    return (int64_t)buf.st_mtime;
+}
+
+static int64_t hostFileAtime(const char *path) {
+    GStatBuf buf;
+    if (g_stat(path, &buf) != 0) return -1;
+    return (int64_t)buf.st_atime;
+}
+
+static int hostFileDelete(const char *path, int force) {
+    (void)force;
+    /* Check if directory */
+    if (g_file_test(path, G_FILE_TEST_IS_DIR)) {
+        return g_rmdir(path) == 0 ? 0 : -1;
+    }
+    return g_unlink(path) == 0 ? 0 : -1;
+}
+
 static int hostFileRename(const char *old, const char *new_, int force) {
-    (void)old; (void)new_; (void)force; return -1;
+    if (!force && g_file_test(new_, G_FILE_TEST_EXISTS)) {
+        return -1;
+    }
+    return g_rename(old, new_) == 0 ? 0 : -1;
 }
-static int hostFileMkdir(const char *path) { (void)path; return -1; }
+
+static int hostFileMkdir(const char *path) {
+    return g_mkdir_with_parents(path, 0755) == 0 ? 0 : -1;
+}
+
 static int hostFileCopy(const char *src, const char *dst, int force) {
-    (void)src; (void)dst; (void)force; return -1;
+    if (!force && g_file_test(dst, G_FILE_TEST_EXISTS)) {
+        return -1;
+    }
+    gchar *contents = NULL;
+    gsize len = 0;
+    GError *err = NULL;
+    if (!g_file_get_contents(src, &contents, &len, &err)) {
+        if (err) g_error_free(err);
+        return -1;
+    }
+    gboolean ok = g_file_set_contents(dst, contents, len, &err);
+    g_free(contents);
+    if (!ok) {
+        if (err) g_error_free(err);
+        return -1;
+    }
+    return 0;
 }
-static TclObj *hostFileDirname(const char *path) { (void)path; return hostNewString("", 0); }
-static TclObj *hostFileTail(const char *path) { (void)path; return hostNewString("", 0); }
-static TclObj *hostFileExtension(const char *path) { (void)path; return hostNewString("", 0); }
-static TclObj *hostFileRootname(const char *path) { (void)path; return hostNewString("", 0); }
-static TclObj *hostFileJoin(TclObj **parts, size_t count) { (void)parts; (void)count; return hostNewString("", 0); }
-static TclObj *hostFileNormalize(const char *path) { (void)path; return hostNewString("", 0); }
-static TclObj *hostFileSplit(const char *path) { (void)path; return hostNewString("", 0); }
-static TclObj *hostFileType(const char *path) { (void)path; return hostNewString("", 0); }
+
+static TclObj *hostFileDirname(const char *path) {
+    gchar *dir = g_path_get_dirname(path);
+    TclObj *result = hostNewString(dir, strlen(dir));
+    g_free(dir);
+    return result;
+}
+
+static TclObj *hostFileTail(const char *path) {
+    gchar *base = g_path_get_basename(path);
+    TclObj *result = hostNewString(base, strlen(base));
+    g_free(base);
+    return result;
+}
+
+static TclObj *hostFileExtension(const char *path) {
+    /* Get the base filename first */
+    gchar *base = g_path_get_basename(path);
+    const char *dot = strrchr(base, '.');
+    TclObj *result;
+    if (dot) {
+        /* Tcl returns everything from the last dot, even for ".bashrc" */
+        result = hostNewString(dot, strlen(dot));
+    } else {
+        result = hostNewString("", 0);
+    }
+    g_free(base);
+    return result;
+}
+
+static TclObj *hostFileRootname(const char *path) {
+    /* Find last dot in the path (not in directory) */
+    const char *base = strrchr(path, '/');
+    if (base) base++; else base = path;
+    const char *dot = strrchr(base, '.');
+    if (dot) {
+        /* Return everything before the last dot */
+        size_t len = dot - path;
+        return hostNewString(path, len);
+    }
+    return hostNewString(path, strlen(path));
+}
+
+static TclObj *hostFileJoin(TclObj **parts, size_t count) {
+    if (count == 0) return hostNewString("", 0);
+
+    GString *result = g_string_new("");
+    for (size_t i = 0; i < count; i++) {
+        size_t len;
+        const char *s = hostGetStringPtr(parts[i], &len);
+
+        /* If part is absolute path, start fresh */
+        if (len > 0 && s[0] == '/') {
+            g_string_truncate(result, 0);
+            g_string_append_len(result, s, len);
+        } else if (result->len == 0) {
+            g_string_append_len(result, s, len);
+        } else {
+            /* Add separator if needed */
+            if (result->str[result->len - 1] != '/') {
+                g_string_append_c(result, '/');
+            }
+            g_string_append_len(result, s, len);
+        }
+    }
+
+    TclObj *obj = hostNewString(result->str, result->len);
+    g_string_free(result, TRUE);
+    return obj;
+}
+
+static TclObj *hostFileNormalize(const char *path) {
+    gchar *abs = g_canonicalize_filename(path, NULL);
+    TclObj *result = hostNewString(abs, strlen(abs));
+    g_free(abs);
+    return result;
+}
+
+static TclObj *hostFileSplit(const char *path) {
+    GPtrArray *parts = g_ptr_array_new_with_free_func(g_free);
+
+    const char *p = path;
+
+    /* Handle leading / */
+    if (*p == '/') {
+        g_ptr_array_add(parts, g_strdup("/"));
+        p++;
+    }
+
+    /* Split by / */
+    while (*p) {
+        while (*p == '/') p++;  /* Skip consecutive slashes */
+        if (!*p) break;
+
+        const char *start = p;
+        while (*p && *p != '/') p++;
+
+        g_ptr_array_add(parts, g_strndup(start, p - start));
+    }
+
+    /* Build list result */
+    TclObj **elems = g_new(TclObj*, parts->len);
+    for (guint i = 0; i < parts->len; i++) {
+        const char *s = g_ptr_array_index(parts, i);
+        elems[i] = hostNewString(s, strlen(s));
+    }
+    TclObj *result = hostNewList(elems, parts->len);
+    g_free(elems);
+    g_ptr_array_free(parts, TRUE);
+    return result;
+}
+
+static TclObj *hostFileType(const char *path) {
+    GStatBuf buf;
+    if (g_lstat(path, &buf) != 0) return NULL;
+
+    const char *type;
+    if (S_ISREG(buf.st_mode)) type = "file";
+    else if (S_ISDIR(buf.st_mode)) type = "directory";
+    else if (S_ISLNK(buf.st_mode)) type = "link";
+    else if (S_ISCHR(buf.st_mode)) type = "characterSpecial";
+    else if (S_ISBLK(buf.st_mode)) type = "blockSpecial";
+    else if (S_ISFIFO(buf.st_mode)) type = "fifo";
+    else if (S_ISSOCK(buf.st_mode)) type = "socket";
+    else type = "unknown";
+
+    return hostNewString(type, strlen(type));
+}
+
 static TclObj *hostGlob(const char *pattern, int types, const char *dir) {
-    (void)pattern; (void)types; (void)dir; return hostNewString("", 0);
+    (void)pattern; (void)types; (void)dir;
+    /* Glob is complex - return empty list for now */
+    return hostNewList(NULL, 0);
+}
+
+static int hostFilePathtype(const char *path) {
+    if (!path || !*path) return TCL_PATH_RELATIVE;
+    if (path[0] == '/') return TCL_PATH_ABSOLUTE;
+    return TCL_PATH_RELATIVE;
+}
+
+static TclObj *hostFileSeparator(void) {
+    return hostNewString("/", 1);
+}
+
+static TclObj *hostFileStat(const char *path) {
+    GStatBuf buf;
+    if (g_stat(path, &buf) != 0) return NULL;
+
+    TclObj *dict = hostNewDict();
+    extern void hostDictSetInternal(TclObj *dict, const char *key, TclObj *val);
+    hostDictSetInternal(dict, "atime", hostNewInt((int64_t)buf.st_atime));
+    hostDictSetInternal(dict, "ctime", hostNewInt((int64_t)buf.st_ctime));
+    hostDictSetInternal(dict, "dev", hostNewInt((int64_t)buf.st_dev));
+    hostDictSetInternal(dict, "gid", hostNewInt((int64_t)buf.st_gid));
+    hostDictSetInternal(dict, "ino", hostNewInt((int64_t)buf.st_ino));
+    hostDictSetInternal(dict, "mode", hostNewInt((int64_t)buf.st_mode));
+    hostDictSetInternal(dict, "mtime", hostNewInt((int64_t)buf.st_mtime));
+    hostDictSetInternal(dict, "nlink", hostNewInt((int64_t)buf.st_nlink));
+    hostDictSetInternal(dict, "size", hostNewInt((int64_t)buf.st_size));
+    hostDictSetInternal(dict, "uid", hostNewInt((int64_t)buf.st_uid));
+
+    const char *type;
+    if (S_ISREG(buf.st_mode)) type = "file";
+    else if (S_ISDIR(buf.st_mode)) type = "directory";
+    else if (S_ISLNK(buf.st_mode)) type = "link";
+    else if (S_ISCHR(buf.st_mode)) type = "characterSpecial";
+    else if (S_ISBLK(buf.st_mode)) type = "blockSpecial";
+    else if (S_ISFIFO(buf.st_mode)) type = "fifo";
+    else if (S_ISSOCK(buf.st_mode)) type = "socket";
+    else type = "unknown";
+    hostDictSetInternal(dict, "type", hostNewString(type, strlen(type)));
+
+    return dict;
+}
+
+static TclObj *hostFileLstat(const char *path) {
+    GStatBuf buf;
+    if (g_lstat(path, &buf) != 0) return NULL;
+
+    TclObj *dict = hostNewDict();
+    extern void hostDictSetInternal(TclObj *dict, const char *key, TclObj *val);
+    hostDictSetInternal(dict, "atime", hostNewInt((int64_t)buf.st_atime));
+    hostDictSetInternal(dict, "ctime", hostNewInt((int64_t)buf.st_ctime));
+    hostDictSetInternal(dict, "dev", hostNewInt((int64_t)buf.st_dev));
+    hostDictSetInternal(dict, "gid", hostNewInt((int64_t)buf.st_gid));
+    hostDictSetInternal(dict, "ino", hostNewInt((int64_t)buf.st_ino));
+    hostDictSetInternal(dict, "mode", hostNewInt((int64_t)buf.st_mode));
+    hostDictSetInternal(dict, "mtime", hostNewInt((int64_t)buf.st_mtime));
+    hostDictSetInternal(dict, "nlink", hostNewInt((int64_t)buf.st_nlink));
+    hostDictSetInternal(dict, "size", hostNewInt((int64_t)buf.st_size));
+    hostDictSetInternal(dict, "uid", hostNewInt((int64_t)buf.st_uid));
+
+    const char *type;
+    if (S_ISREG(buf.st_mode)) type = "file";
+    else if (S_ISDIR(buf.st_mode)) type = "directory";
+    else if (S_ISLNK(buf.st_mode)) type = "link";
+    else if (S_ISCHR(buf.st_mode)) type = "characterSpecial";
+    else if (S_ISBLK(buf.st_mode)) type = "blockSpecial";
+    else if (S_ISFIFO(buf.st_mode)) type = "fifo";
+    else if (S_ISSOCK(buf.st_mode)) type = "socket";
+    else type = "unknown";
+    hostDictSetInternal(dict, "type", hostNewString(type, strlen(type)));
+
+    return dict;
+}
+
+static TclObj *hostFileNativename(const char *path) {
+    /* On Unix, native name is the same as the path */
+    return hostNewString(path, strlen(path));
+}
+
+static int hostFileOwned(const char *path) {
+    GStatBuf buf;
+    if (g_stat(path, &buf) != 0) return 0;
+    return buf.st_uid == getuid() ? 1 : 0;
+}
+
+static TclObj *hostFileTempfile(void *ctx, const char *tmpl) {
+    (void)ctx; (void)tmpl;
+    /* Not implemented yet - requires channel creation */
+    return NULL;
+}
+
+static TclObj *hostFileTempdir(const char *tmpl) {
+    gchar *template;
+    if (tmpl && *tmpl) {
+        template = g_strdup_printf("%s/XXXXXX", tmpl);
+    } else {
+        template = g_strdup_printf("%s/tclXXXXXX", g_get_tmp_dir());
+    }
+
+    gchar *result = g_mkdtemp(template);
+    if (!result) {
+        g_free(template);
+        return NULL;
+    }
+    TclObj *obj = hostNewString(result, strlen(result));
+    g_free(template);
+    return obj;
+}
+
+static TclObj *hostFileHome(const char *user) {
+    if (user && *user) {
+        /* Looking up another user's home - not fully supported */
+        return NULL;
+    }
+    const gchar *home = g_get_home_dir();
+    if (!home) return NULL;
+    return hostNewString(home, strlen(home));
+}
+
+static int hostFileLink(const char *linkName, const char *target, int linkType) {
+    if (linkType == TCL_LINK_SYMBOLIC) {
+        return symlink(target, linkName) == 0 ? 0 : -1;
+    } else {
+        return link(target, linkName) == 0 ? 0 : -1;
+    }
+}
+
+static TclObj *hostFileReadlink(const char *linkName) {
+    gchar *target = g_file_read_link(linkName, NULL);
+    if (!target) return NULL;
+    TclObj *result = hostNewString(target, strlen(target));
+    g_free(target);
+    return result;
+}
+
+static TclObj *hostFileSystem(const char *path) {
+    (void)path;
+    /* Return a simple "native" filesystem type */
+    TclObj *elems[1];
+    elems[0] = hostNewString("native", 6);
+    return hostNewList(elems, 1);
+}
+
+static TclObj *hostFileVolumes(void) {
+    /* On Unix, there's just root */
+    TclObj *elems[1];
+    elems[0] = hostNewString("/", 1);
+    return hostNewList(elems, 1);
+}
+
+static TclObj *hostFileAttributes(const char *path, const char *option) {
+    (void)path; (void)option;
+    /* File attributes are complex and platform-specific */
+    return NULL;
+}
+
+static int hostFileAttributesSet(const char *path, const char *option, TclObj *value) {
+    (void)path; (void)option; (void)value;
+    return -1;
 }
 
 static int hostChdir(const char *path) { (void)path; return -1; }
@@ -1095,6 +1536,10 @@ const TclHost cHost = {
     .chanNames = hostChanNames,
     .chanShare = hostChanShare,
     .chanTransfer = hostChanTransfer,
+    .chanTruncate = hostChanTruncate,
+    .chanCopy = hostChanCopy,
+    .chanPending = hostChanPending,
+    .chanPipe = hostChanPipe,
 
     /* Event loop */
     .afterMs = hostAfterMs,
@@ -1139,6 +1584,21 @@ const TclHost cHost = {
     .fileSplit = hostFileSplit,
     .fileType = hostFileType,
     .glob = hostGlob,
+    .filePathtype = hostFilePathtype,
+    .fileSeparator = hostFileSeparator,
+    .fileStat = hostFileStat,
+    .fileLstat = hostFileLstat,
+    .fileNativename = hostFileNativename,
+    .fileOwned = hostFileOwned,
+    .fileTempfile = hostFileTempfile,
+    .fileTempdir = hostFileTempdir,
+    .fileHome = hostFileHome,
+    .fileLink = hostFileLink,
+    .fileReadlink = hostFileReadlink,
+    .fileSystem = hostFileSystem,
+    .fileVolumes = hostFileVolumes,
+    .fileAttributes = hostFileAttributes,
+    .fileAttributesSet = hostFileAttributesSet,
 
     /* System */
     .chdir = hostChdir,

@@ -232,6 +232,47 @@ TclObj *hostNewDict(void) {
     return hostNewString("", 0);
 }
 
+/* Forward declaration */
+const char *hostGetStringPtr(TclObj *obj, size_t *lenOut);
+
+/* Set a key-value pair in a dict (appends to string representation) */
+void hostDictSetInternal(TclObj *dict, const char *key, TclObj *val) {
+    if (!dict || !key || !val) return;
+
+    size_t valLen;
+    const char *valStr = hostGetStringPtr(val, &valLen);
+
+    /* Build new string: existing + " " + key + " " + value */
+    size_t keyLen = strlen(key);
+    size_t oldLen = dict->stringLen;
+    size_t newLen = oldLen + (oldLen > 0 ? 1 : 0) + keyLen + 1 + valLen;
+
+    gchar *newStr = g_malloc(newLen + 1);
+    gchar *p = newStr;
+
+    /* Copy existing content */
+    if (oldLen > 0) {
+        memcpy(p, dict->stringRep, oldLen);
+        p += oldLen;
+        *p++ = ' ';
+    }
+
+    /* Add key */
+    memcpy(p, key, keyLen);
+    p += keyLen;
+    *p++ = ' ';
+
+    /* Add value */
+    memcpy(p, valStr, valLen);
+    p += valLen;
+    *p = '\0';
+
+    /* Replace string rep */
+    g_free(dict->stringRep);
+    dict->stringRep = newStr;
+    dict->stringLen = newLen;
+}
+
 /* Duplicate an object */
 TclObj *hostDup(TclObj *obj) {
     if (!obj) return NULL;

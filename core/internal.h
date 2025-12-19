@@ -209,6 +209,12 @@ TclResult tclCmdUplevel(TclInterp *interp, int objc, TclObj **objv);
 /* Dict command (builtin_dict.c) */
 TclResult tclCmdDict(TclInterp *interp, int objc, TclObj **objv);
 
+/* Exec command (builtin_exec.c) */
+TclResult tclCmdExec(TclInterp *interp, int objc, TclObj **objv);
+
+/* File command (builtin_file.c) */
+TclResult tclCmdFile(TclInterp *interp, int objc, TclObj **objv);
+
 /* ========================================================================
  * Interpreter Functions (from tclc.h, implemented in eval.c)
  * ======================================================================== */
