@@ -627,11 +627,105 @@ static int hostStringCompareNocase(TclObj *a, TclObj *b) {
     return 0;
 }
 
+/* Helper for glob pattern matching */
+static int globMatch(const char *pat, size_t patLen, const char *str, size_t strLen, int nocase) {
+    size_t p = 0, s = 0;
+    size_t starP = (size_t)-1, starS = (size_t)-1;
+
+    while (s < strLen) {
+        if (p < patLen && pat[p] == '*') {
+            /* Remember position for backtracking */
+            starP = p++;
+            starS = s;
+        } else if (p < patLen && pat[p] == '?') {
+            /* Match any single character */
+            p++;
+            s++;
+        } else if (p < patLen && pat[p] == '[') {
+            /* Character class */
+            p++;
+            int invert = 0;
+            if (p < patLen && pat[p] == '!') {
+                invert = 1;
+                p++;
+            }
+            int matched = 0;
+            char sc = nocase && str[s] >= 'A' && str[s] <= 'Z' ? str[s] + 32 : str[s];
+            while (p < patLen && pat[p] != ']') {
+                char c1 = nocase && pat[p] >= 'A' && pat[p] <= 'Z' ? pat[p] + 32 : pat[p];
+                if (p + 2 < patLen && pat[p + 1] == '-' && pat[p + 2] != ']') {
+                    char c2 = nocase && pat[p + 2] >= 'A' && pat[p + 2] <= 'Z' ? pat[p + 2] + 32 : pat[p + 2];
+                    if (sc >= c1 && sc <= c2) matched = 1;
+                    p += 3;
+                } else {
+                    if (sc == c1) matched = 1;
+                    p++;
+                }
+            }
+            if (p < patLen) p++; /* skip ] */
+            if (matched == invert) {
+                /* No match, try backtracking */
+                if (starP == (size_t)-1) return 0;
+                p = starP + 1;
+                s = ++starS;
+            } else {
+                s++;
+            }
+        } else if (p < patLen && pat[p] == '\\' && p + 1 < patLen) {
+            /* Escaped character */
+            p++;
+            char pc = pat[p];
+            char sc = str[s];
+            if (nocase) {
+                if (pc >= 'A' && pc <= 'Z') pc += 32;
+                if (sc >= 'A' && sc <= 'Z') sc += 32;
+            }
+            if (pc == sc) {
+                p++;
+                s++;
+            } else if (starP != (size_t)-1) {
+                p = starP + 1;
+                s = ++starS;
+            } else {
+                return 0;
+            }
+        } else if (p < patLen) {
+            /* Literal character */
+            char pc = pat[p];
+            char sc = str[s];
+            if (nocase) {
+                if (pc >= 'A' && pc <= 'Z') pc += 32;
+                if (sc >= 'A' && sc <= 'Z') sc += 32;
+            }
+            if (pc == sc) {
+                p++;
+                s++;
+            } else if (starP != (size_t)-1) {
+                p = starP + 1;
+                s = ++starS;
+            } else {
+                return 0;
+            }
+        } else if (starP != (size_t)-1) {
+            p = starP + 1;
+            s = ++starS;
+        } else {
+            return 0;
+        }
+    }
+
+    /* Skip trailing stars */
+    while (p < patLen && pat[p] == '*') p++;
+
+    return p == patLen;
+}
+
 static int hostStringMatch(const char *pattern, TclObj *str, int nocase) {
-    (void)pattern;
-    (void)str;
-    (void)nocase;
-    return 0;
+    size_t strLen;
+    const char *strPtr = hostGetStringPtr(str, &strLen);
+    size_t patLen = 0;
+    while (pattern[patLen]) patLen++;
+    return globMatch(pattern, patLen, strPtr, strLen, nocase);
 }
 
 static TclObj *hostStringToLower(TclObj *str) {

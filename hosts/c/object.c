@@ -416,6 +416,11 @@ static TclObj *parseListElement(const char **pos, const char *end) {
             else if (*p == '}') depth--;
             if (depth > 0) p++;
         }
+        /* Check for unclosed brace */
+        if (depth > 0) {
+            *pos = p;
+            return (TclObj *)(intptr_t)-1;  /* Error indicator */
+        }
         len = p - start;
         if (p < end) p++;  /* Skip } */
         *pos = p;
@@ -507,6 +512,15 @@ static int parseList(TclObj *obj, TclObj ***elemsOut, size_t *countOut) {
 
         TclObj *elem = parseListElement(&pos, end);
         if (!elem) break;
+        if (elem == (TclObj *)(intptr_t)-1) {
+            /* Parse error - unclosed brace/quote */
+            for (size_t i = 0; i < count; i++) {
+                free(elems[i]->stringRep);
+                free(elems[i]);
+            }
+            free(elems);
+            return -1;
+        }
 
         /* Grow array if needed */
         if (count >= capacity) {
