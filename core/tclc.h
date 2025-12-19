@@ -515,7 +515,7 @@ struct TclHost {
     TclObj* (*fileLstat)(const char *path);     /* Like fileStat but doesn't follow symlinks */
     TclObj* (*fileNativename)(const char *path);
     int     (*fileOwned)(const char *path);
-    TclObj* (*fileTempfile)(void *ctx, const char *template);  /* Returns channel, sets name in template if non-NULL */
+    TclObj* (*fileTempfile)(void *ctx, const char *template, TclObj **pathOut);  /* Returns channel name, sets *pathOut to file path */
     TclObj* (*fileTempdir)(const char *template);
     TclObj* (*fileHome)(const char *user);      /* NULL for current user */
     int     (*fileLink)(const char *linkName, const char *target, int linkType);  /* linkType: TclLinkType */

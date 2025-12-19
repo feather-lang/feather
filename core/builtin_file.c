@@ -548,15 +548,27 @@ TclResult tclCmdFile(TclInterp *interp, int objc, TclObj **objv) {
 
     /* ===== file tempfile ===== */
     if (subcmdLen == 8 && tclStrncmp(subcmd, "tempfile", 8) == 0) {
+        /* file tempfile ?nameVar? ?template? */
+        const char *nameVar = NULL;
+        size_t nameVarLen = 0;
         const char *tmpl = NULL;
         if (objc >= 3) {
-            size_t tmplLen;
-            tmpl = host->getStringPtr(objv[2], &tmplLen);
+            nameVar = host->getStringPtr(objv[2], &nameVarLen);
         }
-        TclObj *result = host->fileTempfile(interp->hostCtx, tmpl);
+        if (objc >= 4) {
+            size_t tmplLen;
+            tmpl = host->getStringPtr(objv[3], &tmplLen);
+        }
+        TclObj *pathOut = NULL;
+        TclObj *result = host->fileTempfile(interp->hostCtx, tmpl, &pathOut);
         if (!result) {
             tclSetError(interp, "couldn't create temporary file", -1);
             return TCL_ERROR;
+        }
+        /* Set the nameVar variable if provided */
+        if (nameVar && nameVarLen > 0 && pathOut) {
+            void *vars = interp->currentFrame->varsHandle;
+            host->varSet(vars, nameVar, nameVarLen, pathOut);
         }
         tclSetResult(interp, result);
         return TCL_OK;

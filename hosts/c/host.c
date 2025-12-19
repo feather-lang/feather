@@ -1333,10 +1333,40 @@ static int hostFileOwned(const char *path) {
     return buf.st_uid == getuid() ? 1 : 0;
 }
 
-static TclObj *hostFileTempfile(void *ctx, const char *tmpl) {
-    (void)ctx; (void)tmpl;
-    /* Not implemented yet - requires channel creation */
-    return NULL;
+static TclObj *hostFileTempfile(void *ctx, const char *tmpl, TclObj **pathOut) {
+    (void)ctx;
+    gchar *template;
+    if (tmpl && *tmpl) {
+        template = g_strdup_printf("%s/XXXXXX", tmpl);
+    } else {
+        template = g_strdup_printf("%s/tcl_XXXXXX", g_get_tmp_dir());
+    }
+
+    int fd = g_mkstemp(template);
+    if (fd < 0) {
+        g_free(template);
+        return NULL;
+    }
+
+    /* Create channel from the file descriptor */
+    TclChannel *chan = hostChanFromFd(fd, TRUE, TRUE);
+    if (!chan) {
+        close(fd);
+        g_unlink(template);
+        g_free(template);
+        return NULL;
+    }
+
+    /* Set path output */
+    if (pathOut) {
+        *pathOut = hostNewString(template, strlen(template));
+    }
+
+    /* Return channel name */
+    const char *chanName = hostChanGetName(chan);
+    TclObj *result = hostNewString(chanName, strlen(chanName));
+    g_free(template);
+    return result;
 }
 
 static TclObj *hostFileTempdir(const char *tmpl) {

@@ -95,7 +95,7 @@ func loadOracle(featureID string) (*OracleResult, error) {
 }
 
 func compareTest(interp string, oracle OracleTest) TestDiff {
-	actual := runOurInterp(interp, oracle.Script)
+	actual := runOurInterp(interp, oracle.File)
 
 	stdoutMatch := actual.Stdout == oracle.Stdout
 	codeMatch := actual.ReturnCode == oracle.ReturnCode
@@ -120,7 +120,7 @@ func compareTest(interp string, oracle OracleTest) TestDiff {
 	return diff
 }
 
-func runOurInterp(interp, script string) TestOutput {
+func runOurInterp(interp, testFile string) TestOutput {
 	if interp == "" {
 		return TestOutput{
 			Stdout:     "",
@@ -132,8 +132,7 @@ func runOurInterp(interp, script string) TestOutput {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, interp)
-	cmd.Stdin = strings.NewReader(script)
+	cmd := exec.CommandContext(ctx, interp, testFile)
 
 	stdout, err := cmd.Output()
 	result := TestOutput{
