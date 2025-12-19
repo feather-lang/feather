@@ -23,6 +23,8 @@ extern int hostAsBool(TclObj *obj, int *out);
 extern int hostAsList(TclObj *obj, TclObj ***elemsOut, size_t *countOut);
 extern size_t hostStringLength(TclObj *str);
 extern int hostStringCompare(TclObj *a, TclObj *b);
+extern size_t hostListLengthImpl(TclObj *list);
+extern TclObj *hostListIndexImpl(TclObj *list, size_t idx);
 
 /* External functions from vars.c */
 extern void *hostVarsNew(void *ctx);
@@ -75,11 +77,24 @@ extern void hostChanShare(void *fromCtx, void *toCtx, TclChannel *chan);
 extern void hostChanTransfer(void *fromCtx, void *toCtx, TclChannel *chan);
 
 /* ========================================================================
+ * Proc Storage
+ * ======================================================================== */
+
+typedef struct ProcDef {
+    char    *name;      /* Procedure name */
+    size_t   nameLen;   /* Name length */
+    TclObj  *argList;   /* Argument list */
+    TclObj  *body;      /* Procedure body */
+    struct ProcDef *next;
+} ProcDef;
+
+/* ========================================================================
  * Interpreter Context
  * ======================================================================== */
 
 typedef struct HostContext {
-    void *globalVars;   /* Global variable table */
+    void    *globalVars;   /* Global variable table */
+    ProcDef *procs;        /* Linked list of procedures */
 } HostContext;
 
 static void *hostInterpContextNew(void *parentCtx, int safe) {
@@ -90,12 +105,23 @@ static void *hostInterpContextNew(void *parentCtx, int safe) {
     if (!ctx) return NULL;
 
     ctx->globalVars = hostVarsNew(ctx);
+    ctx->procs = NULL;
     return ctx;
 }
 
 static void hostInterpContextFree(void *ctxPtr) {
     HostContext *ctx = ctxPtr;
     if (!ctx) return;
+
+    /* Free all procedures */
+    ProcDef *proc = ctx->procs;
+    while (proc) {
+        ProcDef *next = proc->next;
+        free(proc->name);
+        /* Note: argList and body are TclObj - would need proper cleanup */
+        free(proc);
+        proc = next;
+    }
 
     hostVarsFree(ctx, ctx->globalVars);
     free(ctx);
@@ -122,32 +148,77 @@ static void hostFrameFree(void *ctx, TclFrame *frame) {
 }
 
 /* ========================================================================
- * Command Lookup (stub - builtins handled by C core)
+ * Command Lookup - finds procedures registered via proc command
  * ======================================================================== */
 
-static int hostCmdLookup(void *ctx, const char *name, size_t len, TclCmdInfo *out) {
-    (void)ctx;
-    (void)name;
-    (void)len;
+static ProcDef *findProc(HostContext *ctx, const char *name, size_t len) {
+    ProcDef *proc = ctx->procs;
+    while (proc) {
+        if (proc->nameLen == len && memcmp(proc->name, name, len) == 0) {
+            return proc;
+        }
+        proc = proc->next;
+    }
+    return NULL;
+}
+
+static int hostCmdLookup(void *ctxPtr, const char *name, size_t len, TclCmdInfo *out) {
+    HostContext *ctx = ctxPtr;
+
+    /* Look for a proc with this name */
+    ProcDef *proc = findProc(ctx, name, len);
+    if (proc) {
+        out->type = TCL_CMD_PROC;
+        out->u.procHandle = proc;
+        return 0;
+    }
+
     out->type = TCL_CMD_NOT_FOUND;
     return 0;
 }
 
-static void *hostProcRegister(void *ctx, const char *name, size_t len,
+static void *hostProcRegister(void *ctxPtr, const char *name, size_t len,
                               TclObj *argList, TclObj *body) {
-    (void)ctx;
-    (void)name;
-    (void)len;
-    (void)argList;
-    (void)body;
-    return NULL;
+    HostContext *ctx = ctxPtr;
+
+    /* Check if proc already exists */
+    ProcDef *existing = findProc(ctx, name, len);
+    if (existing) {
+        /* Replace the existing definition */
+        existing->argList = hostDup(argList);
+        existing->body = hostDup(body);
+        return existing;
+    }
+
+    /* Create new proc definition */
+    ProcDef *proc = malloc(sizeof(ProcDef));
+    if (!proc) return NULL;
+
+    proc->name = malloc(len + 1);
+    if (!proc->name) {
+        free(proc);
+        return NULL;
+    }
+    memcpy(proc->name, name, len);
+    proc->name[len] = '\0';
+    proc->nameLen = len;
+    proc->argList = hostDup(argList);
+    proc->body = hostDup(body);
+
+    /* Add to front of list */
+    proc->next = ctx->procs;
+    ctx->procs = proc;
+
+    return proc;
 }
 
 static int hostProcGetDef(void *handle, TclObj **argListOut, TclObj **bodyOut) {
-    (void)handle;
-    (void)argListOut;
-    (void)bodyOut;
-    return -1;
+    ProcDef *proc = handle;
+    if (!proc) return -1;
+
+    *argListOut = proc->argList;
+    *bodyOut = proc->body;
+    return 0;
 }
 
 static TclResult hostExtInvoke(TclInterp *interp, void *handle,
@@ -202,18 +273,15 @@ static void hostCmdExpose(void *ctx, const char *name, size_t len) {
 }
 
 /* ========================================================================
- * List Operations (stubs)
+ * List Operations
  * ======================================================================== */
 
 static size_t hostListLength(TclObj *list) {
-    (void)list;
-    return 0; /* TODO */
+    return hostListLengthImpl(list);
 }
 
 static TclObj *hostListIndex(TclObj *list, size_t idx) {
-    (void)list;
-    (void)idx;
-    return NULL; /* TODO */
+    return hostListIndexImpl(list, idx);
 }
 
 static TclObj *hostListRange(TclObj *list, size_t first, size_t last) {

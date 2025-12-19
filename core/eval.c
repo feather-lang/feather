@@ -259,11 +259,140 @@ TclEvalStatus tclEvalStep(TclInterp *interp, TclEvalState *state) {
                     break;
                 }
 
-                case TCL_CMD_PROC:
-                    /* TODO: Implement proc calls */
-                    tclSetError(interp, "proc not implemented", -1);
-                    result = TCL_ERROR;
+                case TCL_CMD_PROC: {
+                    /* Get proc definition from host */
+                    TclObj *argList = NULL;
+                    TclObj *body = NULL;
+                    if (host->procGetDef(state->cmdInfo.u.procHandle, &argList, &body) != 0) {
+                        tclSetError(interp, "proc definition not found", -1);
+                        result = TCL_ERROR;
+                        break;
+                    }
+
+                    /* Parse argument specification */
+                    TclObj **argSpecs = NULL;
+                    size_t argCount = 0;
+                    if (host->asList(argList, &argSpecs, &argCount) != 0) {
+                        tclSetError(interp, "invalid argument list", -1);
+                        result = TCL_ERROR;
+                        break;
+                    }
+
+                    /* Create new frame for proc execution */
+                    TclFrame *procFrame = host->frameAlloc(interp->hostCtx);
+                    if (!procFrame) {
+                        tclSetError(interp, "out of memory", -1);
+                        result = TCL_ERROR;
+                        break;
+                    }
+                    procFrame->parent = interp->currentFrame;
+                    procFrame->level = interp->currentFrame->level + 1;
+                    procFrame->flags = TCL_FRAME_PROC;
+
+                    /* Get proc name for stack traces */
+                    size_t procNameLen;
+                    procFrame->procName = host->getStringPtr(state->substWords[0], &procNameLen);
+
+                    /* Bind arguments to local variables */
+                    int actualArgs = state->substCount - 1;  /* Exclude command name */
+                    int hasArgs = 0;  /* Whether last param is 'args' */
+
+                    /* Check if last arg is 'args' for varargs */
+                    if (argCount > 0) {
+                        size_t lastArgLen;
+                        const char *lastArg = host->getStringPtr(argSpecs[argCount - 1], &lastArgLen);
+                        if (lastArgLen == 4 && tclStrncmp(lastArg, "args", 4) == 0) {
+                            hasArgs = 1;
+                        }
+                    }
+
+                    /* Check argument count */
+                    int requiredArgs = (int)argCount - (hasArgs ? 1 : 0);
+
+                    /* Handle default arguments - count how many have defaults */
+                    int minArgs = 0;
+                    for (size_t i = 0; i < (size_t)requiredArgs; i++) {
+                        /* Check if arg has a default value (is a 2-element list) */
+                        size_t listLen = host->listLength(argSpecs[i]);
+                        if (listLen < 2) {
+                            minArgs++;  /* Required argument */
+                        }
+                    }
+
+                    if (actualArgs < minArgs || (!hasArgs && actualArgs > requiredArgs)) {
+                        tclSetError(interp, "wrong # args", -1);
+                        host->frameFree(interp->hostCtx, procFrame);
+                        result = TCL_ERROR;
+                        break;
+                    }
+
+                    /* Bind each argument */
+                    for (size_t i = 0; i < (size_t)requiredArgs; i++) {
+                        TclObj *argSpec = argSpecs[i];
+                        size_t argNameLen;
+                        const char *argName;
+                        TclObj *value = NULL;
+
+                        /* Check if arg has a default */
+                        size_t listLen = host->listLength(argSpec);
+                        if (listLen >= 2) {
+                            /* Has default: {name default} */
+                            TclObj *nameObj = host->listIndex(argSpec, 0);
+                            argName = host->getStringPtr(nameObj, &argNameLen);
+
+                            if ((int)i < actualArgs) {
+                                value = state->substWords[i + 1];
+                            } else {
+                                value = host->listIndex(argSpec, 1);
+                            }
+                        } else {
+                            /* Simple argument name */
+                            argName = host->getStringPtr(argSpec, &argNameLen);
+                            if ((int)i < actualArgs) {
+                                value = state->substWords[i + 1];
+                            }
+                        }
+
+                        if (value) {
+                            host->varSet(procFrame->varsHandle, argName, argNameLen, host->dup(value));
+                        }
+                    }
+
+                    /* Bind 'args' if present */
+                    if (hasArgs) {
+                        /* Collect remaining arguments into a list */
+                        int argsStart = requiredArgs;
+                        int argsCount = actualArgs - argsStart;
+                        if (argsCount < 0) argsCount = 0;
+
+                        TclObj *argsList;
+                        if (argsCount > 0) {
+                            argsList = host->newList(&state->substWords[argsStart + 1], argsCount);
+                        } else {
+                            argsList = host->newString("", 0);
+                        }
+                        host->varSet(procFrame->varsHandle, "args", 4, argsList);
+                    }
+
+                    /* Switch to proc frame and execute body */
+                    TclFrame *savedFrame = interp->currentFrame;
+                    interp->currentFrame = procFrame;
+
+                    size_t bodyLen;
+                    const char *bodyStr = host->getStringPtr(body, &bodyLen);
+                    result = tclEvalScript(interp, bodyStr, bodyLen);
+
+                    /* Handle return */
+                    if (result == TCL_RETURN) {
+                        /* Convert TCL_RETURN to TCL_OK for proc caller */
+                        result = TCL_OK;
+                    }
+
+                    /* Restore frame and cleanup */
+                    interp->currentFrame = savedFrame;
+                    host->frameFree(interp->hostCtx, procFrame);
                     break;
+                }
 
                 case TCL_CMD_EXTENSION:
                     result = host->extInvoke(interp, state->cmdInfo.u.extHandle,

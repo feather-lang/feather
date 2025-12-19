@@ -1,0 +1,102 @@
+{
+  "feature": "proc",
+  "tclsh": "tclsh",
+  "tests": [
+    {
+      "name": "args-1.1",
+      "file": "spec/tests/proc/args-1.1.tcl",
+      "script": "# Test: procedure with args (varargs)\nproc printall {args} {\n    puts \"args: $args\"\n}\nprintall\nprintall one\nprintall one two three\n",
+      "stdout": "args: \nargs: one\nargs: one two three\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "args-1.2",
+      "file": "spec/tests/proc/args-1.2.tcl",
+      "script": "# Test: procedure with required args and varargs\nproc printf {fmt args} {\n    puts \"format: $fmt\"\n    puts \"values: $args\"\n}\nprintf \"%s %d\"\nprintf \"%s %d\" hello 42\n",
+      "stdout": "format: %s %d\nvalues: \nformat: %s %d\nvalues: hello 42\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "basic-1.1",
+      "file": "spec/tests/proc/basic-1.1.tcl",
+      "script": "# Test: basic procedure definition and invocation\nproc hello {} {\n    puts \"Hello, World!\"\n}\nhello\n",
+      "stdout": "Hello, World!\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "basic-1.2",
+      "file": "spec/tests/proc/basic-1.2.tcl",
+      "script": "# Test: procedure with single argument\nproc greet {name} {\n    puts \"Hello, $name!\"\n}\ngreet Alice\ngreet Bob\n",
+      "stdout": "Hello, Alice!\nHello, Bob!\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "basic-1.3",
+      "file": "spec/tests/proc/basic-1.3.tcl",
+      "script": "# Test: procedure with multiple arguments\nproc add {a b} {\n    puts [expr $a + $b]\n}\nadd 3 4\nadd 10 20\n",
+      "stdout": "7\n30\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "default-1.1",
+      "file": "spec/tests/proc/default-1.1.tcl",
+      "script": "# Test: procedure with default argument\nproc greet {{name World}} {\n    puts \"Hello, $name!\"\n}\ngreet\ngreet Alice\n",
+      "stdout": "Hello, World!\nHello, Alice!\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "default-1.2",
+      "file": "spec/tests/proc/default-1.2.tcl",
+      "script": "# Test: procedure with multiple default arguments\nproc config {{host localhost} {port 8080}} {\n    puts \"Connecting to $host:$port\"\n}\nconfig\nconfig myserver\nconfig myserver 9000\n",
+      "stdout": "Connecting to localhost:8080\nConnecting to myserver:8080\nConnecting to myserver:9000\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "nested-1.1",
+      "file": "spec/tests/proc/nested-1.1.tcl",
+      "script": "# Test: nested procedure calls\nproc double {x} {\n    return [expr $x * 2]\n}\nproc quadruple {x} {\n    return [double [double $x]]\n}\nputs [quadruple 3]\n",
+      "stdout": "12\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "recurse-1.1",
+      "file": "spec/tests/proc/recurse-1.1.tcl",
+      "script": "# Test: recursive procedure (factorial)\nproc factorial {n} {\n    if {$n \u003c= 1} {\n        return 1\n    }\n    return [expr $n * [factorial [expr $n - 1]]]\n}\nputs [factorial 5]\n",
+      "stdout": "120\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "return-1.1",
+      "file": "spec/tests/proc/return-1.1.tcl",
+      "script": "# Test: return value from procedure\nproc double {x} {\n    return [expr $x * 2]\n}\nputs [double 5]\nputs [double 21]\n",
+      "stdout": "10\n42\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "return-1.2",
+      "file": "spec/tests/proc/return-1.2.tcl",
+      "script": "# Test: implicit return (last command result)\nproc square {x} {\n    expr $x * $x\n}\nputs [square 3]\nputs [square 7]\n",
+      "stdout": "9\n49\n",
+      "stderr": "",
+      "returncode": 0
+    },
+    {
+      "name": "scope-1.1",
+      "file": "spec/tests/proc/scope-1.1.tcl",
+      "script": "# Test: local variable scoping\nset x 100\nproc test {} {\n    set x 1\n    puts \"inside: $x\"\n}\ntest\nputs \"outside: $x\"\n",
+      "stdout": "inside: 1\noutside: 100\n",
+      "stderr": "",
+      "returncode": 0
+    }
+  ]
+}

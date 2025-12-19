@@ -239,13 +239,172 @@ int hostAsBool(TclObj *obj, int *out) {
     return -1;
 }
 
-/* Convert to list (stub - proper implementation would parse) */
+/* ========================================================================
+ * TCL List Parsing
+ *
+ * Parses TCL list syntax: elements separated by whitespace.
+ * Elements can be quoted with braces {}, double quotes "", or bare words.
+ * ======================================================================== */
+
+static int isListSpace(char c) {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+}
+
+/* Parse a single list element starting at *pos.
+ * Updates *pos to point past the element.
+ * Returns a new TclObj for the element, or NULL on error.
+ */
+static TclObj *parseListElement(const char **pos, const char *end) {
+    const char *p = *pos;
+
+    /* Skip leading whitespace */
+    while (p < end && isListSpace(*p)) p++;
+
+    if (p >= end) {
+        *pos = p;
+        return NULL;  /* No more elements */
+    }
+
+    const char *start;
+    size_t len;
+
+    if (*p == '{') {
+        /* Braced element - find matching close brace */
+        p++;  /* Skip { */
+        start = p;
+        int depth = 1;
+        while (p < end && depth > 0) {
+            if (*p == '{') depth++;
+            else if (*p == '}') depth--;
+            if (depth > 0) p++;
+        }
+        len = p - start;
+        if (p < end) p++;  /* Skip } */
+        *pos = p;
+        return hostNewString(start, len);
+    }
+
+    if (*p == '"') {
+        /* Quoted element - find closing quote */
+        p++;  /* Skip " */
+        start = p;
+        while (p < end && *p != '"') {
+            if (*p == '\\' && p + 1 < end) p++;  /* Skip escape */
+            p++;
+        }
+        len = p - start;
+        if (p < end) p++;  /* Skip " */
+        *pos = p;
+        return hostNewString(start, len);
+    }
+
+    /* Bare word - read until whitespace */
+    start = p;
+    while (p < end && !isListSpace(*p)) {
+        p++;
+    }
+    len = p - start;
+    *pos = p;
+    return hostNewString(start, len);
+}
+
+/* Parse list into array of elements.
+ * Caller must free the array and its elements.
+ */
+static int parseList(TclObj *obj, TclObj ***elemsOut, size_t *countOut) {
+    if (!obj) {
+        *elemsOut = NULL;
+        *countOut = 0;
+        return 0;
+    }
+
+    const char *str = obj->stringRep;
+    size_t strLen = obj->stringLen;
+    const char *end = str + strLen;
+
+    /* Count elements first (estimate) */
+    size_t capacity = 16;
+    TclObj **elems = malloc(capacity * sizeof(TclObj*));
+    if (!elems) return -1;
+
+    size_t count = 0;
+    const char *pos = str;
+
+    while (pos < end) {
+        /* Skip whitespace */
+        while (pos < end && isListSpace(*pos)) pos++;
+        if (pos >= end) break;
+
+        TclObj *elem = parseListElement(&pos, end);
+        if (!elem) break;
+
+        /* Grow array if needed */
+        if (count >= capacity) {
+            capacity *= 2;
+            TclObj **newElems = realloc(elems, capacity * sizeof(TclObj*));
+            if (!newElems) {
+                for (size_t i = 0; i < count; i++) {
+                    free(elems[i]->stringRep);
+                    free(elems[i]);
+                }
+                free(elems);
+                return -1;
+            }
+            elems = newElems;
+        }
+
+        elems[count++] = elem;
+    }
+
+    *elemsOut = elems;
+    *countOut = count;
+    return 0;
+}
+
+/* Convert to list */
 int hostAsList(TclObj *obj, TclObj ***elemsOut, size_t *countOut) {
-    /* TODO: Proper list parsing */
-    (void)obj;
-    (void)elemsOut;
-    (void)countOut;
-    return -1;
+    return parseList(obj, elemsOut, countOut);
+}
+
+/* Get list length */
+size_t hostListLengthImpl(TclObj *list) {
+    if (!list || list->stringLen == 0) return 0;
+
+    TclObj **elems;
+    size_t count;
+    if (parseList(list, &elems, &count) != 0) return 0;
+
+    /* Free the parsed elements */
+    for (size_t i = 0; i < count; i++) {
+        free(elems[i]->stringRep);
+        free(elems[i]);
+    }
+    free(elems);
+
+    return count;
+}
+
+/* Get list element by index */
+TclObj *hostListIndexImpl(TclObj *list, size_t idx) {
+    if (!list) return NULL;
+
+    TclObj **elems;
+    size_t count;
+    if (parseList(list, &elems, &count) != 0) return NULL;
+
+    TclObj *result = NULL;
+    if (idx < count) {
+        result = hostDup(elems[idx]);
+    }
+
+    /* Free the parsed elements */
+    for (size_t i = 0; i < count; i++) {
+        free(elems[i]->stringRep);
+        free(elems[i]);
+    }
+    free(elems);
+
+    return result;
 }
 
 /* String length in characters (bytes for now, TODO: UTF-8) */
