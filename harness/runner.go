@@ -1,9 +1,11 @@
 package harness
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -21,6 +23,8 @@ type ActualResult struct {
 	Stdout   string
 	Stderr   string
 	ExitCode int
+	Result   string // TCL_OK, TCL_ERROR, etc.
+	Error    string // Error message from interpreter
 }
 
 // Runner executes test suites against a host implementation.
@@ -54,17 +58,46 @@ func (r *Runner) RunTest(tc TestCase) TestResult {
 		Passed:   true,
 	}
 
+	// Create a pipe for the harness communication channel (fd 3)
+	harnessReader, harnessWriter, err := os.Pipe()
+	if err != nil {
+		result.Passed = false
+		result.Failures = append(result.Failures, fmt.Sprintf("failed to create pipe: %v", err))
+		return result
+	}
+	defer harnessReader.Close()
+
 	cmd := exec.Command(r.HostPath)
 	cmd.Stdin = strings.NewReader(tc.Script)
+	cmd.Env = append(os.Environ(), "TCLC_IN_HARNESS=1")
+
+	// Set up the extra file descriptor (will be fd 3 in the child)
+	cmd.ExtraFiles = []*os.File{harnessWriter}
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	err := cmd.Run()
+	err = cmd.Start()
+	if err != nil {
+		harnessWriter.Close()
+		result.Passed = false
+		result.Failures = append(result.Failures, fmt.Sprintf("failed to start host: %v", err))
+		return result
+	}
+
+	// Close the write end in the parent so we can read EOF
+	harnessWriter.Close()
+
+	// Read harness output
+	harnessOutput := parseHarnessOutput(harnessReader)
+
+	err = cmd.Wait()
 
 	result.Actual.Stdout = strings.TrimSpace(stdout.String())
 	result.Actual.Stderr = strings.TrimSpace(stderr.String())
+	result.Actual.Result = harnessOutput.Result
+	result.Actual.Error = harnessOutput.Error
 
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
@@ -95,7 +128,42 @@ func (r *Runner) RunTest(tc TestCase) TestResult {
 			fmt.Sprintf("exit code mismatch:\n  expected: %d\n  actual:   %d", tc.ExitCode, result.Actual.ExitCode))
 	}
 
+	// Compare result code if specified in test case
+	if tc.Result != "" && tc.Result != result.Actual.Result {
+		result.Passed = false
+		result.Failures = append(result.Failures,
+			fmt.Sprintf("result mismatch:\n  expected: %q\n  actual:   %q", tc.Result, result.Actual.Result))
+	}
+
+	// Compare error message if specified in test case
+	if tc.Error != "" && tc.Error != result.Actual.Error {
+		result.Passed = false
+		result.Failures = append(result.Failures,
+			fmt.Sprintf("error mismatch:\n  expected: %q\n  actual:   %q", tc.Error, result.Actual.Error))
+	}
+
 	return result
+}
+
+// harnessOutput holds parsed output from the harness channel
+type harnessOutput struct {
+	Result string
+	Error  string
+}
+
+// parseHarnessOutput reads and parses the harness channel output
+func parseHarnessOutput(r io.Reader) harnessOutput {
+	var out harnessOutput
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "result: ") {
+			out.Result = strings.TrimPrefix(line, "result: ")
+		} else if strings.HasPrefix(line, "error: ") {
+			out.Error = strings.TrimPrefix(line, "error: ")
+		}
+	}
+	return out
 }
 
 // Summary holds aggregate statistics about a test run.

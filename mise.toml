@@ -8,19 +8,27 @@ cd harness
 go build -o $MISE_CONFIG_ROOT/bin/harness ./cmd/harness
 """
 
-[tasks."build:core"]
-description = "Builds the core interpreter"
+[tasks."build:gcl"]
+description = "Builds the Go host (gcl)"
+depends = ["build:core"]
 run = """
-cd src
-echo FIXME once we actually have code we should output a dylib.
+go build -o $MISE_CONFIG_ROOT/bin/gcl ./cmd/gcl
+"""
+
+[tasks."build:core"]
+description = "Builds the core interpreter as a dynamic library"
+run = """
+mkdir -p build
+cc -shared -fPIC -o build/libtclc.dylib src/eval.c src/parse.c -I src
 """
 
 [tasks.build]
 description = "build all binaries in bin/"
-depends = ["build:core", "build:harness"]
+depends = ["build:core", "build:harness", "build:gcl"]
 
 [tasks.test]
 description = "Run the test harness"
+depends = ["build"]
 run = """
-echo FIXME implement me when we actually have a harness
+harness --host bin/gcl testcases/
 """

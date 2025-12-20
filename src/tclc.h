@@ -1,8 +1,8 @@
 #ifndef INCLUDE_TCLC
 #define INCLUDE_TCLC
 
-#include <cstddef>
-#include <cstdint>
+#include <stddef.h>
+#include <stdint.h>
 
 /**
  * tclc is an embeddable implementation of the core TCL language.
