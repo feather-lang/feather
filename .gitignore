@@ -1,6 +1,7 @@
 # Build artifacts
 /build/
 /bin/
+!/bin/.gitkeep
 *.o
 *.a
 *.so

@@ -4,7 +4,7 @@ This repository holds tclc, a small, embeddable interpreter for a subset of TCL.
 
 The structure is this:
 
-core/ contains the interpreter proper. It is written in stdlib-less C:
+src/ contains the interpreter proper. It is written in stdlib-less C:
 
 - all allocation is managed by the embedder,
 - so are all lifetimes, I/O and datastructures.
@@ -20,6 +20,12 @@ Due to Go's packaging system, the Go host and library are
 defined in the toplevel environment.
 
 The @ROADMAP.md document details project milestones and implementation status.
+
+This is the second iteration of this idea, and git history before
+commit 6117fd9 MUST be ignored.
+
+The initial-consultation.md document contains a record of architectural decisions
+during the design phase.
 
 ## Tooling
 
@@ -47,9 +53,9 @@ to work with multiple implementations, tests must be modeled as data.
 Before you start any task, you must review the last commit in full
 using `git show HEAD`.
 
-@core/tclc.h is the authoritative source of what the interpreter expects from the host and defines the public API.
+@src/tclc.h is the authoritative source of what the interpreter expects from the host and defines the public API.
 
-All internal forward declarations necessary should go into core/internal.h
+All internal forward declarations necessary should go into src/internal.h
 
 If you encounter a situation where the provided primitives
 in TclHostOps are not sufficient to implement the desired functionality
