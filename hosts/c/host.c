@@ -663,9 +663,20 @@ static TclObj *hostStringRange(TclObj *str, size_t first, size_t last) {
 }
 
 static TclObj *hostStringConcat(TclObj **parts, size_t count) {
-    (void)parts;
-    (void)count;
-    return hostNewString("", 0);
+    if (count == 0) return hostNewString("", 0);
+
+    GString *result = g_string_new("");
+    for (size_t i = 0; i < count; i++) {
+        if (parts[i]) {
+            size_t len;
+            const char *s = hostGetStringPtr(parts[i], &len);
+            g_string_append_len(result, s, len);
+        }
+    }
+
+    TclObj *obj = hostNewString(result->str, result->len);
+    g_string_free(result, TRUE);
+    return obj;
 }
 
 static int hostStringCompareNocase(TclObj *a, TclObj *b) {

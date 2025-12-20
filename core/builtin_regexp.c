@@ -131,22 +131,10 @@ TclResult tclCmdRegexp(TclInterp *interp, int objc, TclObj **objv) {
     TclObj *result = host->regexMatch(pattern, patLen, searchStr, flags);
 
     if (!result) {
-        /* No match */
+        /* No match - do NOT set match variables (TCL behavior) */
         if (flags & REGEX_FLAG_INLINE) {
             tclSetResult(interp, host->newList(NULL, 0));
         } else {
-            /* Set match variables to empty if provided */
-            for (int i = 0; i < numVars; i++) {
-                size_t varLen;
-                const char *varName = host->getStringPtr(objv[varStartIdx + i], &varLen);
-                if (flags & REGEX_FLAG_INDICES) {
-                    host->varSet(interp->currentFrame->varsHandle, varName, varLen,
-                                host->newString("-1 -1", 5));
-                } else {
-                    host->varSet(interp->currentFrame->varsHandle, varName, varLen,
-                                host->newString("", 0));
-                }
-            }
             tclSetResult(interp, host->newInt(0));
         }
         return TCL_OK;
@@ -186,12 +174,11 @@ TclResult tclCmdRegexp(TclInterp *interp, int objc, TclObj **objv) {
 
     /* Return match count (1 for single match, count for -all) */
     if (flags & REGEX_FLAG_ALL) {
-        /* For -all, the result should indicate the count */
+        /* For -all, return the count of matches */
         TclObj **elems;
         size_t count;
         if (host->asList(result, &elems, &count) == 0) {
-            /* Count depends on whether there are subexpressions */
-            tclSetResult(interp, host->newInt((int64_t)count > 0 ? 1 : 0));
+            tclSetResult(interp, host->newInt((int64_t)count));
         } else {
             tclSetResult(interp, host->newInt(1));
         }
@@ -312,29 +299,32 @@ TclResult tclCmdRegsub(TclInterp *interp, int objc, TclObj **objv) {
     }
 
     if (varNameObj) {
-        /* Store result in variable, return count */
+        /* Store result in variable, return count of replacements */
         size_t varLen;
         const char *varName = host->getStringPtr(varNameObj, &varLen);
         host->varSet(interp->currentFrame->varsHandle, varName, varLen, result);
 
-        /* Count substitutions - simplified: 1 if changed, 0 if not */
-        size_t origLen, resultLen;
-        const char *origPtr = host->getStringPtr(str, &origLen);
-        const char *resultPtr = host->getStringPtr(result, &resultLen);
-
-        int changed = 0;
-        if (origLen != resultLen) {
-            changed = 1;
-        } else {
-            for (size_t i = 0; i < origLen; i++) {
-                if (origPtr[i] != resultPtr[i]) {
-                    changed = 1;
-                    break;
-                }
+        /* Count replacements by counting matches in the original search string */
+        int countFlags = REGEX_FLAG_ALL;
+        if (flags & REGEX_FLAG_NOCASE) {
+            countFlags |= REGEX_FLAG_NOCASE;
+        }
+        TclObj *matchResult = host->regexMatch(pattern, patLen, searchStr, countFlags);
+        int64_t matchCount = 0;
+        if (matchResult) {
+            TclObj **elems;
+            size_t count;
+            if (host->asList(matchResult, &elems, &count) == 0) {
+                matchCount = (int64_t)count;
             }
         }
 
-        tclSetResult(interp, host->newInt(changed ? 1 : 0));
+        /* If not using -all, max count is 1 */
+        if (!(flags & REGEX_FLAG_ALL) && matchCount > 1) {
+            matchCount = 1;
+        }
+
+        tclSetResult(interp, host->newInt(matchCount));
     } else {
         /* Return substituted string */
         tclSetResult(interp, result);
