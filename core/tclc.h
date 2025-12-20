@@ -184,6 +184,7 @@ struct TclFrame {
 struct TclInterp {
   const TclHost *host; /* Host callback table (shared) */
   void *hostCtx;       /* Per-interp host context */
+  void *rootArena;     /* Interpreter-lifetime arena (not popped until free) */
 
   TclFrame *globalFrame;  /* Bottom of frame stack */
   TclFrame *currentFrame; /* Current execution frame */

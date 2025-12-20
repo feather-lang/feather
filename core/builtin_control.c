@@ -306,9 +306,11 @@ TclResult tclCmdIf(TclInterp *interp, int objc, TclObj **objv) {
 /* ========================================================================
  * while Command
  *
- * Implemented as a state machine to support coroutine suspend/resume.
- * When a yield occurs inside the loop body, the loop state is preserved
- * and can be resumed on the next coroutine invocation.
+ * Simple loop implementation. When a yield occurs inside the body,
+ * tclCoroYieldPending() returns true and we return TCL_OK to allow
+ * the outer continuation-based evaluator to save state. On resume,
+ * the whole while command is re-entered, but variables track loop
+ * progress so execution continues correctly.
  * ======================================================================== */
 
 TclResult tclCmdWhile(TclInterp *interp, int objc, TclObj **objv) {
@@ -319,100 +321,40 @@ TclResult tclCmdWhile(TclInterp *interp, int objc, TclObj **objv) {
         return TCL_ERROR;
     }
 
-    /* Get strings for comparison (loop identification) */
-    size_t testLen, bodyLen;
+    size_t testLen;
     const char *testStr = host->getStringPtr(objv[1], &testLen);
-    const char *bodyStr = host->getStringPtr(objv[2], &bodyLen);
 
-    /* Check if we're resuming an existing while loop in a coroutine */
-    TclLoopState *loop = tclCoroLoopCurrent();
+    /* Check if we're resuming with an inner continuation from a previous yield */
+    TclContinuation *innerCont = tclCoroGetInnerContinuation();
+    if (innerCont) {
+        /* Clear it immediately - we're about to use it */
+        tclCoroSetInnerContinuation(NULL);
 
-    if (loop && loop->type == LOOP_TYPE_WHILE) {
-        /* Verify this is the same while loop by comparing content.
-         * When resuming a coroutine, the script is re-parsed so we compare strings. */
-        size_t loopTestLen, loopBodyLen;
-        const char *loopTestStr = host->getStringPtr(loop->testObj, &loopTestLen);
-        const char *loopBodyStr = host->getStringPtr(loop->bodyObj, &loopBodyLen);
-        int sameTest = (loopTestLen == testLen &&
-                        tclStrncmp(loopTestStr, testStr, testLen) == 0);
-        int sameBody = (loopBodyLen == bodyLen &&
-                        tclStrncmp(loopBodyStr, bodyStr, bodyLen) == 0);
-        if (!sameTest || !sameBody) {
-            /* Different while loop - this is a nested one */
-            loop = NULL;
-        }
-        /* Otherwise we're resuming the same loop - use saved state */
-    } else {
-        loop = NULL;
-    }
+        /* Resume the inner body evaluation, popping the yield command frame */
+        TclContinuation *contOut = NULL;
+        TclResult result = tclEvalAstCont(interp, NULL, innerCont, &contOut, 1);
 
-    if (!loop) {
-        /* Create new loop state (returns NULL if not in coroutine) */
-        loop = tclCoroLoopPush(LOOP_TYPE_WHILE);
-        if (loop) {
-            loop->testObj = host->dup(objv[1]);
-            loop->bodyObj = host->dup(objv[2]);
-            loop->phase = LOOP_PHASE_TEST;
-        }
-    }
-
-    /* If we have loop state, use state machine approach */
-    if (loop) {
-        while (loop->phase != LOOP_PHASE_DONE) {
-            switch (loop->phase) {
-                case LOOP_PHASE_TEST: {
-                    /* Get test string for expression evaluation */
-                    size_t exprLen;
-                    const char *exprStr = host->getStringPtr(loop->testObj, &exprLen);
-                    int condResult;
-                    if (evalExprBool(interp, exprStr, exprLen, &condResult) != 0) {
-                        tclCoroLoopPop();
-                        return TCL_ERROR;
-                    }
-                    if (!condResult) {
-                        loop->phase = LOOP_PHASE_DONE;
-                        break;
-                    }
-                    loop->phase = LOOP_PHASE_BODY;
-                    /* fall through */
-                }
-                case LOOP_PHASE_BODY: {
-                    /* Execute body using tclEvalObj - yield counting handles resume */
-                    TclResult result = tclEvalObj(interp, loop->bodyObj, 0);
-
-                    if (tclCoroYieldPending()) {
-                        /* Yield occurred - stay in BODY phase for resume */
-                        return TCL_OK;
-                    }
-
-                    if (result == TCL_BREAK) {
-                        loop->phase = LOOP_PHASE_DONE;
-                        break;
-                    }
-                    if (result == TCL_CONTINUE) {
-                        loop->phase = LOOP_PHASE_TEST;
-                        break;
-                    }
-                    if (result == TCL_ERROR || result == TCL_RETURN) {
-                        tclCoroLoopPop();
-                        return result;
-                    }
-                    loop->phase = LOOP_PHASE_TEST;
-                    break;
-                }
-                case LOOP_PHASE_NEXT:
-                case LOOP_PHASE_DONE:
-                    break;
-            }
+        if (contOut) {
+            /* Another yield occurred - save and return */
+            tclCoroSetInnerContinuation(contOut);
+            return TCL_OK;
         }
 
-        tclCoroLoopPop();
-        tclSetResult(interp, host->newString("", 0));
-        return TCL_OK;
+        /* Inner eval completed - check for control flow */
+        if (tclCoroYieldPending()) {
+            return TCL_OK;
+        }
+        if (result == TCL_BREAK) {
+            tclSetResult(interp, host->newString("", 0));
+            return TCL_OK;
+        }
+        if (result == TCL_CONTINUE) {
+            /* Fall through to continue loop */
+        } else if (result == TCL_ERROR || result == TCL_RETURN) {
+            return result;
+        }
+        /* Fall through to continue the while loop from the next iteration */
     }
-
-    /* No coroutine context - use simple loop (original behavior) */
-    tclSetResult(interp, host->newString("", 0));
 
     while (1) {
         /* Evaluate condition */
@@ -427,6 +369,11 @@ TclResult tclCmdWhile(TclInterp *interp, int objc, TclObj **objv) {
 
         /* Execute body */
         TclResult result = tclEvalObj(interp, objv[2], 0);
+
+        /* Check for coroutine yield - must return to let continuation handle it */
+        if (tclCoroYieldPending()) {
+            return TCL_OK;
+        }
 
         if (result == TCL_BREAK) {
             break;
@@ -445,10 +392,14 @@ TclResult tclCmdWhile(TclInterp *interp, int objc, TclObj **objv) {
 
 /* ========================================================================
  * for Command
+ *
+ * With CPS-based coroutines, the continuation captures loop position
+ * automatically, so this is a simple loop implementation.
  * ======================================================================== */
 
 TclResult tclCmdFor(TclInterp *interp, int objc, TclObj **objv) {
     const TclHost *host = interp->host;
+    TclResult result;
 
     if (objc != 5) {
         tclSetError(interp, "wrong # args: should be \"for start test next command\"", -1);
@@ -459,10 +410,51 @@ TclResult tclCmdFor(TclInterp *interp, int objc, TclObj **objv) {
     size_t testLen;
     const char *testStr = host->getStringPtr(objv[2], &testLen);
 
-    /* Execute initialization */
-    TclResult result = tclEvalObj(interp, objv[1], 0);
-    if (result != TCL_OK) {
-        return result;
+    /* Check if we're resuming with an inner continuation from a previous yield */
+    TclContinuation *innerCont = tclCoroGetInnerContinuation();
+    if (innerCont) {
+        /* Clear it immediately - we're about to use it */
+        tclCoroSetInnerContinuation(NULL);
+
+        /* Resume the inner body evaluation, popping the yield command frame */
+        TclContinuation *contOut = NULL;
+        result = tclEvalAstCont(interp, NULL, innerCont, &contOut, 1);
+
+        if (contOut) {
+            /* Another yield occurred - save and return */
+            tclCoroSetInnerContinuation(contOut);
+            return TCL_OK;
+        }
+
+        /* Inner eval completed - check for control flow */
+        if (tclCoroYieldPending()) {
+            return TCL_OK;
+        }
+        if (result == TCL_BREAK) {
+            tclSetResult(interp, host->newString("", 0));
+            return TCL_OK;
+        }
+        if (result == TCL_CONTINUE) {
+            /* Fall through - need to execute 'next' then continue loop */
+        } else if (result == TCL_ERROR || result == TCL_RETURN) {
+            return result;
+        }
+
+        /* Execute 'next' expression before continuing loop */
+        result = tclEvalObj(interp, objv[3], 0);
+        if (tclCoroYieldPending()) {
+            return TCL_OK;
+        }
+        if (result != TCL_OK && result != TCL_CONTINUE) {
+            return result;
+        }
+        /* Fall through to continue the for loop */
+    } else {
+        /* First entry - execute initialization */
+        result = tclEvalObj(interp, objv[1], 0);
+        if (result != TCL_OK) {
+            return result;
+        }
     }
 
     while (1) {
@@ -479,7 +471,7 @@ TclResult tclCmdFor(TclInterp *interp, int objc, TclObj **objv) {
         /* Execute body */
         result = tclEvalObj(interp, objv[4], 0);
 
-        /* Check for coroutine yield */
+        /* Check for coroutine yield - must return to let continuation handle it */
         if (tclCoroYieldPending()) {
             return TCL_OK;
         }
@@ -512,6 +504,9 @@ TclResult tclCmdFor(TclInterp *interp, int objc, TclObj **objv) {
 
 /* ========================================================================
  * foreach Command
+ *
+ * With CPS-based coroutines, the continuation captures loop position
+ * automatically, so this is a simple loop implementation.
  * ======================================================================== */
 
 TclResult tclCmdForeach(TclInterp *interp, int objc, TclObj **objv) {
@@ -535,14 +530,67 @@ TclResult tclCmdForeach(TclInterp *interp, int objc, TclObj **objv) {
 
     void *vars = interp->currentFrame->varsHandle;
 
-    for (size_t i = 0; i < elemCount; i++) {
+    /* Check if we're resuming with an inner continuation from a previous yield.
+     * We need to determine which iteration we were on. Since foreach uses a
+     * C loop variable, we look up the current value of the loop variable and
+     * find its index in the list. */
+    size_t startIdx = 0;
+    TclContinuation *innerCont = tclCoroGetInnerContinuation();
+    if (innerCont) {
+        /* Clear it immediately - we're about to use it */
+        tclCoroSetInnerContinuation(NULL);
+
+        /* Find which iteration we were on by looking at the loop variable's current value */
+        TclObj *currentVal = host->varGet(vars, varName, varNameLen);
+        if (currentVal) {
+            size_t curLen;
+            const char *curStr = host->getStringPtr(currentVal, &curLen);
+            for (size_t i = 0; i < elemCount; i++) {
+                size_t elemLen;
+                const char *elemStr = host->getStringPtr(elems[i], &elemLen);
+                if (elemLen == curLen && tclStrncmp(curStr, elemStr, curLen) == 0) {
+                    startIdx = i;
+                    break;
+                }
+            }
+        }
+
+        /* Resume the inner body evaluation, popping the yield command frame */
+        TclContinuation *contOut = NULL;
+        TclResult result = tclEvalAstCont(interp, NULL, innerCont, &contOut, 1);
+
+        if (contOut) {
+            /* Another yield occurred - save and return */
+            tclCoroSetInnerContinuation(contOut);
+            return TCL_OK;
+        }
+
+        /* Inner eval completed - check for control flow */
+        if (tclCoroYieldPending()) {
+            return TCL_OK;
+        }
+        if (result == TCL_BREAK) {
+            tclSetResult(interp, host->newString("", 0));
+            return TCL_OK;
+        }
+        if (result == TCL_CONTINUE) {
+            /* Fall through to continue loop */
+        } else if (result == TCL_ERROR || result == TCL_RETURN) {
+            return result;
+        }
+
+        /* Continue from the next element */
+        startIdx++;
+    }
+
+    for (size_t i = startIdx; i < elemCount; i++) {
         /* Set loop variable */
         host->varSet(vars, varName, varNameLen, host->dup(elems[i]));
 
         /* Execute body */
         TclResult result = tclEvalObj(interp, objv[3], 0);
 
-        /* Check for coroutine yield */
+        /* Check for coroutine yield - must return to let continuation handle it */
         if (tclCoroYieldPending()) {
             return TCL_OK;
         }

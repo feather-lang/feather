@@ -74,6 +74,47 @@ typedef struct TclParser {
  * ======================================================================== */
 
 struct TclAstNode;
+typedef struct TclAstNode TclAstNode;
+
+/* ========================================================================
+ * Evaluation Phase (for continuation state)
+ * ======================================================================== */
+
+typedef enum {
+    EVAL_PHASE_SCRIPT,      /* Evaluating a script node */
+    EVAL_PHASE_COMMAND,     /* Evaluating a command node */
+    EVAL_PHASE_WORD,        /* Evaluating a word node */
+    EVAL_PHASE_VAR,         /* Looking up a variable */
+    EVAL_PHASE_CMD_SUBST,   /* Evaluating command substitution */
+} EvalPhase;
+
+/* ========================================================================
+ * Continuation Types (for coroutine suspend/resume)
+ *
+ * These are persistent (allocated from interp->rootArena) and capture
+ * the complete evaluation state when a coroutine yields. On resume,
+ * the continuation is restored and execution continues from exactly
+ * where it left off - no re-execution of prior code.
+ * ======================================================================== */
+
+/* Persistent continuation frame - captures one level of eval stack */
+typedef struct TclContFrame {
+    EvalPhase phase;              /* What we were doing */
+    TclAstNode *node;             /* AST node being evaluated */
+    int index;                    /* Position in current array (cmd/word index) */
+    TclObj **args;                /* Accumulated args (for COMMAND phase) */
+    int argCount;
+    int argCapacity;
+    TclObj *result;               /* Partial result (for WORD phase) */
+    struct TclContFrame *parent;  /* Link to parent frame */
+} TclContFrame;
+
+/* Complete continuation for a coroutine */
+typedef struct TclContinuation {
+    TclContFrame *top;            /* Saved eval stack */
+    TclAstNode *ast;              /* Cached AST (lives in rootArena) */
+    TclFrame *execFrame;          /* Execution frame at yield point */
+} TclContinuation;
 
 /* ========================================================================
  * Builtin Command Entry
@@ -150,6 +191,22 @@ TclResult tclEvalObjv(TclInterp *interp, int objc, TclObj **objv, int flags);
 
 /* Execute command substitution [cmd] - always in current scope */
 TclResult tclEvalBracketed(TclInterp *interp, const char *cmd, size_t len);
+
+/* ========================================================================
+ * Continuation-based Evaluation (for coroutines)
+ * ======================================================================== */
+
+/* Parse script to AST, allocating in rootArena for persistence */
+TclAstNode *tclParseToRootArena(TclInterp *interp, const char *script, size_t len);
+
+/* Evaluate AST with continuation support.
+ * - If resume is non-NULL, continues from saved continuation
+ * - If contOut is non-NULL and yield occurs, saves continuation there
+ * Returns TCL_OK on completion or yield, TCL_ERROR on error.
+ */
+TclResult tclEvalAstCont(TclInterp *interp, TclAstNode *ast,
+                         TclContinuation *resume, TclContinuation **contOut,
+                         int popFrameOnResume);
 
 /* ========================================================================
  * Builtin Functions (builtins.c)
@@ -262,48 +319,13 @@ TclResult tclCmdYield(TclInterp *interp, int objc, TclObj **objv);
 TclResult tclCmdYieldto(TclInterp *interp, int objc, TclObj **objv);
 
 /* ========================================================================
- * Loop State for Coroutine Suspend/Resume
+ * Coroutine Support
+ *
+ * Coroutines use continuation-passing style (CPS) for true suspend/resume.
+ * Loop state is automatically captured in the continuation - no manual
+ * loop state tracking needed.
  * ======================================================================== */
 
-typedef enum {
-    LOOP_PHASE_TEST,      /* Evaluating condition */
-    LOOP_PHASE_BODY,      /* Executing body */
-    LOOP_PHASE_NEXT,      /* Executing increment (for) */
-    LOOP_PHASE_DONE       /* Loop complete */
-} TclLoopPhase;
-
-typedef enum {
-    LOOP_TYPE_WHILE,
-    LOOP_TYPE_FOR,
-    LOOP_TYPE_FOREACH
-} TclLoopType;
-
-typedef struct TclLoopState {
-    TclLoopType     type;
-    TclLoopPhase    phase;
-
-    /* Common fields - using TclObj* enables AST caching across yields */
-    TclObj         *bodyObj;           /* Loop body script */
-    size_t          bodyResumeOffset;  /* Offset into body to resume from after yield */
-
-    /* For while/for: condition */
-    TclObj         *testObj;           /* Condition expression */
-
-    /* For for: next clause */
-    TclObj         *nextObj;           /* Increment expression */
-
-    /* For foreach: iteration state */
-    TclObj        **elems;        /* List elements */
-    size_t          elemCount;
-    size_t          currentIndex; /* Which element we're on */
-    const char     *varName;      /* Variable name */
-    size_t          varNameLen;
-
-    /* Link to parent loop (for nested loops) */
-    struct TclLoopState *parent;
-} TclLoopState;
-
-/* Coroutine support */
 typedef struct TclCoroutine TclCoroutine;
 TclCoroutine *tclCoroLookup(const char *name, size_t len);
 TclResult tclCoroInvoke(TclInterp *interp, TclCoroutine *coro, int objc, TclObj **objv);
@@ -311,15 +333,8 @@ const char *tclCoroCurrentName(size_t *lenOut);
 int tclCoroYieldPending(void);
 void tclCoroClearYield(void);
 TclCoroutine *tclCoroGetCurrent(void);
-
-/* Loop state management for coroutines */
-TclLoopState *tclCoroLoopPush(TclLoopType type);
-void tclCoroLoopPop(void);
-TclLoopState *tclCoroLoopCurrent(void);
-
-/* Yield offset tracking for resuming within loop body */
-void tclCoroSetYieldOffset(size_t offset);
-size_t tclCoroGetYieldOffset(void);
+TclContinuation *tclCoroGetInnerContinuation(void);
+void tclCoroSetInnerContinuation(TclContinuation *cont);
 
 /* ========================================================================
  * Interpreter Functions (from tclc.h, implemented in eval.c)

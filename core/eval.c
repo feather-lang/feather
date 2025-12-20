@@ -37,6 +37,10 @@ TclInterp *tclInterpNew(const TclHost *host, void *hostCtx) {
     /* Initialize */
     interp->host = host;
     interp->hostCtx = hostCtx;
+
+    /* Create root arena for interpreter-lifetime objects (coroutines, continuations).
+     * This arena is NOT popped until tclInterpFree. */
+    interp->rootArena = host->arenaPush(hostCtx);
     interp->result = NULL;
     interp->resultCode = TCL_OK;
     interp->errorInfo = NULL;
@@ -76,6 +80,12 @@ void tclInterpFree(TclInterp *interp) {
     /* Free global frame */
     if (interp->globalFrame) {
         host->frameFree(ctx, interp->globalFrame);
+    }
+
+    /* Pop root arena (frees coroutines, continuations, cached ASTs) */
+    if (interp->rootArena) {
+        host->arenaPop(ctx, interp->rootArena);
+        interp->rootArena = NULL;
     }
 
     /* Note: interp itself is from static pool, not freed */
@@ -152,13 +162,7 @@ void tclAddErrorInfo(TclInterp *interp, const char *info, size_t len) {
  * and resumed later by saving/restoring the state stack.
  * ======================================================================== */
 
-typedef enum {
-    EVAL_PHASE_SCRIPT,      /* Evaluating a script node */
-    EVAL_PHASE_COMMAND,     /* Evaluating a command node */
-    EVAL_PHASE_WORD,        /* Evaluating a word node */
-    EVAL_PHASE_VAR,         /* Looking up a variable */
-    EVAL_PHASE_CMD_SUBST,   /* Evaluating command substitution */
-} EvalPhase;
+/* EvalPhase is now defined in internal.h for use by continuation types */
 
 typedef struct EvalFrame {
     EvalPhase phase;
@@ -253,6 +257,141 @@ static int appendResult(TclInterp *interp, EvalState *state, EvalFrame *frame, T
 
     frame->result = host->newString(buf, len1 + len2);
     return 0;
+}
+
+/* ========================================================================
+ * Continuation Save/Restore (for coroutine yield/resume)
+ *
+ * These functions save and restore the evaluation state across yields.
+ * State is saved to TclContinuation (allocated from rootArena) on yield,
+ * and restored on resume. This enables true CPS - no re-execution.
+ * ======================================================================== */
+
+/* Save a single EvalFrame to a TclContFrame (persistent) */
+static TclContFrame *saveContFrame(TclInterp *interp, EvalFrame *evalFrame) {
+    const TclHost *host = interp->host;
+
+    TclContFrame *cont = host->arenaAlloc(interp->rootArena,
+                                          sizeof(TclContFrame), sizeof(void*));
+    if (!cont) return NULL;
+
+    cont->phase = evalFrame->phase;
+    cont->node = evalFrame->node;
+    cont->index = evalFrame->index;
+    cont->argCount = evalFrame->argCount;
+    cont->argCapacity = evalFrame->argCapacity;
+    cont->result = evalFrame->result ? host->dup(evalFrame->result) : NULL;
+    cont->parent = NULL;
+
+    /* Copy args array to rootArena and dup each object */
+    if (evalFrame->argCount > 0) {
+        cont->args = host->arenaAlloc(interp->rootArena,
+                                      evalFrame->argCount * sizeof(TclObj*),
+                                      sizeof(void*));
+        if (!cont->args) return NULL;
+
+        for (int i = 0; i < evalFrame->argCount; i++) {
+            cont->args[i] = host->dup(evalFrame->args[i]);
+        }
+    } else {
+        cont->args = NULL;
+    }
+
+    return cont;
+}
+
+/* Save entire EvalState stack to TclContinuation */
+TclContinuation *tclContSave(TclInterp *interp, EvalState *state, TclAstNode *ast) {
+    const TclHost *host = interp->host;
+
+    TclContinuation *cont = host->arenaAlloc(interp->rootArena,
+                                             sizeof(TclContinuation), sizeof(void*));
+    if (!cont) return NULL;
+
+    cont->ast = ast;
+    cont->execFrame = interp->currentFrame;
+
+    /* Walk eval stack from top to bottom, building continuation chain */
+    EvalFrame *frame = state->top;
+    TclContFrame *prevCont = NULL;
+    TclContFrame *topCont = NULL;
+
+    while (frame) {
+        TclContFrame *contFrame = saveContFrame(interp, frame);
+        if (!contFrame) return NULL;
+
+        if (!topCont) {
+            topCont = contFrame;
+        }
+        if (prevCont) {
+            prevCont->parent = contFrame;
+        }
+        prevCont = contFrame;
+        frame = frame->parent;
+    }
+
+    cont->top = topCont;
+    return cont;
+}
+
+/* Restore EvalState stack from TclContinuation */
+static EvalFrame *restoreFromContinuation(TclInterp *interp, EvalState *state,
+                                          TclContinuation *cont) {
+    const TclHost *host = interp->host;
+
+    /* Walk continuation chain and rebuild EvalFrame stack.
+     * We need to reverse the order (continuation is top-to-bottom,
+     * but we build stack by pushing, which would reverse it).
+     *
+     * Strategy: collect frames in array first, then push in reverse order.
+     */
+    int frameCount = 0;
+    TclContFrame *cf = cont->top;
+    while (cf) {
+        frameCount++;
+        cf = cf->parent;
+    }
+
+    if (frameCount == 0) return NULL;
+
+    /* Allocate temp array for frames */
+    TclContFrame **frames = host->arenaAlloc(state->arena,
+                                             frameCount * sizeof(TclContFrame*),
+                                             sizeof(void*));
+    if (!frames) return NULL;
+
+    cf = cont->top;
+    for (int i = 0; i < frameCount; i++) {
+        frames[i] = cf;
+        cf = cf->parent;
+    }
+
+    /* Push frames in reverse order (bottom of stack first) */
+    for (int i = frameCount - 1; i >= 0; i--) {
+        TclContFrame *contFrame = frames[i];
+
+        EvalFrame *evalFrame = pushFrame(interp, state, contFrame->phase, contFrame->node);
+        if (!evalFrame) return NULL;
+
+        evalFrame->index = contFrame->index;
+        evalFrame->result = contFrame->result;
+
+        /* Restore args */
+        if (contFrame->argCount > 0) {
+            evalFrame->args = host->arenaAlloc(state->arena,
+                                               contFrame->argCount * sizeof(TclObj*),
+                                               sizeof(void*));
+            if (!evalFrame->args) return NULL;
+
+            for (int j = 0; j < contFrame->argCount; j++) {
+                evalFrame->args[j] = contFrame->args[j];
+            }
+            evalFrame->argCount = contFrame->argCount;
+            evalFrame->argCapacity = contFrame->argCount;
+        }
+    }
+
+    return state->top;
 }
 
 /* ========================================================================
@@ -732,10 +871,13 @@ static TclResult evalStep(TclInterp *interp, EvalState *state) {
  * High-Level Eval Functions
  * ======================================================================== */
 
-static TclResult evalAst(TclInterp *interp, TclAstNode *ast) {
+static TclResult evalAstWithContinuation(TclInterp *interp, TclAstNode *ast,
+                                         TclContinuation *resume,
+                                         TclContinuation **contOut,
+                                         int popFrameOnResume) {
     const TclHost *host = interp->host;
 
-    if (!ast) {
+    if (!ast && !resume) {
         tclSetResult(interp, host->newString("", 0));
         return TCL_OK;
     }
@@ -748,24 +890,44 @@ static TclResult evalAst(TclInterp *interp, TclAstNode *ast) {
     state.suspended = 0;
     state.yieldValue = NULL;
 
-    /* Push initial frame */
-    if (ast->type == TCL_NODE_SCRIPT) {
-        if (!pushFrame(interp, &state, EVAL_PHASE_SCRIPT, ast)) {
+    if (resume) {
+        /* Restore state from continuation */
+        if (!restoreFromContinuation(interp, &state, resume)) {
             host->arenaPop(interp->hostCtx, arena);
-            tclSetError(interp, "out of memory", -1);
+            tclSetError(interp, "failed to restore continuation", -1);
             return TCL_ERROR;
+        }
+        /* Use AST from continuation */
+        ast = resume->ast;
+        /* Restore execution frame */
+        interp->currentFrame = resume->execFrame;
+
+        /* Pop the command frame if requested.
+         * For inner resumes (from while/for body), we want to skip the yield command
+         * and continue with the next command. For outer resumes, we don't pop so
+         * the loop command gets re-dispatched. */
+        if (popFrameOnResume && state.top && state.top->phase == EVAL_PHASE_COMMAND) {
+            popFrame(&state);
         }
     } else {
-        /* Single node - wrap in evaluation */
-        if (!pushFrame(interp, &state, EVAL_PHASE_WORD, ast)) {
-            host->arenaPop(interp->hostCtx, arena);
-            tclSetError(interp, "out of memory", -1);
-            return TCL_ERROR;
+        /* Fresh evaluation - push initial frame */
+        if (ast->type == TCL_NODE_SCRIPT) {
+            if (!pushFrame(interp, &state, EVAL_PHASE_SCRIPT, ast)) {
+                host->arenaPop(interp->hostCtx, arena);
+                tclSetError(interp, "out of memory", -1);
+                return TCL_ERROR;
+            }
+        } else {
+            /* Single node - wrap in evaluation */
+            if (!pushFrame(interp, &state, EVAL_PHASE_WORD, ast)) {
+                host->arenaPop(interp->hostCtx, arena);
+                tclSetError(interp, "out of memory", -1);
+                return TCL_ERROR;
+            }
         }
+        /* Set default result */
+        tclSetResult(interp, host->newString("", 0));
     }
-
-    /* Set default result */
-    tclSetResult(interp, host->newString("", 0));
 
     /* Run evaluation loop */
     TclResult result;
@@ -777,8 +939,10 @@ static TclResult evalAst(TclInterp *interp, TclAstNode *ast) {
         }
 
         if (state.suspended) {
-            /* Yield occurred - need to save state for resume */
-            /* For now, just return */
+            /* Yield occurred - save continuation for resume */
+            if (contOut) {
+                *contOut = tclContSave(interp, &state, ast);
+            }
             break;
         }
 
@@ -787,6 +951,11 @@ static TclResult evalAst(TclInterp *interp, TclAstNode *ast) {
 
     host->arenaPop(interp->hostCtx, arena);
     return result == TCL_CONTINUE ? TCL_OK : result;
+}
+
+/* Original evalAst for backward compatibility */
+static TclResult evalAst(TclInterp *interp, TclAstNode *ast) {
+    return evalAstWithContinuation(interp, ast, NULL, NULL, 0);
 }
 
 TclResult tclEvalScript(TclInterp *interp, const char *script, size_t len, int flags) {
@@ -804,23 +973,45 @@ TclResult tclEvalScript(TclInterp *interp, const char *script, size_t len, int f
         interp->currentFrame = interp->globalFrame;
     }
 
-    /* Parse script to AST */
-    void *arena = host->arenaPush(interp->hostCtx);
-    TclAstNode *ast = tclAstParse(interp, arena, script, len);
+    /* Parse script to AST.
+     * If in coroutine, use rootArena so AST persists across yields. */
+    TclResult result;
+    int inCoroutine = (tclCoroGetCurrent() != NULL);
 
-    if (!ast) {
-        host->arenaPop(interp->hostCtx, arena);
-        if (savedFrame) {
-            interp->currentFrame = savedFrame;
+    if (inCoroutine) {
+        /* In coroutine - parse to persistent arena */
+        TclAstNode *ast = tclAstParse(interp, interp->rootArena, script, len);
+        if (!ast) {
+            if (savedFrame) {
+                interp->currentFrame = savedFrame;
+            }
+            tclSetError(interp, "parse error", -1);
+            return TCL_ERROR;
         }
-        tclSetError(interp, "parse error", -1);
-        return TCL_ERROR;
+
+        TclContinuation *contOut = NULL;
+        result = evalAstWithContinuation(interp, ast, NULL, &contOut, 0);
+        if (contOut) {
+            /* Yield occurred - save inner continuation for resume */
+            tclCoroSetInnerContinuation(contOut);
+        }
+    } else {
+        /* Not in coroutine - use temporary arena */
+        void *arena = host->arenaPush(interp->hostCtx);
+        TclAstNode *ast = tclAstParse(interp, arena, script, len);
+
+        if (!ast) {
+            host->arenaPop(interp->hostCtx, arena);
+            if (savedFrame) {
+                interp->currentFrame = savedFrame;
+            }
+            tclSetError(interp, "parse error", -1);
+            return TCL_ERROR;
+        }
+
+        result = evalAst(interp, ast);
+        host->arenaPop(interp->hostCtx, arena);
     }
-
-    /* Evaluate AST */
-    TclResult result = evalAst(interp, ast);
-
-    host->arenaPop(interp->hostCtx, arena);
 
     /* Restore frame if we switched to global */
     if (savedFrame) {
@@ -877,4 +1068,29 @@ TclResult tclEvalObj(TclInterp *interp, TclObj *script, int flags) {
     size_t len;
     const char *str = interp->host->getStringPtr(script, &len);
     return tclEvalScript(interp, str, len, flags);
+}
+
+/* ========================================================================
+ * Continuation-based Evaluation (for coroutines)
+ *
+ * These functions allow coroutine code to evaluate with continuation
+ * save/restore support for true CPS semantics.
+ * ======================================================================== */
+
+/* Parse script to AST and allocate in rootArena for persistence across yields */
+TclAstNode *tclParseToRootArena(TclInterp *interp, const char *script, size_t len) {
+    return tclAstParse(interp, interp->rootArena, script, len);
+}
+
+/* Evaluate AST with continuation support.
+ * - If resume is non-NULL, continues from saved continuation
+ * - If contOut is non-NULL and yield occurs, saves continuation there
+ * - popFrameOnResume: if true and resuming, pop the command frame to skip
+ *   the yield command and continue with the next command
+ * Returns TCL_OK on completion or yield, TCL_ERROR on error.
+ */
+TclResult tclEvalAstCont(TclInterp *interp, TclAstNode *ast,
+                         TclContinuation *resume, TclContinuation **contOut,
+                         int popFrameOnResume) {
+    return evalAstWithContinuation(interp, ast, resume, contOut, popFrameOnResume);
 }

@@ -30,14 +30,10 @@ typedef struct TclCoroutine {
     int         cmdObjc;        /* Count of command objects */
     int         started;        /* Has first execution started? */
 
-    /* For script execution and resumption using yield counting */
-    TclObj     *scriptObj;      /* Script being executed (proc body) - enables AST caching */
-    int         yieldCount;     /* Number of yields executed so far */
-    int         yieldTarget;    /* Target yield to stop at on resume */
-    TclObj     *resumeValue;    /* Value to return from yield on resume */
-
-    /* Loop state stack for proper suspend/resume inside loops */
-    TclLoopState *currentLoop;  /* Top of loop state stack */
+    /* For true CPS: continuation-based suspend/resume */
+    TclAstNode *cachedAst;              /* Parsed AST (allocated in rootArena) */
+    TclContinuation *continuation;      /* Saved continuation on yield */
+    TclObj     *resumeValue;            /* Value to return from yield on resume */
 } TclCoroutine;
 
 /* Maximum number of active coroutines */
@@ -51,8 +47,8 @@ static TclCoroutine *gCurrentCoroutine = NULL;
 /* Global yield flag - set by yield, checked by eval loop */
 static int gYieldPending = 0;
 
-/* Global yield offset - position in script where yield occurred */
-static size_t gYieldOffset = 0;
+/* Inner continuation from nested eval (body of while/for/foreach) */
+static TclContinuation *gInnerContinuation = NULL;
 
 /* Check if yield is pending (called by eval loop) */
 int tclCoroYieldPending(void) {
@@ -64,73 +60,18 @@ void tclCoroClearYield(void) {
     gYieldPending = 0;
 }
 
-/* Set yield offset (called by eval.c when yield is detected) */
-void tclCoroSetYieldOffset(size_t offset) {
-    gYieldOffset = offset;
+/* Get/set inner continuation for nested evals */
+TclContinuation *tclCoroGetInnerContinuation(void) {
+    return gInnerContinuation;
 }
 
-/* Get yield offset (called by control structures to save resume position) */
-size_t tclCoroGetYieldOffset(void) {
-    return gYieldOffset;
+void tclCoroSetInnerContinuation(TclContinuation *cont) {
+    gInnerContinuation = cont;
 }
 
-/* Get current coroutine (for loop state management) */
+/* Get current coroutine */
 TclCoroutine *tclCoroGetCurrent(void) {
     return gCurrentCoroutine;
-}
-
-/* ========================================================================
- * Loop State Management
- * ======================================================================== */
-
-/* Push a new loop state onto the current coroutine's loop stack */
-TclLoopState *tclCoroLoopPush(TclLoopType type) {
-    if (!gCurrentCoroutine) return NULL;
-
-    TclInterp *interp = gCurrentCoroutine->interp;
-    const TclHost *host = interp->host;
-
-    /* Allocate from arena - will be freed when coroutine ends */
-    void *arena = host->arenaPush(interp->hostCtx);
-    TclLoopState *loop = host->arenaAlloc(arena, sizeof(TclLoopState), sizeof(void*));
-    if (!loop) {
-        host->arenaPop(interp->hostCtx, arena);
-        return NULL;
-    }
-
-    /* Initialize */
-    loop->type = type;
-    loop->phase = LOOP_PHASE_TEST;
-    loop->bodyObj = NULL;
-    loop->bodyResumeOffset = 0;
-    loop->testObj = NULL;
-    loop->nextObj = NULL;
-    loop->elems = NULL;
-    loop->elemCount = 0;
-    loop->currentIndex = 0;
-    loop->varName = NULL;
-    loop->varNameLen = 0;
-
-    /* Link to parent */
-    loop->parent = gCurrentCoroutine->currentLoop;
-    gCurrentCoroutine->currentLoop = loop;
-
-    return loop;
-}
-
-/* Pop the top loop state from the current coroutine's loop stack */
-void tclCoroLoopPop(void) {
-    if (!gCurrentCoroutine || !gCurrentCoroutine->currentLoop) return;
-
-    TclLoopState *loop = gCurrentCoroutine->currentLoop;
-    gCurrentCoroutine->currentLoop = loop->parent;
-    /* Note: loop memory will be freed when coroutine's arena is popped */
-}
-
-/* Get the current loop state (top of stack) */
-TclLoopState *tclCoroLoopCurrent(void) {
-    if (!gCurrentCoroutine) return NULL;
-    return gCurrentCoroutine->currentLoop;
 }
 
 /* ========================================================================
@@ -192,22 +133,21 @@ static TclCoroutine *coroCreate(TclInterp *interp, const char *name, size_t name
     }
 
     const TclHost *host = interp->host;
-    void *arena = host->arenaPush(interp->hostCtx);
 
-    TclCoroutine *coro = host->arenaAlloc(arena, sizeof(TclCoroutine), sizeof(void*));
+    /* Allocate from rootArena - persists until interpreter is freed */
+    TclCoroutine *coro = host->arenaAlloc(interp->rootArena, sizeof(TclCoroutine), sizeof(void*));
     if (!coro) {
-        host->arenaPop(interp->hostCtx, arena);
         return NULL;
     }
 
-    /* Build fully qualified name */
+    /* Build fully qualified name (also in rootArena) */
     char *fullName;
     size_t fullLen;
     if (nameLen >= 2 && name[0] == ':' && name[1] == ':') {
-        fullName = host->arenaStrdup(arena, name, nameLen);
+        fullName = host->arenaStrdup(interp->rootArena, name, nameLen);
         fullLen = nameLen;
     } else {
-        fullName = host->arenaAlloc(arena, nameLen + 3, 1);
+        fullName = host->arenaAlloc(interp->rootArena, nameLen + 3, 1);
         fullName[0] = ':';
         fullName[1] = ':';
         for (size_t i = 0; i < nameLen; i++) {
@@ -228,33 +168,25 @@ static TclCoroutine *coroCreate(TclInterp *interp, const char *name, size_t name
     coro->cmdObjs = NULL;
     coro->cmdObjc = 0;
     coro->started = 0;
-    coro->scriptObj = NULL;
-    coro->yieldCount = 0;
-    coro->yieldTarget = 0;
+
+    /* CPS fields */
+    coro->cachedAst = NULL;
+    coro->continuation = NULL;
     coro->resumeValue = NULL;
-    coro->currentLoop = NULL;
 
     gCoroutines[gCoroutineCount++] = coro;
-
-    /* Note: arena is intentionally not popped - coro needs to persist */
 
     return coro;
 }
 
 /* ========================================================================
- * Coroutine Execution
+ * Coroutine Execution (CPS-based)
+ *
+ * Uses continuation-based evaluation for true suspend/resume semantics.
+ * On yield, the entire evaluation state is saved to a TclContinuation.
+ * On resume, the continuation is restored and execution continues from
+ * exactly where it left off - no re-execution of prior code.
  * ======================================================================== */
-
-/* Evaluate script within coroutine context, using yield counting for resume */
-static TclResult coroEvalScript(TclCoroutine *coro) {
-    TclInterp *interp = coro->interp;
-
-    /* Always execute from the beginning - yield counting handles resume.
-     * Using tclEvalObj enables AST caching for repeated evaluations. */
-    TclResult result = tclEvalObj(interp, coro->scriptObj, 0);
-
-    return result;
-}
 
 /* Execute the coroutine's command (first invocation or resume) */
 static TclResult coroExecute(TclCoroutine *coro, TclObj *resumeValue) {
@@ -323,7 +255,7 @@ static TclResult coroExecute(TclCoroutine *coro, TclObj *resumeValue) {
         }
 
         if (cmdInfo.type == TCL_CMD_PROC) {
-            /* Get proc definition and save script */
+            /* Get proc definition */
             TclObj *argList = NULL;
             TclObj *body = NULL;
             if (host->procGetDef(cmdInfo.u.procHandle, &argList, &body) != 0) {
@@ -395,11 +327,27 @@ static TclResult coroExecute(TclCoroutine *coro, TclObj *resumeValue) {
                 host->varSet(coroFrame->varsHandle, "args", 4, argsList);
             }
 
-            /* Save script for resumption - keep TclObj to enable AST caching */
-            coro->scriptObj = host->dup(body);
+            /* Parse body to AST and cache in rootArena for persistence */
+            size_t bodyLen;
+            const char *bodyStr = host->getStringPtr(body, &bodyLen);
+            coro->cachedAst = tclParseToRootArena(interp, bodyStr, bodyLen);
+            if (!coro->cachedAst) {
+                coro->running = 0;
+                gCurrentCoroutine = prevCoro;
+                host->frameFree(interp->hostCtx, coroFrame);
+                tclSetError(interp, "failed to parse proc body", -1);
+                return TCL_ERROR;
+            }
 
-            /* Execute with yield counting support */
-            result = coroEvalScript(coro);
+            /* Execute with continuation support */
+            TclContinuation *contOut = NULL;
+            result = tclEvalAstCont(interp, coro->cachedAst, NULL, &contOut, 0);
+
+            /* Save continuation if yield occurred */
+            if (contOut) {
+                coro->continuation = contOut;
+            }
+
         } else if (cmdInfo.type == TCL_CMD_BUILTIN) {
             interp->currentFrame = coroFrame;
             const TclBuiltinEntry *entry = tclBuiltinGet(cmdInfo.u.builtinId);
@@ -417,15 +365,23 @@ static TclResult coroExecute(TclCoroutine *coro, TclObj *resumeValue) {
             return TCL_ERROR;
         }
     } else {
-        /* Resume - re-execute script with yield counting */
+        /* Resume from saved continuation - true CPS, no re-execution */
         interp->currentFrame = coro->savedFrame;
 
-        /* Set yieldTarget to skip to where we were */
-        coro->yieldTarget = coro->yieldCount;
-        coro->yieldCount = 0;
+        /* Set the resume value as result (for yield to return) */
+        tclSetResult(interp, resumeValue ? resumeValue : host->newString("", 0));
 
-        if (coro->scriptObj) {
-            result = coroEvalScript(coro);
+        if (coro->continuation) {
+            /* Resume from saved continuation.
+             * If there's an inner continuation (yield was inside while/for body),
+             * don't pop frame - the loop command will handle the inner resume.
+             * Otherwise, pop the yield command frame to continue with next command. */
+            int popFrame = (tclCoroGetInnerContinuation() == NULL);
+            TclContinuation *contOut = NULL;
+            result = tclEvalAstCont(interp, NULL, coro->continuation, &contOut, popFrame);
+
+            /* Update continuation (new one if yielded again, NULL if done) */
+            coro->continuation = contOut;
         } else {
             result = TCL_OK;
         }
@@ -435,7 +391,7 @@ static TclResult coroExecute(TclCoroutine *coro, TclObj *resumeValue) {
 
     /* Check if we yielded or finished */
     if (gYieldPending) {
-        /* Yielded - keep coroutine alive */
+        /* Yielded - continuation was saved above, keep coroutine alive */
         gYieldPending = 0;
         coro->running = 0;
         gCurrentCoroutine = prevCoro;
@@ -551,14 +507,6 @@ TclResult tclCmdYield(TclInterp *interp, int objc, TclObj **objv) {
 
     TclCoroutine *coro = gCurrentCoroutine;
 
-    /* Check if we should skip this yield (replaying to catch up) */
-    if (coro->yieldCount < coro->yieldTarget) {
-        /* Skip this yield - return the resume value instead */
-        coro->yieldCount++;
-        tclSetResult(interp, coro->resumeValue ? coro->resumeValue : host->newString("", 0));
-        return TCL_OK;
-    }
-
     /* Get the yield value */
     TclObj *value;
     if (objc == 2) {
@@ -567,13 +515,11 @@ TclResult tclCmdYield(TclInterp *interp, int objc, TclObj **objv) {
         value = host->newString("", 0);
     }
 
-    /* Actually yield - increment count and signal */
-    coro->yieldCount++;
+    /* Signal yield - continuation saving is handled by tclEvalAstCont */
     coro->result = value;
-    coro->running = 0;
     gYieldPending = 1;
 
-    /* Return the value - this will be the result of the coroutine call */
+    /* Result will be replaced with resume value when continued */
     tclSetResult(interp, value);
 
     return TCL_OK;
@@ -658,18 +604,8 @@ TclResult tclCmdYieldto(TclInterp *interp, int objc, TclObj **objv) {
 
     TclCoroutine *coro = gCurrentCoroutine;
 
-    /* Check if we should skip this yield (replaying to catch up) */
-    if (coro->yieldCount < coro->yieldTarget) {
-        /* Skip this yield - return the resume value instead */
-        coro->yieldCount++;
-        tclSetResult(interp, coro->resumeValue ? coro->resumeValue : host->newString("", 0));
-        return TCL_OK;
-    }
-
-    /* Actually yield - increment count and signal */
-    coro->yieldCount++;
+    /* Signal yield - continuation saving is handled by tclEvalAstCont */
     coro->result = interp->result;
-    coro->running = 0;
     gYieldPending = 1;
 
     return TCL_OK;
