@@ -582,10 +582,8 @@ static TclAstNode *parseCommand(TclInterp *interp, void *arena, TclLexer *lex) {
             /* Braced - no substitution */
             wordNode = parseBracedWord(interp, arena, word.start, word.len, word.line);
         } else if (word.type == TCL_WORD_QUOTES) {
-            /* Quoted - strip quotes, parse content */
-            const char *content = word.start + 1;
-            size_t contentLen = word.len - 2;
-            wordNode = parseWordContent(interp, arena, content, contentLen, word.line, 1);
+            /* Quoted - lexer already stripped quotes, parse content directly */
+            wordNode = parseWordContent(interp, arena, word.start, word.len, word.line, 1);
         } else {
             /* Bare word */
             if (isExpand) {
