@@ -449,7 +449,7 @@ TclResult tclCmdArray(TclInterp *interp, int objc, TclObj **objv) {
             }
 
             /* Execute body */
-            rc = tclEval(interp, body);
+            rc = tclEvalObj(interp, body, 0);
             if (rc == TCL_BREAK) {
                 rc = TCL_OK;
                 break;

@@ -404,10 +404,7 @@ static TclResult dispatchCommand(TclInterp *interp, int objc, TclObj **objv) {
                 TclFrame *savedFrame = interp->currentFrame;
                 interp->currentFrame = procFrame;
 
-                size_t bodyLen;
-                const char *bodyStr = host->getStringPtr(body, &bodyLen);
-
-                TclResult result = tclEvalScript(interp, bodyStr, bodyLen);
+                TclResult result = tclEvalObj(interp, body, 0);
 
                 if (result == TCL_RETURN) {
                     result = TCL_OK;
@@ -735,7 +732,7 @@ static TclResult evalStep(TclInterp *interp, EvalState *state) {
  * High-Level Eval Functions
  * ======================================================================== */
 
-TclResult tclEvalAst(TclInterp *interp, TclAstNode *ast) {
+static TclResult evalAst(TclInterp *interp, TclAstNode *ast) {
     const TclHost *host = interp->host;
 
     if (!ast) {
@@ -792,12 +789,19 @@ TclResult tclEvalAst(TclInterp *interp, TclAstNode *ast) {
     return result == TCL_CONTINUE ? TCL_OK : result;
 }
 
-TclResult tclEvalScript(TclInterp *interp, const char *script, size_t len) {
+TclResult tclEvalScript(TclInterp *interp, const char *script, size_t len, int flags) {
     const TclHost *host = interp->host;
 
     if (len == 0 || !script) {
         tclSetResult(interp, host->newString("", 0));
         return TCL_OK;
+    }
+
+    /* Handle TCL_EVAL_GLOBAL flag */
+    TclFrame *savedFrame = NULL;
+    if (flags & TCL_EVAL_GLOBAL) {
+        savedFrame = interp->currentFrame;
+        interp->currentFrame = interp->globalFrame;
     }
 
     /* Parse script to AST */
@@ -806,14 +810,41 @@ TclResult tclEvalScript(TclInterp *interp, const char *script, size_t len) {
 
     if (!ast) {
         host->arenaPop(interp->hostCtx, arena);
+        if (savedFrame) {
+            interp->currentFrame = savedFrame;
+        }
         tclSetError(interp, "parse error", -1);
         return TCL_ERROR;
     }
 
     /* Evaluate AST */
-    TclResult result = tclEvalAst(interp, ast);
+    TclResult result = evalAst(interp, ast);
 
     host->arenaPop(interp->hostCtx, arena);
+
+    /* Restore frame if we switched to global */
+    if (savedFrame) {
+        interp->currentFrame = savedFrame;
+    }
+
+    return result;
+}
+
+TclResult tclEvalObjv(TclInterp *interp, int objc, TclObj **objv, int flags) {
+    /* Handle TCL_EVAL_GLOBAL flag */
+    TclFrame *savedFrame = NULL;
+    if (flags & TCL_EVAL_GLOBAL) {
+        savedFrame = interp->currentFrame;
+        interp->currentFrame = interp->globalFrame;
+    }
+
+    TclResult result = dispatchCommand(interp, objc, objv);
+
+    /* Restore frame if we switched to global */
+    if (savedFrame) {
+        interp->currentFrame = savedFrame;
+    }
+
     return result;
 }
 
@@ -822,8 +853,8 @@ TclResult tclEvalBracketed(TclInterp *interp, const char *cmd, size_t len) {
     TclObj *savedResult = interp->result;
     TclResult savedCode = interp->resultCode;
 
-    /* Evaluate bracketed command */
-    TclResult result = tclEvalScript(interp, cmd, len);
+    /* Evaluate bracketed command in current scope */
+    TclResult result = tclEvalScript(interp, cmd, len, 0);
 
     if (result != TCL_OK) {
         /* Keep error result */
@@ -842,15 +873,8 @@ TclResult tclEvalBracketed(TclInterp *interp, const char *cmd, size_t len) {
  * Public API (from tclc.h)
  * ======================================================================== */
 
-TclResult tclEval(TclInterp *interp, TclObj *script) {
+TclResult tclEvalObj(TclInterp *interp, TclObj *script, int flags) {
     size_t len;
     const char *str = interp->host->getStringPtr(script, &len);
-    return tclEvalScript(interp, str, len);
-}
-
-TclResult tclEvalStr(TclInterp *interp, const char *script, size_t len) {
-    if (len == (size_t)-1) {
-        len = tclStrlen(script);
-    }
-    return tclEvalScript(interp, script, len);
+    return tclEvalScript(interp, str, len, flags);
 }

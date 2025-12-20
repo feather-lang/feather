@@ -1018,7 +1018,7 @@ static gboolean afterTimerCallback(gpointer userData) {
         /* Execute the script */
         size_t len;
         const char *script = hostGetStringPtr(event->script, &len);
-        tclEvalStr(gCurrentInterp, script, len);
+        tclEvalScript(gCurrentInterp, script, len, 0);
     }
 
     /* Remove from hash table */

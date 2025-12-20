@@ -142,10 +142,13 @@ int tclSubstBackslashChar(const char *src, const char *end, char *out);
  * Eval Functions (eval.c)
  * ======================================================================== */
 
-/* Execute a complete script */
-TclResult tclEvalScript(TclInterp *interp, const char *script, size_t len);
+/* Execute a complete script (flags: TCL_EVAL_GLOBAL) */
+TclResult tclEvalScript(TclInterp *interp, const char *script, size_t len, int flags);
 
-/* Execute command substitution [cmd] */
+/* Execute pre-parsed command arguments (flags: TCL_EVAL_GLOBAL) */
+TclResult tclEvalObjv(TclInterp *interp, int objc, TclObj **objv, int flags);
+
+/* Execute command substitution [cmd] - always in current scope */
 TclResult tclEvalBracketed(TclInterp *interp, const char *cmd, size_t len);
 
 /* ========================================================================
@@ -329,8 +332,9 @@ size_t tclCoroGetYieldOffset(void);
  *
  * TclInterp* tclInterpNew(const TclHost *host, void *hostCtx);
  * void tclInterpFree(TclInterp *interp);
- * TclResult tclEval(TclInterp *interp, TclObj *script);
- * TclResult tclEvalStr(TclInterp *interp, const char *script, size_t len);
+ * TclResult tclEvalObj(TclInterp *interp, TclObj *script, int flags);
+ * TclResult tclEvalObjv(TclInterp *interp, int objc, TclObj **objv, int flags);
+ * TclResult tclEvalScript(TclInterp *interp, const char *script, size_t len, int flags);
  * TclObj* tclGetResult(TclInterp *interp);
  * void tclSetResult(TclInterp *interp, TclObj *result);
  */

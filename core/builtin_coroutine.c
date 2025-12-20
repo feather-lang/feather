@@ -255,7 +255,7 @@ static TclResult coroEvalScript(TclCoroutine *coro) {
     TclInterp *interp = coro->interp;
 
     /* Always execute from the beginning - yield counting handles resume */
-    TclResult result = tclEvalScript(interp, coro->script, coro->scriptLen);
+    TclResult result = tclEvalScript(interp, coro->script, coro->scriptLen, 0);
 
     return result;
 }
@@ -649,7 +649,7 @@ TclResult tclCmdYieldto(TclInterp *interp, int objc, TclObj **objv) {
             }
             size_t bodyLen;
             const char *bodyStr = host->getStringPtr(body, &bodyLen);
-            result = tclEvalScript(interp, bodyStr, bodyLen);
+            result = tclEvalScript(interp, bodyStr, bodyLen, 0);
             break;
         }
         case TCL_CMD_EXTENSION:

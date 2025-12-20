@@ -480,9 +480,6 @@ TclResult tclCmdDict(TclInterp *interp, int objc, TclObj **objv) {
             const char *keyVar = host->getStringPtr(varNames[0], &keyVarLen);
             const char *valVar = host->getStringPtr(varNames[1], &valVarLen);
 
-            size_t bodyLen;
-            const char *body = host->getStringPtr(objv[5], &bodyLen);
-
             void *vars = interp->currentFrame->varsHandle;
 
             TclObj **elems;
@@ -499,7 +496,7 @@ TclResult tclCmdDict(TclInterp *interp, int objc, TclObj **objv) {
                 host->varSet(vars, keyVar, keyVarLen, host->dup(elems[i]));
                 host->varSet(vars, valVar, valVarLen, host->dup(elems[i + 1]));
 
-                TclResult code = tclEvalScript(interp, body, bodyLen);
+                TclResult code = tclEvalObj(interp, objv[5], 0);
 
                 if (code == TCL_BREAK) {
                     break;
@@ -550,8 +547,6 @@ TclResult tclCmdDict(TclInterp *interp, int objc, TclObj **objv) {
         const char *valVar = host->getStringPtr(varNames[1], &valVarLen);
 
         TclObj *dict = objv[3];
-        size_t bodyLen;
-        const char *body = host->getStringPtr(objv[4], &bodyLen);
 
         void *vars = interp->currentFrame->varsHandle;
 
@@ -565,7 +560,7 @@ TclResult tclCmdDict(TclInterp *interp, int objc, TclObj **objv) {
             host->varSet(vars, keyVar, keyVarLen, host->dup(elems[i]));
             host->varSet(vars, valVar, valVarLen, host->dup(elems[i + 1]));
 
-            TclResult code = tclEvalScript(interp, body, bodyLen);
+            TclResult code = tclEvalObj(interp, objv[4], 0);
 
             if (code == TCL_BREAK) {
                 break;
@@ -830,8 +825,6 @@ TclResult tclCmdDict(TclInterp *interp, int objc, TclObj **objv) {
         const char *valVar = host->getStringPtr(varNames[1], &valVarLen);
 
         TclObj *dict = objv[3];
-        size_t bodyLen;
-        const char *body = host->getStringPtr(objv[4], &bodyLen);
 
         void *vars = interp->currentFrame->varsHandle;
 
@@ -849,7 +842,7 @@ TclResult tclCmdDict(TclInterp *interp, int objc, TclObj **objv) {
             host->varSet(vars, keyVar, keyVarLen, host->dup(elems[i]));
             host->varSet(vars, valVar, valVarLen, host->dup(elems[i + 1]));
 
-            TclResult code = tclEvalScript(interp, body, bodyLen);
+            TclResult code = tclEvalObj(interp, objv[4], 0);
 
             if (code == TCL_BREAK) {
                 /* Break returns empty dict */
@@ -1092,9 +1085,6 @@ TclResult tclCmdDict(TclInterp *interp, int objc, TclObj **objv) {
             dict = host->newString("", 0);
         }
 
-        size_t bodyLen;
-        const char *body = host->getStringPtr(objv[objc - 1], &bodyLen);
-
         /* Number of key-var pairs: (objc - 4) / 2 */
         /* objv[3..objc-2] are key-varName pairs, objv[objc-1] is body */
         int pairCount = (objc - 4) / 2;
@@ -1113,7 +1103,7 @@ TclResult tclCmdDict(TclInterp *interp, int objc, TclObj **objv) {
         }
 
         /* Execute body */
-        TclResult code = tclEvalScript(interp, body, bodyLen);
+        TclResult code = tclEvalObj(interp, objv[objc - 1], 0);
 
         /* Read back local variables into dict */
         for (int i = 0; i < pairCount; i++) {
@@ -1186,9 +1176,6 @@ TclResult tclCmdDict(TclInterp *interp, int objc, TclObj **objv) {
             dict = next;
         }
 
-        size_t bodyLen;
-        const char *body = host->getStringPtr(objv[objc - 1], &bodyLen);
-
         /* Get all keys and set as local variables */
         TclObj **elems;
         size_t count;
@@ -1203,7 +1190,7 @@ TclResult tclCmdDict(TclInterp *interp, int objc, TclObj **objv) {
         }
 
         /* Execute body */
-        TclResult code = tclEvalScript(interp, body, bodyLen);
+        TclResult code = tclEvalObj(interp, objv[objc - 1], 0);
 
         /* Read back local variables into dict */
         TclObj *newDict = host->newString("", 0);

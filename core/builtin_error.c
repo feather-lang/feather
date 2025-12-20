@@ -55,12 +55,8 @@ TclResult tclCmdCatch(TclInterp *interp, int objc, TclObj **objv) {
         return TCL_ERROR;
     }
 
-    /* Get the script to execute */
-    size_t scriptLen;
-    const char *script = host->getStringPtr(objv[1], &scriptLen);
-
     /* Execute the script and capture the result code */
-    TclResult code = tclEvalScript(interp, script, scriptLen);
+    TclResult code = tclEvalObj(interp, objv[1], 0);
 
     /* Set global errorInfo and errorCode variables after catching an error */
     if (code == TCL_ERROR) {
@@ -170,9 +166,7 @@ TclResult tclCmdTry(TclInterp *interp, int objc, TclObj **objv) {
     }
 
     /* Execute the body */
-    size_t bodyLen;
-    const char *body = host->getStringPtr(objv[1], &bodyLen);
-    TclResult bodyCode = tclEvalScript(interp, body, bodyLen);
+    TclResult bodyCode = tclEvalObj(interp, objv[1], 0);
     TclObj *bodyResult = interp->result ? host->dup(interp->result) : host->newString("", 0);
 
     /* Look for handlers and finally clause */
@@ -241,9 +235,7 @@ TclResult tclCmdTry(TclInterp *interp, int objc, TclObj **objv) {
                     }
 
                     /* Execute handler script */
-                    size_t scriptLen;
-                    const char *script = host->getStringPtr(objv[i + 3], &scriptLen);
-                    handlerCode = tclEvalScript(interp, script, scriptLen);
+                    handlerCode = tclEvalObj(interp, objv[i + 3], 0);
                     handlerResult = interp->result ? host->dup(interp->result) : host->newString("", 0);
                 }
             }
@@ -286,9 +278,7 @@ TclResult tclCmdTry(TclInterp *interp, int objc, TclObj **objv) {
                     }
 
                     /* Execute handler script */
-                    size_t scriptLen;
-                    const char *script = host->getStringPtr(objv[i + 3], &scriptLen);
-                    handlerCode = tclEvalScript(interp, script, scriptLen);
+                    handlerCode = tclEvalObj(interp, objv[i + 3], 0);
                     handlerResult = interp->result ? host->dup(interp->result) : host->newString("", 0);
                 }
             }
@@ -303,9 +293,7 @@ TclResult tclCmdTry(TclInterp *interp, int objc, TclObj **objv) {
 
     /* Execute finally clause if present */
     if (finallyIdx >= 0) {
-        size_t finallyLen;
-        const char *finallyScript = host->getStringPtr(objv[finallyIdx], &finallyLen);
-        TclResult finallyCode = tclEvalScript(interp, finallyScript, finallyLen);
+        TclResult finallyCode = tclEvalObj(interp, objv[finallyIdx], 0);
 
         /* If finally raises an error, that takes precedence */
         if (finallyCode == TCL_ERROR) {

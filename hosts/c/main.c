@@ -14,7 +14,7 @@
 extern const TclHost *tclGetCHost(void);
 
 /* External: eval script (from core/eval.c) */
-extern TclResult tclEvalScript(TclInterp *interp, const char *script, size_t len);
+extern TclResult tclEvalScript(TclInterp *interp, const char *script, size_t len, int flags);
 
 /* External: interpreter management (from core/eval.c) */
 extern TclInterp *tclInterpNew(const TclHost *host, void *hostCtx);
@@ -97,7 +97,7 @@ int main(int argc, char **argv) {
     hostSetCurrentInterp(interp);
 
     /* Evaluate script */
-    TclResult result = tclEvalScript(interp, script, scriptLen);
+    TclResult result = tclEvalScript(interp, script, scriptLen, 0);
 
     /* Report errors */
     int exitCode = 0;

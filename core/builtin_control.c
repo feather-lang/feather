@@ -265,9 +265,7 @@ TclResult tclCmdIf(TclInterp *interp, int objc, TclObj **objv) {
 
         if (condResult) {
             /* Execute this branch */
-            size_t bodyLen;
-            const char *bodyStr = host->getStringPtr(objv[i], &bodyLen);
-            return tclEvalScript(interp, bodyStr, bodyLen);
+            return tclEvalObj(interp, objv[i], 0);
         }
 
         i++;  /* Skip body */
@@ -294,15 +292,11 @@ TclResult tclCmdIf(TclInterp *interp, int objc, TclObj **objv) {
                 return TCL_ERROR;
             }
             /* Execute else branch */
-            size_t bodyLen;
-            const char *bodyStr = host->getStringPtr(objv[i], &bodyLen);
-            return tclEvalScript(interp, bodyStr, bodyLen);
+            return tclEvalObj(interp, objv[i], 0);
         }
 
         /* Must be else body without "else" keyword */
-        size_t bodyLen;
-        const char *bodyStr = host->getStringPtr(objv[i], &bodyLen);
-        return tclEvalScript(interp, bodyStr, bodyLen);
+        return tclEvalObj(interp, objv[i], 0);
     }
 
     tclSetResult(interp, host->newString("", 0));
@@ -386,10 +380,10 @@ TclResult tclCmdWhile(TclInterp *interp, int objc, TclObj **objv) {
                         /* Resume from saved offset within the body */
                         const char *resumePtr = loop->bodyStr + currentOffset;
                         size_t remainingLen = loop->bodyLen - currentOffset;
-                        result = tclEvalScript(interp, resumePtr, remainingLen);
+                        result = tclEvalScript(interp, resumePtr, remainingLen, 0);
                     } else {
                         /* Execute body from beginning */
-                        result = tclEvalScript(interp, loop->bodyStr, loop->bodyLen);
+                        result = tclEvalScript(interp, loop->bodyStr, loop->bodyLen, 0);
                     }
 
                     if (tclCoroYieldPending()) {
@@ -444,7 +438,7 @@ TclResult tclCmdWhile(TclInterp *interp, int objc, TclObj **objv) {
         }
 
         /* Execute body */
-        TclResult result = tclEvalScript(interp, bodyStr, bodyLen);
+        TclResult result = tclEvalObj(interp, objv[2], 0);
 
         if (result == TCL_BREAK) {
             break;
@@ -473,14 +467,12 @@ TclResult tclCmdFor(TclInterp *interp, int objc, TclObj **objv) {
         return TCL_ERROR;
     }
 
-    size_t startLen, testLen, nextLen, bodyLen;
-    const char *startStr = host->getStringPtr(objv[1], &startLen);
+    /* Get test string for expr evaluation */
+    size_t testLen;
     const char *testStr = host->getStringPtr(objv[2], &testLen);
-    const char *nextStr = host->getStringPtr(objv[3], &nextLen);
-    const char *bodyStr = host->getStringPtr(objv[4], &bodyLen);
 
     /* Execute initialization */
-    TclResult result = tclEvalScript(interp, startStr, startLen);
+    TclResult result = tclEvalObj(interp, objv[1], 0);
     if (result != TCL_OK) {
         return result;
     }
@@ -497,7 +489,7 @@ TclResult tclCmdFor(TclInterp *interp, int objc, TclObj **objv) {
         }
 
         /* Execute body */
-        result = tclEvalScript(interp, bodyStr, bodyLen);
+        result = tclEvalObj(interp, objv[4], 0);
 
         /* Check for coroutine yield */
         if (tclCoroYieldPending()) {
@@ -514,7 +506,7 @@ TclResult tclCmdFor(TclInterp *interp, int objc, TclObj **objv) {
         }
 
         /* Execute next */
-        result = tclEvalScript(interp, nextStr, nextLen);
+        result = tclEvalObj(interp, objv[3], 0);
 
         /* Check for coroutine yield in next */
         if (tclCoroYieldPending()) {
@@ -553,9 +545,6 @@ TclResult tclCmdForeach(TclInterp *interp, int objc, TclObj **objv) {
         return TCL_ERROR;
     }
 
-    size_t bodyLen;
-    const char *bodyStr = host->getStringPtr(objv[3], &bodyLen);
-
     void *vars = interp->currentFrame->varsHandle;
 
     for (size_t i = 0; i < elemCount; i++) {
@@ -563,7 +552,7 @@ TclResult tclCmdForeach(TclInterp *interp, int objc, TclObj **objv) {
         host->varSet(vars, varName, varNameLen, host->dup(elems[i]));
 
         /* Execute body */
-        TclResult result = tclEvalScript(interp, bodyStr, bodyLen);
+        TclResult result = tclEvalObj(interp, objv[3], 0);
 
         /* Check for coroutine yield */
         if (tclCoroYieldPending()) {

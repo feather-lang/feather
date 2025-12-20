@@ -21,9 +21,7 @@ TclResult tclCmdLmap(TclInterp *interp, int objc, TclObj **objv) {
     }
 
     /* Body is the last argument */
-    int bodyIdx = objc - 1;
-    size_t bodyLen;
-    const char *bodyStr = host->getStringPtr(objv[bodyIdx], &bodyLen);
+    TclObj *body = objv[objc - 1];
 
     /* Number of var/list pairs */
     int numPairs = (objc - 2) / 2;
@@ -118,7 +116,7 @@ TclResult tclCmdLmap(TclInterp *interp, int objc, TclObj **objv) {
         }
 
         /* Execute body */
-        TclResult result = tclEvalScript(interp, bodyStr, bodyLen);
+        TclResult result = tclEvalObj(interp, body, 0);
 
         if (result == TCL_BREAK) {
             break;

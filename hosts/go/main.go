@@ -14,7 +14,7 @@ extern const TclHost* tclGetGoHost(void);
 // External: interpreter management and eval (from core)
 extern TclInterp* tclInterpNew(const TclHost* host, void* hostCtx);
 extern void tclInterpFree(TclInterp* interp);
-extern TclResult tclEvalScript(TclInterp* interp, const char* script, size_t len);
+extern TclResult tclEvalScript(TclInterp* interp, const char* script, size_t len, int flags);
 
 // Helper to call function pointers (CGO can't call them directly)
 static void* callInterpContextNew(const TclHost* host, void* parent, int safe) {
@@ -87,7 +87,7 @@ func main() {
 	cScript := C.CString(string(script))
 	defer C.free(unsafe.Pointer(cScript))
 
-	result := C.tclEvalScript(interp, cScript, C.size_t(len(script)))
+	result := C.tclEvalScript(interp, cScript, C.size_t(len(script)), 0)
 
 	// Report errors
 	exitCode := 0

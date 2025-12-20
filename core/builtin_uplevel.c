@@ -143,13 +143,12 @@ TclResult tclCmdUplevel(TclInterp *interp, int objc, TclObj **objv) {
     }
 
     /* Build the script to execute */
-    const char *script;
-    size_t scriptLen;
+    TclObj *scriptObj;
     void *arena = NULL;
 
     if (argStart == objc - 1) {
-        /* Single script argument */
-        script = host->getStringPtr(objv[argStart], &scriptLen);
+        /* Single script argument - use directly */
+        scriptObj = objv[argStart];
     } else {
         /* Concatenate multiple arguments with spaces */
         arena = host->arenaPush(interp->hostCtx);
@@ -175,8 +174,7 @@ TclResult tclCmdUplevel(TclInterp *interp, int objc, TclObj **objv) {
         }
         *p = '\0';
 
-        script = buf;
-        scriptLen = totalLen;
+        scriptObj = host->newString(buf, totalLen);
     }
 
     /* Save current frame and switch to target frame */
@@ -184,7 +182,7 @@ TclResult tclCmdUplevel(TclInterp *interp, int objc, TclObj **objv) {
     interp->currentFrame = targetFrame;
 
     /* Execute the script in the target frame */
-    TclResult result = tclEvalScript(interp, script, scriptLen);
+    TclResult result = tclEvalObj(interp, scriptObj, 0);
 
     /* Restore the original frame */
     interp->currentFrame = savedFrame;

@@ -7,7 +7,7 @@
 #include "internal.h"
 
 /* Forward declaration for script evaluation */
-TclResult tclEvalScript(TclInterp *interp, const char *script, size_t len);
+TclResult tclEvalScript(TclInterp *interp, const char *script, size_t len, int flags);
 
 /* ========================================================================
  * proc Command
@@ -383,9 +383,7 @@ TclResult tclCmdApply(TclInterp *interp, int objc, TclObj **objv) {
     TclFrame *savedFrame = interp->currentFrame;
     interp->currentFrame = lambdaFrame;
 
-    size_t bodyLen;
-    const char *bodyStr = host->getStringPtr(body, &bodyLen);
-    TclResult result = tclEvalScript(interp, bodyStr, bodyLen);
+    TclResult result = tclEvalObj(interp, body, 0);
 
     /* Handle return */
     if (result == TCL_RETURN) {
