@@ -19,21 +19,11 @@ func goBindUnknown(interp C.TclInterp, cmd C.TclObj, args C.TclObj, value *C.Tcl
 		return C.TCL_ERROR
 	}
 
-	cmdObj := i.getObject(Handle(cmd))
-	if cmdObj == nil {
-		return C.TCL_ERROR
-	}
-
 	if i.UnknownHandler != nil {
-		result, err := i.UnknownHandler(i, cmdObj.stringVal, nil)
-		if err != nil {
-			errHandle := i.internString(err.Error())
-			*value = C.TclObj(errHandle)
-			return C.TCL_ERROR
-		}
-		resultHandle := i.internString(result)
-		*value = C.TclObj(resultHandle)
-		return C.TCL_OK
+		// TODO: convert args TclObj (list) to []TclObj slice
+		result := i.UnknownHandler(i, TclObj(cmd), nil)
+		*value = C.TclObj(i.result)
+		return C.TclResult(result)
 	}
 
 	return C.TCL_ERROR
@@ -56,7 +46,7 @@ func goStringGet(interp C.TclInterp, obj C.TclObj, length *C.size_t) *C.char {
 		*length = 0
 		return nil
 	}
-	o := i.getObject(Handle(obj))
+	o := i.getObject(TclObj(obj))
 	if o == nil {
 		*length = 0
 		return nil
@@ -75,8 +65,8 @@ func goStringConcat(interp C.TclInterp, a C.TclObj, b C.TclObj) C.TclObj {
 	if i == nil {
 		return 0
 	}
-	objA := i.getObject(Handle(a))
-	objB := i.getObject(Handle(b))
+	objA := i.getObject(TclObj(a))
+	objB := i.getObject(TclObj(b))
 	if objA == nil || objB == nil {
 		return 0
 	}
@@ -89,7 +79,7 @@ func goInterpSetResult(interp C.TclInterp, result C.TclObj) C.TclResult {
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	i.result = Handle(result)
+	i.result = TclObj(result)
 	return C.TCL_OK
 }
 
@@ -190,7 +180,7 @@ func goIntGet(interp C.TclInterp, obj C.TclObj, out *C.int64_t) C.TclResult {
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	o := i.getObject(Handle(obj))
+	o := i.getObject(TclObj(obj))
 	if o == nil || !o.isInt {
 		return C.TCL_ERROR
 	}
@@ -260,6 +250,6 @@ func goProcBody(interp C.TclInterp, name C.TclObj, result *C.TclObj) C.TclResult
 }
 
 // callCEval invokes the C interpreter
-func callCEval(interpHandle Handle, scriptHandle Handle) C.TclResult {
+func callCEval(interpHandle TclInterp, scriptHandle TclObj) C.TclResult {
 	return C.call_tcl_eval_obj(C.TclInterp(interpHandle), C.TclObj(scriptHandle), C.TCL_EVAL_LOCAL)
 }

@@ -6,18 +6,22 @@ package interp
 #include <stdlib.h>
 */
 import "C"
+
 import (
+	"runtime/cgo"
 	"sync"
 	"unsafe"
 )
 
+type TclResult uint
+
 // Result codes matching TclResult enum
 const (
-	ResultOK       = C.TCL_OK
-	ResultError    = C.TCL_ERROR
-	ResultReturn   = C.TCL_RETURN
-	ResultBreak    = C.TCL_BREAK
-	ResultContinue = C.TCL_CONTINUE
+	ResultOK       TclResult = C.TCL_OK
+	ResultError    TclResult = C.TCL_ERROR
+	ResultReturn   TclResult = C.TCL_RETURN
+	ResultBreak    TclResult = C.TCL_BREAK
+	ResultContinue TclResult = C.TCL_CONTINUE
 )
 
 // EvalFlags matching TclEvalFlags enum
@@ -27,18 +31,32 @@ const (
 )
 
 // Handle is the Go type for TclHandle
-type Handle = uint32
+type Handle = uintptr
+
+// TclInterp is a handle to an interpreter instance
+type TclInterp Handle
+
+// TclObj is a handle to an object
+type TclObj Handle
+
+// CommandFunc is the signature for host command implementations.
+// Commands receive the interpreter, the command name and a list of argument objects.
+//
+// # In case of an error, the command should set the interpreter's error information and return ResultError
+//
+// To return a value, the command should set the interpreter's result value and return ResultOK
+type CommandFunc func(i *Interp, cmd TclObj, args []TclObj) TclResult
 
 // Interp represents a TCL interpreter instance
 type Interp struct {
-	handle  Handle
-	objects map[Handle]*Object
-	nextID  Handle
-	result  Handle
+	handle  TclInterp
+	objects map[TclObj]*Object
+	nextID  TclObj
+	result  TclObj
 	mu      sync.Mutex
 
-	// UnknownHandler is called when an unknown command is invoked
-	UnknownHandler func(interp *Interp, cmd string, args []string) (string, error)
+	// UnknownHandler is called when an unknown command is invoked.
+	UnknownHandler CommandFunc
 }
 
 // Object represents a TCL object
@@ -49,32 +67,25 @@ type Object struct {
 	isInt     bool
 }
 
-// Global registry of interpreters (cgo callbacks need to look them up)
-var (
-	interpRegistry   = make(map[Handle]*Interp)
-	interpRegistryMu sync.RWMutex
-	nextInterpID     Handle = 1
-)
-
 // NewInterp creates a new interpreter
 func NewInterp() *Interp {
-	interpRegistryMu.Lock()
-	defer interpRegistryMu.Unlock()
-
-	id := nextInterpID
-	nextInterpID++
-
 	interp := &Interp{
-		handle:  id,
-		objects: make(map[Handle]*Object),
+		objects: make(map[TclObj]*Object),
 		nextID:  1,
 	}
-	interpRegistry[id] = interp
+	// Use cgo.Handle to allow C callbacks to find this interpreter
+	interp.handle = TclInterp(cgo.NewHandle(interp))
 	return interp
 }
 
+// Close releases resources associated with the interpreter.
+// Must be called when the interpreter is no longer needed.
+func (i *Interp) Close() {
+	cgo.Handle(i.handle).Delete()
+}
+
 // Handle returns the interpreter's handle
-func (i *Interp) Handle() Handle {
+func (i *Interp) Handle() TclInterp {
 	return i.handle
 }
 
@@ -116,7 +127,7 @@ func (e *EvalError) Error() string {
 }
 
 // internString stores a string and returns its handle
-func (i *Interp) internString(s string) Handle {
+func (i *Interp) internString(s string) TclObj {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
@@ -126,17 +137,43 @@ func (i *Interp) internString(s string) Handle {
 	return id
 }
 
+// InternString stores a string and returns its handle.
+func (i *Interp) InternString(s string) TclObj {
+	return i.internString(s)
+}
+
 // getObject retrieves an object by handle
-func (i *Interp) getObject(h Handle) *Object {
+func (i *Interp) getObject(h TclObj) *Object {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	return i.objects[h]
 }
 
+// GetString returns the string representation of an object.
+func (i *Interp) GetString(h TclObj) string {
+	if obj := i.getObject(h); obj != nil {
+		return obj.stringVal
+	}
+	return ""
+}
+
+// SetResult sets the interpreter's result to the given object.
+func (i *Interp) SetResult(obj TclObj) {
+	i.result = obj
+}
+
+// SetResultString sets the interpreter's result to a string value.
+func (i *Interp) SetResultString(s string) {
+	i.result = i.internString(s)
+}
+
+// SetErrorString sets the interpreter's result to an error message.
+func (i *Interp) SetErrorString(s string) {
+	i.result = i.internString(s)
+}
+
 func getInterp(h C.TclInterp) *Interp {
-	interpRegistryMu.RLock()
-	defer interpRegistryMu.RUnlock()
-	return interpRegistry[Handle(h)]
+	return cgo.Handle(h).Value().(*Interp)
 }
 
 // Keep unused import to ensure cgo is used

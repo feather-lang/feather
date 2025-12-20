@@ -87,7 +87,7 @@
  */
 
 /** An opaque handle type, used by the host to identify objects */
-typedef uint32_t TclHandle;
+typedef uintptr_t TclHandle;
 
 /** A handle to an interpreter instance */
 typedef TclHandle TclInterp;
