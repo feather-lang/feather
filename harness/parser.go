@@ -1,28 +1,13 @@
 package harness
 
 import (
-	"encoding/xml"
 	"io"
 	"os"
 	"strconv"
 	"strings"
+
+	"golang.org/x/net/html"
 )
-
-// xmlTestSuite mirrors the XML structure for parsing.
-type xmlTestSuite struct {
-	XMLName   xml.Name      `xml:"test-suite"`
-	TestCases []xmlTestCase `xml:"test-case"`
-}
-
-type xmlTestCase struct {
-	Name     string `xml:"name,attr"`
-	Script   string `xml:"script"`
-	Result   string `xml:"result"`
-	Error    string `xml:"error"`
-	Stdout   string `xml:"stdout"`
-	Stderr   string `xml:"stderr"`
-	ExitCode string `xml:"exit-code"`
-}
 
 // ParseFile parses a test suite from the given file path.
 func ParseFile(path string) (*TestSuite, error) {
@@ -41,38 +26,84 @@ func ParseFile(path string) (*TestSuite, error) {
 }
 
 // Parse parses a test suite from the given reader.
+// Uses HTML parser so that <script> content is treated as raw text
+// without requiring CDATA sections.
 func Parse(r io.Reader) (*TestSuite, error) {
-	var xs xmlTestSuite
-	decoder := xml.NewDecoder(r)
-	if err := decoder.Decode(&xs); err != nil {
+	doc, err := html.Parse(r)
+	if err != nil {
 		return nil, err
 	}
 
 	suite := &TestSuite{
-		Cases: make([]TestCase, 0, len(xs.TestCases)),
+		Cases: make([]TestCase, 0),
 	}
 
-	for _, xtc := range xs.TestCases {
-		exitCode := 0
-		if xtc.ExitCode != "" {
-			var err error
-			exitCode, err = strconv.Atoi(strings.TrimSpace(xtc.ExitCode))
-			if err != nil {
-				return nil, err
-			}
+	// Find all test-case elements
+	var findTestCases func(*html.Node)
+	findTestCases = func(n *html.Node) {
+		if n.Type == html.ElementNode && n.Data == "test-case" {
+			tc := parseTestCase(n)
+			suite.Cases = append(suite.Cases, tc)
 		}
-
-		tc := TestCase{
-			Name:     xtc.Name,
-			Script:   strings.TrimSpace(xtc.Script),
-			Result:   strings.TrimSpace(xtc.Result),
-			Error:    strings.TrimSpace(xtc.Error),
-			Stdout:   strings.TrimSpace(xtc.Stdout),
-			Stderr:   strings.TrimSpace(xtc.Stderr),
-			ExitCode: exitCode,
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			findTestCases(c)
 		}
-		suite.Cases = append(suite.Cases, tc)
 	}
+	findTestCases(doc)
 
 	return suite, nil
+}
+
+// parseTestCase extracts a TestCase from a test-case HTML element.
+func parseTestCase(n *html.Node) TestCase {
+	tc := TestCase{}
+
+	// Get name attribute
+	for _, attr := range n.Attr {
+		if attr.Key == "name" {
+			tc.Name = attr.Val
+			break
+		}
+	}
+
+	// Extract child elements
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type != html.ElementNode {
+			continue
+		}
+		content := getTextContent(c)
+		switch c.Data {
+		case "script":
+			tc.Script = content
+		case "result":
+			tc.Result = strings.TrimSpace(content)
+		case "error":
+			tc.Error = strings.TrimSpace(content)
+		case "stdout":
+			tc.Stdout = strings.TrimSpace(content)
+		case "stderr":
+			tc.Stderr = strings.TrimSpace(content)
+		case "exit-code":
+			exitCode, _ := strconv.Atoi(strings.TrimSpace(content))
+			tc.ExitCode = exitCode
+		}
+	}
+
+	return tc
+}
+
+// getTextContent returns all text content within an element.
+func getTextContent(n *html.Node) string {
+	var sb strings.Builder
+	var collect func(*html.Node)
+	collect = func(node *html.Node) {
+		if node.Type == html.TextNode {
+			sb.WriteString(node.Data)
+		}
+		for c := node.FirstChild; c != nil; c = c.NextSibling {
+			collect(c)
+		}
+	}
+	collect(n)
+	return sb.String()
 }
