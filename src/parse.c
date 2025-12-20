@@ -10,6 +10,16 @@ TclParseStatus tcl_parse(const TclHostOps *ops, TclInterp interp,
     len--;
   }
 
+  // Skip trailing whitespace
+  while (len > 0) {
+    char c = script[len - 1];
+    if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
+      len--;
+    } else {
+      break;
+    }
+  }
+
   if (len == 0) {
     // Empty script after stripping whitespace
     ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
