@@ -24,7 +24,8 @@ BIN_DIR = bin
 
 # Source files
 CORE_SRCS = $(CORE_DIR)/lexer.c $(CORE_DIR)/parser.c $(CORE_DIR)/subst.c \
-            $(CORE_DIR)/eval.c $(CORE_DIR)/builtins.c $(CORE_DIR)/builtin_expr.c \
+            $(CORE_DIR)/eval.c $(CORE_DIR)/builtins.c $(CORE_DIR)/ast.c \
+            $(CORE_DIR)/tree_eval.c $(CORE_DIR)/builtin_expr.c \
             $(CORE_DIR)/builtin_global.c $(CORE_DIR)/builtin_upvar.c $(CORE_DIR)/builtin_uplevel.c \
             $(CORE_DIR)/builtin_string.c $(CORE_DIR)/builtin_dict.c $(CORE_DIR)/builtin_exec.c \
             $(CORE_DIR)/builtin_file.c $(CORE_DIR)/builtin_break.c $(CORE_DIR)/builtin_list.c \
@@ -99,7 +100,7 @@ $(BIN_DIR)/.stamp:
 	touch $(BIN_DIR)/.stamp
 
 # Core object files
-$(BUILD_DIR)/%.o: $(CORE_DIR)/%.c $(CORE_DIR)/tclc.h $(CORE_DIR)/internal.h $(BUILD_DIR)/.stamp
+$(BUILD_DIR)/%.o: $(CORE_DIR)/%.c $(CORE_DIR)/tclc.h $(CORE_DIR)/internal.h $(CORE_DIR)/ast.h $(BUILD_DIR)/.stamp
 	$(CC) $(CFLAGS) -I$(CORE_DIR) -c -o $@ $<
 
 # Host C object files (require glib-2.0)

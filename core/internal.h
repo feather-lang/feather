@@ -182,6 +182,19 @@ TclResult tclEvalScript(TclInterp *interp, const char *script, size_t len);
 TclResult tclEvalBracketed(TclInterp *interp, const char *cmd, size_t len);
 
 /* ========================================================================
+ * Tree-Walking Eval Functions (tree_eval.c)
+ * ======================================================================== */
+
+/* Forward declare AST node type */
+struct TclAstNode;
+
+/* Evaluate an AST (tree-walking) */
+TclResult tclTreeEvalAst(TclInterp *interp, struct TclAstNode *ast);
+
+/* Parse and evaluate a script string using tree-walking */
+TclResult tclTreeEvalStr(TclInterp *interp, const char *script, size_t len);
+
+/* ========================================================================
  * Builtin Functions (builtins.c)
  * ======================================================================== */
 
