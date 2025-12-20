@@ -31,8 +31,7 @@ typedef struct TclCoroutine {
     int         started;        /* Has first execution started? */
 
     /* For script execution and resumption using yield counting */
-    const char *script;         /* Script being executed (proc body) */
-    size_t      scriptLen;      /* Script length */
+    TclObj     *scriptObj;      /* Script being executed (proc body) - enables AST caching */
     int         yieldCount;     /* Number of yields executed so far */
     int         yieldTarget;    /* Target yield to stop at on resume */
     TclObj     *resumeValue;    /* Value to return from yield on resume */
@@ -102,13 +101,10 @@ TclLoopState *tclCoroLoopPush(TclLoopType type) {
     /* Initialize */
     loop->type = type;
     loop->phase = LOOP_PHASE_TEST;
-    loop->bodyStr = NULL;
-    loop->bodyLen = 0;
+    loop->bodyObj = NULL;
     loop->bodyResumeOffset = 0;
-    loop->testStr = NULL;
-    loop->testLen = 0;
-    loop->nextStr = NULL;
-    loop->nextLen = 0;
+    loop->testObj = NULL;
+    loop->nextObj = NULL;
     loop->elems = NULL;
     loop->elemCount = 0;
     loop->currentIndex = 0;
@@ -232,8 +228,7 @@ static TclCoroutine *coroCreate(TclInterp *interp, const char *name, size_t name
     coro->cmdObjs = NULL;
     coro->cmdObjc = 0;
     coro->started = 0;
-    coro->script = NULL;
-    coro->scriptLen = 0;
+    coro->scriptObj = NULL;
     coro->yieldCount = 0;
     coro->yieldTarget = 0;
     coro->resumeValue = NULL;
@@ -254,8 +249,9 @@ static TclCoroutine *coroCreate(TclInterp *interp, const char *name, size_t name
 static TclResult coroEvalScript(TclCoroutine *coro) {
     TclInterp *interp = coro->interp;
 
-    /* Always execute from the beginning - yield counting handles resume */
-    TclResult result = tclEvalScript(interp, coro->script, coro->scriptLen, 0);
+    /* Always execute from the beginning - yield counting handles resume.
+     * Using tclEvalObj enables AST caching for repeated evaluations. */
+    TclResult result = tclEvalObj(interp, coro->scriptObj, 0);
 
     return result;
 }
@@ -399,11 +395,8 @@ static TclResult coroExecute(TclCoroutine *coro, TclObj *resumeValue) {
                 host->varSet(coroFrame->varsHandle, "args", 4, argsList);
             }
 
-            /* Save script for resumption */
-            size_t bodyLen;
-            const char *bodyStr = host->getStringPtr(body, &bodyLen);
-            coro->script = bodyStr;
-            coro->scriptLen = bodyLen;
+            /* Save script for resumption - keep TclObj to enable AST caching */
+            coro->scriptObj = host->dup(body);
 
             /* Execute with yield counting support */
             result = coroEvalScript(coro);
@@ -431,7 +424,7 @@ static TclResult coroExecute(TclCoroutine *coro, TclObj *resumeValue) {
         coro->yieldTarget = coro->yieldCount;
         coro->yieldCount = 0;
 
-        if (coro->script) {
+        if (coro->scriptObj) {
             result = coroEvalScript(coro);
         } else {
             result = TCL_OK;
@@ -647,9 +640,7 @@ TclResult tclCmdYieldto(TclInterp *interp, int objc, TclObj **objv) {
                 result = TCL_ERROR;
                 break;
             }
-            size_t bodyLen;
-            const char *bodyStr = host->getStringPtr(body, &bodyLen);
-            result = tclEvalScript(interp, bodyStr, bodyLen, 0);
+            result = tclEvalObj(interp, body, 0);
             break;
         }
         case TCL_CMD_EXTENSION:

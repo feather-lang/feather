@@ -282,18 +282,15 @@ typedef struct TclLoopState {
     TclLoopType     type;
     TclLoopPhase    phase;
 
-    /* Common fields */
-    const char     *bodyStr;
-    size_t          bodyLen;
+    /* Common fields - using TclObj* enables AST caching across yields */
+    TclObj         *bodyObj;           /* Loop body script */
     size_t          bodyResumeOffset;  /* Offset into body to resume from after yield */
 
     /* For while/for: condition */
-    const char     *testStr;
-    size_t          testLen;
+    TclObj         *testObj;           /* Condition expression */
 
     /* For for: next clause */
-    const char     *nextStr;
-    size_t          nextLen;
+    TclObj         *nextObj;           /* Increment expression */
 
     /* For foreach: iteration state */
     TclObj        **elems;        /* List elements */

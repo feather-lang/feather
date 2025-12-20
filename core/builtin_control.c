@@ -319,6 +319,7 @@ TclResult tclCmdWhile(TclInterp *interp, int objc, TclObj **objv) {
         return TCL_ERROR;
     }
 
+    /* Get strings for comparison (loop identification) */
     size_t testLen, bodyLen;
     const char *testStr = host->getStringPtr(objv[1], &testLen);
     const char *bodyStr = host->getStringPtr(objv[2], &bodyLen);
@@ -327,12 +328,15 @@ TclResult tclCmdWhile(TclInterp *interp, int objc, TclObj **objv) {
     TclLoopState *loop = tclCoroLoopCurrent();
 
     if (loop && loop->type == LOOP_TYPE_WHILE) {
-        /* Verify this is the same while loop by comparing content, not pointers.
-         * When resuming a coroutine, the script is re-parsed and pointers differ. */
-        int sameTest = (loop->testLen == testLen &&
-                        tclStrncmp(loop->testStr, testStr, testLen) == 0);
-        int sameBody = (loop->bodyLen == bodyLen &&
-                        tclStrncmp(loop->bodyStr, bodyStr, bodyLen) == 0);
+        /* Verify this is the same while loop by comparing content.
+         * When resuming a coroutine, the script is re-parsed so we compare strings. */
+        size_t loopTestLen, loopBodyLen;
+        const char *loopTestStr = host->getStringPtr(loop->testObj, &loopTestLen);
+        const char *loopBodyStr = host->getStringPtr(loop->bodyObj, &loopBodyLen);
+        int sameTest = (loopTestLen == testLen &&
+                        tclStrncmp(loopTestStr, testStr, testLen) == 0);
+        int sameBody = (loopBodyLen == bodyLen &&
+                        tclStrncmp(loopBodyStr, bodyStr, bodyLen) == 0);
         if (!sameTest || !sameBody) {
             /* Different while loop - this is a nested one */
             loop = NULL;
@@ -346,10 +350,8 @@ TclResult tclCmdWhile(TclInterp *interp, int objc, TclObj **objv) {
         /* Create new loop state (returns NULL if not in coroutine) */
         loop = tclCoroLoopPush(LOOP_TYPE_WHILE);
         if (loop) {
-            loop->testStr = testStr;
-            loop->testLen = testLen;
-            loop->bodyStr = bodyStr;
-            loop->bodyLen = bodyLen;
+            loop->testObj = host->dup(objv[1]);
+            loop->bodyObj = host->dup(objv[2]);
             loop->phase = LOOP_PHASE_TEST;
         }
     }
@@ -359,8 +361,11 @@ TclResult tclCmdWhile(TclInterp *interp, int objc, TclObj **objv) {
         while (loop->phase != LOOP_PHASE_DONE) {
             switch (loop->phase) {
                 case LOOP_PHASE_TEST: {
+                    /* Get test string for expression evaluation */
+                    size_t exprLen;
+                    const char *exprStr = host->getStringPtr(loop->testObj, &exprLen);
                     int condResult;
-                    if (evalExprBool(interp, loop->testStr, loop->testLen, &condResult) != 0) {
+                    if (evalExprBool(interp, exprStr, exprLen, &condResult) != 0) {
                         tclCoroLoopPop();
                         return TCL_ERROR;
                     }
@@ -372,30 +377,13 @@ TclResult tclCmdWhile(TclInterp *interp, int objc, TclObj **objv) {
                     /* fall through */
                 }
                 case LOOP_PHASE_BODY: {
-                    TclResult result;
-                    size_t currentOffset = loop->bodyResumeOffset;
-
-                    /* Check if we're resuming from a previous yield */
-                    if (currentOffset > 0) {
-                        /* Resume from saved offset within the body */
-                        const char *resumePtr = loop->bodyStr + currentOffset;
-                        size_t remainingLen = loop->bodyLen - currentOffset;
-                        result = tclEvalScript(interp, resumePtr, remainingLen, 0);
-                    } else {
-                        /* Execute body from beginning */
-                        result = tclEvalScript(interp, loop->bodyStr, loop->bodyLen, 0);
-                    }
+                    /* Execute body using tclEvalObj - yield counting handles resume */
+                    TclResult result = tclEvalObj(interp, loop->bodyObj, 0);
 
                     if (tclCoroYieldPending()) {
-                        /* Yield occurred - save offset for resume.
-                         * The yield offset is relative to where we started,
-                         * so add our current offset to get absolute position. */
-                        loop->bodyResumeOffset = currentOffset + tclCoroGetYieldOffset();
+                        /* Yield occurred - stay in BODY phase for resume */
                         return TCL_OK;
                     }
-
-                    /* Body completed - reset resume offset for next iteration */
-                    loop->bodyResumeOffset = 0;
 
                     if (result == TCL_BREAK) {
                         loop->phase = LOOP_PHASE_DONE;
