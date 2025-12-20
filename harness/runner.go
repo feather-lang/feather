@@ -94,8 +94,8 @@ func (r *Runner) RunTest(tc TestCase) TestResult {
 
 	err = cmd.Wait()
 
-	result.Actual.Stdout = strings.TrimSpace(stdout.String())
-	result.Actual.Stderr = strings.TrimSpace(stderr.String())
+	result.Actual.Stdout = normalizeLines(stdout.String())
+	result.Actual.Stderr = normalizeLines(stderr.String())
 	result.Actual.Result = harnessOutput.Result
 	result.Actual.Error = harnessOutput.Error
 

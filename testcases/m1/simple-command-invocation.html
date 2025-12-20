@@ -23,4 +23,16 @@
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
+  <test-case name="newlines separate commands">
+    <script>say-hello
+    say-hello</script>
+    <result>TCL_OK</result>
+    <error></error>
+    <stdout>
+      hello
+      hello
+    </stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
 </test-suite>

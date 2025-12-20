@@ -80,9 +80,9 @@ func parseTestCase(n *html.Node) TestCase {
 		case "error":
 			tc.Error = strings.TrimSpace(content)
 		case "stdout":
-			tc.Stdout = strings.TrimSpace(content)
+			tc.Stdout = normalizeLines(content)
 		case "stderr":
-			tc.Stderr = strings.TrimSpace(content)
+			tc.Stderr = normalizeLines(content)
 		case "exit-code":
 			exitCode, _ := strconv.Atoi(strings.TrimSpace(content))
 			tc.ExitCode = exitCode
@@ -106,4 +106,28 @@ func getTextContent(n *html.Node) string {
 	}
 	collect(n)
 	return sb.String()
+}
+
+// normalizeLines treats content as a list of lines, trims each line,
+// and removes only leading and trailing empty lines.
+func normalizeLines(content string) string {
+	lines := strings.Split(content, "\n")
+	// Trim each line
+	for i, line := range lines {
+		lines[i] = strings.TrimSpace(line)
+	}
+	// Skip leading empty lines
+	start := 0
+	for start < len(lines) && lines[start] == "" {
+		start++
+	}
+	// Skip trailing empty lines
+	end := len(lines)
+	for end > start && lines[end-1] == "" {
+		end--
+	}
+	if start >= end {
+		return ""
+	}
+	return strings.Join(lines[start:end], "\n")
 }

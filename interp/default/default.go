@@ -2,6 +2,8 @@
 package defaults
 
 import (
+	"fmt"
+
 	"github.com/dhamidi/tclc/interp"
 )
 
@@ -17,6 +19,7 @@ func NewHost() *interp.Host {
 }
 
 func cmdSayHello(i *interp.Interp, cmd interp.TclObj, args []interp.TclObj) interp.TclResult {
-	i.SetResultString("hello")
+	fmt.Println("hello")
+	i.SetResultString("")
 	return interp.ResultOK
 }
