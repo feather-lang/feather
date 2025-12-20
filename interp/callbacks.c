@@ -187,5 +187,9 @@ TclHostOps make_host_ops(void) {
 // Call the C interpreter with host ops
 TclResult call_tcl_eval_obj(TclInterp interp, TclObj script, TclEvalFlags flags) {
     TclHostOps ops = make_host_ops();
-    return tcl_eval_obj(&ops, interp, script, flags);
+    // Get the string from the script object and call tcl_eval_string
+    // which goes through the parser
+    size_t len;
+    const char *str = ops.string.get(interp, script, &len);
+    return tcl_eval_string(&ops, interp, str, len, flags);
 }

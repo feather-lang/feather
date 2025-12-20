@@ -23,6 +23,12 @@ TclResult tcl_eval_obj(const TclHostOps *ops, TclInterp interp, TclObj script,
 
 TclResult tcl_eval_string(const TclHostOps *ops, TclInterp interp,
                           const char *script, size_t len, TclEvalFlags flags) {
-  TclObj scriptObj = ops->string.intern(interp, script, len);
-  return tcl_eval_obj(ops, interp, scriptObj, flags);
+  TclParseStatus status = tcl_parse(ops, interp, script, len);
+  if (status != TCL_PARSE_OK) {
+    return TCL_ERROR;
+  }
+
+  // The parser stores its result in the interpreter's result slot
+  TclObj parsed = ops->interp.get_result(interp);
+  return tcl_eval_obj(ops, interp, parsed, flags);
 }
