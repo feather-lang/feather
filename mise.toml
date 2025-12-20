@@ -1,0 +1,26 @@
+[env]
+_.path = "./bin"
+
+[tasks."build:harness"]
+description = "Builds the test harness runner"
+run = """
+cd harness
+go build -o $MISE_CONFIG_ROOT/bin/harness ./cmd/harness
+"""
+
+[tasks."build:core"]
+description = "Builds the core interpreter"
+run = """
+cd src
+echo FIXME once we actually have code we should output a dylib.
+"""
+
+[tasks.build]
+description = "build all binaries in bin/"
+depends = ["build:core", "build:harness"]
+
+[tasks.test]
+description = "Run the test harness"
+run = """
+echo FIXME implement me when we actually have a harness
+"""
