@@ -561,6 +561,12 @@ TclResult tclEvalScript(TclInterp *interp, const char *script, size_t len) {
         /* Continue */
     }
 
+    /* If yield is pending, save the current position so we can resume here */
+    if (tclCoroYieldPending()) {
+        size_t offset = (size_t)(state.parser.lex.pos - script);
+        tclCoroSetYieldOffset(offset);
+    }
+
     tclEvalStateCleanup(&state, interp);
     return interp->resultCode;
 }

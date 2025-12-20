@@ -36,6 +36,9 @@ typedef struct TclCoroutine {
     int         yieldCount;     /* Number of yields executed so far */
     int         yieldTarget;    /* Target yield to stop at on resume */
     TclObj     *resumeValue;    /* Value to return from yield on resume */
+
+    /* Loop state stack for proper suspend/resume inside loops */
+    TclLoopState *currentLoop;  /* Top of loop state stack */
 } TclCoroutine;
 
 /* Maximum number of active coroutines */
@@ -49,6 +52,9 @@ static TclCoroutine *gCurrentCoroutine = NULL;
 /* Global yield flag - set by yield, checked by eval loop */
 static int gYieldPending = 0;
 
+/* Global yield offset - position in script where yield occurred */
+static size_t gYieldOffset = 0;
+
 /* Check if yield is pending (called by eval loop) */
 int tclCoroYieldPending(void) {
     return gYieldPending;
@@ -57,6 +63,78 @@ int tclCoroYieldPending(void) {
 /* Clear yield pending flag */
 void tclCoroClearYield(void) {
     gYieldPending = 0;
+}
+
+/* Set yield offset (called by eval.c when yield is detected) */
+void tclCoroSetYieldOffset(size_t offset) {
+    gYieldOffset = offset;
+}
+
+/* Get yield offset (called by control structures to save resume position) */
+size_t tclCoroGetYieldOffset(void) {
+    return gYieldOffset;
+}
+
+/* Get current coroutine (for loop state management) */
+TclCoroutine *tclCoroGetCurrent(void) {
+    return gCurrentCoroutine;
+}
+
+/* ========================================================================
+ * Loop State Management
+ * ======================================================================== */
+
+/* Push a new loop state onto the current coroutine's loop stack */
+TclLoopState *tclCoroLoopPush(TclLoopType type) {
+    if (!gCurrentCoroutine) return NULL;
+
+    TclInterp *interp = gCurrentCoroutine->interp;
+    const TclHost *host = interp->host;
+
+    /* Allocate from arena - will be freed when coroutine ends */
+    void *arena = host->arenaPush(interp->hostCtx);
+    TclLoopState *loop = host->arenaAlloc(arena, sizeof(TclLoopState), sizeof(void*));
+    if (!loop) {
+        host->arenaPop(interp->hostCtx, arena);
+        return NULL;
+    }
+
+    /* Initialize */
+    loop->type = type;
+    loop->phase = LOOP_PHASE_TEST;
+    loop->bodyStr = NULL;
+    loop->bodyLen = 0;
+    loop->bodyResumeOffset = 0;
+    loop->testStr = NULL;
+    loop->testLen = 0;
+    loop->nextStr = NULL;
+    loop->nextLen = 0;
+    loop->elems = NULL;
+    loop->elemCount = 0;
+    loop->currentIndex = 0;
+    loop->varName = NULL;
+    loop->varNameLen = 0;
+
+    /* Link to parent */
+    loop->parent = gCurrentCoroutine->currentLoop;
+    gCurrentCoroutine->currentLoop = loop;
+
+    return loop;
+}
+
+/* Pop the top loop state from the current coroutine's loop stack */
+void tclCoroLoopPop(void) {
+    if (!gCurrentCoroutine || !gCurrentCoroutine->currentLoop) return;
+
+    TclLoopState *loop = gCurrentCoroutine->currentLoop;
+    gCurrentCoroutine->currentLoop = loop->parent;
+    /* Note: loop memory will be freed when coroutine's arena is popped */
+}
+
+/* Get the current loop state (top of stack) */
+TclLoopState *tclCoroLoopCurrent(void) {
+    if (!gCurrentCoroutine) return NULL;
+    return gCurrentCoroutine->currentLoop;
 }
 
 /* ========================================================================
@@ -159,6 +237,7 @@ static TclCoroutine *coroCreate(TclInterp *interp, const char *name, size_t name
     coro->yieldCount = 0;
     coro->yieldTarget = 0;
     coro->resumeValue = NULL;
+    coro->currentLoop = NULL;
 
     gCoroutines[gCoroutineCount++] = coro;
 

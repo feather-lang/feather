@@ -311,6 +311,10 @@ TclResult tclCmdIf(TclInterp *interp, int objc, TclObj **objv) {
 
 /* ========================================================================
  * while Command
+ *
+ * Implemented as a state machine to support coroutine suspend/resume.
+ * When a yield occurs inside the loop body, the loop state is preserved
+ * and can be resumed on the next coroutine invocation.
  * ======================================================================== */
 
 TclResult tclCmdWhile(TclInterp *interp, int objc, TclObj **objv) {
@@ -325,6 +329,107 @@ TclResult tclCmdWhile(TclInterp *interp, int objc, TclObj **objv) {
     const char *testStr = host->getStringPtr(objv[1], &testLen);
     const char *bodyStr = host->getStringPtr(objv[2], &bodyLen);
 
+    /* Check if we're resuming an existing while loop in a coroutine */
+    TclLoopState *loop = tclCoroLoopCurrent();
+
+    if (loop && loop->type == LOOP_TYPE_WHILE) {
+        /* Verify this is the same while loop by comparing content, not pointers.
+         * When resuming a coroutine, the script is re-parsed and pointers differ. */
+        int sameTest = (loop->testLen == testLen &&
+                        tclStrncmp(loop->testStr, testStr, testLen) == 0);
+        int sameBody = (loop->bodyLen == bodyLen &&
+                        tclStrncmp(loop->bodyStr, bodyStr, bodyLen) == 0);
+        if (!sameTest || !sameBody) {
+            /* Different while loop - this is a nested one */
+            loop = NULL;
+        }
+        /* Otherwise we're resuming the same loop - use saved state */
+    } else {
+        loop = NULL;
+    }
+
+    if (!loop) {
+        /* Create new loop state (returns NULL if not in coroutine) */
+        loop = tclCoroLoopPush(LOOP_TYPE_WHILE);
+        if (loop) {
+            loop->testStr = testStr;
+            loop->testLen = testLen;
+            loop->bodyStr = bodyStr;
+            loop->bodyLen = bodyLen;
+            loop->phase = LOOP_PHASE_TEST;
+        }
+    }
+
+    /* If we have loop state, use state machine approach */
+    if (loop) {
+        while (loop->phase != LOOP_PHASE_DONE) {
+            switch (loop->phase) {
+                case LOOP_PHASE_TEST: {
+                    int condResult;
+                    if (evalExprBool(interp, loop->testStr, loop->testLen, &condResult) != 0) {
+                        tclCoroLoopPop();
+                        return TCL_ERROR;
+                    }
+                    if (!condResult) {
+                        loop->phase = LOOP_PHASE_DONE;
+                        break;
+                    }
+                    loop->phase = LOOP_PHASE_BODY;
+                    /* fall through */
+                }
+                case LOOP_PHASE_BODY: {
+                    TclResult result;
+                    size_t currentOffset = loop->bodyResumeOffset;
+
+                    /* Check if we're resuming from a previous yield */
+                    if (currentOffset > 0) {
+                        /* Resume from saved offset within the body */
+                        const char *resumePtr = loop->bodyStr + currentOffset;
+                        size_t remainingLen = loop->bodyLen - currentOffset;
+                        result = tclEvalScript(interp, resumePtr, remainingLen);
+                    } else {
+                        /* Execute body from beginning */
+                        result = tclEvalScript(interp, loop->bodyStr, loop->bodyLen);
+                    }
+
+                    if (tclCoroYieldPending()) {
+                        /* Yield occurred - save offset for resume.
+                         * The yield offset is relative to where we started,
+                         * so add our current offset to get absolute position. */
+                        loop->bodyResumeOffset = currentOffset + tclCoroGetYieldOffset();
+                        return TCL_OK;
+                    }
+
+                    /* Body completed - reset resume offset for next iteration */
+                    loop->bodyResumeOffset = 0;
+
+                    if (result == TCL_BREAK) {
+                        loop->phase = LOOP_PHASE_DONE;
+                        break;
+                    }
+                    if (result == TCL_CONTINUE) {
+                        loop->phase = LOOP_PHASE_TEST;
+                        break;
+                    }
+                    if (result == TCL_ERROR || result == TCL_RETURN) {
+                        tclCoroLoopPop();
+                        return result;
+                    }
+                    loop->phase = LOOP_PHASE_TEST;
+                    break;
+                }
+                case LOOP_PHASE_NEXT:
+                case LOOP_PHASE_DONE:
+                    break;
+            }
+        }
+
+        tclCoroLoopPop();
+        tclSetResult(interp, host->newString("", 0));
+        return TCL_OK;
+    }
+
+    /* No coroutine context - use simple loop (original behavior) */
     tclSetResult(interp, host->newString("", 0));
 
     while (1) {
@@ -340,11 +445,6 @@ TclResult tclCmdWhile(TclInterp *interp, int objc, TclObj **objv) {
 
         /* Execute body */
         TclResult result = tclEvalScript(interp, bodyStr, bodyLen);
-
-        /* Check for coroutine yield */
-        if (tclCoroYieldPending()) {
-            return TCL_OK;
-        }
 
         if (result == TCL_BREAK) {
             break;

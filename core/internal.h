@@ -315,6 +315,7 @@ typedef struct TclLoopState {
     /* Common fields */
     const char     *bodyStr;
     size_t          bodyLen;
+    size_t          bodyResumeOffset;  /* Offset into body to resume from after yield */
 
     /* For while/for: condition */
     const char     *testStr;
@@ -348,6 +349,10 @@ TclCoroutine *tclCoroGetCurrent(void);
 TclLoopState *tclCoroLoopPush(TclLoopType type);
 void tclCoroLoopPop(void);
 TclLoopState *tclCoroLoopCurrent(void);
+
+/* Yield offset tracking for resuming within loop body */
+void tclCoroSetYieldOffset(size_t offset);
+size_t tclCoroGetYieldOffset(void);
 
 /* ========================================================================
  * Interpreter Functions (from tclc.h, implemented in eval.c)
