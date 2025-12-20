@@ -28,10 +28,10 @@ CORE_SRCS = $(CORE_DIR)/lexer.c $(CORE_DIR)/parser.c $(CORE_DIR)/subst.c \
             $(CORE_DIR)/builtin_global.c $(CORE_DIR)/builtin_upvar.c $(CORE_DIR)/builtin_uplevel.c \
             $(CORE_DIR)/builtin_string.c $(CORE_DIR)/builtin_dict.c $(CORE_DIR)/builtin_exec.c \
             $(CORE_DIR)/builtin_file.c $(CORE_DIR)/builtin_break.c $(CORE_DIR)/builtin_list.c \
-            $(CORE_DIR)/builtin_error.c $(CORE_DIR)/builtin_proc.c $(CORE_DIR)/builtin_var.c \
-            $(CORE_DIR)/builtin_array.c $(CORE_DIR)/builtin_info.c $(CORE_DIR)/builtin_control.c \
-            $(CORE_DIR)/builtin_subst.c $(CORE_DIR)/builtin_chan.c $(CORE_DIR)/builtin_regexp.c \
-            $(CORE_DIR)/builtin_event.c
+            $(CORE_DIR)/builtin_lassign.c $(CORE_DIR)/builtin_ledit.c $(CORE_DIR)/builtin_linsert.c $(CORE_DIR)/builtin_lmap.c $(CORE_DIR)/builtin_lpop.c $(CORE_DIR)/builtin_lremove.c $(CORE_DIR)/builtin_lrepeat.c $(CORE_DIR)/builtin_lreplace.c $(CORE_DIR)/builtin_lreverse.c $(CORE_DIR)/builtin_lsearch.c $(CORE_DIR)/builtin_lseq.c $(CORE_DIR)/builtin_lset.c $(CORE_DIR)/builtin_error.c $(CORE_DIR)/builtin_proc.c \
+            $(CORE_DIR)/builtin_var.c $(CORE_DIR)/builtin_array.c $(CORE_DIR)/builtin_info.c \
+            $(CORE_DIR)/builtin_control.c $(CORE_DIR)/builtin_subst.c $(CORE_DIR)/builtin_chan.c \
+            $(CORE_DIR)/builtin_regexp.c $(CORE_DIR)/builtin_event.c
 HOST_C_SRCS = $(HOST_C_DIR)/host.c $(HOST_C_DIR)/object.c $(HOST_C_DIR)/vars.c \
               $(HOST_C_DIR)/arena.c $(HOST_C_DIR)/channel.c $(HOST_C_DIR)/main.c
 

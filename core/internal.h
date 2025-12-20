@@ -230,9 +230,20 @@ TclResult tclCmdLlength(TclInterp *interp, int objc, TclObj **objv);
 TclResult tclCmdLindex(TclInterp *interp, int objc, TclObj **objv);
 TclResult tclCmdLrange(TclInterp *interp, int objc, TclObj **objv);
 TclResult tclCmdLappend(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdLassign(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdLedit(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdLinsert(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdLpop(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdLremove(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdLrepeat(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdLreplace(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdLseq(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdLset(TclInterp *interp, int objc, TclObj **objv);
 TclResult tclCmdJoin(TclInterp *interp, int objc, TclObj **objv);
 TclResult tclCmdSplit(TclInterp *interp, int objc, TclObj **objv);
 TclResult tclCmdLsort(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdLreverse(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdLsearch(TclInterp *interp, int objc, TclObj **objv);
 
 /* Error handling commands (builtin_error.c) */
 TclResult tclCmdError(TclInterp *interp, int objc, TclObj **objv);
@@ -261,6 +272,7 @@ TclResult tclCmdIf(TclInterp *interp, int objc, TclObj **objv);
 TclResult tclCmdWhile(TclInterp *interp, int objc, TclObj **objv);
 TclResult tclCmdFor(TclInterp *interp, int objc, TclObj **objv);
 TclResult tclCmdForeach(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdLmap(TclInterp *interp, int objc, TclObj **objv);
 
 /* Event loop commands (builtin_event.c) */
 TclResult tclCmdAfter(TclInterp *interp, int objc, TclObj **objv);
