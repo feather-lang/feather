@@ -8,6 +8,10 @@ static int is_command_terminator(char c) {
   return c == '\n' || c == '\r' || c == '\0';
 }
 
+static int is_word_char(char c) {
+  return !is_whitespace(c) && !is_command_terminator(c);
+}
+
 TclParseStatus tcl_parse(const TclHostOps *ops, TclInterp interp,
                          const char *script, size_t len) {
   // Skip leading whitespace (but not newlines - those are command separators)
@@ -44,17 +48,38 @@ TclParseStatus tcl_parse(const TclHostOps *ops, TclInterp interp,
       break;
     }
 
-    // Find end of current word
-    const char *word_start = pos;
-    while (pos < end && !is_whitespace(*pos) && !is_command_terminator(*pos)) {
+    // Check for braced string
+    if (*pos == '{') {
+      // Find matching close brace, counting nesting depth
+      int depth = 1;
+      const char *content_start = pos + 1;
       pos++;
-    }
-
-    // Create token for this word
-    size_t word_len = pos - word_start;
-    if (word_len > 0) {
-      TclObj word = ops->string.intern(interp, word_start, word_len);
+      while (pos < end && depth > 0) {
+        if (*pos == '{') {
+          depth++;
+        } else if (*pos == '}') {
+          depth--;
+        }
+        pos++;
+      }
+      // pos now points past the closing brace
+      // Content is between content_start and pos-1 (excluding the final })
+      size_t content_len = (pos - 1) - content_start;
+      TclObj word = ops->string.intern(interp, content_start, content_len);
       words = ops->list.push(interp, words, word);
+    } else {
+      // Find end of current word
+      const char *word_start = pos;
+      while (pos < end && is_word_char(*pos)) {
+        pos++;
+      }
+
+      // Create token for this word
+      size_t word_len = pos - word_start;
+      if (word_len > 0) {
+        TclObj word = ops->string.intern(interp, word_start, word_len);
+        words = ops->list.push(interp, words, word);
+      }
     }
   }
 
