@@ -14,12 +14,26 @@ func NewHost() *interp.Host {
 
 	// M1 commands
 	h.Register("say-hello", cmdSayHello)
+	h.Register("echo", cmdEcho)
 
 	return h
 }
 
 func cmdSayHello(i *interp.Interp, cmd interp.TclObj, args []interp.TclObj) interp.TclResult {
 	fmt.Println("hello")
+	i.SetResultString("")
+	return interp.ResultOK
+}
+
+func cmdEcho(i *interp.Interp, cmd interp.TclObj, args []interp.TclObj) interp.TclResult {
+	// Print all arguments separated by spaces
+	for idx, arg := range args {
+		if idx > 0 {
+			fmt.Print(" ")
+		}
+		fmt.Print(i.GetString(arg))
+	}
+	fmt.Println()
 	i.SetResultString("")
 	return interp.ResultOK
 }

@@ -65,6 +65,8 @@ type Object struct {
 	cstr      *C.char // cached C string for passing to C code
 	intVal    int64
 	isInt     bool
+	listItems []TclObj
+	isList    bool
 }
 
 // NewInterp creates a new interpreter

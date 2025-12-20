@@ -20,8 +20,16 @@ func goBindUnknown(interp C.TclInterp, cmd C.TclObj, args C.TclObj, value *C.Tcl
 	}
 
 	if i.UnknownHandler != nil {
-		// TODO: convert args TclObj (list) to []TclObj slice
-		result := i.UnknownHandler(i, TclObj(cmd), nil)
+		// Convert args TclObj (list) to []TclObj slice
+		var argSlice []TclObj
+		if args != 0 {
+			o := i.getObject(TclObj(args))
+			if o != nil && o.isList {
+				argSlice = make([]TclObj, len(o.listItems))
+				copy(argSlice, o.listItems)
+			}
+		}
+		result := i.UnknownHandler(i, TclObj(cmd), argSlice)
 		*value = C.TclObj(i.result)
 		return C.TclResult(result)
 	}
@@ -114,7 +122,16 @@ func goInterpGetReturnOptions(interp C.TclInterp, code C.TclResult) C.TclObj {
 
 //export goListCreate
 func goListCreate(interp C.TclInterp) C.TclObj {
-	return 0
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	id := i.nextID
+	i.nextID++
+	i.objects[id] = &Object{isList: true, listItems: []TclObj{}}
+	return C.TclObj(id)
 }
 
 //export goListIsNil
@@ -132,6 +149,17 @@ func goListFrom(interp C.TclInterp, obj C.TclObj) C.TclObj {
 
 //export goListPush
 func goListPush(interp C.TclInterp, list C.TclObj, item C.TclObj) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return list
+	}
+	o := i.getObject(TclObj(list))
+	if o == nil || !o.isList {
+		return list
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	o.listItems = append(o.listItems, TclObj(item))
 	return list
 }
 
@@ -147,12 +175,32 @@ func goListUnshift(interp C.TclInterp, list C.TclObj, item C.TclObj) C.TclObj {
 
 //export goListShift
 func goListShift(interp C.TclInterp, list C.TclObj) C.TclObj {
-	return 0
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	o := i.getObject(TclObj(list))
+	if o == nil || !o.isList || len(o.listItems) == 0 {
+		return 0
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	first := o.listItems[0]
+	o.listItems = o.listItems[1:]
+	return C.TclObj(first)
 }
 
 //export goListLength
 func goListLength(interp C.TclInterp, list C.TclObj) C.size_t {
-	return 0
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	o := i.getObject(TclObj(list))
+	if o == nil || !o.isList {
+		return 0
+	}
+	return C.size_t(len(o.listItems))
 }
 
 //export goListAt

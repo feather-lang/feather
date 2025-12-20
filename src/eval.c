@@ -2,17 +2,26 @@
 
 TclResult tcl_eval_obj(const TclHostOps *ops, TclInterp interp, TclObj script,
                        TclEvalFlags flags) {
-  size_t len;
-  const char *str = ops->string.get(interp, script, &len);
+  // script is a list of tokens from the parser
+  // First token is the command name, rest are arguments
 
-  if (len == 0) {
+  // Check if the list is empty
+  if (ops->list.length(interp, script) == 0) {
     return TCL_OK;
   }
 
-  // For the stub, we just call bind.unknown with the entire script as command
-  // This is sufficient for simple command invocation without arguments
+  // Extract the command name (first element)
+  TclObj cmd = ops->list.shift(interp, script);
+  if (ops->list.is_nil(interp, cmd)) {
+    return TCL_OK;
+  }
+
+  // The remaining list is the arguments
+  TclObj args = script;
+
+  // Try to invoke via bind.unknown (host command lookup)
   TclObj result;
-  TclResult code = ops->bind.unknown(interp, script, 0, &result);
+  TclResult code = ops->bind.unknown(interp, cmd, args, &result);
 
   if (code == TCL_OK) {
     ops->interp.set_result(interp, result);
@@ -42,13 +51,11 @@ TclResult tcl_eval_string(const TclHostOps *ops, TclInterp interp,
       return TCL_ERROR;
     }
 
-    // The parser stores its result in the interpreter's result slot
+    // The parser stores its result (a list of tokens) in the interpreter's result slot
     TclObj parsed = ops->interp.get_result(interp);
 
-    // Only evaluate non-empty commands
-    size_t parsed_len;
-    ops->string.get(interp, parsed, &parsed_len);
-    if (parsed_len > 0) {
+    // Only evaluate non-empty commands (list with at least one token)
+    if (ops->list.length(interp, parsed) > 0) {
       result = tcl_eval_obj(ops, interp, parsed, flags);
       if (result != TCL_OK) {
         return result;
