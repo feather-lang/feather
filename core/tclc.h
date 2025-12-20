@@ -611,9 +611,10 @@ void       tclInterpAlias(TclInterp *child, const char *childCmd,
 TclResult tclExprEval(TclInterp *interp, TclObj *expr, TclObj **resultOut);
 TclResult tclExprBool(TclInterp *interp, TclObj *expr, int *resultOut);
 
-/* Builtin command enumeration (for info commands) */
+/* Builtin command enumeration (for info commands, rename support) */
 int tclBuiltinCount(void);
 const char *tclBuiltinName(int index);
+int tclBuiltinLookup(const char *name, size_t len);
 
 /* Substitution (for subst command) */
 TclResult tclSubst(TclInterp *interp, TclObj *str, int flags, TclObj **resultOut);

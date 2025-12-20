@@ -29,6 +29,7 @@
 static const TclBuiltinEntry builtinTable[] = {
     {"after",    tclCmdAfter},
     {"append",   tclCmdAppend},
+    {"apply",    tclCmdApply},
     {"array",    tclCmdArray},
     {"break",    tclCmdBreak},
     {"catch",    tclCmdCatch},
@@ -74,6 +75,7 @@ static const TclBuiltinEntry builtinTable[] = {
     {"read",     tclCmdRead},
     {"regexp",   tclCmdRegexp},
     {"regsub",   tclCmdRegsub},
+    {"rename",   tclCmdRename},
     {"return",   tclCmdReturn},
     {"set",      tclCmdSet},
     {"split",    tclCmdSplit},

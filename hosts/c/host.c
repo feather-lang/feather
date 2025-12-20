@@ -111,8 +111,10 @@ typedef struct ProcDef {
  * ======================================================================== */
 
 typedef struct HostContext {
-    void       *globalVars;   /* Global variable table */
-    GHashTable *procs;        /* Procedure definitions: name -> ProcDef* */
+    void       *globalVars;      /* Global variable table */
+    GHashTable *procs;           /* Procedure definitions: name -> ProcDef* */
+    GHashTable *renamedBuiltins; /* newName -> builtinIndex (GINT_TO_POINTER) */
+    GHashTable *deletedBuiltins; /* originalName -> TRUE (set of hidden names) */
 } HostContext;
 
 /* Free a proc definition */
@@ -135,6 +137,8 @@ static void *hostInterpContextNew(void *parentCtx, int safe) {
 
     ctx->globalVars = hostVarsNew(ctx);
     ctx->procs = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, procDefFree);
+    ctx->renamedBuiltins = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+    ctx->deletedBuiltins = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
     return ctx;
 }
 
@@ -143,6 +147,8 @@ static void hostInterpContextFree(void *ctxPtr) {
     if (!ctx) return;
 
     g_hash_table_destroy(ctx->procs);
+    g_hash_table_destroy(ctx->renamedBuiltins);
+    g_hash_table_destroy(ctx->deletedBuiltins);
     hostVarsFree(ctx, ctx->globalVars);
     g_free(ctx);
 }
@@ -172,14 +178,40 @@ static void hostFrameFree(void *ctx, TclFrame *frame) {
 
 static int hostCmdLookup(void *ctxPtr, const char *name, size_t len, TclCmdInfo *out) {
     HostContext *ctx = ctxPtr;
-
     gchar *key = g_strndup(name, len);
-    ProcDef *proc = g_hash_table_lookup(ctx->procs, key);
-    g_free(key);
 
+    /* 1. Check if this name is a renamed builtin (e.g., "myputs" after "rename puts myputs") */
+    gpointer builtinIdxPtr = g_hash_table_lookup(ctx->renamedBuiltins, key);
+    if (builtinIdxPtr) {
+        g_free(key);
+        out->type = TCL_CMD_BUILTIN;
+        out->u.builtinId = GPOINTER_TO_INT(builtinIdxPtr);
+        return 0;
+    }
+
+    /* 2. Check user-defined procedures */
+    ProcDef *proc = g_hash_table_lookup(ctx->procs, key);
     if (proc) {
+        g_free(key);
         out->type = TCL_CMD_PROC;
         out->u.procHandle = proc;
+        return 0;
+    }
+
+    /* 3. Check if this builtin was deleted/renamed away */
+    if (g_hash_table_lookup(ctx->deletedBuiltins, key)) {
+        g_free(key);
+        out->type = TCL_CMD_NOT_FOUND;
+        return 0;
+    }
+
+    g_free(key);
+
+    /* 4. Check static builtin table */
+    int builtinIdx = tclBuiltinLookup(name, len);
+    if (builtinIdx >= 0) {
+        out->type = TCL_CMD_BUILTIN;
+        out->u.builtinId = builtinIdx;
         return 0;
     }
 
@@ -233,20 +265,111 @@ static TclResult hostExtInvoke(TclInterp *interp, void *handle,
     return TCL_ERROR;
 }
 
-static int hostCmdRename(void *ctx, const char *oldName, size_t oldLen,
+static int hostCmdRename(void *ctxPtr, const char *oldName, size_t oldLen,
                          const char *newName, size_t newLen) {
-    (void)ctx;
-    (void)oldName;
-    (void)oldLen;
-    (void)newName;
-    (void)newLen;
+    HostContext *ctx = ctxPtr;
+    gchar *oldKey = g_strndup(oldName, oldLen);
+    gchar *newKey = g_strndup(newName, newLen);
+
+    /* Check if new name already exists (only if not empty) */
+    if (newLen > 0) {
+        /* Check renamed builtins */
+        if (g_hash_table_lookup(ctx->renamedBuiltins, newKey)) {
+            g_free(oldKey);
+            g_free(newKey);
+            return 1;  /* Target command already exists */
+        }
+        /* Check procs */
+        if (g_hash_table_lookup(ctx->procs, newKey)) {
+            g_free(oldKey);
+            g_free(newKey);
+            return 1;  /* Target command already exists */
+        }
+        /* Check builtins (if not deleted) */
+        if (!g_hash_table_lookup(ctx->deletedBuiltins, newKey) &&
+            tclBuiltinLookup(newName, newLen) >= 0) {
+            g_free(oldKey);
+            g_free(newKey);
+            return 1;  /* Target command already exists */
+        }
+    }
+
+    /* Case 1: oldName is a renamed builtin */
+    gpointer builtinIdxPtr = g_hash_table_lookup(ctx->renamedBuiltins, oldKey);
+    if (builtinIdxPtr) {
+        int builtinIdx = GPOINTER_TO_INT(builtinIdxPtr);
+        g_hash_table_remove(ctx->renamedBuiltins, oldKey);
+        if (newLen > 0) {
+            g_hash_table_insert(ctx->renamedBuiltins, newKey, GINT_TO_POINTER(builtinIdx));
+        }
+        g_free(oldKey);
+        if (newLen == 0) g_free(newKey);
+        return 0;
+    }
+
+    /* Case 2: oldName is a user-defined proc */
+    ProcDef *proc = g_hash_table_lookup(ctx->procs, oldKey);
+    if (proc) {
+        g_hash_table_steal(ctx->procs, oldKey);
+        if (newLen > 0) {
+            g_free(proc->name);
+            proc->name = g_strndup(newName, newLen);
+            proc->nameLen = newLen;
+            g_hash_table_insert(ctx->procs, newKey, proc);
+        } else {
+            procDefFree(proc);
+            g_free(newKey);
+        }
+        g_free(oldKey);
+        return 0;
+    }
+
+    /* Case 3: oldName is a builtin (check if not already deleted) */
+    if (!g_hash_table_lookup(ctx->deletedBuiltins, oldKey)) {
+        int builtinIdx = tclBuiltinLookup(oldName, oldLen);
+        if (builtinIdx >= 0) {
+            /* Mark the original name as deleted */
+            g_hash_table_insert(ctx->deletedBuiltins, oldKey, GINT_TO_POINTER(1));
+            if (newLen > 0) {
+                /* Map new name to builtin index */
+                g_hash_table_insert(ctx->renamedBuiltins, newKey, GINT_TO_POINTER(builtinIdx));
+            } else {
+                g_free(newKey);
+            }
+            return 0;
+        }
+    }
+
+    /* Command doesn't exist */
+    g_free(oldKey);
+    g_free(newKey);
     return -1;
 }
 
-static int hostCmdDelete(void *ctx, const char *name, size_t len) {
-    (void)ctx;
-    (void)name;
-    (void)len;
+static int hostCmdDelete(void *ctxPtr, const char *name, size_t len) {
+    HostContext *ctx = ctxPtr;
+    gchar *key = g_strndup(name, len);
+
+    /* Case 1: Delete a renamed builtin */
+    if (g_hash_table_remove(ctx->renamedBuiltins, key)) {
+        g_free(key);
+        return 0;
+    }
+
+    /* Case 2: Delete a user-defined proc */
+    if (g_hash_table_remove(ctx->procs, key)) {
+        g_free(key);
+        return 0;
+    }
+
+    /* Case 3: Delete a builtin (if not already deleted) */
+    if (!g_hash_table_lookup(ctx->deletedBuiltins, key) &&
+        tclBuiltinLookup(name, len) >= 0) {
+        g_hash_table_insert(ctx->deletedBuiltins, key, GINT_TO_POINTER(1));
+        return 0;
+    }
+
+    g_free(key);
     return -1;
 }
 

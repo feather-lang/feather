@@ -252,7 +252,9 @@ TclResult tclCmdThrow(TclInterp *interp, int objc, TclObj **objv);
 TclResult tclCmdTry(TclInterp *interp, int objc, TclObj **objv);
 
 /* Procedure commands (builtin_proc.c) */
+TclResult tclCmdApply(TclInterp *interp, int objc, TclObj **objv);
 TclResult tclCmdProc(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdRename(TclInterp *interp, int objc, TclObj **objv);
 TclResult tclCmdReturn(TclInterp *interp, int objc, TclObj **objv);
 
 /* Variable commands (builtin_var.c) */
@@ -289,6 +291,50 @@ TclResult tclCmdCoroutine(TclInterp *interp, int objc, TclObj **objv);
 TclResult tclCmdYield(TclInterp *interp, int objc, TclObj **objv);
 TclResult tclCmdYieldto(TclInterp *interp, int objc, TclObj **objv);
 
+/* ========================================================================
+ * Loop State for Coroutine Suspend/Resume
+ * ======================================================================== */
+
+typedef enum {
+    LOOP_PHASE_TEST,      /* Evaluating condition */
+    LOOP_PHASE_BODY,      /* Executing body */
+    LOOP_PHASE_NEXT,      /* Executing increment (for) */
+    LOOP_PHASE_DONE       /* Loop complete */
+} TclLoopPhase;
+
+typedef enum {
+    LOOP_TYPE_WHILE,
+    LOOP_TYPE_FOR,
+    LOOP_TYPE_FOREACH
+} TclLoopType;
+
+typedef struct TclLoopState {
+    TclLoopType     type;
+    TclLoopPhase    phase;
+
+    /* Common fields */
+    const char     *bodyStr;
+    size_t          bodyLen;
+
+    /* For while/for: condition */
+    const char     *testStr;
+    size_t          testLen;
+
+    /* For for: next clause */
+    const char     *nextStr;
+    size_t          nextLen;
+
+    /* For foreach: iteration state */
+    TclObj        **elems;        /* List elements */
+    size_t          elemCount;
+    size_t          currentIndex; /* Which element we're on */
+    const char     *varName;      /* Variable name */
+    size_t          varNameLen;
+
+    /* Link to parent loop (for nested loops) */
+    struct TclLoopState *parent;
+} TclLoopState;
+
 /* Coroutine support */
 typedef struct TclCoroutine TclCoroutine;
 TclCoroutine *tclCoroLookup(const char *name, size_t len);
@@ -296,6 +342,12 @@ TclResult tclCoroInvoke(TclInterp *interp, TclCoroutine *coro, int objc, TclObj 
 const char *tclCoroCurrentName(size_t *lenOut);
 int tclCoroYieldPending(void);
 void tclCoroClearYield(void);
+TclCoroutine *tclCoroGetCurrent(void);
+
+/* Loop state management for coroutines */
+TclLoopState *tclCoroLoopPush(TclLoopType type);
+void tclCoroLoopPop(void);
+TclLoopState *tclCoroLoopCurrent(void);
 
 /* ========================================================================
  * Interpreter Functions (from tclc.h, implemented in eval.c)
