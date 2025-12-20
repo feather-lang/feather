@@ -35,6 +35,7 @@ static const TclBuiltinEntry builtinTable[] = {
     {"chan",     tclCmdChan},
     {"close",    tclCmdClose},
     {"continue", tclCmdContinue},
+    {"coroutine", tclCmdCoroutine},
     {"dict",     tclCmdDict},
     {"error",    tclCmdError},
     {"exec",     tclCmdExec},
@@ -86,6 +87,8 @@ static const TclBuiltinEntry builtinTable[] = {
     {"upvar",    tclCmdUpvar},
     {"vwait",    tclCmdVwait},
     {"while",    tclCmdWhile},
+    {"yield",    tclCmdYield},
+    {"yieldto",  tclCmdYieldto},
 };
 
 static const int builtinCount = sizeof(builtinTable) / sizeof(builtinTable[0]);

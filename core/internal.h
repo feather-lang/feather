@@ -284,6 +284,19 @@ TclResult tclCmdFileevent(TclInterp *interp, int objc, TclObj **objv);
 TclResult tclCmdRegexp(TclInterp *interp, int objc, TclObj **objv);
 TclResult tclCmdRegsub(TclInterp *interp, int objc, TclObj **objv);
 
+/* Coroutine commands (builtin_coroutine.c) */
+TclResult tclCmdCoroutine(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdYield(TclInterp *interp, int objc, TclObj **objv);
+TclResult tclCmdYieldto(TclInterp *interp, int objc, TclObj **objv);
+
+/* Coroutine support */
+typedef struct TclCoroutine TclCoroutine;
+TclCoroutine *tclCoroLookup(const char *name, size_t len);
+TclResult tclCoroInvoke(TclInterp *interp, TclCoroutine *coro, int objc, TclObj **objv);
+const char *tclCoroCurrentName(size_t *lenOut);
+int tclCoroYieldPending(void);
+void tclCoroClearYield(void);
+
 /* ========================================================================
  * Interpreter Functions (from tclc.h, implemented in eval.c)
  * ======================================================================== */

@@ -341,6 +341,11 @@ TclResult tclCmdWhile(TclInterp *interp, int objc, TclObj **objv) {
         /* Execute body */
         TclResult result = tclEvalScript(interp, bodyStr, bodyLen);
 
+        /* Check for coroutine yield */
+        if (tclCoroYieldPending()) {
+            return TCL_OK;
+        }
+
         if (result == TCL_BREAK) {
             break;
         }
@@ -394,6 +399,11 @@ TclResult tclCmdFor(TclInterp *interp, int objc, TclObj **objv) {
         /* Execute body */
         result = tclEvalScript(interp, bodyStr, bodyLen);
 
+        /* Check for coroutine yield */
+        if (tclCoroYieldPending()) {
+            return TCL_OK;
+        }
+
         if (result == TCL_BREAK) {
             break;
         }
@@ -405,6 +415,12 @@ TclResult tclCmdFor(TclInterp *interp, int objc, TclObj **objv) {
 
         /* Execute next */
         result = tclEvalScript(interp, nextStr, nextLen);
+
+        /* Check for coroutine yield in next */
+        if (tclCoroYieldPending()) {
+            return TCL_OK;
+        }
+
         if (result != TCL_OK && result != TCL_CONTINUE) {
             return result;
         }
@@ -448,6 +464,11 @@ TclResult tclCmdForeach(TclInterp *interp, int objc, TclObj **objv) {
 
         /* Execute body */
         TclResult result = tclEvalScript(interp, bodyStr, bodyLen);
+
+        /* Check for coroutine yield */
+        if (tclCoroYieldPending()) {
+            return TCL_OK;
+        }
 
         if (result == TCL_BREAK) {
             break;

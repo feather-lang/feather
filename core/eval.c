@@ -303,9 +303,17 @@ TclEvalStatus tclEvalStep(TclInterp *interp, TclEvalState *state) {
                 state->cmdInfo.type = TCL_CMD_BUILTIN;
                 state->cmdInfo.u.builtinId = builtinIdx;
             } else {
-                /* Try host command lookup */
+                /* Try host command lookup (procs) */
                 if (host->cmdLookup(interp->hostCtx, cmdName, cmdNameLen, &state->cmdInfo) != 0) {
                     state->cmdInfo.type = TCL_CMD_NOT_FOUND;
+                }
+                /* If still not found, try coroutines */
+                if (state->cmdInfo.type == TCL_CMD_NOT_FOUND) {
+                    TclCoroutine *coro = tclCoroLookup(cmdName, cmdNameLen);
+                    if (coro) {
+                        state->cmdInfo.type = TCL_CMD_EXTENSION;
+                        state->cmdInfo.u.extHandle = coro;
+                    }
                 }
             }
 
@@ -468,10 +476,19 @@ TclEvalStatus tclEvalStep(TclInterp *interp, TclEvalState *state) {
                     break;
                 }
 
-                case TCL_CMD_EXTENSION:
-                    result = host->extInvoke(interp, state->cmdInfo.u.extHandle,
-                                             state->substCount, state->substWords);
+                case TCL_CMD_EXTENSION: {
+                    /* Check if this is a coroutine (we stored coro in extHandle) */
+                    size_t cmdLen;
+                    const char *cmdName = host->getStringPtr(state->substWords[0], &cmdLen);
+                    TclCoroutine *coro = tclCoroLookup(cmdName, cmdLen);
+                    if (coro) {
+                        result = tclCoroInvoke(interp, coro, state->substCount, state->substWords);
+                    } else {
+                        result = host->extInvoke(interp, state->cmdInfo.u.extHandle,
+                                                 state->substCount, state->substWords);
+                    }
                     break;
+                }
 
                 case TCL_CMD_NOT_FOUND:
                 default: {
@@ -510,6 +527,12 @@ TclEvalStatus tclEvalStep(TclInterp *interp, TclEvalState *state) {
             if (interp->resultCode == TCL_RETURN ||
                 interp->resultCode == TCL_BREAK ||
                 interp->resultCode == TCL_CONTINUE) {
+                state->phase = EVAL_PHASE_DONE;
+                return EVAL_DONE;
+            }
+
+            /* Check if coroutine yield is pending */
+            if (tclCoroYieldPending()) {
                 state->phase = EVAL_PHASE_DONE;
                 return EVAL_DONE;
             }

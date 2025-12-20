@@ -188,6 +188,19 @@ TclResult tclCmdInfo(TclInterp *interp, int objc, TclObj **objv) {
         return TCL_OK;
     }
 
+    /* info coroutine */
+    if (subcmdLen == 9 && tclStrncmp(subcmd, "coroutine", 9) == 0) {
+        if (objc != 2) {
+            tclSetError(interp, "wrong # args: should be \"info coroutine\"", -1);
+            return TCL_ERROR;
+        }
+
+        size_t nameLen;
+        const char *name = tclCoroCurrentName(&nameLen);
+        tclSetResult(interp, host->newString(name, nameLen));
+        return TCL_OK;
+    }
+
     /* info complete string */
     if (subcmdLen == 8 && tclStrncmp(subcmd, "complete", 8) == 0) {
         if (objc != 3) {
