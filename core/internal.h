@@ -70,33 +70,10 @@ typedef struct TclParser {
  */
 
 /* ========================================================================
- * Eval State Machine (Trampoline)
+ * Forward Declarations
  * ======================================================================== */
 
-typedef enum TclEvalPhase {
-    EVAL_PHASE_PARSE,       /* Get next command */
-    EVAL_PHASE_SUBST,       /* Substitute words */
-    EVAL_PHASE_LOOKUP,      /* Find command */
-    EVAL_PHASE_DISPATCH,    /* Call command */
-    EVAL_PHASE_RESULT,      /* Handle return code */
-    EVAL_PHASE_DONE,        /* Script complete */
-} TclEvalPhase;
-
-typedef enum TclEvalStatus {
-    EVAL_CONTINUE,          /* More work to do */
-    EVAL_DONE,              /* Result ready */
-    EVAL_YIELD,             /* Coroutine yielding */
-} TclEvalStatus;
-
-typedef struct TclEvalState {
-    TclParser       parser;         /* Parser state */
-    TclParsedCmd    currentCmd;     /* Current command being executed */
-    TclObj        **substWords;     /* Substituted word values */
-    int             substCount;     /* Number of substituted words */
-    TclEvalPhase    phase;          /* Current phase */
-    TclCmdInfo      cmdInfo;        /* Looked-up command info */
-    int             wordIndex;      /* Current word being substituted */
-} TclEvalState;
+struct TclAstNode;
 
 /* ========================================================================
  * Builtin Command Entry
@@ -165,34 +142,11 @@ int tclSubstBackslashChar(const char *src, const char *end, char *out);
  * Eval Functions (eval.c)
  * ======================================================================== */
 
-/* Initialize eval state for a script */
-void tclEvalStateInit(TclEvalState *state, TclInterp *interp,
-                      const char *script, size_t len);
-
-/* Clean up eval state */
-void tclEvalStateCleanup(TclEvalState *state, TclInterp *interp);
-
-/* Execute one step of evaluation */
-TclEvalStatus tclEvalStep(TclInterp *interp, TclEvalState *state);
-
-/* Execute a complete script (wrapper around trampoline) */
+/* Execute a complete script */
 TclResult tclEvalScript(TclInterp *interp, const char *script, size_t len);
 
 /* Execute command substitution [cmd] */
 TclResult tclEvalBracketed(TclInterp *interp, const char *cmd, size_t len);
-
-/* ========================================================================
- * Tree-Walking Eval Functions (tree_eval.c)
- * ======================================================================== */
-
-/* Forward declare AST node type */
-struct TclAstNode;
-
-/* Evaluate an AST (tree-walking) */
-TclResult tclTreeEvalAst(TclInterp *interp, struct TclAstNode *ast);
-
-/* Parse and evaluate a script string using tree-walking */
-TclResult tclTreeEvalStr(TclInterp *interp, const char *script, size_t len);
 
 /* ========================================================================
  * Builtin Functions (builtins.c)
