@@ -40,8 +40,8 @@ features:
     status: complete
     tests: ["var-*"]
     source_files:
-      - path: core/builtins.c
-        description: Built-in commands
+      - path: core/builtin_var.c
+        description: Variable commands implementation
 
   - id: commands
     description: "Command dispatch infrastructure"
@@ -90,8 +90,10 @@ features:
         "continue-*",
       ]
     source_files:
-      - path: core/builtins.c
-        description: Built-in commands
+      - path: core/builtin_control.c
+        description: Control flow commands implementation
+      - path: core/builtin_break.c
+        description: Break/continue commands implementation
 
   - id: proc
     description: "Procedure definition and invocation"
@@ -100,8 +102,8 @@ features:
     status: complete
     tests: ["proc-*"]
     source_files:
-      - path: core/builtins.c
-        description: Built-in commands
+      - path: core/builtin_proc.c
+        description: Proc command implementation
       - path: core/eval.c
         description: Evaluation loop
 
@@ -127,8 +129,32 @@ features:
     status: complete
     tests: ["list-*"]
     source_files:
-      - path: core/builtins.c
-        description: Built-in commands
+      - path: core/builtin_list.c
+        description: Core list commands (list, lindex, llength, lrange, lappend, lsort, concat, join, split)
+      - path: core/builtin_lassign.c
+        description: lassign command
+      - path: core/builtin_ledit.c
+        description: ledit command
+      - path: core/builtin_linsert.c
+        description: linsert command
+      - path: core/builtin_lmap.c
+        description: lmap command
+      - path: core/builtin_lpop.c
+        description: lpop command
+      - path: core/builtin_lremove.c
+        description: lremove command
+      - path: core/builtin_lrepeat.c
+        description: lrepeat command
+      - path: core/builtin_lreplace.c
+        description: lreplace command
+      - path: core/builtin_lreverse.c
+        description: lreverse command
+      - path: core/builtin_lsearch.c
+        description: lsearch command
+      - path: core/builtin_lseq.c
+        description: lseq command
+      - path: core/builtin_lset.c
+        description: lset command
 
   - id: string
     description: "String manipulation commands"
@@ -139,8 +165,6 @@ features:
     source_files:
       - path: core/builtin_string.c
         description: String command implementation
-      - path: core/builtins.c
-        description: Built-in commands
 
   - id: dict
     description: "Dictionary manipulation commands"
@@ -151,8 +175,6 @@ features:
     source_files:
       - path: core/builtin_dict.c
         description: Dict command implementation
-      - path: core/builtins.c
-        description: Built-in commands
 
   - id: array
     description: "Array manipulation commands"
@@ -161,8 +183,8 @@ features:
     status: complete
     tests: ["array-*"]
     source_files:
-      - path: core/builtins.c
-        description: Built-in commands
+      - path: core/builtin_array.c
+        description: Array command implementation
 
   # Phase 4: Error Handling and I/O
   - id: error
@@ -172,8 +194,8 @@ features:
     status: complete
     tests: ["catch-*", "try-*", "error-*", "throw-*"]
     source_files:
-      - path: core/builtins.c
-        description: Built-in commands
+      - path: core/builtin_error.c
+        description: Error handling commands implementation
       - path: core/eval.c
         description: Evaluation loop
 
@@ -184,8 +206,8 @@ features:
     status: complete
     tests: ["io-*", "chan-*"]
     source_files:
-      - path: core/builtins.c
-        description: Built-in commands
+      - path: core/builtin_chan.c
+        description: Channel and I/O commands implementation
 
   # Phase 5: Advanced Features
   - id: event
@@ -195,8 +217,8 @@ features:
     status: pending
     tests: ["after-*", "vwait-*", "fileevent-*"]
     source_files:
-      - path: core/builtins.c
-        description: Built-in commands
+      - path: core/builtin_event.c
+        description: Event loop commands implementation
 
   - id: interp
     description: "Multiple interpreter support"
@@ -230,8 +252,8 @@ features:
     status: complete
     tests: ["exec-*"]
     source_files:
-      - path: core/builtins.c
-        description: Built-in commands
+      - path: core/builtin_exec.c
+        description: Exec command implementation
 
   - id: file
     description: "File system commands"
@@ -240,8 +262,8 @@ features:
     status: complete
     tests: ["file-*"]
     source_files:
-      - path: core/builtins.c
-        description: Built-in commands
+      - path: core/builtin_file.c
+        description: File command implementation
 
   - id: socket
     description: "Network socket support"
@@ -257,7 +279,7 @@ features:
     description: "Regular expression support (regexp, regsub)"
     depends: [eval]
     phase: 6
-    status: in_progress
+    status: complete
     tests: ["regexp-*", "regsub-*"]
     source_files:
       - path: core/builtin_regexp.c
@@ -270,8 +292,8 @@ features:
     status: complete
     tests: ["info-*"]
     source_files:
-      - path: core/builtins.c
-        description: Built-in commands
+      - path: core/builtin_info.c
+        description: Info command implementation
 
   - id: namespace
     description: "Namespace support"
