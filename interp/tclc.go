@@ -75,10 +75,18 @@ type CallFrame struct {
 	level int               // frame index on the call stack
 }
 
+// Procedure represents a user-defined procedure
+type Procedure struct {
+	name   TclObj
+	params TclObj
+	body   TclObj
+}
+
 // Interp represents a TCL interpreter instance
 type Interp struct {
 	handle  TclInterp
 	objects map[TclObj]*Object
+	procs   map[string]*Procedure // user-defined procedures
 	nextID  TclObj
 	result  TclObj
 	frames  []*CallFrame // call stack (frame 0 is global)
@@ -103,6 +111,7 @@ type Object struct {
 func NewInterp() *Interp {
 	interp := &Interp{
 		objects: make(map[TclObj]*Object),
+		procs:   make(map[string]*Procedure),
 		nextID:  1,
 	}
 	// Initialize the global frame (frame 0)
@@ -154,7 +163,8 @@ func (i *Interp) Parse(script string) ParseResult {
 	}
 }
 
-// listToString converts a list object to its TCL string representation.
+// listToString converts a list object to its TCL string representation for display.
+// This includes outer braces for non-empty lists (used for parse result display).
 func (i *Interp) listToString(obj *Object) string {
 	if obj == nil {
 		return ""
@@ -191,6 +201,52 @@ func (i *Interp) listToString(obj *Object) string {
 	}
 	if len(obj.listItems) > 0 {
 		result = "{" + result + "}"
+	}
+	return result
+}
+
+// listToValue converts a list object to its TCL value string representation.
+// This does NOT include outer braces (used when returning list as a value).
+func (i *Interp) listToValue(obj *Object) string {
+	if obj == nil {
+		return ""
+	}
+	if !obj.isList {
+		if obj.isInt {
+			return fmt.Sprintf("%d", obj.intVal)
+		}
+		return obj.stringVal
+	}
+	// Build TCL list value: elem1 elem2 ...
+	// Elements with spaces are braced, but the list itself is not wrapped
+	var result string
+	for idx, itemHandle := range obj.listItems {
+		itemObj := i.getObject(itemHandle)
+		if itemObj == nil {
+			continue
+		}
+		if idx > 0 {
+			result += " "
+		}
+		// Handle different object types
+		if itemObj.isInt {
+			result += fmt.Sprintf("%d", itemObj.intVal)
+		} else if itemObj.isList {
+			// Nested lists need to be braced
+			nested := i.listToValue(itemObj)
+			if len(itemObj.listItems) > 0 || strings.ContainsAny(nested, " \t\n") {
+				result += "{" + nested + "}"
+			} else {
+				result += nested
+			}
+		} else {
+			// Quote strings that contain spaces or special chars
+			if strings.ContainsAny(itemObj.stringVal, " \t\n{}") {
+				result += "{" + itemObj.stringVal + "}"
+			} else {
+				result += itemObj.stringVal
+			}
+		}
 	}
 	return result
 }
@@ -254,9 +310,9 @@ func (i *Interp) GetString(h TclObj) string {
 		if obj.isInt && obj.stringVal == "" {
 			obj.stringVal = fmt.Sprintf("%d", obj.intVal)
 		}
-		// Shimmer: list → string
+		// Shimmer: list → string (use listToValue for proper TCL semantics)
 		if obj.isList && obj.stringVal == "" {
-			obj.stringVal = i.listToString(obj)
+			obj.stringVal = i.listToValue(obj)
 		}
 		return obj.stringVal
 	}

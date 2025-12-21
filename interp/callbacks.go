@@ -149,7 +149,25 @@ func goListIsNil(interp C.TclInterp, obj C.TclObj) C.int {
 
 //export goListFrom
 func goListFrom(interp C.TclInterp, obj C.TclObj) C.TclObj {
-	return 0
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	// Get the list items (with shimmering)
+	items, err := i.GetList(TclObj(obj))
+	if err != nil {
+		return 0
+	}
+	// Create a new list with copied items
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	id := i.nextID
+	i.nextID++
+	// Make a copy of the items slice
+	copiedItems := make([]TclObj, len(items))
+	copy(copiedItems, items)
+	i.objects[id] = &Object{isList: true, listItems: copiedItems}
+	return C.TclObj(id)
 }
 
 //export goListPush
@@ -184,8 +202,13 @@ func goListShift(interp C.TclInterp, list C.TclObj) C.TclObj {
 	if i == nil {
 		return 0
 	}
+	// Use GetList for shimmering (string → list)
+	items, err := i.GetList(TclObj(list))
+	if err != nil || len(items) == 0 {
+		return 0
+	}
 	o := i.getObject(TclObj(list))
-	if o == nil || !o.isList || len(o.listItems) == 0 {
+	if o == nil {
 		return 0
 	}
 	i.mu.Lock()
@@ -201,11 +224,12 @@ func goListLength(interp C.TclInterp, list C.TclObj) C.size_t {
 	if i == nil {
 		return 0
 	}
-	o := i.getObject(TclObj(list))
-	if o == nil || !o.isList {
+	// Use GetList for shimmering (string → list)
+	items, err := i.GetList(TclObj(list))
+	if err != nil {
 		return 0
 	}
-	return C.size_t(len(o.listItems))
+	return C.size_t(len(items))
 }
 
 //export goListAt
@@ -381,21 +405,67 @@ func goVarLink(interp C.TclInterp, local C.TclObj, target_level C.size_t, target
 
 //export goProcDefine
 func goProcDefine(interp C.TclInterp, name C.TclObj, params C.TclObj, body C.TclObj) {
+	i := getInterp(interp)
+	if i == nil {
+		return
+	}
+	nameStr := i.GetString(TclObj(name))
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.procs[nameStr] = &Procedure{
+		name:   TclObj(name),
+		params: TclObj(params),
+		body:   TclObj(body),
+	}
 }
 
 //export goProcExists
 func goProcExists(interp C.TclInterp, name C.TclObj) C.int {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	nameStr := i.GetString(TclObj(name))
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if _, ok := i.procs[nameStr]; ok {
+		return 1
+	}
 	return 0
 }
 
 //export goProcParams
 func goProcParams(interp C.TclInterp, name C.TclObj, result *C.TclObj) C.TclResult {
-	return C.TCL_ERROR
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	nameStr := i.GetString(TclObj(name))
+	i.mu.Lock()
+	proc, ok := i.procs[nameStr]
+	i.mu.Unlock()
+	if !ok {
+		return C.TCL_ERROR
+	}
+	*result = C.TclObj(proc.params)
+	return C.TCL_OK
 }
 
 //export goProcBody
 func goProcBody(interp C.TclInterp, name C.TclObj, result *C.TclObj) C.TclResult {
-	return C.TCL_ERROR
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	nameStr := i.GetString(TclObj(name))
+	i.mu.Lock()
+	proc, ok := i.procs[nameStr]
+	i.mu.Unlock()
+	if !ok {
+		return C.TCL_ERROR
+	}
+	*result = C.TclObj(proc.body)
+	return C.TCL_OK
 }
 
 // callCEval invokes the C interpreter

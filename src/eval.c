@@ -28,6 +28,11 @@ TclResult tcl_eval_obj(const TclHostOps *ops, TclInterp interp, TclObj script,
     return builtin(ops, interp, cmd, args);
   }
 
+  // Check for user-defined procedures
+  if (ops->proc.exists(interp, cmd)) {
+    return tcl_invoke_proc(ops, interp, cmd, args);
+  }
+
   // Fall back to host command lookup via bind.unknown
   TclObj result;
   TclResult code = ops->bind.unknown(interp, cmd, args, &result);

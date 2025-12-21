@@ -11,6 +11,7 @@ typedef struct {
 static const BuiltinEntry builtins[] = {
     {"set", tcl_builtin_set},
     {"expr", tcl_builtin_expr},
+    {"proc", tcl_builtin_proc},
     {NULL, NULL} // sentinel
 };
 

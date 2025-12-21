@@ -45,6 +45,6 @@ func (h *Host) dispatch(i *Interp, cmd TclObj, args []TclObj) TclResult {
 	if fn, ok := h.Commands[cmdStr]; ok {
 		return fn(i, cmd, args)
 	}
-	i.SetErrorString("unknown command: " + cmdStr)
+	i.SetErrorString("invalid command name \"" + cmdStr + "\"")
 	return ResultError
 }
