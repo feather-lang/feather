@@ -43,8 +43,9 @@ const (
 
 // ParseResult holds the result of parsing a script
 type ParseResult struct {
-	Status ParseStatus
-	Result string // The interpreter's result string (e.g., "{INCOMPLETE 5 20}")
+	Status       ParseStatus
+	Result       string // The interpreter's result string (e.g., "{INCOMPLETE 5 20}")
+	ErrorMessage string // For ParseError, the error message from the result list
 }
 
 // Handle is the Go type for TclHandle
@@ -116,13 +117,21 @@ func (i *Interp) Parse(script string) ParseResult {
 	status := callCParse(i.handle, scriptHandle)
 
 	var resultStr string
+	var errorMsg string
 	if obj := i.getObject(i.result); obj != nil {
 		resultStr = i.listToString(obj)
+		// For parse errors, extract the error message (4th element) directly from the list
+		if ParseStatus(status) == ParseError && obj.isList && len(obj.listItems) >= 4 {
+			if msgObj := i.getObject(obj.listItems[3]); msgObj != nil {
+				errorMsg = msgObj.stringVal
+			}
+		}
 	}
 
 	return ParseResult{
-		Status: ParseStatus(status),
-		Result: resultStr,
+		Status:       ParseStatus(status),
+		Result:       resultStr,
+		ErrorMessage: errorMsg,
 	}
 }
 

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	"github.com/dhamidi/tclc/interp"
 	defaults "github.com/dhamidi/tclc/interp/default"
@@ -28,8 +27,7 @@ func main() {
 		os.Exit(2) // Exit code 2 signals incomplete input
 	}
 	if parseResult.Status == interp.ParseError {
-		errorMsg := parseErrorMessage(parseResult.Result)
-		writeHarnessResult("TCL_ERROR", parseResult.Result, errorMsg)
+		writeHarnessResult("TCL_ERROR", parseResult.Result, parseResult.ErrorMessage)
 		os.Exit(3) // Exit code 3 signals parse error
 	}
 
@@ -46,26 +44,6 @@ func main() {
 		fmt.Println(result)
 	}
 	writeHarnessResult("TCL_OK", result, "")
-}
-
-// parseErrorMessage extracts the error message from a parse error result.
-// The result format is: {ERROR start_offset end_offset {message}}
-func parseErrorMessage(result string) string {
-	if strings.HasPrefix(result, "{ERROR") {
-		// Extract the message (last element in the list)
-		// Format: {ERROR 5 8 {extra characters after close-brace}}
-		trimmed := strings.TrimPrefix(result, "{")
-		trimmed = strings.TrimSuffix(trimmed, "}")
-		parts := strings.SplitN(trimmed, " ", 4)
-		if len(parts) >= 4 {
-			msg := parts[3]
-			// Strip braces if present
-			msg = strings.TrimPrefix(msg, "{")
-			msg = strings.TrimSuffix(msg, "}")
-			return msg
-		}
-	}
-	return "parse error"
 }
 
 func writeHarnessResult(returnCode string, result string, errorMsg string) {
