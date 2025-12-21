@@ -214,6 +214,8 @@ Builtin commands implemented:
 - error: raise an error with message, optional errorInfo and errorCode
 - catch: execute script, capture return code and result
 
+The error needs to be stored in the interpreters error value, cf 
+
 ### M7: Introspection with info
 
 The `info` command is TCL's window into itself. We implement a minimal subset that exercises the key introspectable state:
@@ -275,18 +277,37 @@ Builtin commands implemented:
 - rename: rename or delete commands (needed to replace `unknown`)
 - The `unknown` mechanism via TclBindOps
 
-### M10: Completing the Control Flow Suite
+## M10: Namespaces
 
-With all the core machinery in place, we round out the control flow commands. These are now straightforward applications of existing interpreter features.
+Namespace support tests symbol table scoping and procedure resolution:
 
-Builtin commands implemented:
+- namespace: eval, current, exists, children, parent, delete, export, import
+- variable: declare namespace variables
+
+## M11: Advanced Error Handling
+
+Structured exception handling validates the interpreter's frame and result management:
+
+- try/on/trap/finally: structured exception handling
+- throw: raise typed exceptions
+
+## M12: Trace Support
+
+Traces exercise the interpreter's hook points and introspection capabilities:
+
+- trace: add, remove, info for variable and command traces
+- Complete info subcommands: frame, default, locals, globals, vars, script
+
+## M13: Completing the Control Flow Suite
+
+With error handling, namespaces, and tracing validated, we round out control flow:
 
 - for: C-style loop
 - foreach: iteration over lists
 - switch: multi-way branch with -exact, -glob, -regexp modes
-- tailcall: replace current frame with new command (optimization + correctness for recursive procedures)
+- tailcall: replace current frame with new command
 
-### M11: Full Expression Support
+## M14: Full Expression Support
 
 Extend `expr` to its complete form:
 
@@ -296,7 +317,7 @@ Extend `expr` to its complete form:
 - Ternary operator (? :)
 - List membership (in, ni)
 
-### M12: String and List Operations
+## M15: String and List Operations
 
 Complete the data structure commands:
 
@@ -304,25 +325,7 @@ Complete the data structure commands:
 - lindex, lrange, llength, lappend, lset, lreplace, lsort, lsearch
 - string: length, index, range, match, map, trim, toupper, tolower
 - split, join, concat, append
-- format, scan
 
-### M13: Dictionary Support
+## M16: Dictionary Support
 
 - dict: create, get, set, exists, keys, values, for, map, filter, remove, merge
-
-### M14: Advanced Error Handling
-
-- try/on/trap/finally: structured exception handling
-- throw: raise typed exceptions
-
-### M15: Namespaces
-
-- namespace: eval, current, exists, children, parent, delete, export, import
-- variable: declare namespace variables
-
-### M16: Additional Introspection
-
-Complete `info` subcommands and add `trace`:
-
-- info: frame, coroutine, default, locals, globals, vars, script
-- trace: add, remove, info for variable and command traces
