@@ -396,6 +396,119 @@ void tcl_parse_init(TclParseContext *ctx, const char *script, size_t len) {
 }
 
 /**
+ * Skip whitespace in list context (spaces and tabs only, no comments).
+ */
+static size_t skip_list_whitespace(const char *s, size_t len, size_t pos) {
+  while (pos < len && (s[pos] == ' ' || s[pos] == '\t' || s[pos] == '\n')) {
+    pos++;
+  }
+  return pos;
+}
+
+/**
+ * Parse a single element from a list string starting at pos.
+ * List parsing differs from word parsing:
+ * - No variable substitution
+ * - No command substitution
+ * - Braces and quotes delimit elements, backslash-newline becomes space
+ *
+ * Returns the parsed element, or nil if at end.
+ * Updates pos to point past the parsed element.
+ */
+static TclObj parse_list_element(const TclHostOps *ops, TclInterp interp,
+                                  const char *s, size_t len, size_t *pos) {
+  // Skip leading whitespace
+  *pos = skip_list_whitespace(s, len, *pos);
+
+  if (*pos >= len) {
+    return 0; // nil - no more elements
+  }
+
+  const char *p = s + *pos;
+  const char *end = s + len;
+  TclObj word = 0;
+
+  if (*p == '{') {
+    // Braced element - content is literal, braces nest
+    int depth = 1;
+    const char *content_start = p + 1;
+    p++;
+    while (p < end && depth > 0) {
+      if (*p == '\\' && p + 1 < end) {
+        p += 2;
+        continue;
+      }
+      if (*p == '{') depth++;
+      else if (*p == '}') depth--;
+      p++;
+    }
+    if (depth == 0) {
+      size_t content_len = (p - 1) - content_start;
+      word = ops->string.intern(interp, content_start, content_len);
+    }
+    *pos = p - s;
+    return word;
+
+  } else if (*p == '"') {
+    // Quoted element - content includes everything until closing quote
+    // Backslash escapes are processed
+    const char *content_start = p + 1;
+    p++;
+    // For simplicity, just find the closing quote and return content
+    // A full implementation would process backslash escapes
+    const char *seg_start = p;
+    while (p < end && *p != '"') {
+      if (*p == '\\' && p + 1 < end) {
+        p += 2;
+        continue;
+      }
+      p++;
+    }
+    size_t content_len = p - content_start;
+    word = ops->string.intern(interp, content_start, content_len);
+    if (p < end) p++; // skip closing quote
+    *pos = p - s;
+    return word;
+
+  } else {
+    // Bare word - terminated by whitespace
+    const char *word_start = p;
+    while (p < end && *p != ' ' && *p != '\t' && *p != '\n') {
+      if (*p == '\\' && p + 1 < end) {
+        p += 2;
+        continue;
+      }
+      p++;
+    }
+    size_t word_len = p - word_start;
+    if (word_len > 0) {
+      word = ops->string.intern(interp, word_start, word_len);
+    }
+    *pos = p - s;
+    return word;
+  }
+}
+
+/**
+ * Parse a string as a TCL list and return a list of elements.
+ */
+static TclObj parse_as_list(const TclHostOps *ops, TclInterp interp,
+                            const char *s, size_t len) {
+  TclObj result = ops->list.create(interp);
+  size_t pos = 0;
+
+  while (pos < len) {
+    TclObj elem = parse_list_element(ops, interp, s, len, &pos);
+    if (ops->list.is_nil(interp, elem)) {
+      break;
+    }
+    result = ops->list.push(interp, result, elem);
+  }
+
+  return result;
+}
+
+/**
  * Skip whitespace, backslash-newline continuations, and comments.
  * Returns the new position in the script.
  */
@@ -708,6 +821,16 @@ TclParseStatus tcl_parse_command(const TclHostOps *ops, TclInterp interp,
       break;
     }
 
+    // Check for argument expansion {*}
+    // Rule [5]: {*} followed by non-whitespace triggers expansion
+    int is_expansion = 0;
+    if (pos + 3 <= end &&
+        pos[0] == '{' && pos[1] == '*' && pos[2] == '}' &&
+        pos + 3 < end && !is_word_terminator(pos[3])) {
+      is_expansion = 1;
+      ctx->pos += 3; // skip {*}
+    }
+
     // Parse a word
     TclParseStatus status;
     TclObj word = parse_word(ops, interp, script, len, &ctx->pos, &status);
@@ -716,7 +839,23 @@ TclParseStatus tcl_parse_command(const TclHostOps *ops, TclInterp interp,
     }
 
     if (!ops->list.is_nil(interp, word)) {
-      words = ops->list.push(interp, words, word);
+      if (is_expansion) {
+        // Parse word as a list and add each element
+        size_t word_len;
+        const char *word_str = ops->string.get(interp, word, &word_len);
+        TclObj list = parse_as_list(ops, interp, word_str, word_len);
+
+        // Add each list element to words
+        size_t list_len = ops->list.length(interp, list);
+        for (size_t i = 0; i < list_len; i++) {
+          TclObj elem = ops->list.shift(interp, list);
+          if (!ops->list.is_nil(interp, elem)) {
+            words = ops->list.push(interp, words, elem);
+          }
+        }
+      } else {
+        words = ops->list.push(interp, words, word);
+      }
     }
   }
 

@@ -426,4 +426,62 @@ set x</script>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
+  <test-case name="argument expansion with braced list">
+    <script>count {*}{a b c}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="argument expansion with variable">
+    <script>set x "a b c"
+count {*}$x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="argument expansion mixed with normal args">
+    <script>count a {*}{b c} d</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>4</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="argument expansion with empty list">
+    <script>count a {*}{} b</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="argument expansion with unbalanced braces errors">
+    <script>count {*}{a b</script>
+    <return>TCL_OK</return>
+    <result>{INCOMPLETE 9 13}</result>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>2</exit-code>
+  </test-case>
+  <test-case name="argument expansion with command substitution in quotes">
+    <script>count {*}"hello [list a b]"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="argument expansion preserves braced elements in list">
+    <script>count {*}"nested {list with multiple elements} works"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
 </test-suite>
