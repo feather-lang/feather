@@ -113,7 +113,9 @@ TclResult tcl_invoke_proc(const TclHostOps *ops, TclInterp interp,
   }
 
   // Push a new call frame
-  ops->frame.push(interp, name, args);
+  if (ops->frame.push(interp, name, args) != TCL_OK) {
+    return TCL_ERROR;
+  }
 
   // Create copies of params and args for binding (since shift mutates)
   TclObj paramsList = ops->list.from(interp, params);

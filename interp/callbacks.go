@@ -274,6 +274,20 @@ func goFramePush(interp C.TclInterp, cmd C.TclObj, args C.TclObj) C.TclResult {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	newLevel := len(i.frames)
+	// Check recursion limit
+	limit := i.recursionLimit
+	if limit <= 0 {
+		limit = DefaultRecursionLimit
+	}
+	if newLevel >= limit {
+		// Set error message and return error
+		errMsg := "too many nested evaluations (infinite loop?)"
+		id := i.nextID
+		i.nextID++
+		i.objects[id] = &Object{stringVal: errMsg}
+		i.result = id
+		return C.TCL_ERROR
+	}
 	frame := &CallFrame{
 		cmd:   TclObj(cmd),
 		args:  TclObj(args),

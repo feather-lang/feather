@@ -84,14 +84,15 @@ type Procedure struct {
 
 // Interp represents a TCL interpreter instance
 type Interp struct {
-	handle  TclInterp
-	objects map[TclObj]*Object
-	procs   map[string]*Procedure // user-defined procedures
-	nextID  TclObj
-	result  TclObj
-	frames  []*CallFrame // call stack (frame 0 is global)
-	active  int          // currently active frame index
-	mu      sync.Mutex
+	handle         TclInterp
+	objects        map[TclObj]*Object
+	procs          map[string]*Procedure // user-defined procedures
+	nextID         TclObj
+	result         TclObj
+	frames         []*CallFrame // call stack (frame 0 is global)
+	active         int          // currently active frame index
+	recursionLimit int          // maximum call stack depth (0 means use default)
+	mu             sync.Mutex
 
 	// UnknownHandler is called when an unknown command is invoked.
 	UnknownHandler CommandFunc
@@ -130,6 +131,29 @@ func NewInterp() *Interp {
 // Must be called when the interpreter is no longer needed.
 func (i *Interp) Close() {
 	cgo.Handle(i.handle).Delete()
+}
+
+// DefaultRecursionLimit is the default maximum call stack depth.
+const DefaultRecursionLimit = 1000
+
+// SetRecursionLimit sets the maximum call stack depth.
+// If limit is 0 or negative, the default limit (1000) is used.
+func (i *Interp) SetRecursionLimit(limit int) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if limit <= 0 {
+		i.recursionLimit = DefaultRecursionLimit
+	} else {
+		i.recursionLimit = limit
+	}
+}
+
+// getRecursionLimit returns the effective recursion limit.
+func (i *Interp) getRecursionLimit() int {
+	if i.recursionLimit <= 0 {
+		return DefaultRecursionLimit
+	}
+	return i.recursionLimit
 }
 
 // Handle returns the interpreter's handle

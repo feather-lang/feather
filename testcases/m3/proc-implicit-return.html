@@ -565,6 +565,18 @@ caller</script>
     <exit-code>1</exit-code>
   </test-case>
 
+  <test-case name="infinite recursion is caught">
+    <script>proc recurse {} {
+    recurse
+}
+recurse</script>
+    <return>TCL_ERROR</return>
+    <error>too many nested evaluations (infinite loop?)</error>
+    <stdout>too many nested evaluations (infinite loop?)</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
   <!-- ============================================= -->
   <!-- Nested proc definitions                      -->
   <!-- Procs defined inside other procs still go    -->
