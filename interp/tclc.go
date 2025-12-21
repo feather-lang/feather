@@ -65,13 +65,23 @@ type TclObj Handle
 // To return a value, the command should set the interpreter's result value and return ResultOK
 type CommandFunc func(i *Interp, cmd TclObj, args []TclObj) TclResult
 
+// CallFrame represents an execution frame on the call stack.
+// Each frame has its own variable environment.
+type CallFrame struct {
+	cmd   TclObj            // command being evaluated
+	args  TclObj            // arguments to the command
+	vars  map[string]TclObj // local variable storage
+	level int               // frame index on the call stack
+}
+
 // Interp represents a TCL interpreter instance
 type Interp struct {
 	handle  TclInterp
 	objects map[TclObj]*Object
 	nextID  TclObj
 	result  TclObj
-	vars    map[string]TclObj // variable storage (name -> value)
+	frames  []*CallFrame // call stack (frame 0 is global)
+	active  int          // currently active frame index
 	mu      sync.Mutex
 
 	// UnknownHandler is called when an unknown command is invoked.
@@ -92,9 +102,15 @@ type Object struct {
 func NewInterp() *Interp {
 	interp := &Interp{
 		objects: make(map[TclObj]*Object),
-		vars:    make(map[string]TclObj),
 		nextID:  1,
 	}
+	// Initialize the global frame (frame 0)
+	globalFrame := &CallFrame{
+		vars:  make(map[string]TclObj),
+		level: 0,
+	}
+	interp.frames = []*CallFrame{globalFrame}
+	interp.active = 0
 	// Use cgo.Handle to allow C callbacks to find this interpreter
 	interp.handle = TclInterp(cgo.NewHandle(interp))
 	return interp
@@ -261,20 +277,22 @@ func (i *Interp) SetErrorString(s string) {
 	i.result = i.internString(s)
 }
 
-// SetVar sets a variable by name to a string value.
+// SetVar sets a variable by name to a string value in the current frame.
 func (i *Interp) SetVar(name, value string) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	i.vars[name] = i.nextID
+	frame := i.frames[i.active]
+	frame.vars[name] = i.nextID
 	i.objects[i.nextID] = &Object{stringVal: value}
 	i.nextID++
 }
 
-// GetVar returns the string value of a variable, or empty string if not found.
+// GetVar returns the string value of a variable from the current frame, or empty string if not found.
 func (i *Interp) GetVar(name string) string {
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	if val, ok := i.vars[name]; ok {
+	frame := i.frames[i.active]
+	if val, ok := frame.vars[name]; ok {
 		if obj := i.objects[val]; obj != nil {
 			return obj.stringVal
 		}

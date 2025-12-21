@@ -239,21 +239,65 @@ func goIntGet(interp C.TclInterp, obj C.TclObj, out *C.int64_t) C.TclResult {
 
 //export goFramePush
 func goFramePush(interp C.TclInterp, cmd C.TclObj, args C.TclObj) C.TclResult {
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	newLevel := len(i.frames)
+	frame := &CallFrame{
+		cmd:   TclObj(cmd),
+		args:  TclObj(args),
+		vars:  make(map[string]TclObj),
+		level: newLevel,
+	}
+	i.frames = append(i.frames, frame)
+	i.active = newLevel
 	return C.TCL_OK
 }
 
 //export goFramePop
 func goFramePop(interp C.TclInterp) C.TclResult {
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	// Cannot pop the global frame (frame 0)
+	if len(i.frames) <= 1 {
+		return C.TCL_ERROR
+	}
+	i.frames = i.frames[:len(i.frames)-1]
+	i.active = len(i.frames) - 1
 	return C.TCL_OK
 }
 
 //export goFrameLevel
 func goFrameLevel(interp C.TclInterp) C.size_t {
-	return 0
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return C.size_t(i.active)
 }
 
 //export goFrameSetActive
 func goFrameSetActive(interp C.TclInterp, level C.size_t) C.TclResult {
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	lvl := int(level)
+	if lvl < 0 || lvl >= len(i.frames) {
+		return C.TCL_ERROR
+	}
+	i.active = lvl
 	return C.TCL_OK
 }
 
@@ -269,7 +313,8 @@ func goVarGet(interp C.TclInterp, name C.TclObj) C.TclObj {
 	}
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	if val, ok := i.vars[nameObj.stringVal]; ok {
+	frame := i.frames[i.active]
+	if val, ok := frame.vars[nameObj.stringVal]; ok {
 		return C.TclObj(val)
 	}
 	return 0
@@ -287,7 +332,8 @@ func goVarSet(interp C.TclInterp, name C.TclObj, value C.TclObj) {
 	}
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	i.vars[nameObj.stringVal] = TclObj(value)
+	frame := i.frames[i.active]
+	frame.vars[nameObj.stringVal] = TclObj(value)
 }
 
 //export goVarUnset
@@ -302,7 +348,8 @@ func goVarUnset(interp C.TclInterp, name C.TclObj) {
 	}
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	delete(i.vars, nameObj.stringVal)
+	frame := i.frames[i.active]
+	delete(frame.vars, nameObj.stringVal)
 }
 
 //export goVarExists
@@ -317,7 +364,8 @@ func goVarExists(interp C.TclInterp, name C.TclObj) C.TclResult {
 	}
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	if _, ok := i.vars[nameObj.stringVal]; ok {
+	frame := i.frames[i.active]
+	if _, ok := frame.vars[nameObj.stringVal]; ok {
 		return C.TCL_OK
 	}
 	return C.TCL_ERROR
