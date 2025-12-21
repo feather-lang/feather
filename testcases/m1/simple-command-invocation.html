@@ -63,7 +63,7 @@
   <test-case name="extra close braces causes an error">
     <script>echo {}}</script>
     <return>TCL_ERROR</return>
-    <result>{ERROR 5 8}</result>
+    <result>{ERROR 5 8 {extra characters after close-brace}}</result>
     <error>extra characters after close-brace</error>
     <stdout></stdout>
     <stderr></stderr>
@@ -157,7 +157,7 @@ line2</stdout>
   <test-case name="extra characters after close-quote causes an error">
     <script>echo ""x</script>
     <return>TCL_ERROR</return>
-    <result>{ERROR 5 8}</result>
+    <result>{ERROR 5 8 {extra characters after close-quote}}</result>
     <error>extra characters after close-quote</error>
     <stdout></stdout>
     <stderr></stderr>

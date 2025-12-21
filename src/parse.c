@@ -86,14 +86,16 @@ TclParseStatus tcl_parse(const TclHostOps *ops, TclInterp interp,
       // pos now points past the closing brace
       // Check for extra characters after close brace (must be whitespace, terminator, or end)
       if (pos < end && !is_whitespace(*pos) && !is_command_terminator(*pos)) {
-        // Build result: {ERROR start_offset end_offset}
+        // Build result: {ERROR start_offset end_offset message}
         TclObj result = ops->list.create(interp);
         TclObj error_tag = ops->string.intern(interp, "ERROR", 5);
         TclObj start_pos = ops->integer.create(interp, (int64_t)(brace_start - script));
         TclObj end_pos = ops->integer.create(interp, (int64_t)len);
+        TclObj msg = ops->string.intern(interp, "extra characters after close-brace", 34);
         result = ops->list.push(interp, result, error_tag);
         result = ops->list.push(interp, result, start_pos);
         result = ops->list.push(interp, result, end_pos);
+        result = ops->list.push(interp, result, msg);
         ops->interp.set_result(interp, result);
         return TCL_PARSE_ERROR;
       }
@@ -130,14 +132,16 @@ TclParseStatus tcl_parse(const TclHostOps *ops, TclInterp interp,
 
       // Check for extra characters after close quote (must be whitespace, terminator, or end)
       if (pos < end && !is_whitespace(*pos) && !is_command_terminator(*pos)) {
-        // Build result: {ERROR start_offset end_offset}
+        // Build result: {ERROR start_offset end_offset message}
         TclObj result = ops->list.create(interp);
         TclObj error_tag = ops->string.intern(interp, "ERROR", 5);
         TclObj start_pos = ops->integer.create(interp, (int64_t)(quote_start - script));
         TclObj end_pos = ops->integer.create(interp, (int64_t)len);
+        TclObj msg = ops->string.intern(interp, "extra characters after close-quote", 34);
         result = ops->list.push(interp, result, error_tag);
         result = ops->list.push(interp, result, start_pos);
         result = ops->list.push(interp, result, end_pos);
+        result = ops->list.push(interp, result, msg);
         ops->interp.set_result(interp, result);
         return TCL_PARSE_ERROR;
       }

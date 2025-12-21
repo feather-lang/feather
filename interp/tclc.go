@@ -10,6 +10,7 @@ import "C"
 import (
 	"fmt"
 	"runtime/cgo"
+	"strings"
 	"sync"
 	"unsafe"
 )
@@ -152,7 +153,12 @@ func (i *Interp) listToString(obj *Object) string {
 		} else if itemObj.isList {
 			result += i.listToString(itemObj)
 		} else {
-			result += itemObj.stringVal
+			// Quote strings that contain spaces
+			if strings.ContainsAny(itemObj.stringVal, " \t\n") {
+				result += "{" + itemObj.stringVal + "}"
+			} else {
+				result += itemObj.stringVal
+			}
 		}
 	}
 	if len(obj.listItems) > 0 {

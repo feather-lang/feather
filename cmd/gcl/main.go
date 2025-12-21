@@ -28,7 +28,7 @@ func main() {
 		os.Exit(2) // Exit code 2 signals incomplete input
 	}
 	if parseResult.Status == interp.ParseError {
-		errorMsg := parseErrorMessage(parseResult.Result, string(script))
+		errorMsg := parseErrorMessage(parseResult.Result)
 		writeHarnessResult("TCL_ERROR", parseResult.Result, errorMsg)
 		os.Exit(3) // Exit code 3 signals parse error
 	}
@@ -48,18 +48,22 @@ func main() {
 	writeHarnessResult("TCL_OK", result, "")
 }
 
-// parseErrorMessage converts a parse error result to a human-readable message.
-func parseErrorMessage(result string, script string) string {
+// parseErrorMessage extracts the error message from a parse error result.
+// The result format is: {ERROR start_offset end_offset {message}}
+func parseErrorMessage(result string) string {
 	if strings.HasPrefix(result, "{ERROR") {
-		// Extract start position from {ERROR start end}
-		var start int
-		fmt.Sscanf(result, "{ERROR %d", &start)
-		if start >= 0 && start < len(script) {
-			if script[start] == '"' {
-				return "extra characters after close-quote"
-			}
+		// Extract the message (last element in the list)
+		// Format: {ERROR 5 8 {extra characters after close-brace}}
+		trimmed := strings.TrimPrefix(result, "{")
+		trimmed = strings.TrimSuffix(trimmed, "}")
+		parts := strings.SplitN(trimmed, " ", 4)
+		if len(parts) >= 4 {
+			msg := parts[3]
+			// Strip braces if present
+			msg = strings.TrimPrefix(msg, "{")
+			msg = strings.TrimSuffix(msg, "}")
+			return msg
 		}
-		return "extra characters after close-brace"
 	}
 	return "parse error"
 }
