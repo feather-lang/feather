@@ -10,6 +10,7 @@ import "C"
 import (
 	"fmt"
 	"runtime/cgo"
+	"strconv"
 	"strings"
 	"sync"
 	"unsafe"
@@ -246,15 +247,131 @@ func (i *Interp) getObject(h TclObj) *Object {
 }
 
 // GetString returns the string representation of an object.
+// Performs shimmering: converts int/list representations to string as needed.
 func (i *Interp) GetString(h TclObj) string {
 	if obj := i.getObject(h); obj != nil {
-		// If this is an integer object, format it as a string
+		// Shimmer: int → string
 		if obj.isInt && obj.stringVal == "" {
 			obj.stringVal = fmt.Sprintf("%d", obj.intVal)
+		}
+		// Shimmer: list → string
+		if obj.isList && obj.stringVal == "" {
+			obj.stringVal = i.listToString(obj)
 		}
 		return obj.stringVal
 	}
 	return ""
+}
+
+// GetInt returns the integer representation of an object.
+// Performs shimmering: parses string representation as integer if needed.
+// Returns an error if the value cannot be converted to an integer.
+func (i *Interp) GetInt(h TclObj) (int64, error) {
+	obj := i.getObject(h)
+	if obj == nil {
+		return 0, fmt.Errorf("nil object")
+	}
+	// Already an integer
+	if obj.isInt {
+		return obj.intVal, nil
+	}
+	// Shimmer: string → int
+	val, err := strconv.ParseInt(obj.stringVal, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("expected integer but got %q", obj.stringVal)
+	}
+	// Cache the parsed value
+	obj.intVal = val
+	obj.isInt = true
+	return val, nil
+}
+
+// GetList returns the list representation of an object.
+// Performs shimmering: parses string representation as list if needed.
+// Returns an error if the value cannot be converted to a list.
+func (i *Interp) GetList(h TclObj) ([]TclObj, error) {
+	obj := i.getObject(h)
+	if obj == nil {
+		return nil, fmt.Errorf("nil object")
+	}
+	// Already a list
+	if obj.isList {
+		return obj.listItems, nil
+	}
+	// Shimmer: string → list
+	// Parse the string as a TCL list
+	items, err := i.parseList(obj.stringVal)
+	if err != nil {
+		return nil, err
+	}
+	// Cache the parsed list
+	obj.listItems = items
+	obj.isList = true
+	return items, nil
+}
+
+// parseList parses a TCL list string into a slice of object handles.
+func (i *Interp) parseList(s string) ([]TclObj, error) {
+	var items []TclObj
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return items, nil
+	}
+
+	pos := 0
+	for pos < len(s) {
+		// Skip whitespace
+		for pos < len(s) && (s[pos] == ' ' || s[pos] == '\t' || s[pos] == '\n') {
+			pos++
+		}
+		if pos >= len(s) {
+			break
+		}
+
+		var elem string
+		if s[pos] == '{' {
+			// Braced element
+			depth := 1
+			start := pos + 1
+			pos++
+			for pos < len(s) && depth > 0 {
+				if s[pos] == '{' {
+					depth++
+				} else if s[pos] == '}' {
+					depth--
+				}
+				pos++
+			}
+			if depth != 0 {
+				return nil, fmt.Errorf("unmatched brace in list")
+			}
+			elem = s[start : pos-1]
+		} else if s[pos] == '"' {
+			// Quoted element
+			start := pos + 1
+			pos++
+			for pos < len(s) && s[pos] != '"' {
+				if s[pos] == '\\' && pos+1 < len(s) {
+					pos++
+				}
+				pos++
+			}
+			if pos >= len(s) {
+				return nil, fmt.Errorf("unmatched quote in list")
+			}
+			elem = s[start:pos]
+			pos++ // skip closing quote
+		} else {
+			// Bare word
+			start := pos
+			for pos < len(s) && s[pos] != ' ' && s[pos] != '\t' && s[pos] != '\n' {
+				pos++
+			}
+			elem = s[start:pos]
+		}
+		items = append(items, i.internString(elem))
+	}
+	return items, nil
 }
 
 // SetResult sets the interpreter's result to the given object.

@@ -1,7 +1,5 @@
 package interp
 
-import "strconv"
-
 /*
 #cgo CFLAGS: -I${SRCDIR}/../src
 #cgo LDFLAGS: -L${SRCDIR}/../build -ltclc -Wl,-rpath,${SRCDIR}/../build
@@ -57,16 +55,22 @@ func goStringGet(interp C.TclInterp, obj C.TclObj, length *C.size_t) *C.char {
 		*length = 0
 		return nil
 	}
-	o := i.getObject(TclObj(obj))
-	if o == nil {
-		*length = 0
-		return nil
+	// Use GetString for shimmering (int/list → string)
+	str := i.GetString(TclObj(obj))
+	if str == "" {
+		// Check if object exists but has empty string
+		o := i.getObject(TclObj(obj))
+		if o == nil {
+			*length = 0
+			return nil
+		}
 	}
 	// Cache the C string in the object to avoid memory issues
+	o := i.getObject(TclObj(obj))
 	if o.cstr == nil {
-		o.cstr = C.CString(o.stringVal)
+		o.cstr = C.CString(str)
 	}
-	*length = C.size_t(len(o.stringVal))
+	*length = C.size_t(len(str))
 	return o.cstr
 }
 
@@ -76,12 +80,10 @@ func goStringConcat(interp C.TclInterp, a C.TclObj, b C.TclObj) C.TclObj {
 	if i == nil {
 		return 0
 	}
-	objA := i.getObject(TclObj(a))
-	objB := i.getObject(TclObj(b))
-	if objA == nil || objB == nil {
-		return 0
-	}
-	return C.TclObj(i.internString(objA.stringVal + objB.stringVal))
+	// Use GetString for shimmering (int/list → string)
+	strA := i.GetString(TclObj(a))
+	strB := i.GetString(TclObj(b))
+	return C.TclObj(i.internString(strA + strB))
 }
 
 //export goInterpSetResult
@@ -231,23 +233,10 @@ func goIntGet(interp C.TclInterp, obj C.TclObj, out *C.int64_t) C.TclResult {
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	o := i.getObject(TclObj(obj))
-	if o == nil {
-		return C.TCL_ERROR
-	}
-	// If already an integer, return directly
-	if o.isInt {
-		*out = C.int64_t(o.intVal)
-		return C.TCL_OK
-	}
-	// Try to parse the string as an integer
-	val, err := strconv.ParseInt(o.stringVal, 10, 64)
+	val, err := i.GetInt(TclObj(obj))
 	if err != nil {
 		return C.TCL_ERROR
 	}
-	// Cache the parsed integer value
-	o.intVal = val
-	o.isInt = true
 	*out = C.int64_t(val)
 	return C.TCL_OK
 }
