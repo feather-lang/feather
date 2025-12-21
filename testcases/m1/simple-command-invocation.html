@@ -69,4 +69,46 @@
     <stderr></stderr>
     <exit-code>3</exit-code>
   </test-case>
+  <test-case name="braces preserve whitespace">
+    <script>echo {hello world}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="multiple levels of nested braces">
+    <script>echo {a{b{c}d}e}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a{b{c}d}e</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="empty braces produce empty string">
+    <script>echo {}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="multiple braced arguments">
+    <script>echo {hello} {world}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="braces preserve newlines">
+    <script>echo {line1
+line2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>line1
+line2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
 </test-suite>
