@@ -202,24 +202,15 @@ func (i *Interp) Eval(script string) (string, error) {
 	result := callCEval(i.handle, scriptHandle)
 
 	if result == C.TCL_OK {
-		if obj := i.getObject(i.result); obj != nil {
-			return obj.stringVal, nil
-		}
-		return "", nil
+		return i.GetString(i.result), nil
 	}
 
-	if obj := i.getObject(i.result); obj != nil {
-		return "", &EvalError{Message: obj.stringVal}
-	}
-	return "", &EvalError{Message: "unknown error"}
+	return "", &EvalError{Message: i.GetString(i.result)}
 }
 
 // Result returns the current result string
 func (i *Interp) Result() string {
-	if obj := i.getObject(i.result); obj != nil {
-		return obj.stringVal
-	}
-	return ""
+	return i.GetString(i.result)
 }
 
 // EvalError represents an evaluation error
@@ -257,6 +248,10 @@ func (i *Interp) getObject(h TclObj) *Object {
 // GetString returns the string representation of an object.
 func (i *Interp) GetString(h TclObj) string {
 	if obj := i.getObject(h); obj != nil {
+		// If this is an integer object, format it as a string
+		if obj.isInt && obj.stringVal == "" {
+			obj.stringVal = fmt.Sprintf("%d", obj.intVal)
+		}
 		return obj.stringVal
 	}
 	return ""

@@ -625,8 +625,8 @@ expr {[set x] >= 5}</script>
   <test-case name="expr with extra close parenthesis errors">
     <script>expr {1 < 2)}</script>
     <return>TCL_ERROR</return>
-    <error>unbalanced parentheses in expression "1 < 2)"</error>
-    <stdout>unbalanced parentheses in expression "1 < 2)"</stdout>
+    <error>unbalanced close paren</error>
+    <stdout>unbalanced close paren</stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>

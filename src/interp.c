@@ -10,6 +10,7 @@ typedef struct {
 // Table of all builtin commands
 static const BuiltinEntry builtins[] = {
     {"set", tcl_builtin_set},
+    {"expr", tcl_builtin_expr},
     {NULL, NULL} // sentinel
 };
 

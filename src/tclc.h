@@ -585,4 +585,17 @@ void tcl_interp_init(const TclHostOps *ops, TclInterp interp);
  */
 TclResult tcl_builtin_set(const TclHostOps *ops, TclInterp interp,
                           TclObj cmd, TclObj args);
+
+/**
+ * tcl_builtin_expr implements the TCL 'expr' command.
+ *
+ * Usage:
+ *   expr arg ?arg ...?
+ *
+ * Concatenates arguments with spaces and evaluates as an expression.
+ * Supports comparison (<, <=, >, >=, ==, !=), bitwise (&, |),
+ * and logical (&&, ||) operators on integers.
+ */
+TclResult tcl_builtin_expr(const TclHostOps *ops, TclInterp interp,
+                           TclObj cmd, TclObj args);
 #endif
