@@ -351,4 +351,30 @@ echo hello</script>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
+  <test-case name="set variable and output through substitution">
+    <script>set x hello
+echo $x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="set variable and return through single-argument set">
+    <script>set x hello
+set x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="get non-existent variable errors">
+    <script>set X</script>
+    <return>TCL_ERROR</return>
+    <error>can't read "X": no such variable</error>
+    <stdout>can't read "X": no such variable</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
 </test-suite>

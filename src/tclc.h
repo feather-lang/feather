@@ -135,6 +135,16 @@ typedef enum {
 } TclResult;
 
 /**
+ * TclBuiltinCmd is the signature for builtin command implementations.
+ *
+ * Builtin commands receive the host operations, interpreter, command name,
+ * and argument list. They return a result code and set the interpreter's
+ * result via ops->interp.set_result.
+ */
+typedef TclResult (*TclBuiltinCmd)(const TclHostOps *ops, TclInterp interp,
+                                   TclObj cmd, TclObj args);
+
+/**
  * TclTokenType encodes the types of tokens returned by the parser.
  *
  * During parsing, the parser creates tagged spans of text and stores
@@ -554,4 +564,25 @@ typedef struct TclHostOps {
   TclInterpOps interp;
   TclBindOpts bind;
 } TclHostOps;
+
+/**
+ * tcl_interp_init registers all builtin commands with the interpreter.
+ *
+ * This should be called once after creating the interpreter and before
+ * evaluating any scripts.
+ */
+void tcl_interp_init(const TclHostOps *ops, TclInterp interp);
+
+/**
+ * tcl_builtin_set implements the TCL 'set' command.
+ *
+ * Usage:
+ *   set varName ?value?
+ *
+ * With two arguments, sets varName to value and returns value.
+ * With one argument, returns the current value of varName.
+ * Errors if varName does not exist (one-argument form).
+ */
+TclResult tcl_builtin_set(const TclHostOps *ops, TclInterp interp,
+                          TclObj cmd, TclObj args);
 #endif

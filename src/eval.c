@@ -1,4 +1,5 @@
 #include "tclc.h"
+#include "internal.h"
 
 TclResult tcl_eval_obj(const TclHostOps *ops, TclInterp interp, TclObj script,
                        TclEvalFlags flags) {
@@ -19,7 +20,15 @@ TclResult tcl_eval_obj(const TclHostOps *ops, TclInterp interp, TclObj script,
   // The remaining list is the arguments
   TclObj args = script;
 
-  // Try to invoke via bind.unknown (host command lookup)
+  // Check for builtin commands first
+  size_t cmdLen;
+  const char *cmdStr = ops->string.get(interp, cmd, &cmdLen);
+  TclBuiltinCmd builtin = tcl_lookup_builtin(cmdStr, cmdLen);
+  if (builtin != NULL) {
+    return builtin(ops, interp, cmd, args);
+  }
+
+  // Fall back to host command lookup via bind.unknown
   TclObj result;
   TclResult code = ops->bind.unknown(interp, cmd, args, &result);
 
