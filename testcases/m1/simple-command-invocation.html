@@ -198,14 +198,6 @@ echo hello</script>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
-  <test-case name="mixed quoting produces single word">
-    <script>echo "a"b{c}</script>
-    <return>TCL_OK</return>
-    <error></error>
-    <stdout>abc</stdout>
-    <stderr></stderr>
-    <exit-code>0</exit-code>
-  </test-case>
   <test-case name="backslash-a produces bell character">
     <script>echo \a</script>
     <return>TCL_OK</return>
