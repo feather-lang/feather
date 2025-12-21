@@ -84,6 +84,20 @@ TclParseStatus tcl_parse(const TclHostOps *ops, TclInterp interp,
       }
 
       // pos now points past the closing brace
+      // Check for extra characters after close brace (must be whitespace, terminator, or end)
+      if (pos < end && !is_whitespace(*pos) && !is_command_terminator(*pos)) {
+        // Build result: {ERROR start_offset end_offset}
+        TclObj result = ops->list.create(interp);
+        TclObj error_tag = ops->string.intern(interp, "ERROR", 5);
+        TclObj start_pos = ops->integer.create(interp, (int64_t)(brace_start - script));
+        TclObj end_pos = ops->integer.create(interp, (int64_t)len);
+        result = ops->list.push(interp, result, error_tag);
+        result = ops->list.push(interp, result, start_pos);
+        result = ops->list.push(interp, result, end_pos);
+        ops->interp.set_result(interp, result);
+        return TCL_PARSE_ERROR;
+      }
+
       // Content is between content_start and pos-1 (excluding the final })
       size_t content_len = (pos - 1) - content_start;
       TclObj word = ops->string.intern(interp, content_start, content_len);

@@ -60,4 +60,13 @@
     <stderr></stderr>
     <exit-code>2</exit-code>
   </test-case>
+  <test-case name="extra close braces causes an error">
+    <script>echo {}}</script>
+    <return>TCL_ERROR</return>
+    <result>{ERROR 5 8}</result>
+    <error>extra characters after close-brace</error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>3</exit-code>
+  </test-case>
 </test-suite>
