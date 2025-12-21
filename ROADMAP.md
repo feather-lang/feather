@@ -108,7 +108,7 @@ This forces us to get the integer data type working.
 
 Builtin commands implemented:
 
-- expr, partially: <, <=, >, >=, =, !=, |, &; integers only
+- expr, partially: <, <=, >, >=, =, !=, |, &, ||, &&; integers only
 
 ### M3: proc with implicit return
 
@@ -124,6 +124,7 @@ double 5  ;# returns 10
 ```
 
 This milestone establishes the core procedure mechanism:
+
 - Binding a name to a parameter list and body
 - Creating a new call frame when invoked
 - Evaluating the body in that frame

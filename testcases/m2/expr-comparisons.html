@@ -1,0 +1,641 @@
+<test-suite>
+  <!-- Basic integer literals - expr should return the value -->
+  <test-case name="expr returns integer literal">
+    <script>expr 42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="expr returns zero">
+    <script>expr 0</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="expr returns negative integer">
+    <script>expr -5</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Less than operator -->
+  <test-case name="less than returns 1 when true">
+    <script>expr 1 < 2</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="less than returns 0 when false">
+    <script>expr 2 < 1</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="less than returns 0 when equal">
+    <script>expr 5 < 5</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="less than with negative numbers">
+    <script>expr -10 < -5</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Less than or equal operator -->
+  <test-case name="less than or equal returns 1 when less">
+    <script>expr 1 <= 2</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="less than or equal returns 1 when equal">
+    <script>expr 5 <= 5</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="less than or equal returns 0 when greater">
+    <script>expr 10 <= 5</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Greater than operator -->
+  <test-case name="greater than returns 1 when true">
+    <script>expr 2 > 1</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="greater than returns 0 when false">
+    <script>expr 1 > 2</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="greater than returns 0 when equal">
+    <script>expr 5 > 5</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="greater than with negative numbers">
+    <script>expr -5 > -10</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Greater than or equal operator -->
+  <test-case name="greater than or equal returns 1 when greater">
+    <script>expr 10 >= 5</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="greater than or equal returns 1 when equal">
+    <script>expr 5 >= 5</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="greater than or equal returns 0 when less">
+    <script>expr 1 >= 5</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Equality operator -->
+  <test-case name="equality returns 1 when equal">
+    <script>expr 42 == 42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="equality returns 0 when not equal">
+    <script>expr 42 == 43</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="equality with zero">
+    <script>expr 0 == 0</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="equality with negative numbers">
+    <script>expr -5 == -5</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Inequality operator -->
+  <test-case name="inequality returns 1 when not equal">
+    <script>expr 42 != 43</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="inequality returns 0 when equal">
+    <script>expr 42 != 42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Bitwise AND operator (&) - performs bit-by-bit AND -->
+  <test-case name="bitwise and of 1 and 1">
+    <script>expr 1 & 1</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="bitwise and of 0 and 1">
+    <script>expr 0 & 1</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="bitwise and of 5 and 3 is 1">
+    <script>expr 5 & 3</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="bitwise and of 12 and 10 is 8">
+    <script>expr 12 & 10</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>8</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="bitwise and of 255 and 15 is 15">
+    <script>expr 255 & 15</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>15</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Bitwise OR operator (|) - performs bit-by-bit OR -->
+  <test-case name="bitwise or of 1 and 1">
+    <script>expr 1 | 1</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="bitwise or of 0 and 1">
+    <script>expr 0 | 1</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="bitwise or of 0 and 0">
+    <script>expr 0 | 0</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="bitwise or of 5 and 3 is 7">
+    <script>expr 5 | 3</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>7</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="bitwise or of 8 and 4 is 12">
+    <script>expr 8 | 4</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>12</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Logical AND operator (&&) - returns 1 or 0 -->
+  <test-case name="logical and returns 1 when both true">
+    <script>expr {1 && 1}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="logical and returns 0 when first false">
+    <script>expr {0 && 1}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="logical and returns 0 when second false">
+    <script>expr {1 && 0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="logical and returns 0 when both false">
+    <script>expr {0 && 0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="logical and treats nonzero as true">
+    <script>expr {5 && 3}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="logical and treats negative as true">
+    <script>expr {-1 && 1}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Logical OR operator (||) - returns 1 or 0 -->
+  <test-case name="logical or returns 1 when both true">
+    <script>expr {1 || 1}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="logical or returns 1 when first true">
+    <script>expr {1 || 0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="logical or returns 1 when second true">
+    <script>expr {0 || 1}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="logical or returns 0 when both false">
+    <script>expr {0 || 0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="logical or treats nonzero as true">
+    <script>expr {0 || 42}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Variable substitution in expressions (unbraced - substitution before expr) -->
+  <test-case name="expr with variable on left side">
+    <script>set x 10
+expr $x < 20</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="expr with variable on right side">
+    <script>set y 5
+expr 10 > $y</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="expr with variables on both sides">
+    <script>set a 7
+set b 7
+expr $a == $b</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="expr variable used as operand directly">
+    <script>set x 42
+expr $x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Braced expressions (substitution happens inside expr) -->
+  <test-case name="expr with braced expression">
+    <script>expr {1 < 2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="expr with braced expression and variable">
+    <script>set x 5
+expr {$x > 3}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="expr braced with multiple variables">
+    <script>set a 10
+set b 20
+expr {$a < $b}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Command substitution in expressions -->
+  <test-case name="expr with command substitution">
+    <script>expr [set x 5]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="expr comparing command substitution result">
+    <script>set x 10
+expr [set x] > 5</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="expr with command substitution on both sides">
+    <script>set a 3
+set b 3
+expr [set a] == [set b]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="expr braced with command substitution">
+    <script>set x 7
+expr {[set x] >= 5}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Operator precedence -->
+  <test-case name="comparison binds tighter than bitwise and">
+    <script>expr {1 < 2 & 3 > 2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="comparison binds tighter than bitwise or">
+    <script>expr {5 > 10 | 3 < 4}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="bitwise and binds tighter than bitwise or">
+    <script>expr {0 & 0 | 1}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="logical and binds tighter than logical or">
+    <script>expr {0 && 0 || 1}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="bitwise operators bind tighter than logical operators">
+    <script>expr {3 & 1 && 2 | 0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Parentheses for grouping -->
+  <test-case name="parentheses override precedence">
+    <script>expr {(1 | 0) & 0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="nested parentheses">
+    <script>expr {((1 < 2) && (3 > 2))}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="parentheses around single value">
+    <script>expr (42)</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="deeply nested parentheses">
+    <script>expr {(((5)))}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Combining comparisons with logical operators -->
+  <test-case name="chained comparisons with logical and">
+    <script>expr {1 < 2 && 2 < 3}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="chained comparisons with logical or">
+    <script>expr {1 > 2 || 3 > 2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="complex logical expression">
+    <script>expr {(1 < 2 && 3 > 2) || (5 == 6)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Error cases -->
+  <test-case name="expr with no arguments errors">
+    <script>expr</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "expr arg ?arg ...?"</error>
+    <stdout>wrong # args: should be "expr arg ?arg ...?"</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+  <test-case name="expr with non-integer errors">
+    <script>expr hello</script>
+    <return>TCL_ERROR</return>
+    <error>expected integer but got "hello"</error>
+    <stdout>expected integer but got "hello"</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+  <test-case name="expr with incomplete expression errors">
+    <script>expr {1 <}</script>
+    <return>TCL_ERROR</return>
+    <error>syntax error in expression "1 <"</error>
+    <stdout>syntax error in expression "1 <"</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+  <test-case name="expr with unknown operator errors">
+    <script>expr {1 @ 2}</script>
+    <return>TCL_ERROR</return>
+    <error>syntax error in expression "1 @ 2"</error>
+    <stdout>syntax error in expression "1 @ 2"</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+  <test-case name="expr with unbalanced parentheses errors">
+    <script>expr {(1 < 2}</script>
+    <return>TCL_ERROR</return>
+    <error>unbalanced parentheses in expression "(1 < 2"</error>
+    <stdout>unbalanced parentheses in expression "(1 < 2"</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+  <test-case name="expr with extra close parenthesis errors">
+    <script>expr {1 < 2)}</script>
+    <return>TCL_ERROR</return>
+    <error>unbalanced parentheses in expression "1 < 2)"</error>
+    <stdout>unbalanced parentheses in expression "1 < 2)"</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+  <test-case name="expr with undefined variable in braces errors">
+    <script>expr {$undefined}</script>
+    <return>TCL_ERROR</return>
+    <error>can't read "undefined": no such variable</error>
+    <stdout>can't read "undefined": no such variable</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+</test-suite>
