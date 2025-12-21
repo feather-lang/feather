@@ -199,5 +199,14 @@ TclParseStatus call_tcl_parse(TclInterp interp, TclObj script) {
     TclHostOps ops = make_host_ops();
     size_t len;
     const char *str = ops.string.get(interp, script, &len);
-    return tcl_parse(&ops, interp, str, len);
+    TclParseContext ctx;
+    tcl_parse_init(&ctx, str, len);
+    TclParseStatus status = tcl_parse_command(&ops, interp, &ctx);
+    // Convert TCL_PARSE_DONE to TCL_PARSE_OK for backwards compatibility
+    // (empty script should return OK with empty result)
+    if (status == TCL_PARSE_DONE) {
+        ops.interp.set_result(interp, ops.list.create(interp));
+        return TCL_PARSE_OK;
+    }
+    return status;
 }

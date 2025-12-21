@@ -154,27 +154,47 @@ typedef enum {
 } TclTokenType;
 
 /**
- * TclParseResult informs the caller about whether and how the parser
+ * TclParseStatus informs the caller about whether and how the parser
  * can be invoked again on the same input.
  */
 typedef enum {
-  // parsing finished successfully
+  // parsing finished successfully, result contains parsed command
   TCL_PARSE_OK = 0,
   // the parser needs more input
   TCL_PARSE_INCOMPLETE = 1,
   // the parser could not process the input successfully
-  TCL_PARSE_ERROR = 2
+  TCL_PARSE_ERROR = 2,
+  // no more commands in the script
+  TCL_PARSE_DONE = 3
 } TclParseStatus;
 
 /**
- * tcl_parse parses the given input in the context of the provided interpreter.
- *
- * The resulting list of tagged spans is in the interpreter's parse result slot.
- *
- * In case of a parse error, the parse result slot holds the error information.
+ * TclParseContext holds the state for iterating over commands in a script.
  */
-TclParseStatus tcl_parse(const TclHostOps *ops, TclInterp interp,
-                         const char *script, size_t len);
+typedef struct {
+  const char *script;  // Original script
+  size_t len;          // Total length
+  size_t pos;          // Current position
+} TclParseContext;
+
+/**
+ * tcl_parse_init initializes a parse context for iterating over commands.
+ */
+void tcl_parse_init(TclParseContext *ctx, const char *script, size_t len);
+
+/**
+ * tcl_parse_command parses the next command from the script.
+ *
+ * Returns TCL_PARSE_OK when a command was parsed successfully.
+ * The parsed command (list of words) is in the interpreter's result slot.
+ *
+ * Returns TCL_PARSE_DONE when the script is exhausted.
+ *
+ * Returns TCL_PARSE_INCOMPLETE or TCL_PARSE_ERROR on failure,
+ * with error information in the interpreter's result slot.
+ */
+TclParseStatus tcl_parse_command(const TclHostOps *ops, TclInterp interp,
+                                  TclParseContext *ctx);
 
 typedef enum {
   // Evaluate in the current scope of the interpreter

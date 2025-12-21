@@ -199,196 +199,298 @@ static TclObj append_to_word(const TclHostOps *ops, TclInterp interp,
   return ops->string.concat(interp, word, segment);
 }
 
-TclParseStatus tcl_parse(const TclHostOps *ops, TclInterp interp,
-                         const char *script, size_t len) {
-  // Create a list to hold the tokens (words)
-  TclObj words = ops->list.create(interp);
+void tcl_parse_init(TclParseContext *ctx, const char *script, size_t len) {
+  ctx->script = script;
+  ctx->len = len;
+  ctx->pos = 0;
+}
 
-  const char *pos = script;
+/**
+ * Skip whitespace, backslash-newline continuations, and comments.
+ * Returns the new position in the script.
+ */
+static size_t skip_whitespace_and_comments(const char *script, size_t len, size_t pos) {
+  const char *s = script + pos;
   const char *end = script + len;
 
-  while (pos < end) {
-    // Skip whitespace between words (including backslash-newline)
-    while (pos < end) {
-      if (is_whitespace(*pos)) {
-        pos++;
-      } else if (*pos == '\\' && pos + 1 < end && pos[1] == '\n') {
-        // Backslash-newline continuation in whitespace context
-        pos += 2;
-        while (pos < end && is_whitespace(*pos)) {
-          pos++;
-        }
-      } else {
-        break;
+  while (s < end) {
+    // Skip whitespace
+    if (is_whitespace(*s)) {
+      s++;
+      continue;
+    }
+
+    // Skip backslash-newline continuation
+    if (*s == '\\' && s + 1 < end && s[1] == '\n') {
+      s += 2;
+      while (s < end && is_whitespace(*s)) {
+        s++;
       }
+      continue;
     }
 
-    if (pos >= end) {
-      break;
+    // Skip comments (# at start of command)
+    if (*s == '#') {
+      while (s < end && *s != '\n') {
+        s++;
+      }
+      if (s < end && *s == '\n') {
+        s++;
+      }
+      continue;
     }
 
-    // Check for command terminator (newline, semicolon)
-    if (is_command_terminator(*pos)) {
-      break;
-    }
+    break;
+  }
 
-    // Parse a word - can be a mix of quoted/unquoted segments
-    TclObj word = 0; // nil - will be set when first segment is added
-    const char *word_start = pos;
+  return s - script;
+}
 
-    while (pos < end && !is_word_terminator(*pos)) {
-      if (*pos == '{') {
-        // Braced string - no substitutions, content is literal
-        int depth = 1;
-        const char *brace_start = pos;
-        const char *content_start = pos + 1;
-        pos++;
-        while (pos < end && depth > 0) {
-          if (*pos == '\\' && pos + 1 < end) {
-            // Backslash in braces: only \newline is special, but we still
-            // need to skip the next char to avoid miscounting braces
-            pos++;
-            if (pos < end) pos++;
-            continue;
+/**
+ * Parse a single word starting at the given position.
+ * Updates pos to point past the parsed word.
+ * Returns the parsed word, or sets error in interp and returns 0.
+ */
+static TclObj parse_word(const TclHostOps *ops, TclInterp interp,
+                         const char *script, size_t len, size_t *pos,
+                         TclParseStatus *status) {
+  const char *p = script + *pos;
+  const char *end = script + len;
+  TclObj word = 0;
+  const char *word_start = p;
+
+  while (p < end && !is_word_terminator(*p)) {
+    if (*p == '{') {
+      // Braced string - no substitutions, content is literal
+      int depth = 1;
+      const char *brace_start = p;
+      const char *content_start = p + 1;
+      p++;
+      while (p < end && depth > 0) {
+        if (*p == '\\' && p + 1 < end) {
+          // Backslash in braces: skip the next char to avoid miscounting braces
+          p++;
+          if (p < end) p++;
+          continue;
+        }
+        if (*p == '{') {
+          depth++;
+        } else if (*p == '}') {
+          depth--;
+        }
+        p++;
+      }
+
+      if (depth > 0) {
+        // Unclosed braces
+        TclObj result = ops->list.create(interp);
+        TclObj incomplete = ops->string.intern(interp, "INCOMPLETE", 10);
+        TclObj start_pos = ops->integer.create(interp, (int64_t)(brace_start - script));
+        TclObj end_pos = ops->integer.create(interp, (int64_t)len);
+        result = ops->list.push(interp, result, incomplete);
+        result = ops->list.push(interp, result, start_pos);
+        result = ops->list.push(interp, result, end_pos);
+        ops->interp.set_result(interp, result);
+        *status = TCL_PARSE_INCOMPLETE;
+        return 0;
+      }
+
+      // Check for extra characters after close brace
+      if (p < end && !is_word_terminator(*p)) {
+        TclObj result = ops->list.create(interp);
+        TclObj error_tag = ops->string.intern(interp, "ERROR", 5);
+        TclObj start_pos = ops->integer.create(interp, (int64_t)(brace_start - script));
+        TclObj end_pos = ops->integer.create(interp, (int64_t)len);
+        TclObj msg = ops->string.intern(interp, "extra characters after close-brace", 34);
+        result = ops->list.push(interp, result, error_tag);
+        result = ops->list.push(interp, result, start_pos);
+        result = ops->list.push(interp, result, end_pos);
+        result = ops->list.push(interp, result, msg);
+        ops->interp.set_result(interp, result);
+        *status = TCL_PARSE_ERROR;
+        return 0;
+      }
+
+      // Append braced content (literal, no substitution)
+      size_t content_len = (p - 1) - content_start;
+      word = append_to_word(ops, interp, word, content_start, content_len);
+
+    } else if (*p == '"') {
+      // Double-quoted string - process backslash escapes
+      const char *quote_start = p;
+      p++; // skip opening quote
+
+      const char *seg_start = p;
+      while (p < end && *p != '"') {
+        if (*p == '\\' && p + 1 < end) {
+          // Flush segment before backslash
+          if (p > seg_start) {
+            word = append_to_word(ops, interp, word, seg_start, p - seg_start);
           }
-          if (*pos == '{') {
-            depth++;
-          } else if (*pos == '}') {
-            depth--;
-          }
-          pos++;
-        }
-
-        if (depth > 0) {
-          // Unclosed braces
-          TclObj result = ops->list.create(interp);
-          TclObj incomplete = ops->string.intern(interp, "INCOMPLETE", 10);
-          TclObj start_pos = ops->integer.create(interp, (int64_t)(brace_start - script));
-          TclObj end_pos = ops->integer.create(interp, (int64_t)len);
-          result = ops->list.push(interp, result, incomplete);
-          result = ops->list.push(interp, result, start_pos);
-          result = ops->list.push(interp, result, end_pos);
-          ops->interp.set_result(interp, result);
-          return TCL_PARSE_INCOMPLETE;
-        }
-
-        // Check for extra characters after close brace
-        if (pos < end && !is_word_terminator(*pos)) {
-          TclObj result = ops->list.create(interp);
-          TclObj error_tag = ops->string.intern(interp, "ERROR", 5);
-          TclObj start_pos = ops->integer.create(interp, (int64_t)(brace_start - script));
-          TclObj end_pos = ops->integer.create(interp, (int64_t)len);
-          TclObj msg = ops->string.intern(interp, "extra characters after close-brace", 34);
-          result = ops->list.push(interp, result, error_tag);
-          result = ops->list.push(interp, result, start_pos);
-          result = ops->list.push(interp, result, end_pos);
-          result = ops->list.push(interp, result, msg);
-          ops->interp.set_result(interp, result);
-          return TCL_PARSE_ERROR;
-        }
-
-        // Append braced content (literal, no substitution)
-        size_t content_len = (pos - 1) - content_start;
-        word = append_to_word(ops, interp, word, content_start, content_len);
-
-      } else if (*pos == '"') {
-        // Double-quoted string - process backslash escapes
-        const char *quote_start = pos;
-        pos++; // skip opening quote
-
-        const char *seg_start = pos;
-        while (pos < end && *pos != '"') {
-          if (*pos == '\\' && pos + 1 < end) {
-            // Flush segment before backslash
-            if (pos > seg_start) {
-              word = append_to_word(ops, interp, word, seg_start, pos - seg_start);
-            }
-            pos++; // skip backslash
-            char escape_buf[4];
-            size_t escape_len;
-            size_t consumed = process_backslash(pos, end, escape_buf, &escape_len);
-            word = append_to_word(ops, interp, word, escape_buf, escape_len);
-            pos += consumed;
-            seg_start = pos;
-          } else {
-            pos++;
-          }
-        }
-
-        if (pos >= end) {
-          // Unclosed quotes
-          TclObj result = ops->list.create(interp);
-          TclObj incomplete = ops->string.intern(interp, "INCOMPLETE", 10);
-          TclObj start_pos = ops->integer.create(interp, (int64_t)(quote_start - script));
-          TclObj end_pos = ops->integer.create(interp, (int64_t)len);
-          result = ops->list.push(interp, result, incomplete);
-          result = ops->list.push(interp, result, start_pos);
-          result = ops->list.push(interp, result, end_pos);
-          ops->interp.set_result(interp, result);
-          return TCL_PARSE_INCOMPLETE;
-        }
-
-        // Flush remaining segment
-        if (pos > seg_start) {
-          word = append_to_word(ops, interp, word, seg_start, pos - seg_start);
-        }
-        pos++; // skip closing quote
-
-        // Check for extra characters after close quote
-        if (pos < end && !is_word_terminator(*pos)) {
-          TclObj result = ops->list.create(interp);
-          TclObj error_tag = ops->string.intern(interp, "ERROR", 5);
-          TclObj start_pos = ops->integer.create(interp, (int64_t)(quote_start - script));
-          TclObj end_pos = ops->integer.create(interp, (int64_t)len);
-          TclObj msg = ops->string.intern(interp, "extra characters after close-quote", 34);
-          result = ops->list.push(interp, result, error_tag);
-          result = ops->list.push(interp, result, start_pos);
-          result = ops->list.push(interp, result, end_pos);
-          result = ops->list.push(interp, result, msg);
-          ops->interp.set_result(interp, result);
-          return TCL_PARSE_ERROR;
-        }
-
-      } else if (*pos == '\\') {
-        // Backslash in bare word
-        pos++; // skip backslash
-        if (pos < end) {
-          if (*pos == '\n') {
-            // Backslash-newline in bare word acts as word terminator (becomes space/separator)
-            // Skip newline and following whitespace
-            pos++;
-            while (pos < end && is_whitespace(*pos)) {
-              pos++;
-            }
-            break; // End this word
-          }
+          p++; // skip backslash
           char escape_buf[4];
           size_t escape_len;
-          size_t consumed = process_backslash(pos, end, escape_buf, &escape_len);
+          size_t consumed = process_backslash(p, end, escape_buf, &escape_len);
           word = append_to_word(ops, interp, word, escape_buf, escape_len);
-          pos += consumed;
+          p += consumed;
+          seg_start = p;
+        } else {
+          p++;
         }
+      }
 
-      } else {
-        // Regular character in bare word - collect a run of them
-        const char *seg_start = pos;
-        while (pos < end && !is_word_terminator(*pos) &&
-               *pos != '{' && *pos != '"' && *pos != '\\') {
-          pos++;
+      if (p >= end) {
+        // Unclosed quotes
+        TclObj result = ops->list.create(interp);
+        TclObj incomplete = ops->string.intern(interp, "INCOMPLETE", 10);
+        TclObj start_pos = ops->integer.create(interp, (int64_t)(quote_start - script));
+        TclObj end_pos = ops->integer.create(interp, (int64_t)len);
+        result = ops->list.push(interp, result, incomplete);
+        result = ops->list.push(interp, result, start_pos);
+        result = ops->list.push(interp, result, end_pos);
+        ops->interp.set_result(interp, result);
+        *status = TCL_PARSE_INCOMPLETE;
+        return 0;
+      }
+
+      // Flush remaining segment
+      if (p > seg_start) {
+        word = append_to_word(ops, interp, word, seg_start, p - seg_start);
+      }
+      p++; // skip closing quote
+
+      // Check for extra characters after close quote
+      if (p < end && !is_word_terminator(*p)) {
+        TclObj result = ops->list.create(interp);
+        TclObj error_tag = ops->string.intern(interp, "ERROR", 5);
+        TclObj start_pos = ops->integer.create(interp, (int64_t)(quote_start - script));
+        TclObj end_pos = ops->integer.create(interp, (int64_t)len);
+        TclObj msg = ops->string.intern(interp, "extra characters after close-quote", 34);
+        result = ops->list.push(interp, result, error_tag);
+        result = ops->list.push(interp, result, start_pos);
+        result = ops->list.push(interp, result, end_pos);
+        result = ops->list.push(interp, result, msg);
+        ops->interp.set_result(interp, result);
+        *status = TCL_PARSE_ERROR;
+        return 0;
+      }
+
+    } else if (*p == '\\') {
+      // Backslash in bare word
+      p++; // skip backslash
+      if (p < end) {
+        if (*p == '\n') {
+          // Backslash-newline in bare word acts as word terminator
+          p++;
+          while (p < end && is_whitespace(*p)) {
+            p++;
+          }
+          break;
         }
-        if (pos > seg_start) {
-          word = append_to_word(ops, interp, word, seg_start, pos - seg_start);
-        }
+        char escape_buf[4];
+        size_t escape_len;
+        size_t consumed = process_backslash(p, end, escape_buf, &escape_len);
+        word = append_to_word(ops, interp, word, escape_buf, escape_len);
+        p += consumed;
+      }
+
+    } else {
+      // Regular character in bare word - collect a run of them
+      const char *seg_start = p;
+      while (p < end && !is_word_terminator(*p) &&
+             *p != '{' && *p != '"' && *p != '\\') {
+        p++;
+      }
+      if (p > seg_start) {
+        word = append_to_word(ops, interp, word, seg_start, p - seg_start);
+      }
+    }
+  }
+
+  *pos = p - script;
+  *status = TCL_PARSE_OK;
+
+  // Handle empty word case (e.g., from "" or {})
+  if (ops->list.is_nil(interp, word) && p > word_start) {
+    return ops->string.intern(interp, "", 0);
+  }
+
+  return word;
+}
+
+TclParseStatus tcl_parse_command(const TclHostOps *ops, TclInterp interp,
+                                  TclParseContext *ctx) {
+  const char *script = ctx->script;
+  size_t len = ctx->len;
+
+  // Skip whitespace and comments between commands
+  ctx->pos = skip_whitespace_and_comments(script, len, ctx->pos);
+
+  // Check if we've reached the end
+  if (ctx->pos >= len) {
+    return TCL_PARSE_DONE;
+  }
+
+  const char *pos = script + ctx->pos;
+  const char *end = script + len;
+
+  // Skip command terminator if we're at one
+  if (is_command_terminator(*pos) && *pos != '\0') {
+    ctx->pos++;
+    ctx->pos = skip_whitespace_and_comments(script, len, ctx->pos);
+    if (ctx->pos >= len) {
+      return TCL_PARSE_DONE;
+    }
+    pos = script + ctx->pos;
+  }
+
+  // Create a list to hold the words
+  TclObj words = ops->list.create(interp);
+
+  // Parse words until command terminator
+  while (ctx->pos < len) {
+    pos = script + ctx->pos;
+
+    // Skip whitespace between words (but not command terminators)
+    while (pos < end && is_whitespace(*pos)) {
+      pos++;
+      ctx->pos++;
+    }
+
+    // Also skip backslash-newline in whitespace context
+    while (pos < end && *pos == '\\' && pos + 1 < end && pos[1] == '\n') {
+      pos += 2;
+      ctx->pos += 2;
+      while (pos < end && is_whitespace(*pos)) {
+        pos++;
+        ctx->pos++;
       }
     }
 
-    // Check if we built a word
+    if (ctx->pos >= len) {
+      break;
+    }
+
+    pos = script + ctx->pos;
+
+    // Check for command terminator
+    if (is_command_terminator(*pos)) {
+      // Move past the terminator for next call
+      if (*pos != '\0') {
+        ctx->pos++;
+      }
+      break;
+    }
+
+    // Parse a word
+    TclParseStatus status;
+    TclObj word = parse_word(ops, interp, script, len, &ctx->pos, &status);
+    if (status != TCL_PARSE_OK) {
+      return status;
+    }
+
     if (!ops->list.is_nil(interp, word)) {
       words = ops->list.push(interp, words, word);
-    } else if (pos > word_start) {
-      // Empty word (e.g., from "" or {})
-      TclObj empty = ops->string.intern(interp, "", 0);
-      words = ops->list.push(interp, words, empty);
     }
   }
 
