@@ -111,4 +111,47 @@ line2</stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
+  <test-case name="double quotes preserve whitespace">
+    <script>echo "hello world"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="empty double quotes produce empty string">
+    <script>echo ""</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="multiple double-quoted arguments">
+    <script>echo "hello" "world"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="double quotes preserve newlines">
+    <script>echo "line1
+line2"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>line1
+line2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="unbalanced double quotes cause incomplete parse">
+    <script>echo "hello world</script>
+    <return>TCL_OK</return>
+    <result>{INCOMPLETE 5 17}</result>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>2</exit-code>
+  </test-case>
 </test-suite>

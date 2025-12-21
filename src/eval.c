@@ -38,15 +38,18 @@ TclResult tcl_eval_string(const TclHostOps *ops, TclInterp interp,
 
   while (start < end) {
     // Find the end of the current command (newline or end of input)
-    // Must account for braces - newlines inside braces don't end commands
+    // Must account for braces and quotes - newlines inside them don't end commands
     const char *cmd_end = start;
     int brace_depth = 0;
+    int in_quotes = 0;
     while (cmd_end < end) {
-      if (*cmd_end == '{') {
+      if (!in_quotes && *cmd_end == '{') {
         brace_depth++;
-      } else if (*cmd_end == '}') {
+      } else if (!in_quotes && *cmd_end == '}') {
         brace_depth--;
-      } else if (*cmd_end == '\n' && brace_depth == 0) {
+      } else if (brace_depth == 0 && *cmd_end == '"') {
+        in_quotes = !in_quotes;
+      } else if (*cmd_end == '\n' && brace_depth == 0 && !in_quotes) {
         break;
       }
       cmd_end++;

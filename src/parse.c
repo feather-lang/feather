@@ -102,6 +102,36 @@ TclParseStatus tcl_parse(const TclHostOps *ops, TclInterp interp,
       size_t content_len = (pos - 1) - content_start;
       TclObj word = ops->string.intern(interp, content_start, content_len);
       words = ops->list.push(interp, words, word);
+    } else if (*pos == '"') {
+      // Double-quoted string - find matching close quote
+      const char *quote_start = pos;
+      const char *content_start = pos + 1;
+      pos++;
+      while (pos < end && *pos != '"') {
+        pos++;
+      }
+
+      // Check if we reached end of input with unclosed quote
+      if (pos >= end) {
+        // Build result: {INCOMPLETE start_offset end_offset}
+        TclObj result = ops->list.create(interp);
+        TclObj incomplete = ops->string.intern(interp, "INCOMPLETE", 10);
+        TclObj start_pos = ops->integer.create(interp, (int64_t)(quote_start - script));
+        TclObj end_pos = ops->integer.create(interp, (int64_t)len);
+        result = ops->list.push(interp, result, incomplete);
+        result = ops->list.push(interp, result, start_pos);
+        result = ops->list.push(interp, result, end_pos);
+        ops->interp.set_result(interp, result);
+        return TCL_PARSE_INCOMPLETE;
+      }
+
+      // pos points at the closing quote, move past it
+      pos++;
+
+      // Content is between content_start and pos-1 (excluding the final ")
+      size_t content_len = (pos - 1) - content_start;
+      TclObj word = ops->string.intern(interp, content_start, content_len);
+      words = ops->list.push(interp, words, word);
     } else {
       // Find end of current word
       const char *word_start = pos;
