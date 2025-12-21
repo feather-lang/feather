@@ -242,7 +242,27 @@ static int64_t parse_number(ExprParser *p) {
   return negative ? -value : value;
 }
 
-// Parse primary: number, variable, command, or parenthesized expression
+// Helper to check if remaining input starts with a keyword (case insensitive)
+static int match_keyword(ExprParser *p, const char *keyword, size_t klen) {
+  if ((size_t)(p->end - p->pos) < klen) return 0;
+  for (size_t i = 0; i < klen; i++) {
+    char c = p->pos[i];
+    // Convert to lowercase
+    if (c >= 'A' && c <= 'Z') c = c - 'A' + 'a';
+    if (c != keyword[i]) return 0;
+  }
+  // Check that the keyword ends (not followed by alphanumeric)
+  if (p->pos + klen < p->end) {
+    char next = p->pos[klen];
+    if ((next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z') ||
+        (next >= '0' && next <= '9') || next == '_') {
+      return 0;
+    }
+  }
+  return 1;
+}
+
+// Parse primary: number, variable, command, boolean literal, or parenthesized expression
 static int64_t parse_primary(ExprParser *p) {
   skip_whitespace(p);
 
@@ -284,6 +304,32 @@ static int64_t parse_primary(ExprParser *p) {
       return parse_number(p);
     }
     // Otherwise it's an operator, fall through to error
+  }
+
+  // Check for boolean literals: true, false, yes, no, on, off
+  if (match_keyword(p, "true", 4)) {
+    p->pos += 4;
+    return 1;
+  }
+  if (match_keyword(p, "false", 5)) {
+    p->pos += 5;
+    return 0;
+  }
+  if (match_keyword(p, "yes", 3)) {
+    p->pos += 3;
+    return 1;
+  }
+  if (match_keyword(p, "no", 2)) {
+    p->pos += 2;
+    return 0;
+  }
+  if (match_keyword(p, "on", 2)) {
+    p->pos += 2;
+    return 1;
+  }
+  if (match_keyword(p, "off", 3)) {
+    p->pos += 3;
+    return 0;
   }
 
   // Check for unexpected close paren

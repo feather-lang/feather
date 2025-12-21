@@ -532,7 +532,7 @@ typedef struct TclListOps {
    *
    * If the index is out of bounds, the nil object is returned.
    */
-  TclObj (*at)(TclInterp interp, TclObj list);
+  TclObj (*at)(TclInterp interp, TclObj list, size_t index);
 } TclListOps;
 
 /**

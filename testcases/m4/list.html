@@ -1,0 +1,213 @@
+<test-suite>
+  <!--
+    M4: llength and lindex commands
+
+    llength returns the number of elements in a list.
+    lindex returns an element at a given index.
+  -->
+
+  <!-- ============================================= -->
+  <!-- llength basic                                 -->
+  <!-- ============================================= -->
+
+  <test-case name="llength of empty list">
+    <script>llength {}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="llength of single element list">
+    <script>llength {one}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="llength of three element list">
+    <script>llength {one two three}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="llength of variable">
+    <script>set mylist {a b c d e}
+llength $mylist</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="llength in expression">
+    <script>set mylist {a b c}
+expr {[llength $mylist] == 3}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- lindex basic                                  -->
+  <!-- ============================================= -->
+
+  <test-case name="lindex first element">
+    <script>lindex {one two three} 0</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>one</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lindex second element">
+    <script>lindex {one two three} 1</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>two</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lindex last element">
+    <script>lindex {one two three} 2</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>three</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lindex with variable">
+    <script>set mylist {alpha beta gamma}
+lindex $mylist 1</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>beta</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lindex with variable index">
+    <script>set mylist {a b c d e}
+set i 3
+lindex $mylist $i</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>d</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- lindex out of bounds                          -->
+  <!-- ============================================= -->
+
+  <test-case name="lindex past end returns empty">
+    <script>lindex {a b c} 10</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lindex negative returns empty">
+    <script>lindex {a b c} -1</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lindex from empty list returns empty">
+    <script>lindex {} 0</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Using llength and lindex together             -->
+  <!-- ============================================= -->
+
+  <test-case name="iterate list with while">
+    <script>set mylist {a b c}
+set i 0
+set result {}
+while {$i < [llength $mylist]} {
+    set elem [lindex $mylist $i]
+    set result $elem
+    incr i
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Error cases                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="llength with no arguments errors">
+    <script>llength</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "llength list"</error>
+    <stdout>wrong # args: should be "llength list"</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="llength with too many arguments errors">
+    <script>llength {a} {b}</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "llength list"</error>
+    <stdout>wrong # args: should be "llength list"</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="lindex with no arguments errors">
+    <script>lindex</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "lindex list index"</error>
+    <stdout>wrong # args: should be "lindex list index"</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="lindex with only list errors">
+    <script>lindex {a b c}</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "lindex list index"</error>
+    <stdout>wrong # args: should be "lindex list index"</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="lindex with non-integer index errors">
+    <script>lindex {a b c} hello</script>
+    <return>TCL_ERROR</return>
+    <error>expected integer but got "hello"</error>
+    <stdout>expected integer but got "hello"</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

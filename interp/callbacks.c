@@ -72,8 +72,8 @@ static size_t c_list_length(TclInterp interp, TclObj list) {
     return goListLength(interp, list);
 }
 
-static TclObj c_list_at(TclInterp interp, TclObj list) {
-    return goListAt(interp, list);
+static TclObj c_list_at(TclInterp interp, TclObj list, size_t index) {
+    return goListAt(interp, list, index);
 }
 
 static TclObj c_int_create(TclInterp interp, int64_t val) {

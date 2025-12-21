@@ -286,6 +286,14 @@ func (i *Interp) Eval(script string) (string, error) {
 		return i.GetString(i.result), nil
 	}
 
+	// Convert break/continue outside loop to errors at the top level
+	if result == C.TCL_BREAK {
+		return "", &EvalError{Message: "invoked \"break\" outside of a loop"}
+	}
+	if result == C.TCL_CONTINUE {
+		return "", &EvalError{Message: "invoked \"continue\" outside of a loop"}
+	}
+
 	return "", &EvalError{Message: i.GetString(i.result)}
 }
 

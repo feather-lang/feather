@@ -1,0 +1,281 @@
+<test-suite>
+  <!--
+    M4: while command with break and continue
+
+    The while command executes a body repeatedly while condition is true.
+    It must catch and handle TCL_BREAK and TCL_CONTINUE return codes.
+  -->
+
+  <!-- ============================================= -->
+  <!-- Basic while loop                              -->
+  <!-- ============================================= -->
+
+  <test-case name="while with false condition never executes">
+    <script>set x before
+while {0} {
+    set x inside
+}
+set x $x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>before</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="while with counter">
+    <script>set i 0
+while {$i < 3} {
+    incr i
+}
+set i $i</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="while counts up to five">
+    <script>set i 0
+while {$i < 5} {
+    incr i
+}
+set i $i</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="while returns empty on normal completion">
+    <script>set i 0
+while {$i < 3} {
+    incr i
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="while body can modify multiple variables">
+    <script>set i 0
+set sum 0
+while {$i < 3} {
+    incr sum $i
+    incr i
+}
+set sum $sum</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- break in while                                -->
+  <!-- ============================================= -->
+
+  <test-case name="break exits while loop">
+    <script>set i 0
+while {$i < 10} {
+    if {$i == 3} {
+        break
+    }
+    incr i
+}
+set i $i</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="break at first iteration">
+    <script>set i 0
+while {1} {
+    break
+    incr i
+}
+set i $i</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="while returns empty after break">
+    <script>set i 0
+while {1} {
+    incr i
+    if {$i == 5} {
+        break
+    }
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- continue in while                             -->
+  <!-- ============================================= -->
+
+  <test-case name="continue skips rest of iteration">
+    <script>set i 0
+set sum 0
+while {$i < 5} {
+    incr i
+    if {$i == 3} {
+        continue
+    }
+    incr sum $i
+}
+set sum $sum</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>12</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="continue in every iteration">
+    <script>set i 0
+set x unchanged
+while {$i < 3} {
+    incr i
+    continue
+    set x changed
+}
+set x $x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>unchanged</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Nested while loops                            -->
+  <!-- ============================================= -->
+
+  <test-case name="nested while loops">
+    <script>set outer 0
+set total 0
+while {$outer < 3} {
+    set inner 0
+    while {$inner < 3} {
+        incr total
+        incr inner
+    }
+    incr outer
+}
+set total $total</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>9</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="break only exits innermost loop">
+    <script>set outer 0
+set inner_runs 0
+while {$outer < 3} {
+    set inner 0
+    while {$inner < 10} {
+        incr inner_runs
+        if {$inner == 2} {
+            break
+        }
+        incr inner
+    }
+    incr outer
+}
+set inner_runs $inner_runs</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>9</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Error cases                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="while with no arguments errors">
+    <script>while</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "while test command"</error>
+    <stdout>wrong # args: should be "while test command"</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="while with only condition errors">
+    <script>while {1}</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "while test command"</error>
+    <stdout>wrong # args: should be "while test command"</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="while with invalid condition variable">
+    <script>while {$undefined} {
+    set x yes
+}</script>
+    <return>TCL_ERROR</return>
+    <error>can't read "undefined": no such variable</error>
+    <stdout>can't read "undefined": no such variable</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="error in while body propagates">
+    <script>set i 0
+while {$i < 3} {
+    incr i
+    if {$i == 2} {
+        expr {$undefined}
+    }
+}</script>
+    <return>TCL_ERROR</return>
+    <error>can't read "undefined": no such variable</error>
+    <stdout>can't read "undefined": no such variable</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- break and continue outside loop              -->
+  <!-- ============================================= -->
+
+  <test-case name="break outside loop errors">
+    <script>break</script>
+    <return>TCL_ERROR</return>
+    <error>invoked "break" outside of a loop</error>
+    <stdout>invoked "break" outside of a loop</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="continue outside loop errors">
+    <script>continue</script>
+    <return>TCL_ERROR</return>
+    <error>invoked "continue" outside of a loop</error>
+    <stdout>invoked "continue" outside of a loop</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

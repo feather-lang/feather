@@ -233,8 +233,20 @@ func goListLength(interp C.TclInterp, list C.TclObj) C.size_t {
 }
 
 //export goListAt
-func goListAt(interp C.TclInterp, list C.TclObj) C.TclObj {
-	return 0
+func goListAt(interp C.TclInterp, list C.TclObj, index C.size_t) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	items, err := i.GetList(TclObj(list))
+	if err != nil {
+		return 0
+	}
+	idx := int(index)
+	if idx < 0 || idx >= len(items) {
+		return 0
+	}
+	return C.TclObj(items[idx])
 }
 
 //export goIntCreate

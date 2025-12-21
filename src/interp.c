@@ -12,6 +12,14 @@ static const BuiltinEntry builtins[] = {
     {"set", tcl_builtin_set},
     {"expr", tcl_builtin_expr},
     {"proc", tcl_builtin_proc},
+    {"if", tcl_builtin_if},
+    {"while", tcl_builtin_while},
+    {"break", tcl_builtin_break},
+    {"continue", tcl_builtin_continue},
+    {"incr", tcl_builtin_incr},
+    {"llength", tcl_builtin_llength},
+    {"lindex", tcl_builtin_lindex},
+    {"run", tcl_builtin_run},
     {NULL, NULL} // sentinel
 };
 

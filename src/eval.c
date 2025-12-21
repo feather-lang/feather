@@ -58,6 +58,8 @@ TclResult tcl_eval_string(const TclHostOps *ops, TclInterp interp,
     if (ops->list.length(interp, parsed) > 0) {
       result = tcl_eval_obj(ops, interp, parsed, flags);
       if (result != TCL_OK) {
+        // Let break/continue propagate - the while loop will catch them
+        // If they reach the top level, the host converts to error
         return result;
       }
     }
