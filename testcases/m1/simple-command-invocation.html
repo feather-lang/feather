@@ -154,4 +154,13 @@ line2</stdout>
     <stderr></stderr>
     <exit-code>2</exit-code>
   </test-case>
+  <test-case name="extra characters after close-quote causes an error">
+    <script>echo ""x</script>
+    <return>TCL_ERROR</return>
+    <result>{ERROR 5 8}</result>
+    <error>extra characters after close-quote</error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>3</exit-code>
+  </test-case>
 </test-suite>

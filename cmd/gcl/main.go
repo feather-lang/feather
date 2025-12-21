@@ -28,7 +28,7 @@ func main() {
 		os.Exit(2) // Exit code 2 signals incomplete input
 	}
 	if parseResult.Status == interp.ParseError {
-		errorMsg := parseErrorMessage(parseResult.Result)
+		errorMsg := parseErrorMessage(parseResult.Result, string(script))
 		writeHarnessResult("TCL_ERROR", parseResult.Result, errorMsg)
 		os.Exit(3) // Exit code 3 signals parse error
 	}
@@ -49,8 +49,16 @@ func main() {
 }
 
 // parseErrorMessage converts a parse error result to a human-readable message.
-func parseErrorMessage(result string) string {
+func parseErrorMessage(result string, script string) string {
 	if strings.HasPrefix(result, "{ERROR") {
+		// Extract start position from {ERROR start end}
+		var start int
+		fmt.Sscanf(result, "{ERROR %d", &start)
+		if start >= 0 && start < len(script) {
+			if script[start] == '"' {
+				return "extra characters after close-quote"
+			}
+		}
 		return "extra characters after close-brace"
 	}
 	return "parse error"
