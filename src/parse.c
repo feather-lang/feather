@@ -205,6 +205,74 @@ static TclObj append_to_word(const TclHostOps *ops, TclInterp interp,
 }
 
 /**
+ * Find the matching close bracket for command substitution.
+ * pos points to the character after the opening '['.
+ * Returns the position of the matching ']', or NULL if not found.
+ */
+static const char *find_matching_bracket(const char *pos, const char *end) {
+  int depth = 1;
+
+  while (pos < end && depth > 0) {
+    char c = *pos;
+
+    if (c == '\\' && pos + 1 < end) {
+      // Skip escaped character
+      pos += 2;
+      continue;
+    }
+
+    if (c == '[') {
+      depth++;
+      pos++;
+      continue;
+    }
+
+    if (c == ']') {
+      depth--;
+      if (depth == 0) {
+        return pos;
+      }
+      pos++;
+      continue;
+    }
+
+    if (c == '{') {
+      // Skip braced content (no substitution, braces nest)
+      int brace_depth = 1;
+      pos++;
+      while (pos < end && brace_depth > 0) {
+        if (*pos == '\\' && pos + 1 < end) {
+          pos += 2;
+          continue;
+        }
+        if (*pos == '{') brace_depth++;
+        else if (*pos == '}') brace_depth--;
+        pos++;
+      }
+      continue;
+    }
+
+    if (c == '"') {
+      // Skip quoted content (need to match quotes properly)
+      pos++;
+      while (pos < end && *pos != '"') {
+        if (*pos == '\\' && pos + 1 < end) {
+          pos += 2;
+          continue;
+        }
+        pos++;
+      }
+      if (pos < end) pos++; // skip closing quote
+      continue;
+    }
+
+    pos++;
+  }
+
+  return (depth == 0) ? pos : NULL;
+}
+
+/**
  * Parse and substitute a variable starting at pos (after the $).
  * Returns the number of characters consumed.
  * Appends the variable value to word via word_out.
@@ -269,6 +337,56 @@ static size_t substitute_variable(const TclHostOps *ops, TclInterp interp,
     *word_out = append_to_word(ops, interp, word, "$", 1);
     return 0;
   }
+}
+
+/**
+ * Parse and substitute a command starting at pos (after the [).
+ * Returns the number of characters consumed (including the closing ]).
+ * Appends the command result to word via word_out.
+ * Returns -1 on error (sets status).
+ */
+static int substitute_command(const TclHostOps *ops, TclInterp interp,
+                              const char *script, size_t script_len,
+                              const char *pos, const char *end,
+                              TclObj word, TclObj *word_out,
+                              TclParseStatus *status) {
+  const char *bracket_start = pos - 1; // points to '['
+  const char *close = find_matching_bracket(pos, end);
+
+  if (close == NULL) {
+    // Unclosed bracket
+    TclObj result = ops->list.create(interp);
+    TclObj incomplete = ops->string.intern(interp, "INCOMPLETE", 10);
+    TclObj start_pos = ops->integer.create(interp, (int64_t)(bracket_start - script));
+    TclObj end_pos = ops->integer.create(interp, (int64_t)script_len);
+    result = ops->list.push(interp, result, incomplete);
+    result = ops->list.push(interp, result, start_pos);
+    result = ops->list.push(interp, result, end_pos);
+    ops->interp.set_result(interp, result);
+    *status = TCL_PARSE_INCOMPLETE;
+    return -1;
+  }
+
+  // Extract and evaluate the script between brackets
+  size_t cmd_len = close - pos;
+  TclResult eval_result = tcl_eval_string(ops, interp, pos, cmd_len, TCL_EVAL_LOCAL);
+
+  if (eval_result != TCL_OK) {
+    *status = TCL_PARSE_ERROR;
+    return -1;
+  }
+
+  // Get the result and append to word
+  TclObj cmd_result = ops->interp.get_result(interp);
+  if (!ops->list.is_nil(interp, cmd_result)) {
+    size_t result_len;
+    const char *result_str = ops->string.get(interp, cmd_result, &result_len);
+    *word_out = append_to_word(ops, interp, word, result_str, result_len);
+  } else {
+    *word_out = word;
+  }
+
+  return (close - pos) + 1; // +1 for closing bracket
 }
 
 void tcl_parse_init(TclParseContext *ctx, const char *script, size_t len) {
@@ -415,6 +533,18 @@ static TclObj parse_word(const TclHostOps *ops, TclInterp interp,
           size_t consumed = substitute_variable(ops, interp, p, end, word, &word);
           p += consumed;
           seg_start = p;
+        } else if (*p == '[') {
+          // Flush segment before [
+          if (p > seg_start) {
+            word = append_to_word(ops, interp, word, seg_start, p - seg_start);
+          }
+          p++; // skip [
+          int consumed = substitute_command(ops, interp, script, len, p, end, word, &word, status);
+          if (consumed < 0) {
+            return 0;
+          }
+          p += consumed;
+          seg_start = p;
         } else {
           p++;
         }
@@ -481,11 +611,20 @@ static TclObj parse_word(const TclHostOps *ops, TclInterp interp,
       size_t consumed = substitute_variable(ops, interp, p, end, word, &word);
       p += consumed;
 
+    } else if (*p == '[') {
+      // Command substitution in bare word
+      p++; // skip [
+      int consumed = substitute_command(ops, interp, script, len, p, end, word, &word, status);
+      if (consumed < 0) {
+        return 0;
+      }
+      p += consumed;
+
     } else {
       // Regular character in bare word - collect a run of them
       const char *seg_start = p;
       while (p < end && !is_word_terminator(*p) &&
-             *p != '{' && *p != '"' && *p != '\\' && *p != '$') {
+             *p != '{' && *p != '"' && *p != '\\' && *p != '$' && *p != '[') {
         p++;
       }
       if (p > seg_start) {

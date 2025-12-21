@@ -377,4 +377,53 @@ set x</script>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
+  <test-case name="basic command substitution">
+    <script>echo [set x hello]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="command substitution inside double quotes">
+    <script>echo "result: [set x hello]"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>result: hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="no command substitution inside braces">
+    <script>echo {[set x hello]}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>[set x hello]</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="nested command substitution">
+    <script>echo [set y [set x hello]]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="unclosed bracket causes incomplete parse">
+    <script>echo [set x hello</script>
+    <return>TCL_OK</return>
+    <result>{INCOMPLETE 5 17}</result>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>2</exit-code>
+  </test-case>
+  <test-case name="extra close bracket is literal">
+    <script>echo [set x hello]]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello]</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
 </test-suite>
