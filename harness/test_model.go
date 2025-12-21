@@ -5,7 +5,8 @@ package harness
 type TestCase struct {
 	Name     string
 	Script   string
-	Result   string
+	Return   string // The return code: TCL_OK, TCL_ERROR, etc.
+	Result   string // The interpreter's result object string representation
 	Error    string
 	Stdout   string
 	Stderr   string

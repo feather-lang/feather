@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/dhamidi/tclc/interp"
 	defaults "github.com/dhamidi/tclc/interp/default"
 )
 
@@ -19,6 +20,19 @@ func main() {
 		os.Exit(1)
 	}
 
+	// First, parse the script to check for incomplete input
+	parseResult := host.Parse(string(script))
+	if parseResult.Status == interp.ParseIncomplete {
+		writeHarnessResult("TCL_OK", parseResult.Result)
+		os.Exit(2) // Exit code 2 signals incomplete input
+	}
+	if parseResult.Status == interp.ParseError {
+		fmt.Fprintln(os.Stderr, parseResult.Result)
+		writeHarnessResult("TCL_ERROR", parseResult.Result)
+		os.Exit(1)
+	}
+
+	// Parse succeeded, now evaluate
 	result, err := host.Eval(string(script))
 
 	if err != nil {
@@ -33,7 +47,7 @@ func main() {
 	writeHarnessResult("TCL_OK", result)
 }
 
-func writeHarnessResult(code string, value string) {
+func writeHarnessResult(returnCode string, result string) {
 	if os.Getenv("TCLC_IN_HARNESS") != "1" {
 		return
 	}
@@ -45,9 +59,9 @@ func writeHarnessResult(code string, value string) {
 	defer f.Close()
 
 	w := bufio.NewWriter(f)
-	fmt.Fprintf(w, "result: %s\n", code)
-	if value != "" {
-		fmt.Fprintf(w, "value: %s\n", value)
+	fmt.Fprintf(w, "return: %s\n", returnCode)
+	if result != "" {
+		fmt.Fprintf(w, "result: %s\n", result)
 	}
 	w.Flush()
 }

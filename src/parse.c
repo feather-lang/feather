@@ -48,10 +48,16 @@ TclParseStatus tcl_parse(const TclHostOps *ops, TclInterp interp,
       break;
     }
 
+    // Check for command terminator (newline) - stop parsing this command
+    if (is_command_terminator(*pos)) {
+      break;
+    }
+
     // Check for braced string
     if (*pos == '{') {
       // Find matching close brace, counting nesting depth
       int depth = 1;
+      const char *brace_start = pos;
       const char *content_start = pos + 1;
       pos++;
       while (pos < end && depth > 0) {
@@ -62,6 +68,21 @@ TclParseStatus tcl_parse(const TclHostOps *ops, TclInterp interp,
         }
         pos++;
       }
+
+      // Check if we reached end of input with unclosed braces
+      if (depth > 0) {
+        // Build result: {INCOMPLETE start_offset end_offset}
+        TclObj result = ops->list.create(interp);
+        TclObj incomplete = ops->string.intern(interp, "INCOMPLETE", 10);
+        TclObj start_pos = ops->integer.create(interp, (int64_t)(brace_start - script));
+        TclObj end_pos = ops->integer.create(interp, (int64_t)len);
+        result = ops->list.push(interp, result, incomplete);
+        result = ops->list.push(interp, result, start_pos);
+        result = ops->list.push(interp, result, end_pos);
+        ops->interp.set_result(interp, result);
+        return TCL_PARSE_INCOMPLETE;
+      }
+
       // pos now points past the closing brace
       // Content is between content_start and pos-1 (excluding the final })
       size_t content_len = (pos - 1) - content_start;

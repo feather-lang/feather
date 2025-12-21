@@ -7,6 +7,7 @@ package interp
 
 // Implemented in callbacks.c
 extern TclResult call_tcl_eval_obj(TclInterp interp, TclObj script, TclEvalFlags flags);
+extern TclParseStatus call_tcl_parse(TclInterp interp, TclObj script);
 */
 import "C"
 
@@ -300,4 +301,9 @@ func goProcBody(interp C.TclInterp, name C.TclObj, result *C.TclObj) C.TclResult
 // callCEval invokes the C interpreter
 func callCEval(interpHandle TclInterp, scriptHandle TclObj) C.TclResult {
 	return C.call_tcl_eval_obj(C.TclInterp(interpHandle), C.TclObj(scriptHandle), C.TCL_EVAL_LOCAL)
+}
+
+// callCParse invokes the C parser
+func callCParse(interpHandle TclInterp, scriptHandle TclObj) C.TclParseStatus {
+	return C.call_tcl_parse(C.TclInterp(interpHandle), C.TclObj(scriptHandle))
 }

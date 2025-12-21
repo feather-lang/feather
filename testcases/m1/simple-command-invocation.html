@@ -1,7 +1,7 @@
 <test-suite>
   <test-case name="invoking a host command without arguments">
     <script>say-hello</script>
-    <result>TCL_OK</result>
+    <return>TCL_OK</return>
     <error></error>
     <stdout>hello</stdout>
     <stderr></stderr>
@@ -9,7 +9,7 @@
   </test-case>
   <test-case name="skipping initial whitespace">
     <script>    say-hello</script>
-    <result>TCL_OK</result>
+    <return>TCL_OK</return>
     <error></error>
     <stdout>hello</stdout>
     <stderr></stderr>
@@ -17,7 +17,7 @@
   </test-case>
   <test-case name="skipping trailing whitespace">
     <script>say-hello    </script>
-    <result>TCL_OK</result>
+    <return>TCL_OK</return>
     <error></error>
     <stdout>hello</stdout>
     <stderr></stderr>
@@ -26,7 +26,7 @@
   <test-case name="newlines separate commands">
     <script>say-hello
     say-hello</script>
-    <result>TCL_OK</result>
+    <return>TCL_OK</return>
     <error></error>
     <stdout>
       hello
@@ -37,7 +37,7 @@
   </test-case>
   <test-case name="command with one argument">
     <script>echo hello</script>
-    <result>TCL_OK</result>
+    <return>TCL_OK</return>
     <error></error>
     <stdout>hello</stdout>
     <stderr></stderr>
@@ -45,10 +45,19 @@
   </test-case>
   <test-case name="braces quote and nest">
     <script>echo {hello {world}}</script>
-    <result>TCL_OK</result>
+    <return>TCL_OK</return>
     <error></error>
     <stdout>hello {world}</stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="unbalanced braces cause tell that parser needs more">
+    <script>echo {hello {world}</script>
+    <return>TCL_OK</return>
+    <result>{INCOMPLETE 5 19}</result>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>2</exit-code>
   </test-case>
 </test-suite>

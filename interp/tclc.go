@@ -8,6 +8,7 @@ package interp
 import "C"
 
 import (
+	"fmt"
 	"runtime/cgo"
 	"sync"
 	"unsafe"
@@ -29,6 +30,21 @@ const (
 	EvalLocal  = C.TCL_EVAL_LOCAL
 	EvalGlobal = C.TCL_EVAL_GLOBAL
 )
+
+// ParseStatus matching TclParseStatus enum
+type ParseStatus uint
+
+const (
+	ParseOK         ParseStatus = C.TCL_PARSE_OK
+	ParseIncomplete ParseStatus = C.TCL_PARSE_INCOMPLETE
+	ParseError      ParseStatus = C.TCL_PARSE_ERROR
+)
+
+// ParseResult holds the result of parsing a script
+type ParseResult struct {
+	Status ParseStatus
+	Result string // The interpreter's result string (e.g., "{INCOMPLETE 5 20}")
+}
 
 // Handle is the Go type for TclHandle
 type Handle = uintptr
@@ -89,6 +105,60 @@ func (i *Interp) Close() {
 // Handle returns the interpreter's handle
 func (i *Interp) Handle() TclInterp {
 	return i.handle
+}
+
+// Parse parses a script string and returns the parse status and result.
+func (i *Interp) Parse(script string) ParseResult {
+	scriptHandle := i.internString(script)
+
+	// Call the C parser
+	status := callCParse(i.handle, scriptHandle)
+
+	var resultStr string
+	if obj := i.getObject(i.result); obj != nil {
+		resultStr = i.listToString(obj)
+	}
+
+	return ParseResult{
+		Status: ParseStatus(status),
+		Result: resultStr,
+	}
+}
+
+// listToString converts a list object to its TCL string representation.
+func (i *Interp) listToString(obj *Object) string {
+	if obj == nil {
+		return ""
+	}
+	if !obj.isList {
+		if obj.isInt {
+			return fmt.Sprintf("%d", obj.intVal)
+		}
+		return obj.stringVal
+	}
+	// Build TCL list representation: {elem1 elem2 ...}
+	var result string
+	for idx, itemHandle := range obj.listItems {
+		itemObj := i.getObject(itemHandle)
+		if itemObj == nil {
+			continue
+		}
+		if idx > 0 {
+			result += " "
+		}
+		// Handle different object types
+		if itemObj.isInt {
+			result += fmt.Sprintf("%d", itemObj.intVal)
+		} else if itemObj.isList {
+			result += i.listToString(itemObj)
+		} else {
+			result += itemObj.stringVal
+		}
+	}
+	if len(obj.listItems) > 0 {
+		result = "{" + result + "}"
+	}
+	return result
 }
 
 // Eval evaluates a script string using the C interpreter

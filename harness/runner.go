@@ -23,7 +23,8 @@ type ActualResult struct {
 	Stdout   string
 	Stderr   string
 	ExitCode int
-	Result   string // TCL_OK, TCL_ERROR, etc.
+	Return   string // The return code: TCL_OK, TCL_ERROR, etc.
+	Result   string // The interpreter's result object string representation
 	Error    string // Error message from interpreter
 }
 
@@ -96,6 +97,7 @@ func (r *Runner) RunTest(tc TestCase) TestResult {
 
 	result.Actual.Stdout = normalizeLines(stdout.String())
 	result.Actual.Stderr = normalizeLines(stderr.String())
+	result.Actual.Return = harnessOutput.Return
 	result.Actual.Result = harnessOutput.Result
 	result.Actual.Error = harnessOutput.Error
 
@@ -128,7 +130,14 @@ func (r *Runner) RunTest(tc TestCase) TestResult {
 			fmt.Sprintf("exit code mismatch:\n  expected: %d\n  actual:   %d", tc.ExitCode, result.Actual.ExitCode))
 	}
 
-	// Compare result code if specified in test case
+	// Compare return code if specified in test case
+	if tc.Return != "" && tc.Return != result.Actual.Return {
+		result.Passed = false
+		result.Failures = append(result.Failures,
+			fmt.Sprintf("return mismatch:\n  expected: %q\n  actual:   %q", tc.Return, result.Actual.Return))
+	}
+
+	// Compare result value if specified in test case
 	if tc.Result != "" && tc.Result != result.Actual.Result {
 		result.Passed = false
 		result.Failures = append(result.Failures,
@@ -147,7 +156,8 @@ func (r *Runner) RunTest(tc TestCase) TestResult {
 
 // harnessOutput holds parsed output from the harness channel
 type harnessOutput struct {
-	Result string
+	Return string // TCL_OK, TCL_ERROR, etc.
+	Result string // Interpreter's result object string representation
 	Error  string
 }
 
@@ -157,7 +167,9 @@ func parseHarnessOutput(r io.Reader) harnessOutput {
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.HasPrefix(line, "result: ") {
+		if strings.HasPrefix(line, "return: ") {
+			out.Return = strings.TrimPrefix(line, "return: ")
+		} else if strings.HasPrefix(line, "result: ") {
 			out.Result = strings.TrimPrefix(line, "result: ")
 		} else if strings.HasPrefix(line, "error: ") {
 			out.Error = strings.TrimPrefix(line, "error: ")

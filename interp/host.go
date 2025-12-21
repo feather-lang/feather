@@ -24,6 +24,11 @@ func (h *Host) Register(name string, fn CommandFunc) {
 	h.Commands[name] = fn
 }
 
+// Parse parses a script and returns the parse result.
+func (h *Host) Parse(script string) ParseResult {
+	return h.Interp.Parse(script)
+}
+
 // Eval evaluates a script and returns the result as a string.
 func (h *Host) Eval(script string) (string, error) {
 	return h.Interp.Eval(script)

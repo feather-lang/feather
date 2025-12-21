@@ -193,3 +193,11 @@ TclResult call_tcl_eval_obj(TclInterp interp, TclObj script, TclEvalFlags flags)
     const char *str = ops.string.get(interp, script, &len);
     return tcl_eval_string(&ops, interp, str, len, flags);
 }
+
+// Call the C parser with host ops
+TclParseStatus call_tcl_parse(TclInterp interp, TclObj script) {
+    TclHostOps ops = make_host_ops();
+    size_t len;
+    const char *str = ops.string.get(interp, script, &len);
+    return tcl_parse(&ops, interp, str, len);
+}

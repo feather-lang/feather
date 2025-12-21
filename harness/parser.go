@@ -75,6 +75,8 @@ func parseTestCase(n *html.Node) TestCase {
 		switch c.Data {
 		case "script":
 			tc.Script = content
+		case "return":
+			tc.Return = strings.TrimSpace(content)
 		case "result":
 			tc.Result = strings.TrimSpace(content)
 		case "error":
