@@ -112,7 +112,28 @@ Builtin commands implemented:
 
 ### M3: proc with implicit return
 
-TODO: description, rationale
+With parsing complete and expressions working, we can define user procedures.
+
+TCL procedures return the result of their last evaluated command automatically—no explicit `return` is needed. This "implicit return" is the default behavior:
+
+```tcl
+proc double {x} {
+    expr {$x * 2}
+}
+double 5  ;# returns 10
+```
+
+This milestone establishes the core procedure mechanism:
+- Binding a name to a parameter list and body
+- Creating a new call frame when invoked
+- Evaluating the body in that frame
+- Returning the final result to the caller
+
+We defer explicit `return` to M4 because implicit return exercises the full call/return lifecycle with minimal complexity. If this works, adding `return` is straightforward.
+
+Builtin commands implemented:
+
+- proc: define named procedures with parameters
 
 ### M4: the return command with all options
 
