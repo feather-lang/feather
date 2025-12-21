@@ -83,10 +83,12 @@ that exercise more and more of the functionality.
 
 ## Milestones
 
-Since the set of commands we and to implement is large,
+Since the set of commands we want to implement is large,
 picking a reasonable order is important.
 
-### M1: just invoking commands from the host
+The guiding principle: each milestone should add exactly one new concept to the interpreter's execution model. We front-load features that affect the interpreter's core logic (call frames, return codes, variable scoping) before features that are merely new commands using existing machinery.
+
+### M1: Just Invoking Commands from the Host ✓
 
 This phase is mostly about testing the parser and making sure the
 host / interpreter interop works at a basic level.
@@ -98,19 +100,19 @@ Builtin commands implemented:
 
 - set, so that we can test variable and command substitution
 
-### M2: the expression DSL
+### M2: The Expression DSL ✓
 
 In order to build up to control flow, we need to have a working expression evaluator.
 
-Tests start with basic comparison operators, then math operator for integers only.
+Tests start with basic comparison operators, then math operators for integers only.
 
 This forces us to get the integer data type working.
 
 Builtin commands implemented:
 
-- expr, partially: <, <=, >, >=, =, !=, |, &, ||, &&; integers only
+- expr, partially: <, <=, >, >=, ==, !=, |, &, ||, &&; integers only
 
-### M3: proc with implicit return
+### M3: Proc with Implicit Return ✓
 
 With parsing complete and expressions working, we can define user procedures.
 
@@ -130,45 +132,197 @@ This milestone establishes the core procedure mechanism:
 - Evaluating the body in that frame
 - Returning the final result to the caller
 
-We defer explicit `return` to M4 because implicit return exercises the full call/return lifecycle with minimal complexity. If this works, adding `return` is straightforward.
+We defer explicit `return` to M4 because implicit return exercises the full call/return lifecycle with minimal complexity.
 
 Builtin commands implemented:
 
 - proc: define named procedures with parameters
 
-### M4: the return command with all options
+### M4: Control Flow with break and continue
 
-TODO: description, rationale
+Before implementing `return` with its full option machinery, we introduce the simpler loop control commands. This forces us to handle non-OK return codes propagating through the interpreter, but with simpler semantics than `return -code`.
 
-Implemented:
+The key insight: `break` and `continue` are return codes that travel up the call stack until caught by a loop construct. This is the same machinery `return` will need, but constrained to a single, obvious catching point.
 
-- proc with explicit return
-- return with all options
+```tcl
+proc find_first_negative {lst} {
+    set result ""
+    set i 0
+    set len [llength $lst]
+    while {$i < $len} {
+        set x [lindex $lst $i]
+        if {$x < 0} {
+            set result $x
+            break
+        }
+        incr i
+    }
+    set result
+}
+```
 
-### M5: the error command with all options
+Builtin commands implemented:
 
-TODO: description, rationale
+- if: conditional with then/elseif/else, boolean literals (1/0, true/false, yes/no)
+- while: loop with condition, must catch break/continue
+- break: return TCL_BREAK to be caught by enclosing loop
+- continue: return TCL_CONTINUE to be caught by enclosing loop
+- incr: increment variable by amount (default 1)
+- llength, lindex: to have basic list access
 
-Implemented:
+### M5: The return Command
 
-- error with all options
+With non-OK return codes working for loops, we add the general `return` command. The critical feature is `-code`: it allows a procedure to return any code, not just TCL_OK or TCL_RETURN.
 
-### M6: the if command
+```tcl
+proc my_break {} {
+    return -code break
+}
 
-TODO: description, rationale
+proc my_error {msg} {
+    return -code error $msg
+}
+```
 
-Implemented:
+This milestone also introduces `-level`, which controls how many call frames the return code should travel through before taking effect. This is essential for writing control-flow abstractions.
 
-- if as per `man -P cat n if`
-  - optional then keyword,
-  - elseif + else
-  - 1, true, yes as true
-  - 0, false, no as false
+Builtin commands implemented:
 
-### M7: the while command
+- return: with -code and -level options
 
-TODO: description, rationale
+### M6: Error Handling
 
-Implemented:
+With return codes fully working, we can implement proper error handling. The `error` command is the producer; `catch` is the consumer.
 
-- while as per `man -P cat n while`
+```tcl
+proc divide {a b} {
+    if {$b == 0} {
+        error "division by zero"
+    }
+    expr {$a / $b}
+}
+
+if {[catch {divide 10 0} result]} {
+    set result "error caught"
+}
+```
+
+The `catch` command is where introspection begins: it captures not just whether an error occurred, but optionally the return options dictionary containing the error code, stack trace, etc.
+
+Builtin commands implemented:
+
+- error: raise an error with message, optional errorInfo and errorCode
+- catch: execute script, capture return code and result
+
+### M7: Introspection with info
+
+The `info` command is TCL's window into itself. We implement a minimal subset that exercises the key introspectable state:
+
+```tcl
+info exists varName     ;# does variable exist?
+info level ?number?     ;# call stack depth or frame info
+info commands ?pattern? ;# list available commands
+info procs ?pattern?    ;# list user-defined procedures
+info body procName      ;# get procedure body
+info args procName      ;# get procedure parameters
+```
+
+This forces the interpreter to expose its internal state in a structured way. The `info level` subcommand is particularly important: it reveals the call stack, which is foundational for `uplevel` and `upvar`.
+
+Builtin commands implemented:
+
+- info: exists, level, commands, procs, body, args subcommands
+
+### M8: Metaprogramming with uplevel and upvar
+
+These commands break the normal scoping rules, allowing code to execute in or access variables from calling frames. They are the heart of TCL's metaprogramming capability.
+
+```tcl
+proc localvar {name value} {
+    upvar 1 $name var
+    set var $value
+}
+
+proc debug_eval {script} {
+    uplevel 1 $script
+}
+```
+
+`upvar` creates an alias between a local variable and a variable in another frame. `uplevel` evaluates a script in a calling frame's context. Together they enable any control structure to be written as a procedure.
+
+Builtin commands implemented:
+
+- upvar: link local variable to variable in another frame
+- uplevel: evaluate script in a calling frame
+
+### M9: The unknown Handler
+
+When a command is not found, TCL calls `unknown` with the original command and arguments. This enables auto-loading, abbreviation expansion, and domain-specific command resolution.
+
+```tcl
+proc unknown {cmd args} {
+    if {[string match "get*" $cmd]} {
+        return [dict get $::data [string range $cmd 3 end]]
+    }
+    error "invalid command name \"$cmd\""
+}
+```
+
+This milestone exercises the bind.unknown hook in TclHostOps and demonstrates how the interpreter delegates to user code for missing commands.
+
+Builtin commands implemented:
+
+- rename: rename or delete commands (needed to replace `unknown`)
+- The `unknown` mechanism via TclBindOps
+
+### M10: Completing the Control Flow Suite
+
+With all the core machinery in place, we round out the control flow commands. These are now straightforward applications of existing interpreter features.
+
+Builtin commands implemented:
+
+- for: C-style loop
+- foreach: iteration over lists
+- switch: multi-way branch with -exact, -glob, -regexp modes
+- tailcall: replace current frame with new command (optimization + correctness for recursive procedures)
+
+### M11: Full Expression Support
+
+Extend `expr` to its complete form:
+
+- Floating point numbers
+- Mathematical functions (sin, cos, sqrt, etc.)
+- String comparisons (eq, ne)
+- Ternary operator (? :)
+- List membership (in, ni)
+
+### M12: String and List Operations
+
+Complete the data structure commands:
+
+- list: construct lists
+- lindex, lrange, llength, lappend, lset, lreplace, lsort, lsearch
+- string: length, index, range, match, map, trim, toupper, tolower
+- split, join, concat, append
+- format, scan
+
+### M13: Dictionary Support
+
+- dict: create, get, set, exists, keys, values, for, map, filter, remove, merge
+
+### M14: Advanced Error Handling
+
+- try/on/trap/finally: structured exception handling
+- throw: raise typed exceptions
+
+### M15: Namespaces
+
+- namespace: eval, current, exists, children, parent, delete, export, import
+- variable: declare namespace variables
+
+### M16: Additional Introspection
+
+Complete `info` subcommands and add `trace`:
+
+- info: frame, coroutine, default, locals, globals, vars, script
+- trace: add, remove, info for variable and command traces
