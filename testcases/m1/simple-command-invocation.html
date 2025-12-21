@@ -163,4 +163,144 @@ line2</stdout>
     <stderr></stderr>
     <exit-code>3</exit-code>
   </test-case>
+  <test-case name="semicolons separate commands">
+    <script>echo a; echo b</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a
+b</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="backslash escapes dollar sign">
+    <script>echo \$notavar</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>$notavar</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="backslash-newline continuation">
+    <script>echo hello \
+world</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="comments are ignored">
+    <script># this is a comment
+echo hello</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="mixed quoting produces single word">
+    <script>echo "a"b{c}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>abc</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="backslash-a produces bell character">
+    <script>echo \a</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>&#x07;</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="backslash-b produces backspace character">
+    <script>echo \b</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>&#x08;</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="backslash-f produces form feed character">
+    <script>echo \f</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>&#x0C;</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="backslash-n produces newline character">
+    <script>echo \n</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>
+</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="backslash-r produces carriage return character">
+    <script>echo \r</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>&#x0D;</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="backslash-t produces tab character">
+    <script>echo \t</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>	</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="backslash-v produces vertical tab character">
+    <script>echo \v</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>&#x0B;</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="double backslash produces single backslash">
+    <script>echo \\</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>\</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="backslash-octal produces character by octal code">
+    <script>echo \101</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>A</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="backslash-x produces character by hex code">
+    <script>echo \x41</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>A</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="backslash-u produces character by 16-bit unicode">
+    <script>echo \u0041</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>A</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="backslash-U produces character by 21-bit unicode">
+    <script>echo \U00000041</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>A</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
 </test-suite>
