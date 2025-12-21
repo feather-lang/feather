@@ -71,6 +71,7 @@ type Interp struct {
 	objects map[TclObj]*Object
 	nextID  TclObj
 	result  TclObj
+	vars    map[string]TclObj // variable storage (name -> value)
 	mu      sync.Mutex
 
 	// UnknownHandler is called when an unknown command is invoked.
@@ -91,6 +92,7 @@ type Object struct {
 func NewInterp() *Interp {
 	interp := &Interp{
 		objects: make(map[TclObj]*Object),
+		vars:    make(map[string]TclObj),
 		nextID:  1,
 	}
 	// Use cgo.Handle to allow C callbacks to find this interpreter
@@ -257,6 +259,27 @@ func (i *Interp) SetResultString(s string) {
 // SetErrorString sets the interpreter's result to an error message.
 func (i *Interp) SetErrorString(s string) {
 	i.result = i.internString(s)
+}
+
+// SetVar sets a variable by name to a string value.
+func (i *Interp) SetVar(name, value string) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.vars[name] = i.nextID
+	i.objects[i.nextID] = &Object{stringVal: value}
+	i.nextID++
+}
+
+// GetVar returns the string value of a variable, or empty string if not found.
+func (i *Interp) GetVar(name string) string {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if val, ok := i.vars[name]; ok {
+		if obj := i.objects[val]; obj != nil {
+			return obj.stringVal
+		}
+	}
+	return ""
 }
 
 func getInterp(h C.TclInterp) *Interp {

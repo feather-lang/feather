@@ -259,19 +259,67 @@ func goFrameSetActive(interp C.TclInterp, level C.size_t) C.TclResult {
 
 //export goVarGet
 func goVarGet(interp C.TclInterp, name C.TclObj) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	nameObj := i.getObject(TclObj(name))
+	if nameObj == nil {
+		return 0
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if val, ok := i.vars[nameObj.stringVal]; ok {
+		return C.TclObj(val)
+	}
 	return 0
 }
 
 //export goVarSet
 func goVarSet(interp C.TclInterp, name C.TclObj, value C.TclObj) {
+	i := getInterp(interp)
+	if i == nil {
+		return
+	}
+	nameObj := i.getObject(TclObj(name))
+	if nameObj == nil {
+		return
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.vars[nameObj.stringVal] = TclObj(value)
 }
 
 //export goVarUnset
 func goVarUnset(interp C.TclInterp, name C.TclObj) {
+	i := getInterp(interp)
+	if i == nil {
+		return
+	}
+	nameObj := i.getObject(TclObj(name))
+	if nameObj == nil {
+		return
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	delete(i.vars, nameObj.stringVal)
 }
 
 //export goVarExists
 func goVarExists(interp C.TclInterp, name C.TclObj) C.TclResult {
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	nameObj := i.getObject(TclObj(name))
+	if nameObj == nil {
+		return C.TCL_ERROR
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if _, ok := i.vars[nameObj.stringVal]; ok {
+		return C.TCL_OK
+	}
 	return C.TCL_ERROR
 }
 

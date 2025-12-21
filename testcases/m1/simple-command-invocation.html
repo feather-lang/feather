@@ -295,4 +295,60 @@ echo hello</script>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
+  <test-case name="variable substitution with $name">
+    <script>echo $milestone</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>m1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="variable substitution with ${name}">
+    <script>echo ${milestone}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>m1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="variable substitution inside double quotes">
+    <script>echo "current: $milestone"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>current: m1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="no variable substitution inside braces">
+    <script>echo {$milestone}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>$milestone</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="variable substitution with text before and after">
+    <script>echo prefix$milestone-suffix</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>prefixm1-suffix</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="hyphen terminates $name variable substitution">
+    <script>echo $current-step</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-step</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+  <test-case name="braced form allows hyphen in variable name">
+    <script>echo ${current-step}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>m1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
 </test-suite>

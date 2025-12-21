@@ -20,6 +20,11 @@ static int is_hex_digit(char c) {
   return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }
 
+static int is_varname_char(char c) {
+  return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+         (c >= '0' && c <= '9') || c == '_' || c == ':';
+}
+
 static int hex_value(char c) {
   if (c >= '0' && c <= '9') return c - '0';
   if (c >= 'a' && c <= 'f') return 10 + c - 'a';
@@ -199,6 +204,73 @@ static TclObj append_to_word(const TclHostOps *ops, TclInterp interp,
   return ops->string.concat(interp, word, segment);
 }
 
+/**
+ * Parse and substitute a variable starting at pos (after the $).
+ * Returns the number of characters consumed.
+ * Appends the variable value to word via word_out.
+ */
+static size_t substitute_variable(const TclHostOps *ops, TclInterp interp,
+                                  const char *pos, const char *end,
+                                  TclObj word, TclObj *word_out) {
+  if (pos >= end) {
+    // Just a $ at end - treat as literal
+    *word_out = append_to_word(ops, interp, word, "$", 1);
+    return 0;
+  }
+
+  if (*pos == '{') {
+    // ${name} form - scan until closing brace
+    const char *name_start = pos + 1;
+    const char *p = name_start;
+    while (p < end && *p != '}') {
+      p++;
+    }
+    if (p >= end) {
+      // No closing brace - treat $ as literal
+      *word_out = append_to_word(ops, interp, word, "$", 1);
+      return 0;
+    }
+    // Found closing brace
+    size_t name_len = p - name_start;
+    TclObj name = ops->string.intern(interp, name_start, name_len);
+    TclObj value = ops->var.get(interp, name);
+    if (ops->list.is_nil(interp, value)) {
+      // Variable not found - substitute empty string
+      *word_out = word;
+    } else {
+      // Get string representation of value
+      size_t val_len;
+      const char *val_str = ops->string.get(interp, value, &val_len);
+      *word_out = append_to_word(ops, interp, word, val_str, val_len);
+    }
+    return (p - pos) + 1; // +1 for closing brace
+  } else if (is_varname_char(*pos)) {
+    // $name form - scan valid variable name characters
+    const char *name_start = pos;
+    const char *p = pos;
+    while (p < end && is_varname_char(*p)) {
+      p++;
+    }
+    size_t name_len = p - name_start;
+    TclObj name = ops->string.intern(interp, name_start, name_len);
+    TclObj value = ops->var.get(interp, name);
+    if (ops->list.is_nil(interp, value)) {
+      // Variable not found - substitute empty string
+      *word_out = word;
+    } else {
+      // Get string representation of value
+      size_t val_len;
+      const char *val_str = ops->string.get(interp, value, &val_len);
+      *word_out = append_to_word(ops, interp, word, val_str, val_len);
+    }
+    return name_len;
+  } else {
+    // Not a valid variable - treat $ as literal
+    *word_out = append_to_word(ops, interp, word, "$", 1);
+    return 0;
+  }
+}
+
 void tcl_parse_init(TclParseContext *ctx, const char *script, size_t len) {
   ctx->script = script;
   ctx->len = len;
@@ -316,7 +388,7 @@ static TclObj parse_word(const TclHostOps *ops, TclInterp interp,
       word = append_to_word(ops, interp, word, content_start, content_len);
 
     } else if (*p == '"') {
-      // Double-quoted string - process backslash escapes
+      // Double-quoted string - process backslash escapes and variable substitution
       const char *quote_start = p;
       p++; // skip opening quote
 
@@ -332,6 +404,15 @@ static TclObj parse_word(const TclHostOps *ops, TclInterp interp,
           size_t escape_len;
           size_t consumed = process_backslash(p, end, escape_buf, &escape_len);
           word = append_to_word(ops, interp, word, escape_buf, escape_len);
+          p += consumed;
+          seg_start = p;
+        } else if (*p == '$') {
+          // Flush segment before $
+          if (p > seg_start) {
+            word = append_to_word(ops, interp, word, seg_start, p - seg_start);
+          }
+          p++; // skip $
+          size_t consumed = substitute_variable(ops, interp, p, end, word, &word);
           p += consumed;
           seg_start = p;
         } else {
@@ -394,11 +475,17 @@ static TclObj parse_word(const TclHostOps *ops, TclInterp interp,
         p += consumed;
       }
 
+    } else if (*p == '$') {
+      // Variable substitution in bare word
+      p++; // skip $
+      size_t consumed = substitute_variable(ops, interp, p, end, word, &word);
+      p += consumed;
+
     } else {
       // Regular character in bare word - collect a run of them
       const char *seg_start = p;
       while (p < end && !is_word_terminator(*p) &&
-             *p != '{' && *p != '"' && *p != '\\') {
+             *p != '{' && *p != '"' && *p != '\\' && *p != '$') {
         p++;
       }
       if (p > seg_start) {

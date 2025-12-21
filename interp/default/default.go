@@ -12,6 +12,10 @@ import (
 func NewHost() *interp.Host {
 	h := interp.NewHost()
 
+	// Set milestone variables
+	h.Interp.SetVar("milestone", "m1")
+	h.Interp.SetVar("current-step", "m1")
+
 	// M1 commands
 	h.Register("say-hello", cmdSayHello)
 	h.Register("echo", cmdEcho)
