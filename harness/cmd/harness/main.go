@@ -9,6 +9,7 @@ import (
 
 func main() {
 	var hostPath string
+	var verbose bool
 
 	cmd := &cobra.Command{
 		Use:   "harness [flags] <test-files-or-dirs>...",
@@ -20,6 +21,7 @@ func main() {
 				TestPaths: args,
 				Output:    os.Stdout,
 				ErrOutput: os.Stderr,
+				Verbose:   verbose,
 			})
 			os.Exit(exitCode)
 		},
@@ -27,6 +29,7 @@ func main() {
 
 	cmd.Flags().StringVar(&hostPath, "host", "", "path to the host executable (required)")
 	cmd.MarkFlagRequired("host")
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "show all test results, not just failures")
 
 	cmd.Execute()
 }

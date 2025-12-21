@@ -11,6 +11,7 @@ type Config struct {
 	TestPaths []string
 	Output    io.Writer
 	ErrOutput io.Writer
+	Verbose   bool
 }
 
 // Run executes the test harness with the given configuration.
@@ -28,7 +29,7 @@ func Run(cfg Config) int {
 	}
 
 	runner := NewRunner(cfg.HostPath, cfg.Output)
-	reporter := NewReporter(cfg.Output)
+	reporter := NewReporter(cfg.Output, cfg.Verbose)
 	var allResults []TestResult
 	hasErrors := false
 

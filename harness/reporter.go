@@ -7,18 +7,21 @@ import (
 
 // Reporter outputs test results.
 type Reporter struct {
-	Out io.Writer
+	Out     io.Writer
+	Verbose bool
 }
 
 // NewReporter creates a reporter that writes to the given output.
-func NewReporter(out io.Writer) *Reporter {
-	return &Reporter{Out: out}
+func NewReporter(out io.Writer, verbose bool) *Reporter {
+	return &Reporter{Out: out, Verbose: verbose}
 }
 
 // ReportResult outputs the result of a single test.
 func (r *Reporter) ReportResult(testFile string, result TestResult) {
 	if result.Passed {
-		fmt.Fprintf(r.Out, "PASS: %s: %s\n", testFile, result.TestCase.Name)
+		if r.Verbose {
+			fmt.Fprintf(r.Out, "PASS: %s: %s\n", testFile, result.TestCase.Name)
+		}
 	} else {
 		fmt.Fprintf(r.Out, "FAIL: %s: %s\n", testFile, result.TestCase.Name)
 		for _, failure := range result.Failures {
