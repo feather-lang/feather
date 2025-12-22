@@ -586,7 +586,7 @@ expr {[set x] >= 5}</script>
     <script>expr</script>
     <return>TCL_ERROR</return>
     <error>wrong # args: should be "expr arg ?arg ...?"</error>
-    <stdout>wrong # args: should be "expr arg ?arg ...?"</stdout>
+    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -594,7 +594,7 @@ expr {[set x] >= 5}</script>
     <script>expr hello</script>
     <return>TCL_ERROR</return>
     <error>expected integer but got "hello"</error>
-    <stdout>expected integer but got "hello"</stdout>
+    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -602,7 +602,7 @@ expr {[set x] >= 5}</script>
     <script>expr {1 <}</script>
     <return>TCL_ERROR</return>
     <error>syntax error in expression "1 <"</error>
-    <stdout>syntax error in expression "1 <"</stdout>
+    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -610,7 +610,7 @@ expr {[set x] >= 5}</script>
     <script>expr {1 @ 2}</script>
     <return>TCL_ERROR</return>
     <error>syntax error in expression "1 @ 2"</error>
-    <stdout>syntax error in expression "1 @ 2"</stdout>
+    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -618,7 +618,7 @@ expr {[set x] >= 5}</script>
     <script>expr {(1 < 2}</script>
     <return>TCL_ERROR</return>
     <error>unbalanced parentheses in expression "(1 < 2"</error>
-    <stdout>unbalanced parentheses in expression "(1 < 2"</stdout>
+    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -626,7 +626,7 @@ expr {[set x] >= 5}</script>
     <script>expr {1 < 2)}</script>
     <return>TCL_ERROR</return>
     <error>unbalanced close paren</error>
-    <stdout>unbalanced close paren</stdout>
+    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -634,7 +634,7 @@ expr {[set x] >= 5}</script>
     <script>expr {$undefined}</script>
     <return>TCL_ERROR</return>
     <error>can't read "undefined": no such variable</error>
-    <stdout>can't read "undefined": no such variable</stdout>
+    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>

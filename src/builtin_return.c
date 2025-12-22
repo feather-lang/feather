@@ -50,7 +50,7 @@ static TclResult parse_code(const TclHostOps *ops, TclInterp interp,
   TclObj msg1 = ops->string.intern(interp, "bad completion code \"", 21);
   TclObj msg2 = ops->string.intern(interp, str, len);
   TclObj msg3 = ops->string.intern(interp,
-    "\": must be ok, error, return, break, continue, or an integer", 61);
+    "\": must be ok, error, return, break, continue, or an integer", 60);
   TclObj msg = ops->string.concat(interp, msg1, msg2);
   msg = ops->string.concat(interp, msg, msg3);
   ops->interp.set_result(interp, msg);
