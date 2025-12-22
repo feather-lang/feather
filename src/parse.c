@@ -757,6 +757,100 @@ static TclObj parse_word(const TclHostOps *ops, TclInterp interp,
   return word;
 }
 
+/**
+ * tcl_subst performs substitutions on a string.
+ *
+ * This is a standalone substitution function that can be used by:
+ * - The expression parser for quoted strings
+ * - The subst builtin command
+ * - Any code needing TCL-style substitution
+ */
+TclResult tcl_subst(const TclHostOps *ops, TclInterp interp,
+                    const char *str, size_t len, int flags) {
+  const char *p = str;
+  const char *end = str + len;
+  TclObj result = 0;  // nil initially
+  const char *seg_start = p;
+
+  while (p < end) {
+    if (*p == '\\' && (flags & TCL_SUBST_BACKSLASHES)) {
+      // Flush segment before backslash
+      if (p > seg_start) {
+        result = append_to_word(ops, interp, result, seg_start, p - seg_start);
+      }
+      p++;  // skip backslash
+      if (p < end) {
+        char escape_buf[4];
+        size_t escape_len;
+        size_t consumed = process_backslash(p, end, escape_buf, &escape_len);
+        result = append_to_word(ops, interp, result, escape_buf, escape_len);
+        p += consumed;
+      }
+      seg_start = p;
+
+    } else if (*p == '$' && (flags & TCL_SUBST_VARIABLES)) {
+      // Flush segment before $
+      if (p > seg_start) {
+        result = append_to_word(ops, interp, result, seg_start, p - seg_start);
+      }
+      p++;  // skip $
+      size_t consumed = substitute_variable(ops, interp, p, end, result, &result);
+      p += consumed;
+      seg_start = p;
+
+    } else if (*p == '[' && (flags & TCL_SUBST_COMMANDS)) {
+      // Flush segment before [
+      if (p > seg_start) {
+        result = append_to_word(ops, interp, result, seg_start, p - seg_start);
+      }
+      p++;  // skip [
+
+      // Find matching close bracket
+      const char *close = find_matching_bracket(p, end);
+      if (close == NULL) {
+        // Unclosed bracket - error
+        TclObj msg = ops->string.intern(interp, "missing close-bracket", 21);
+        ops->interp.set_result(interp, msg);
+        return TCL_ERROR;
+      }
+
+      // Evaluate the command between brackets
+      size_t cmd_len = close - p;
+      TclResult eval_result = tcl_eval_string(ops, interp, p, cmd_len, TCL_EVAL_LOCAL);
+      if (eval_result != TCL_OK) {
+        return TCL_ERROR;
+      }
+
+      // Append command result
+      TclObj cmd_result = ops->interp.get_result(interp);
+      if (!ops->list.is_nil(interp, cmd_result)) {
+        size_t result_len;
+        const char *result_str = ops->string.get(interp, cmd_result, &result_len);
+        result = append_to_word(ops, interp, result, result_str, result_len);
+      }
+
+      p = close + 1;  // skip past ]
+      seg_start = p;
+
+    } else {
+      p++;
+    }
+  }
+
+  // Flush remaining segment
+  if (p > seg_start) {
+    result = append_to_word(ops, interp, result, seg_start, p - seg_start);
+  }
+
+  // Handle empty result
+  if (ops->list.is_nil(interp, result)) {
+    result = ops->string.intern(interp, "", 0);
+  }
+
+  ops->interp.set_result(interp, result);
+  return TCL_OK;
+}
+
 TclParseStatus tcl_parse_command(const TclHostOps *ops, TclInterp interp,
                                   TclParseContext *ctx) {
   const char *script = ctx->script;

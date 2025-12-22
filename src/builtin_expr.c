@@ -352,16 +352,18 @@ static ExprValue parse_braced(ExprParser *p) {
   return make_str(str);
 }
 
-// Parse quoted string "..."
+// Parse quoted string "..." with variable and command substitution
 static ExprValue parse_quoted(ExprParser *p) {
   p->pos++; // skip "
   const char *start = p->pos;
 
+  // Find the closing quote, handling backslash escapes
   while (p->pos < p->end && *p->pos != '"') {
     if (*p->pos == '\\' && p->pos + 1 < p->end) {
+      p->pos += 2;  // skip backslash and following char
+    } else {
       p->pos++;
     }
-    p->pos++;
   }
 
   if (p->pos >= p->end) {
@@ -371,8 +373,16 @@ static ExprValue parse_quoted(ExprParser *p) {
 
   size_t len = p->pos - start;
   p->pos++; // skip closing "
-  TclObj str = p->ops->string.intern(p->interp, start, len);
-  return make_str(str);
+
+  // Perform substitutions on the quoted content
+  TclResult result = tcl_subst(p->ops, p->interp, start, len, TCL_SUBST_ALL);
+  if (result != TCL_OK) {
+    p->has_error = 1;
+    p->error_msg = p->ops->interp.get_result(p->interp);
+    return make_error();
+  }
+
+  return make_str(p->ops->interp.get_result(p->interp));
 }
 
 // Parse number literal (integer or floating-point)

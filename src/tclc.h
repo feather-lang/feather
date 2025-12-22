@@ -230,6 +230,32 @@ TclResult tcl_eval_obj(const TclHostOps *ops, TclInterp interp, TclObj script,
                        TclEvalFlags flags);
 
 /**
+ * Flags for tcl_subst controlling which substitutions to perform.
+ */
+typedef enum {
+  TCL_SUBST_BACKSLASHES = 1,
+  TCL_SUBST_VARIABLES = 2,
+  TCL_SUBST_COMMANDS = 4,
+  TCL_SUBST_ALL = 7
+} TclSubstFlags;
+
+/**
+ * tcl_subst performs substitutions on a string.
+ *
+ * Performs backslash, variable, and/or command substitution on the input
+ * string according to the flags parameter. The result is placed in the
+ * interpreter's result slot.
+ *
+ * This is the core substitution engine used by quoted strings in both
+ * the main parser and expression evaluator, and implements the `subst`
+ * command.
+ *
+ * Returns TCL_OK on success, TCL_ERROR on failure.
+ */
+TclResult tcl_subst(const TclHostOps *ops, TclInterp interp,
+                    const char *str, size_t len, int flags);
+
+/**
  * The heart of the implementation.  An embedder needs to provide all of the
  * following operations.
  *
