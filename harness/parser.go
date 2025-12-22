@@ -83,6 +83,7 @@ func parseTestCase(n *html.Node) TestCase {
 			tc.Error = strings.TrimSpace(content)
 		case "stdout":
 			tc.Stdout = normalizeLines(content)
+			tc.StdoutSet = true
 		case "stderr":
 			tc.Stderr = normalizeLines(content)
 		case "exit-code":

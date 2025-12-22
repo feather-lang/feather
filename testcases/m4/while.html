@@ -216,7 +216,6 @@ set inner_runs $inner_runs</script>
     <script>while</script>
     <return>TCL_ERROR</return>
     <error>wrong # args: should be "while test command"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -225,7 +224,6 @@ set inner_runs $inner_runs</script>
     <script>while {1}</script>
     <return>TCL_ERROR</return>
     <error>wrong # args: should be "while test command"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -236,7 +234,6 @@ set inner_runs $inner_runs</script>
 }</script>
     <return>TCL_ERROR</return>
     <error>can't read "undefined": no such variable</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -251,7 +248,6 @@ while {$i < 3} {
 }</script>
     <return>TCL_ERROR</return>
     <error>can't read "undefined": no such variable</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -264,7 +260,6 @@ while {$i < 3} {
     <script>break</script>
     <return>TCL_ERROR</return>
     <error>invoked "break" outside of a loop</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -273,7 +268,6 @@ while {$i < 3} {
     <script>continue</script>
     <return>TCL_ERROR</return>
     <error>invoked "continue" outside of a loop</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>

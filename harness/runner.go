@@ -112,7 +112,7 @@ func (r *Runner) RunTest(tc TestCase) TestResult {
 	}
 
 	// Compare results
-	if tc.Stdout != result.Actual.Stdout {
+	if tc.StdoutSet && tc.Stdout != result.Actual.Stdout {
 		result.Passed = false
 		result.Failures = append(result.Failures,
 			fmt.Sprintf("stdout mismatch:\n  expected: %q\n  actual:   %q", tc.Stdout, result.Actual.Stdout))

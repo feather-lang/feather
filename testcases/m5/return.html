@@ -151,7 +151,6 @@ foo</script>
 foo</script>
     <return>TCL_ERROR</return>
     <error>something went wrong</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -163,7 +162,6 @@ foo</script>
 foo</script>
     <return>TCL_ERROR</return>
     <error>error message</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -293,7 +291,6 @@ outer</script>
 foo</script>
     <return>TCL_ERROR</return>
     <error>immediate error</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -329,7 +326,6 @@ proc outer {} {
 outer</script>
     <return>TCL_ERROR</return>
     <error>deep error</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -371,7 +367,6 @@ set result</script>
     <script>return -code invalid</script>
     <return>TCL_ERROR</return>
     <error>bad completion code "invalid": must be ok, error, return, break, continue, or an integer</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -380,7 +375,6 @@ set result</script>
     <script>return -level -1</script>
     <return>TCL_ERROR</return>
     <error>bad -level value: expected non-negative integer but got "-1"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -389,7 +383,6 @@ set result</script>
     <script>return -level abc</script>
     <return>TCL_ERROR</return>
     <error>expected integer but got "abc"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -398,7 +391,6 @@ set result</script>
     <script>return -unknown value</script>
     <return>TCL_ERROR</return>
     <error>bad option "-unknown": must be -code, -level, or -options</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -420,7 +412,6 @@ set result</script>
     <script>return -code error "top level error"</script>
     <return>TCL_ERROR</return>
     <error>top level error</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>

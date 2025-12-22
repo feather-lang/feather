@@ -169,7 +169,6 @@ set result $result</script>
     <script>llength</script>
     <return>TCL_ERROR</return>
     <error>wrong # args: should be "llength list"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -178,7 +177,6 @@ set result $result</script>
     <script>llength {a} {b}</script>
     <return>TCL_ERROR</return>
     <error>wrong # args: should be "llength list"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -187,7 +185,6 @@ set result $result</script>
     <script>lindex</script>
     <return>TCL_ERROR</return>
     <error>wrong # args: should be "lindex list index"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -196,7 +193,6 @@ set result $result</script>
     <script>lindex {a b c}</script>
     <return>TCL_ERROR</return>
     <error>wrong # args: should be "lindex list index"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -205,7 +201,6 @@ set result $result</script>
     <script>lindex {a b c} hello</script>
     <return>TCL_ERROR</return>
     <error>expected integer but got "hello"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>

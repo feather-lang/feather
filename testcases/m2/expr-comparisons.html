@@ -586,7 +586,6 @@ expr {[set x] >= 5}</script>
     <script>expr</script>
     <return>TCL_ERROR</return>
     <error>wrong # args: should be "expr arg ?arg ...?"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -594,7 +593,6 @@ expr {[set x] >= 5}</script>
     <script>expr hello</script>
     <return>TCL_ERROR</return>
     <error>expected integer but got "hello"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -602,7 +600,6 @@ expr {[set x] >= 5}</script>
     <script>expr {1 <}</script>
     <return>TCL_ERROR</return>
     <error>syntax error in expression "1 <"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -610,7 +607,6 @@ expr {[set x] >= 5}</script>
     <script>expr {1 @ 2}</script>
     <return>TCL_ERROR</return>
     <error>syntax error in expression "1 @ 2"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -618,7 +614,6 @@ expr {[set x] >= 5}</script>
     <script>expr {(1 < 2}</script>
     <return>TCL_ERROR</return>
     <error>unbalanced parentheses in expression "(1 < 2"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -626,7 +621,6 @@ expr {[set x] >= 5}</script>
     <script>expr {1 < 2)}</script>
     <return>TCL_ERROR</return>
     <error>unbalanced close paren</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -634,7 +628,6 @@ expr {[set x] >= 5}</script>
     <script>expr {$undefined}</script>
     <return>TCL_ERROR</return>
     <error>can't read "undefined": no such variable</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>

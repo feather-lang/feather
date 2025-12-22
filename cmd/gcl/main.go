@@ -35,6 +35,7 @@ func main() {
 	result, err := host.Eval(string(script))
 
 	if err != nil {
+		fmt.Println(err.Error())
 		writeHarnessResult("TCL_ERROR", "", err.Error())
 		os.Exit(1)
 	}

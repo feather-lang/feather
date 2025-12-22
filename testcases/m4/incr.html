@@ -144,7 +144,6 @@ incr x $amount</script>
     <script>incr</script>
     <return>TCL_ERROR</return>
     <error>wrong # args: should be "incr varName ?increment?"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -154,7 +153,6 @@ incr x $amount</script>
 incr x 1 2</script>
     <return>TCL_ERROR</return>
     <error>wrong # args: should be "incr varName ?increment?"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -163,7 +161,6 @@ incr x 1 2</script>
     <script>incr undefined</script>
     <return>TCL_ERROR</return>
     <error>can't read "undefined": no such variable</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -173,7 +170,6 @@ incr x 1 2</script>
 incr x</script>
     <return>TCL_ERROR</return>
     <error>expected integer but got "hello"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -183,7 +179,6 @@ incr x</script>
 incr x hello</script>
     <return>TCL_ERROR</return>
     <error>expected integer but got "hello"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>

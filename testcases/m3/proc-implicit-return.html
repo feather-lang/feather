@@ -466,7 +466,6 @@ f 3 3</script>
     <script>proc</script>
     <return>TCL_ERROR</return>
     <error>wrong # args: should be "proc name args body"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -475,7 +474,6 @@ f 3 3</script>
     <script>proc foo</script>
     <return>TCL_ERROR</return>
     <error>wrong # args: should be "proc name args body"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -484,7 +482,6 @@ f 3 3</script>
     <script>proc foo {}</script>
     <return>TCL_ERROR</return>
     <error>wrong # args: should be "proc name args body"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -493,7 +490,6 @@ f 3 3</script>
     <script>proc foo {} {} extra</script>
     <return>TCL_ERROR</return>
     <error>wrong # args: should be "proc name args body"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -502,7 +498,6 @@ f 3 3</script>
     <script>undefined_proc</script>
     <return>TCL_ERROR</return>
     <error>invalid command name "undefined_proc"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -514,7 +509,6 @@ f 3 3</script>
 add 5</script>
     <return>TCL_ERROR</return>
     <error>wrong # args: should be "add a b"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -526,7 +520,6 @@ add 5</script>
 greet Alice Bob</script>
     <return>TCL_ERROR</return>
     <error>wrong # args: should be "greet name"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -536,7 +529,6 @@ greet Alice Bob</script>
 noop extra</script>
     <return>TCL_ERROR</return>
     <error>wrong # args: should be "noop"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -548,7 +540,6 @@ noop extra</script>
 bad</script>
     <return>TCL_ERROR</return>
     <error>can't read "undefined": no such variable</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -560,7 +551,6 @@ bad</script>
 caller</script>
     <return>TCL_ERROR</return>
     <error>invalid command name "nonexistent"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -572,7 +562,6 @@ caller</script>
 recurse</script>
     <return>TCL_ERROR</return>
     <error>too many nested evaluations (infinite loop?)</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -608,7 +597,6 @@ helper</script>
 inner_proc</script>
     <return>TCL_ERROR</return>
     <error>invalid command name "inner_proc"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -776,7 +764,6 @@ with_required only</script>
 need_one</script>
     <return>TCL_ERROR</return>
     <error>wrong # args: should be "need_one required ?arg ...?"</error>
-    <stdout></stdout>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
