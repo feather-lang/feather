@@ -42,6 +42,7 @@ typedef struct {
   const char *end;     // End of expression
   int has_error;
   TclObj error_msg;
+  int skip_mode;       // When true, skip evaluation (for lazy eval)
 } ExprParser;
 
 // Forward declarations
@@ -277,6 +278,11 @@ static ExprValue parse_variable(ExprParser *p) {
     return make_error();
   }
 
+  // In skip mode, just return a dummy value without evaluating
+  if (p->skip_mode) {
+    return make_int(0);
+  }
+
   TclObj name = p->ops->string.intern(p->interp, name_start, name_len);
   TclObj value = p->ops->var.get(p->interp, name);
 
@@ -318,6 +324,11 @@ static ExprValue parse_command(ExprParser *p) {
 
   size_t cmd_len = p->pos - cmd_start;
   p->pos++; // skip ]
+
+  // In skip mode, just return a dummy value without evaluating
+  if (p->skip_mode) {
+    return make_int(0);
+  }
 
   // Use tcl_eval_string to evaluate the command
   TclResult result = tcl_eval_string(p->ops, p->interp, cmd_start, cmd_len, TCL_EVAL_LOCAL);
@@ -373,6 +384,11 @@ static ExprValue parse_quoted(ExprParser *p) {
 
   size_t len = p->pos - start;
   p->pos++; // skip closing "
+
+  // In skip mode, just return a dummy value without evaluating
+  if (p->skip_mode) {
+    return make_int(0);
+  }
 
   // Perform substitutions on the quoted content
   TclResult result = tcl_subst(p->ops, p->interp, start, len, TCL_SUBST_ALL);
@@ -544,8 +560,11 @@ static ExprValue parse_function_call(ExprParser *p, const char *name, size_t nam
     ExprValue arg = parse_ternary(p);
     if (p->has_error) return make_error();
 
-    TclObj arg_obj = get_obj(p, &arg);
-    args = p->ops->list.push(p->interp, args, arg_obj);
+    // Only collect argument values when not in skip mode
+    if (!p->skip_mode) {
+      TclObj arg_obj = get_obj(p, &arg);
+      args = p->ops->list.push(p->interp, args, arg_obj);
+    }
 
     skip_whitespace(p);
     if (p->pos < p->end && *p->pos == ',') {
@@ -559,6 +578,11 @@ static ExprValue parse_function_call(ExprParser *p, const char *name, size_t nam
     return make_error();
   }
   p->pos++; // skip )
+
+  // In skip mode, just return a dummy value without evaluating
+  if (p->skip_mode) {
+    return make_int(0);
+  }
 
   // Build the command string: "tcl::mathfunc::name arg1 arg2 ..."
   TclObj cmd_str = full_cmd;
@@ -1411,8 +1435,11 @@ static ExprValue parse_logical_and(ExprParser *p) {
       }
       // Short-circuit: if left is false, don't evaluate right
       if (!lv) {
-        // Still need to parse but result is 0
-        ExprValue right = parse_bitwise_or(p);
+        // Skip parsing the right operand (no side effects)
+        int saved_skip = p->skip_mode;
+        p->skip_mode = 1;
+        parse_bitwise_or(p);
+        p->skip_mode = saved_skip;
         if (p->has_error) return make_error();
         left = make_int(0);
       } else {
@@ -1451,7 +1478,11 @@ static ExprValue parse_logical_or(ExprParser *p) {
       }
       // Short-circuit: if left is true, don't evaluate right
       if (lv) {
-        ExprValue right = parse_logical_and(p);
+        // Skip parsing the right operand (no side effects)
+        int saved_skip = p->skip_mode;
+        p->skip_mode = 1;
+        parse_logical_and(p);
+        p->skip_mode = saved_skip;
         if (p->has_error) return make_error();
         left = make_int(1);
       } else {
@@ -1486,20 +1517,44 @@ static ExprValue parse_ternary(ExprParser *p) {
       return make_error();
     }
 
-    ExprValue then_val = parse_ternary(p);
-    if (p->has_error) return make_error();
+    ExprValue result;
+    int saved_skip = p->skip_mode;
 
-    skip_whitespace(p);
-    if (p->pos >= p->end || *p->pos != ':') {
-      set_syntax_error(p);
-      return make_error();
+    if (cv) {
+      // Condition is true: evaluate then branch, skip else branch
+      result = parse_ternary(p);
+      if (p->has_error) return make_error();
+
+      skip_whitespace(p);
+      if (p->pos >= p->end || *p->pos != ':') {
+        set_syntax_error(p);
+        return make_error();
+      }
+      p->pos++;
+
+      p->skip_mode = 1;
+      parse_ternary(p);
+      p->skip_mode = saved_skip;
+      if (p->has_error) return make_error();
+    } else {
+      // Condition is false: skip then branch, evaluate else branch
+      p->skip_mode = 1;
+      parse_ternary(p);
+      p->skip_mode = saved_skip;
+      if (p->has_error) return make_error();
+
+      skip_whitespace(p);
+      if (p->pos >= p->end || *p->pos != ':') {
+        set_syntax_error(p);
+        return make_error();
+      }
+      p->pos++;
+
+      result = parse_ternary(p);
+      if (p->has_error) return make_error();
     }
-    p->pos++;
 
-    ExprValue else_val = parse_ternary(p);
-    if (p->has_error) return make_error();
-
-    return cv ? then_val : else_val;
+    return result;
   }
 
   return cond;
@@ -1541,7 +1596,8 @@ TclResult tcl_builtin_expr(const TclHostOps *ops, TclInterp interp,
     .pos = expr_str,
     .end = expr_str + expr_len,
     .has_error = 0,
-    .error_msg = 0
+    .error_msg = 0,
+    .skip_mode = 0
   };
 
   // Parse and evaluate
