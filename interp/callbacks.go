@@ -86,6 +86,25 @@ func goStringConcat(interp C.TclInterp, a C.TclObj, b C.TclObj) C.TclObj {
 	return C.TclObj(i.internString(strA + strB))
 }
 
+//export goStringCompare
+func goStringCompare(interp C.TclInterp, a C.TclObj, b C.TclObj) C.int {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	// Use GetString for shimmering (int/list → string)
+	strA := i.GetString(TclObj(a))
+	strB := i.GetString(TclObj(b))
+	// Go's string comparison is already Unicode-aware (UTF-8)
+	if strA < strB {
+		return -1
+	}
+	if strA > strB {
+		return 1
+	}
+	return 0
+}
+
 //export goInterpSetResult
 func goInterpSetResult(interp C.TclInterp, result C.TclObj) C.TclResult {
 	i := getInterp(interp)
@@ -117,12 +136,21 @@ func goInterpResetResult(interp C.TclInterp, result C.TclObj) C.TclResult {
 
 //export goInterpSetReturnOptions
 func goInterpSetReturnOptions(interp C.TclInterp, options C.TclObj) C.TclResult {
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	i.returnOptions = TclObj(options)
 	return C.TCL_OK
 }
 
 //export goInterpGetReturnOptions
 func goInterpGetReturnOptions(interp C.TclInterp, code C.TclResult) C.TclObj {
-	return 0
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	return C.TclObj(i.returnOptions)
 }
 
 //export goListCreate

@@ -1,0 +1,428 @@
+<test-suite>
+  <!--
+    M5: return command
+
+    The return command exits a procedure and optionally returns a value.
+    It supports:
+    - Basic return with optional value
+    - -code option to specify the return code
+    - -level option to control when the code takes effect
+  -->
+
+  <!-- ============================================= -->
+  <!-- Basic return                                  -->
+  <!-- ============================================= -->
+
+  <test-case name="return without value returns empty string">
+    <script>proc foo {} {
+    return
+}
+foo</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="return with value returns that value">
+    <script>proc foo {} {
+    return hello
+}
+foo</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="return exits early from procedure">
+    <script>proc foo {} {
+    return early
+    set x never
+}
+foo</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>early</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="return with computed value">
+    <script>proc double {x} {
+    return [expr {$x * 2}]
+}
+double 5</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="return in nested if">
+    <script>proc check {x} {
+    if {$x > 0} {
+        return positive
+    }
+    return nonpositive
+}
+check 5</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>positive</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="return in nested if false branch">
+    <script>proc check {x} {
+    if {$x > 0} {
+        return positive
+    }
+    return nonpositive
+}
+check -3</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>nonpositive</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="return exits from while loop">
+    <script>proc find_first {lst val} {
+    set i 0
+    set len [llength $lst]
+    while {$i < $len} {
+        if {[lindex $lst $i] == $val} {
+            return $i
+        }
+        incr i
+    }
+    return -1
+}
+find_first {10 20 30 40} 30</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- return -code ok                               -->
+  <!-- ============================================= -->
+
+  <test-case name="return -code ok is same as plain return">
+    <script>proc foo {} {
+    return -code ok done
+}
+foo</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>done</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="return -code 0 is same as -code ok">
+    <script>proc foo {} {
+    return -code 0 done
+}
+foo</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>done</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- return -code error                            -->
+  <!-- ============================================= -->
+
+  <test-case name="return -code error makes proc return error">
+    <script>proc foo {} {
+    return -code error "something went wrong"
+}
+foo</script>
+    <return>TCL_ERROR</return>
+    <error>something went wrong</error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="return -code 1 is same as -code error">
+    <script>proc foo {} {
+    return -code 1 "error message"
+}
+foo</script>
+    <return>TCL_ERROR</return>
+    <error>error message</error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- return -code break                            -->
+  <!-- ============================================= -->
+
+  <test-case name="return -code break makes proc return break">
+    <script>proc my_break {} {
+    return -code break
+}
+set result ""
+set i 0
+while {$i < 5} {
+    if {$i == 3} {
+        my_break
+    }
+    set result "$result$i"
+    incr i
+}
+set result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>012</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="return -code 3 is same as -code break">
+    <script>proc my_break {} {
+    return -code 3
+}
+set result ""
+set i 0
+while {$i < 5} {
+    if {$i == 3} {
+        my_break
+    }
+    set result "$result$i"
+    incr i
+}
+set result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>012</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- return -code continue                         -->
+  <!-- ============================================= -->
+
+  <test-case name="return -code continue makes proc return continue">
+    <script>proc maybe_skip {i} {
+    if {$i == 2} {
+        return -code continue
+    }
+}
+set result ""
+set i 0
+while {$i < 5} {
+    set current $i
+    incr i
+    maybe_skip $current
+    set result "$result$current"
+}
+set result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0134</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="return -code 4 is same as -code continue">
+    <script>proc maybe_skip {i} {
+    if {$i == 2} {
+        return -code 4
+    }
+}
+set result ""
+set i 0
+while {$i < 5} {
+    set current $i
+    incr i
+    maybe_skip $current
+    set result "$result$current"
+}
+set result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0134</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- return -code return                           -->
+  <!-- ============================================= -->
+
+  <test-case name="return -code return with -level 1 causes caller to return">
+    <script>proc inner {} {
+    return -code return -level 1 "from inner"
+}
+proc outer {} {
+    inner
+    return "should not reach here"
+}
+outer</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>from inner</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- return -level 0                               -->
+  <!-- ============================================= -->
+
+  <test-case name="return -level 0 -code error returns error immediately">
+    <script>proc foo {} {
+    return -level 0 -code error "immediate error"
+}
+foo</script>
+    <return>TCL_ERROR</return>
+    <error>immediate error</error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="return -level 0 -code ok returns ok immediately">
+    <script>proc foo {} {
+    return -level 0 -code ok "immediate ok"
+}
+foo</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>immediate ok</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- return -level 2 (propagates through 2 procs) -->
+  <!-- ============================================= -->
+
+  <test-case name="return -level 2 -code error propagates through two calls">
+    <script>proc inner {} {
+    return -level 2 -code error "deep error"
+}
+proc middle {} {
+    inner
+    return "middle done"
+}
+proc outer {} {
+    middle
+    return "outer done"
+}
+outer</script>
+    <return>TCL_ERROR</return>
+    <error>deep error</error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="return -level 2 -code break propagates through two calls">
+    <script>proc deep_break {} {
+    return -level 2 -code break
+}
+proc inner {} {
+    deep_break
+    return "inner done"
+}
+proc outer {} {
+    inner
+    return "outer done"
+}
+set result ""
+set i 0
+while {$i < 5} {
+    if {$i == 2} {
+        outer
+    }
+    set result "$result$i"
+    incr i
+}
+set result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>01</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Edge cases and error handling                 -->
+  <!-- ============================================= -->
+
+  <test-case name="return with invalid -code gives error">
+    <script>return -code invalid</script>
+    <return>TCL_ERROR</return>
+    <error>bad completion code "invalid": must be ok, error, return, break, continue, or an integer</error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="return with negative -level gives error">
+    <script>return -level -1</script>
+    <return>TCL_ERROR</return>
+    <error>bad -level value: expected non-negative integer but got "-1"</error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="return with non-integer -level gives error">
+    <script>return -level abc</script>
+    <return>TCL_ERROR</return>
+    <error>expected integer but got "abc"</error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="return with unknown option gives error">
+    <script>return -unknown value</script>
+    <return>TCL_ERROR</return>
+    <error>bad option "-unknown": must be -code, -level, or -options</error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- return at top level                           -->
+  <!-- ============================================= -->
+
+  <test-case name="return at top level returns value">
+    <script>return hello</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="return -code error at top level gives error">
+    <script>return -code error "top level error"</script>
+    <return>TCL_ERROR</return>
+    <error>top level error</error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

@@ -160,5 +160,63 @@ TclResult tcl_invoke_proc(const TclHostOps *ops, TclInterp interp,
   // Pop the call frame
   ops->frame.pop(interp);
 
+  // Handle TCL_RETURN specially
+  if (result == TCL_RETURN) {
+    // Get the return options
+    TclObj opts = ops->interp.get_return_options(interp, result);
+
+    // Parse -code and -level from the options list
+    // Options list format: {-code X -level Y}
+    int code = TCL_OK;
+    int level = 1;
+
+    size_t optsLen = ops->list.length(interp, opts);
+    TclObj optsCopy = ops->list.from(interp, opts);
+
+    for (size_t i = 0; i + 1 < optsLen; i += 2) {
+      TclObj key = ops->list.shift(interp, optsCopy);
+      TclObj val = ops->list.shift(interp, optsCopy);
+
+      size_t keyLen;
+      const char *keyStr = ops->string.get(interp, key, &keyLen);
+
+      if (keyLen == 5 && keyStr[0] == '-' && keyStr[1] == 'c' &&
+          keyStr[2] == 'o' && keyStr[3] == 'd' && keyStr[4] == 'e') {
+        int64_t intVal;
+        if (ops->integer.get(interp, val, &intVal) == TCL_OK) {
+          code = (int)intVal;
+        }
+      } else if (keyLen == 6 && keyStr[0] == '-' && keyStr[1] == 'l' &&
+                 keyStr[2] == 'e' && keyStr[3] == 'v' && keyStr[4] == 'e' &&
+                 keyStr[5] == 'l') {
+        int64_t intVal;
+        if (ops->integer.get(interp, val, &intVal) == TCL_OK) {
+          level = (int)intVal;
+        }
+      }
+    }
+
+    // Decrement level
+    level--;
+
+    if (level <= 0) {
+      // Level reached 0, apply the -code
+      return (TclResult)code;
+    } else {
+      // Level > 0, update options and keep returning TCL_RETURN
+      TclObj newOpts = ops->list.create(interp);
+      newOpts = ops->list.push(interp, newOpts,
+                               ops->string.intern(interp, "-code", 5));
+      newOpts = ops->list.push(interp, newOpts,
+                               ops->integer.create(interp, code));
+      newOpts = ops->list.push(interp, newOpts,
+                               ops->string.intern(interp, "-level", 6));
+      newOpts = ops->list.push(interp, newOpts,
+                               ops->integer.create(interp, level));
+      ops->interp.set_return_options(interp, newOpts);
+      return TCL_RETURN;
+    }
+  }
+
   return result;
 }

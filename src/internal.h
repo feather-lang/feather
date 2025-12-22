@@ -109,4 +109,28 @@ TclResult tcl_builtin_lindex(const TclHostOps *ops, TclInterp interp,
 TclResult tcl_builtin_run(const TclHostOps *ops, TclInterp interp,
                            TclObj cmd, TclObj args);
 
+/**
+ * tcl_builtin_return implements the TCL 'return' command.
+ *
+ * Usage:
+ *   return ?-code code? ?-level level? ?result?
+ *
+ * Returns from a procedure with an optional result value.
+ * The -code option specifies the return code.
+ * The -level option controls when the code takes effect.
+ */
+TclResult tcl_builtin_return(const TclHostOps *ops, TclInterp interp,
+                              TclObj cmd, TclObj args);
+
+/**
+ * tcl_builtin_mathfunc_exp implements the tcl::mathfunc::exp function.
+ *
+ * Usage:
+ *   tcl::mathfunc::exp value
+ *
+ * Returns floor(e^value) for integer value.
+ */
+TclResult tcl_builtin_mathfunc_exp(const TclHostOps *ops, TclInterp interp,
+                                    TclObj cmd, TclObj args);
+
 #endif

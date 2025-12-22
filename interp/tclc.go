@@ -89,9 +89,10 @@ type Interp struct {
 	procs          map[string]*Procedure // user-defined procedures
 	nextID         TclObj
 	result         TclObj
-	frames         []*CallFrame // call stack (frame 0 is global)
-	active         int          // currently active frame index
-	recursionLimit int          // maximum call stack depth (0 means use default)
+	returnOptions  TclObj               // options from the last return command
+	frames         []*CallFrame         // call stack (frame 0 is global)
+	active         int                  // currently active frame index
+	recursionLimit int                  // maximum call stack depth (0 means use default)
 	mu             sync.Mutex
 
 	// UnknownHandler is called when an unknown command is invoked.
@@ -283,6 +284,40 @@ func (i *Interp) Eval(script string) (string, error) {
 	result := callCEval(i.handle, scriptHandle)
 
 	if result == C.TCL_OK {
+		return i.GetString(i.result), nil
+	}
+
+	// Handle TCL_RETURN at top level - apply the return options
+	if result == C.TCL_RETURN {
+		// Get return options and apply the code
+		var code C.TclResult = C.TCL_OK
+		if i.returnOptions != 0 {
+			items, err := i.GetList(i.returnOptions)
+			if err == nil {
+				for j := 0; j+1 < len(items); j += 2 {
+					key := i.GetString(items[j])
+					if key == "-code" {
+						if codeVal, err := i.GetInt(items[j+1]); err == nil {
+							code = C.TclResult(codeVal)
+						}
+					}
+				}
+			}
+		}
+		// Apply the extracted code
+		if code == C.TCL_OK {
+			return i.GetString(i.result), nil
+		}
+		if code == C.TCL_ERROR {
+			return "", &EvalError{Message: i.GetString(i.result)}
+		}
+		if code == C.TCL_BREAK {
+			return "", &EvalError{Message: "invoked \"break\" outside of a loop"}
+		}
+		if code == C.TCL_CONTINUE {
+			return "", &EvalError{Message: "invoked \"continue\" outside of a loop"}
+		}
+		// For other codes, treat as ok
 		return i.GetString(i.result), nil
 	}
 

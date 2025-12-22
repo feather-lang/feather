@@ -301,6 +301,12 @@ typedef struct TclStringOps {
    * the concatenation of two objects.
    */
   TclObj (*concat)(TclInterp interp, TclObj a, TclObj b);
+
+  /**
+   * compare compares two strings using Unicode ordering.
+   * Returns <0 if a < b, 0 if a == b, >0 if a > b.
+   */
+  int (*compare)(TclInterp interp, TclObj a, TclObj b);
 } TclStringOps;
 
 /**
