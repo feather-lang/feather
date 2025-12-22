@@ -274,16 +274,19 @@ static const char *find_matching_bracket(const char *pos, const char *end) {
 
 /**
  * Parse and substitute a variable starting at pos (after the $).
- * Returns the number of characters consumed.
+ * Returns the number of characters consumed via consumed_out.
  * Appends the variable value to word via word_out.
+ * Returns TCL_OK on success, TCL_ERROR if variable doesn't exist.
  */
-static size_t substitute_variable(const TclHostOps *ops, TclInterp interp,
-                                  const char *pos, const char *end,
-                                  TclObj word, TclObj *word_out) {
+static TclResult substitute_variable(const TclHostOps *ops, TclInterp interp,
+                                     const char *pos, const char *end,
+                                     TclObj word, TclObj *word_out,
+                                     size_t *consumed_out) {
   if (pos >= end) {
     // Just a $ at end - treat as literal
     *word_out = append_to_word(ops, interp, word, "$", 1);
-    return 0;
+    *consumed_out = 0;
+    return TCL_OK;
   }
 
   if (*pos == '{') {
@@ -296,22 +299,29 @@ static size_t substitute_variable(const TclHostOps *ops, TclInterp interp,
     if (p >= end) {
       // No closing brace - treat $ as literal
       *word_out = append_to_word(ops, interp, word, "$", 1);
-      return 0;
+      *consumed_out = 0;
+      return TCL_OK;
     }
     // Found closing brace
     size_t name_len = p - name_start;
     TclObj name = ops->string.intern(interp, name_start, name_len);
     TclObj value = ops->var.get(interp, name);
     if (ops->list.is_nil(interp, value)) {
-      // Variable not found - substitute empty string
-      *word_out = word;
-    } else {
-      // Get string representation of value
-      size_t val_len;
-      const char *val_str = ops->string.get(interp, value, &val_len);
-      *word_out = append_to_word(ops, interp, word, val_str, val_len);
+      // Variable not found - raise error
+      TclObj msg1 = ops->string.intern(interp, "can't read \"", 12);
+      TclObj msg2 = ops->string.intern(interp, name_start, name_len);
+      TclObj msg3 = ops->string.intern(interp, "\": no such variable", 19);
+      TclObj msg = ops->string.concat(interp, msg1, msg2);
+      msg = ops->string.concat(interp, msg, msg3);
+      ops->interp.set_result(interp, msg);
+      return TCL_ERROR;
     }
-    return (p - pos) + 1; // +1 for closing brace
+    // Get string representation of value
+    size_t val_len;
+    const char *val_str = ops->string.get(interp, value, &val_len);
+    *word_out = append_to_word(ops, interp, word, val_str, val_len);
+    *consumed_out = (p - pos) + 1; // +1 for closing brace
+    return TCL_OK;
   } else if (is_varname_char(*pos)) {
     // $name form - scan valid variable name characters
     const char *name_start = pos;
@@ -323,19 +333,26 @@ static size_t substitute_variable(const TclHostOps *ops, TclInterp interp,
     TclObj name = ops->string.intern(interp, name_start, name_len);
     TclObj value = ops->var.get(interp, name);
     if (ops->list.is_nil(interp, value)) {
-      // Variable not found - substitute empty string
-      *word_out = word;
-    } else {
-      // Get string representation of value
-      size_t val_len;
-      const char *val_str = ops->string.get(interp, value, &val_len);
-      *word_out = append_to_word(ops, interp, word, val_str, val_len);
+      // Variable not found - raise error
+      TclObj msg1 = ops->string.intern(interp, "can't read \"", 12);
+      TclObj msg2 = ops->string.intern(interp, name_start, name_len);
+      TclObj msg3 = ops->string.intern(interp, "\": no such variable", 19);
+      TclObj msg = ops->string.concat(interp, msg1, msg2);
+      msg = ops->string.concat(interp, msg, msg3);
+      ops->interp.set_result(interp, msg);
+      return TCL_ERROR;
     }
-    return name_len;
+    // Get string representation of value
+    size_t val_len;
+    const char *val_str = ops->string.get(interp, value, &val_len);
+    *word_out = append_to_word(ops, interp, word, val_str, val_len);
+    *consumed_out = name_len;
+    return TCL_OK;
   } else {
     // Not a valid variable - treat $ as literal
     *word_out = append_to_word(ops, interp, word, "$", 1);
-    return 0;
+    *consumed_out = 0;
+    return TCL_OK;
   }
 }
 
@@ -643,7 +660,11 @@ static TclObj parse_word(const TclHostOps *ops, TclInterp interp,
             word = append_to_word(ops, interp, word, seg_start, p - seg_start);
           }
           p++; // skip $
-          size_t consumed = substitute_variable(ops, interp, p, end, word, &word);
+          size_t consumed;
+          if (substitute_variable(ops, interp, p, end, word, &word, &consumed) != TCL_OK) {
+            *status = TCL_PARSE_ERROR;
+            return 0;
+          }
           p += consumed;
           seg_start = p;
         } else if (*p == '[') {
@@ -721,7 +742,11 @@ static TclObj parse_word(const TclHostOps *ops, TclInterp interp,
     } else if (*p == '$') {
       // Variable substitution in bare word
       p++; // skip $
-      size_t consumed = substitute_variable(ops, interp, p, end, word, &word);
+      size_t consumed;
+      if (substitute_variable(ops, interp, p, end, word, &word, &consumed) != TCL_OK) {
+        *status = TCL_PARSE_ERROR;
+        return 0;
+      }
       p += consumed;
 
     } else if (*p == '[') {
@@ -794,7 +819,10 @@ TclResult tcl_subst(const TclHostOps *ops, TclInterp interp,
         result = append_to_word(ops, interp, result, seg_start, p - seg_start);
       }
       p++;  // skip $
-      size_t consumed = substitute_variable(ops, interp, p, end, result, &result);
+      size_t consumed;
+      if (substitute_variable(ops, interp, p, end, result, &result, &consumed) != TCL_OK) {
+        return TCL_ERROR;
+      }
       p += consumed;
       seg_start = p;
 

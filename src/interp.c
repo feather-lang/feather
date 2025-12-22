@@ -22,6 +22,8 @@ static const BuiltinEntry builtins[] = {
     {"run", tcl_builtin_run},
     {"return", tcl_builtin_return},
     {"tcl::mathfunc::exp", tcl_builtin_mathfunc_exp},
+    {"error", tcl_builtin_error},
+    {"catch", tcl_builtin_catch},
     {NULL, NULL} // sentinel
 };
 

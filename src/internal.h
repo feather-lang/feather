@@ -133,4 +133,31 @@ TclResult tcl_builtin_return(const TclHostOps *ops, TclInterp interp,
 TclResult tcl_builtin_mathfunc_exp(const TclHostOps *ops, TclInterp interp,
                                     TclObj cmd, TclObj args);
 
+/**
+ * tcl_builtin_error implements the TCL 'error' command.
+ *
+ * Usage:
+ *   error message ?info? ?code?
+ *
+ * Raises an error with the given message.
+ * Optional info is stored in errorInfo.
+ * Optional code is stored in errorCode.
+ */
+TclResult tcl_builtin_error(const TclHostOps *ops, TclInterp interp,
+                             TclObj cmd, TclObj args);
+
+/**
+ * tcl_builtin_catch implements the TCL 'catch' command.
+ *
+ * Usage:
+ *   catch script ?resultVar? ?optionsVar?
+ *
+ * Evaluates script and captures the return code.
+ * If resultVar is provided, stores the result/error in it.
+ * If optionsVar is provided, stores the return options dictionary.
+ * Returns the return code as an integer.
+ */
+TclResult tcl_builtin_catch(const TclHostOps *ops, TclInterp interp,
+                             TclObj cmd, TclObj args);
+
 #endif

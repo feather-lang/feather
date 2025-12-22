@@ -336,7 +336,8 @@ echo hello</script>
     <exit-code>0</exit-code>
   </test-case>
   <test-case name="hyphen terminates $name variable substitution">
-    <script>echo $current-step</script>
+    <script>set current ""
+echo $current-step</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>-step</stdout>

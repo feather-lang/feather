@@ -649,4 +649,12 @@ TclResult tcl_builtin_set(const TclHostOps *ops, TclInterp interp,
  */
 TclResult tcl_builtin_expr(const TclHostOps *ops, TclInterp interp,
                            TclObj cmd, TclObj args);
+
+/**
+ * tcl_strlen counts bytes in a null-terminated C string, excluding the null.
+ *
+ * This is equivalent to strlen but avoids stdlib dependency.
+ */
+size_t tcl_strlen(const char *s);
+
 #endif
