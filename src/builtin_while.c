@@ -83,10 +83,8 @@ TclResult tcl_builtin_while(const TclHostOps *ops, TclInterp interp,
       break;
     }
 
-    // Execute body - get string and evaluate as script
-    size_t bodyLen;
-    const char *bodyStr = ops->string.get(interp, body, &bodyLen);
-    rc = tcl_eval_string(ops, interp, bodyStr, bodyLen, TCL_EVAL_LOCAL);
+    // Execute body as a script
+    rc = tcl_script_eval_obj(ops, interp, body, TCL_EVAL_LOCAL);
 
     if (rc == TCL_BREAK) {
       // break was invoked - exit loop normally

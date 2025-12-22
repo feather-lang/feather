@@ -152,10 +152,8 @@ TclResult tcl_invoke_proc(const TclHostOps *ops, TclInterp interp,
     }
   }
 
-  // Get the string representation of the body and evaluate it
-  size_t bodyLen;
-  const char *bodyStr = ops->string.get(interp, body, &bodyLen);
-  TclResult result = tcl_eval_string(ops, interp, bodyStr, bodyLen, TCL_EVAL_LOCAL);
+  // Evaluate the body as a script
+  TclResult result = tcl_script_eval_obj(ops, interp, body, TCL_EVAL_LOCAL);
 
   // Pop the call frame
   ops->frame.pop(interp);

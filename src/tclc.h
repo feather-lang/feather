@@ -213,21 +213,79 @@ typedef enum {
   TCL_EVAL_GLOBAL = 1,
 } TclEvalFlags;
 
-/**
- * tcl_eval_string evaluates a string in the context of the given interpreter.
+/*
+ * EVALUATION API
  *
- * The result of the evaluation is in the interpreter's result slot.
- */
-TclResult tcl_eval_string(const TclHostOps *ops, TclInterp interp,
-                          const char *script, size_t len, TclEvalFlags flags);
-/**
- * tcl_eval_obj evaluates the script contained in the object
- * in the context of the given interpreter.
+ * TCL has two distinct representations that can be "evaluated":
  *
- * The result of the evaluation is in the interpreter's result slot.
+ * Script  - Source code as a string. May contain multiple commands
+ *           separated by newlines or semicolons.
+ *           Analogous to: Lisp source text before READ
+ *
+ * Command - A parsed command: a list [name, arg1, arg2, ...] where
+ *           each element is a word (string/object). Arguments are
+ *           NOT recursively parsed - they're strings that may contain
+ *           source code for later evaluation.
+ *           Analogous to: A single Lisp form, but with string leaves
+ *
+ * The key insight: TCL command arguments are strings, not nested ASTs.
+ * When you write:
+ *
+ *   if {$x > 0} {puts yes}
+ *
+ * The `if` command receives two STRING arguments: "$x > 0" and "puts yes".
+ * It decides when/whether to parse and evaluate them. This is like Lisp
+ * fexprs, not regular functions.
+ *
+ * The braces { } produce string literals - they are NOT parsed until
+ * a command explicitly evaluates them. This enables:
+ *   - if/while to avoid evaluating unused branches
+ *   - proc to store the body for later execution
+ *   - catch to trap errors from the body
  */
-TclResult tcl_eval_obj(const TclHostOps *ops, TclInterp interp, TclObj script,
-                       TclEvalFlags flags);
+
+/**
+ * tcl_command_exec executes a single parsed command.
+ *
+ * The command must be a list [name, arg1, arg2, ...].
+ * Looks up 'name' and invokes it with the argument list.
+ * Arguments are NOT evaluated - the command receives them as-is.
+ *
+ * Lisp equivalent: (APPLY fn args), but args are not evaluated.
+ * More precisely: like calling a fexpr/macro.
+ *
+ * The result of execution is in the interpreter's result slot.
+ */
+TclResult tcl_command_exec(const TclHostOps *ops, TclInterp interp,
+                           TclObj command, TclEvalFlags flags);
+
+/**
+ * tcl_script_eval evaluates a script string.
+ *
+ * Parses each command and executes it. Stops on error or when
+ * a command returns a non-OK code (break/continue/return).
+ *
+ * Lisp equivalent: (PROGN (EVAL (READ s)) ...) for each command in s,
+ * but commands are executed as they're parsed, not batched.
+ *
+ * The result of the last command is in the interpreter's result slot.
+ */
+TclResult tcl_script_eval(const TclHostOps *ops, TclInterp interp,
+                          const char *source, size_t len, TclEvalFlags flags);
+
+/**
+ * tcl_script_eval_obj evaluates a script object.
+ *
+ * Gets the string representation of the object and evaluates it
+ * as a script. This is what control structures (if, while, catch, proc)
+ * use to evaluate their body arguments.
+ *
+ * Lisp equivalent: (EVAL obj) where obj is expected to contain source code.
+ *
+ * The result is in the interpreter's result slot.
+ */
+TclResult tcl_script_eval_obj(const TclHostOps *ops, TclInterp interp,
+                              TclObj script, TclEvalFlags flags);
 
 /**
  * Flags for tcl_subst controlling which substitutions to perform.

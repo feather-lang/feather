@@ -330,8 +330,8 @@ static ExprValue parse_command(ExprParser *p) {
     return make_int(0);
   }
 
-  // Use tcl_eval_string to evaluate the command
-  TclResult result = tcl_eval_string(p->ops, p->interp, cmd_start, cmd_len, TCL_EVAL_LOCAL);
+  // Use tcl_script_eval to evaluate the command
+  TclResult result = tcl_script_eval(p->ops, p->interp, cmd_start, cmd_len, TCL_EVAL_LOCAL);
   if (result != TCL_OK) {
     p->has_error = 1;
     p->error_msg = p->ops->interp.get_result(p->interp);
@@ -597,7 +597,7 @@ static ExprValue parse_function_call(ExprParser *p, const char *name, size_t nam
   // Evaluate the command
   size_t cmd_len;
   const char *cmd_cstr = p->ops->string.get(p->interp, cmd_str, &cmd_len);
-  TclResult result = tcl_eval_string(p->ops, p->interp, cmd_cstr, cmd_len, TCL_EVAL_LOCAL);
+  TclResult result = tcl_script_eval(p->ops, p->interp, cmd_cstr, cmd_len, TCL_EVAL_LOCAL);
   if (result != TCL_OK) {
     p->has_error = 1;
     p->error_msg = p->ops->interp.get_result(p->interp);

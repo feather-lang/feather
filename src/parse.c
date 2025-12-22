@@ -386,7 +386,7 @@ static int substitute_command(const TclHostOps *ops, TclInterp interp,
 
   // Extract and evaluate the script between brackets
   size_t cmd_len = close - pos;
-  TclResult eval_result = tcl_eval_string(ops, interp, pos, cmd_len, TCL_EVAL_LOCAL);
+  TclResult eval_result = tcl_script_eval(ops, interp, pos, cmd_len, TCL_EVAL_LOCAL);
 
   if (eval_result != TCL_OK) {
     *status = TCL_PARSE_ERROR;
@@ -844,7 +844,7 @@ TclResult tcl_subst(const TclHostOps *ops, TclInterp interp,
 
       // Evaluate the command between brackets
       size_t cmd_len = close - p;
-      TclResult eval_result = tcl_eval_string(ops, interp, p, cmd_len, TCL_EVAL_LOCAL);
+      TclResult eval_result = tcl_script_eval(ops, interp, p, cmd_len, TCL_EVAL_LOCAL);
       if (eval_result != TCL_OK) {
         return TCL_ERROR;
       }

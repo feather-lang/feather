@@ -96,9 +96,7 @@ TclResult tcl_builtin_if(const TclHostOps *ops, TclInterp interp,
         return TCL_ERROR;
       }
       TclObj body = ops->list.shift(interp, argsCopy);
-      size_t bodyLen;
-      const char *bodyStr = ops->string.get(interp, body, &bodyLen);
-      return tcl_eval_string(ops, interp, bodyStr, bodyLen, TCL_EVAL_LOCAL);
+      return tcl_script_eval_obj(ops, interp, body, TCL_EVAL_LOCAL);
     }
 
     // Check for 'elseif' keyword
@@ -149,9 +147,7 @@ TclResult tcl_builtin_if(const TclHostOps *ops, TclInterp interp,
 
     if (condResult) {
       // Condition is true, execute body as script
-      size_t bodyLen;
-      const char *bodyStr = ops->string.get(interp, body, &bodyLen);
-      return tcl_eval_string(ops, interp, bodyStr, bodyLen, TCL_EVAL_LOCAL);
+      return tcl_script_eval_obj(ops, interp, body, TCL_EVAL_LOCAL);
     }
 
     // Condition is false, continue to next clause (elseif/else)

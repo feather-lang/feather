@@ -15,7 +15,5 @@ TclResult tcl_builtin_run(const TclHostOps *ops, TclInterp interp,
 
   TclObj script = ops->list.shift(interp, args);
 
-  size_t bodyLen;
-  const char *bodyStr = ops->string.get(interp, script, &bodyLen);
-  return tcl_eval_string(ops, interp, bodyStr, bodyLen, TCL_EVAL_LOCAL);
+  return tcl_script_eval_obj(ops, interp, script, TCL_EVAL_LOCAL);
 }

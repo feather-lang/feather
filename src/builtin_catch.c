@@ -22,11 +22,8 @@ TclResult tcl_builtin_catch(const TclHostOps *ops, TclInterp interp,
   // Get the script to evaluate
   TclObj script = ops->list.at(interp, args, 0);
 
-  // Get the string representation of the script and evaluate it
-  size_t scriptLen;
-  const char *scriptStr = ops->string.get(interp, script, &scriptLen);
-  TclResult code = tcl_eval_string(ops, interp, scriptStr, scriptLen,
-                                   TCL_EVAL_LOCAL);
+  // Evaluate the script object
+  TclResult code = tcl_script_eval_obj(ops, interp, script, TCL_EVAL_LOCAL);
 
   // Handle TCL_RETURN specially - unwrap to get the actual code
   if (code == TCL_RETURN) {
