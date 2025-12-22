@@ -24,11 +24,13 @@
  * Math functions are delegated to tcl::mathfunc::name commands.
  */
 
-// ExprValue can be either an integer or a string (TclObj)
+// ExprValue can be an integer, double, or string (TclObj)
 typedef struct {
   int64_t int_val;
+  double dbl_val;
   TclObj str_val;      // 0 means no string value
   int is_int;          // 1 if has valid integer rep
+  int is_double;       // 1 if has valid double rep
 } ExprValue;
 
 typedef struct {
@@ -59,25 +61,38 @@ static ExprValue parse_primary(ExprParser *p);
 
 // Create an integer ExprValue
 static ExprValue make_int(int64_t val) {
-  ExprValue v = {.int_val = val, .str_val = 0, .is_int = 1};
+  ExprValue v = {.int_val = val, .dbl_val = 0, .str_val = 0, .is_int = 1, .is_double = 0};
+  return v;
+}
+
+// Create a double ExprValue
+static ExprValue make_double(double val) {
+  ExprValue v = {.int_val = 0, .dbl_val = val, .str_val = 0, .is_int = 0, .is_double = 1};
   return v;
 }
 
 // Create a string ExprValue
 static ExprValue make_str(TclObj obj) {
-  ExprValue v = {.int_val = 0, .str_val = obj, .is_int = 0};
+  ExprValue v = {.int_val = 0, .dbl_val = 0, .str_val = obj, .is_int = 0, .is_double = 0};
   return v;
 }
 
 // Create an error ExprValue (signals error without value)
 static ExprValue make_error(void) {
-  ExprValue v = {.int_val = 0, .str_val = 0, .is_int = 0};
+  ExprValue v = {.int_val = 0, .dbl_val = 0, .str_val = 0, .is_int = 0, .is_double = 0};
   return v;
 }
 
 // Get integer from ExprValue, shimmering if needed
 static int get_int(ExprParser *p, ExprValue *v, int64_t *out) {
   if (v->is_int) {
+    *out = v->int_val;
+    return 1;
+  }
+  // Shimmer from double
+  if (v->is_double) {
+    v->int_val = (int64_t)v->dbl_val;
+    v->is_int = 1;
     *out = v->int_val;
     return 1;
   }
@@ -93,6 +108,36 @@ static int get_int(ExprParser *p, ExprValue *v, int64_t *out) {
   return 0;
 }
 
+// Get double from ExprValue, shimmering if needed
+static int get_double(ExprParser *p, ExprValue *v, double *out) {
+  if (v->is_double) {
+    *out = v->dbl_val;
+    return 1;
+  }
+  // Shimmer from int
+  if (v->is_int) {
+    v->dbl_val = (double)v->int_val;
+    v->is_double = 1;
+    *out = v->dbl_val;
+    return 1;
+  }
+  if (v->str_val == 0) {
+    return 0;
+  }
+  // Try to convert string to double
+  if (p->ops->dbl.get(p->interp, v->str_val, out) == TCL_OK) {
+    v->dbl_val = *out;
+    v->is_double = 1;
+    return 1;
+  }
+  return 0;
+}
+
+// Check if ExprValue is a floating-point type (has decimal point)
+static int is_floating(ExprValue *v) {
+  return v->is_double && !v->is_int;
+}
+
 // Get TclObj from ExprValue
 static TclObj get_obj(ExprParser *p, ExprValue *v) {
   if (v->str_val != 0) {
@@ -100,6 +145,10 @@ static TclObj get_obj(ExprParser *p, ExprValue *v) {
   }
   if (v->is_int) {
     v->str_val = p->ops->integer.create(p->interp, v->int_val);
+    return v->str_val;
+  }
+  if (v->is_double) {
+    v->str_val = p->ops->dbl.create(p->interp, v->dbl_val);
     return v->str_val;
   }
   return 0;
@@ -326,7 +375,9 @@ static ExprValue parse_quoted(ExprParser *p) {
   return make_str(str);
 }
 
-// Parse integer literal with optional radix prefix (0b, 0o, 0x)
+// Parse number literal (integer or floating-point)
+// Integers: 123, 0x1f, 0b101, 0o17, with optional underscores
+// Floats: 3.14, .5, 5., 1e10, 3.14e-5
 static ExprValue parse_number(ExprParser *p) {
   const char *start = p->pos;
   int negative = 0;
@@ -338,15 +389,50 @@ static ExprValue parse_number(ExprParser *p) {
     p->pos++;
   }
 
+  // Handle leading decimal point: .5
+  if (p->pos < p->end && *p->pos == '.') {
+    p->pos++;
+    if (p->pos >= p->end || *p->pos < '0' || *p->pos > '9') {
+      set_integer_error(p, start, p->pos - start > 0 ? p->pos - start : 1);
+      return make_error();
+    }
+    // Parse fractional digits
+    double frac = 0.0;
+    double place = 0.1;
+    while (p->pos < p->end && ((*p->pos >= '0' && *p->pos <= '9') || *p->pos == '_')) {
+      if (*p->pos == '_') { p->pos++; continue; }
+      frac += (*p->pos - '0') * place;
+      place *= 0.1;
+      p->pos++;
+    }
+    double result = frac;
+    // Check for exponent
+    if (p->pos < p->end && (*p->pos == 'e' || *p->pos == 'E')) {
+      p->pos++;
+      int exp_neg = 0;
+      if (p->pos < p->end && *p->pos == '-') { exp_neg = 1; p->pos++; }
+      else if (p->pos < p->end && *p->pos == '+') { p->pos++; }
+      int64_t exp = 0;
+      while (p->pos < p->end && *p->pos >= '0' && *p->pos <= '9') {
+        exp = exp * 10 + (*p->pos - '0');
+        p->pos++;
+      }
+      double mult = 1.0;
+      for (int64_t i = 0; i < exp; i++) mult *= 10.0;
+      if (exp_neg) result /= mult; else result *= mult;
+    }
+    return make_double(negative ? -result : result);
+  }
+
   if (p->pos >= p->end || (*p->pos < '0' || *p->pos > '9')) {
     set_integer_error(p, start, p->pos - start > 0 ? p->pos - start : 1);
     return make_error();
   }
 
-  int64_t value = 0;
   int base = 10;
+  int is_float = 0;
 
-  // Check for radix prefix
+  // Check for radix prefix (only for integers)
   if (*p->pos == '0' && p->pos + 1 < p->end) {
     char next = p->pos[1];
     if (next == 'x' || next == 'X') {
@@ -361,24 +447,74 @@ static ExprValue parse_number(ExprParser *p) {
     }
   }
 
+  // Parse integer part
+  int64_t int_value = 0;
   while (p->pos < p->end) {
     char c = *p->pos;
-    // Skip underscores between digits
-    if (c == '_') {
-      p->pos++;
-      continue;
-    }
+    if (c == '_') { p->pos++; continue; }
     int digit = -1;
     if (c >= '0' && c <= '9') digit = c - '0';
     else if (c >= 'a' && c <= 'f') digit = c - 'a' + 10;
     else if (c >= 'A' && c <= 'F') digit = c - 'A' + 10;
-
     if (digit < 0 || digit >= base) break;
-    value = value * base + digit;
+    int_value = int_value * base + digit;
     p->pos++;
   }
 
-  return make_int(negative ? -value : value);
+  // Check for decimal point (only base 10)
+  if (base == 10 && p->pos < p->end && *p->pos == '.') {
+    // Look ahead to distinguish 5.0 from 5.method()
+    if (p->pos + 1 < p->end && p->pos[1] >= '0' && p->pos[1] <= '9') {
+      is_float = 1;
+      p->pos++; // skip .
+      double frac = 0.0;
+      double place = 0.1;
+      while (p->pos < p->end && ((*p->pos >= '0' && *p->pos <= '9') || *p->pos == '_')) {
+        if (*p->pos == '_') { p->pos++; continue; }
+        frac += (*p->pos - '0') * place;
+        place *= 0.1;
+        p->pos++;
+      }
+      double result = (double)int_value + frac;
+      // Check for exponent
+      if (p->pos < p->end && (*p->pos == 'e' || *p->pos == 'E')) {
+        p->pos++;
+        int exp_neg = 0;
+        if (p->pos < p->end && *p->pos == '-') { exp_neg = 1; p->pos++; }
+        else if (p->pos < p->end && *p->pos == '+') { p->pos++; }
+        int64_t exp = 0;
+        while (p->pos < p->end && *p->pos >= '0' && *p->pos <= '9') {
+          exp = exp * 10 + (*p->pos - '0');
+          p->pos++;
+        }
+        double mult = 1.0;
+        for (int64_t i = 0; i < exp; i++) mult *= 10.0;
+        if (exp_neg) result /= mult; else result *= mult;
+      }
+      return make_double(negative ? -result : result);
+    }
+  }
+
+  // Check for exponent without decimal point (e.g., 1e10) - only base 10
+  if (base == 10 && p->pos < p->end && (*p->pos == 'e' || *p->pos == 'E')) {
+    is_float = 1;
+    p->pos++;
+    int exp_neg = 0;
+    if (p->pos < p->end && *p->pos == '-') { exp_neg = 1; p->pos++; }
+    else if (p->pos < p->end && *p->pos == '+') { p->pos++; }
+    int64_t exp = 0;
+    while (p->pos < p->end && *p->pos >= '0' && *p->pos <= '9') {
+      exp = exp * 10 + (*p->pos - '0');
+      p->pos++;
+    }
+    double result = (double)int_value;
+    double mult = 1.0;
+    for (int64_t i = 0; i < exp; i++) mult *= 10.0;
+    if (exp_neg) result /= mult; else result *= mult;
+    return make_double(negative ? -result : result);
+  }
+
+  return make_int(negative ? -int_value : int_value);
 }
 
 // Parse function call: funcname(arg, arg, ...)
@@ -482,9 +618,11 @@ static ExprValue parse_primary(ExprParser *p) {
     return parse_quoted(p);
   }
 
-  // Number (includes negative numbers)
+  // Number (includes negative numbers and floats starting with .)
   if ((c >= '0' && c <= '9') ||
-      ((c == '-' || c == '+') && p->pos + 1 < p->end && p->pos[1] >= '0' && p->pos[1] <= '9')) {
+      ((c == '-' || c == '+') && p->pos + 1 < p->end &&
+       (p->pos[1] >= '0' && p->pos[1] <= '9' || p->pos[1] == '.')) ||
+      (c == '.' && p->pos + 1 < p->end && p->pos[1] >= '0' && p->pos[1] <= '9')) {
     return parse_number(p);
   }
 
@@ -565,6 +703,15 @@ static ExprValue parse_primary(ExprParser *p) {
   return make_error();
 }
 
+// Check if next char starts a number (digit or decimal point followed by digit)
+static int is_number_start(ExprParser *p) {
+  if (p->pos >= p->end) return 0;
+  char c = *p->pos;
+  if (c >= '0' && c <= '9') return 1;
+  if (c == '.' && p->pos + 1 < p->end && p->pos[1] >= '0' && p->pos[1] <= '9') return 1;
+  return 0;
+}
+
 // Parse unary: - + ~ ! followed by unary
 static ExprValue parse_unary(ExprParser *p) {
   skip_whitespace(p);
@@ -573,29 +720,44 @@ static ExprValue parse_unary(ExprParser *p) {
   if (p->pos < p->end) {
     char c = *p->pos;
 
-    // Unary minus (but not if followed by digit - that's a negative number)
-    if (c == '-' && !(p->pos + 1 < p->end && p->pos[1] >= '0' && p->pos[1] <= '9')) {
+    // Unary minus (but not if followed by number - that's a negative number literal)
+    if (c == '-') {
+      const char *saved = p->pos;
       p->pos++;
+      if (is_number_start(p)) {
+        p->pos = saved;  // Let parse_primary handle it as a negative number
+        return parse_primary(p);
+      }
       ExprValue v = parse_unary(p);
       if (p->has_error) return make_error();
-      int64_t val;
-      if (!get_int(p, &v, &val)) {
-        TclObj obj = get_obj(p, &v);
-        size_t len;
-        const char *s = p->ops->string.get(p->interp, obj, &len);
-        set_integer_error(p, s, len);
-        return make_error();
+      // Try integer first, fall back to double
+      int64_t ival;
+      if (v.is_int && get_int(p, &v, &ival)) {
+        return make_int(-ival);
       }
-      return make_int(-val);
+      double dval;
+      if (get_double(p, &v, &dval)) {
+        return make_double(-dval);
+      }
+      TclObj obj = get_obj(p, &v);
+      size_t len;
+      const char *s = p->ops->string.get(p->interp, obj, &len);
+      set_integer_error(p, s, len);
+      return make_error();
     }
 
     // Unary plus
-    if (c == '+' && !(p->pos + 1 < p->end && p->pos[1] >= '0' && p->pos[1] <= '9')) {
+    if (c == '+') {
+      const char *saved = p->pos;
       p->pos++;
+      if (is_number_start(p)) {
+        p->pos = saved;
+        return parse_primary(p);
+      }
       return parse_unary(p);
     }
 
-    // Bitwise NOT
+    // Bitwise NOT (integer only)
     if (c == '~') {
       p->pos++;
       ExprValue v = parse_unary(p);
@@ -616,19 +778,30 @@ static ExprValue parse_unary(ExprParser *p) {
       p->pos++;
       ExprValue v = parse_unary(p);
       if (p->has_error) return make_error();
-      int64_t val;
-      if (!get_int(p, &v, &val)) {
-        TclObj obj = get_obj(p, &v);
-        size_t len;
-        const char *s = p->ops->string.get(p->interp, obj, &len);
-        set_integer_error(p, s, len);
-        return make_error();
+      // Try integer first
+      int64_t ival;
+      if (get_int(p, &v, &ival)) {
+        return make_int(ival ? 0 : 1);
       }
-      return make_int(val ? 0 : 1);
+      // Try double
+      double dval;
+      if (get_double(p, &v, &dval)) {
+        return make_int(dval != 0.0 ? 0 : 1);
+      }
+      TclObj obj = get_obj(p, &v);
+      size_t len;
+      const char *s = p->ops->string.get(p->interp, obj, &len);
+      set_integer_error(p, s, len);
+      return make_error();
     }
   }
 
   return parse_primary(p);
+}
+
+// Check if we need floating-point math (either operand is a float)
+static int needs_float_math(ExprValue *a, ExprValue *b) {
+  return (a->is_double && !a->is_int) || (b->is_double && !b->is_int);
 }
 
 // Parse exponentiation: unary ** exponentiation (right-to-left)
@@ -642,10 +815,42 @@ static ExprValue parse_exponentiation(ExprParser *p) {
     ExprValue right = parse_exponentiation(p); // right-to-left
     if (p->has_error) return make_error();
 
+    // Use floating-point if either operand is a float
+    if (needs_float_math(&left, &right)) {
+      double base, exp;
+      if (!get_double(p, &left, &base) || !get_double(p, &right, &exp)) {
+        set_syntax_error(p);
+        return make_error();
+      }
+      // pow(base, exp) - implemented as repeated multiplication for simplicity
+      double result = 1.0;
+      int neg = exp < 0;
+      if (neg) exp = -exp;
+      int64_t iexp = (int64_t)exp;
+      for (int64_t i = 0; i < iexp; i++) {
+        result *= base;
+      }
+      if (neg) result = 1.0 / result;
+      return make_double(result);
+    }
+
     int64_t base, exp;
     if (!get_int(p, &left, &base) || !get_int(p, &right, &exp)) {
-      set_syntax_error(p);
-      return make_error();
+      // Fall back to double if int conversion fails
+      double dbase, dexp;
+      if (!get_double(p, &left, &dbase) || !get_double(p, &right, &dexp)) {
+        set_syntax_error(p);
+        return make_error();
+      }
+      double result = 1.0;
+      int neg = dexp < 0;
+      if (neg) dexp = -dexp;
+      int64_t iexp = (int64_t)dexp;
+      for (int64_t i = 0; i < iexp; i++) {
+        result *= dbase;
+      }
+      if (neg) result = 1.0 / result;
+      return make_double(result);
     }
 
     // Simple integer exponentiation
@@ -680,30 +885,71 @@ static ExprValue parse_multiplicative(ExprParser *p) {
       p->pos++;
       ExprValue right = parse_exponentiation(p);
       if (p->has_error) return make_error();
-      int64_t lv, rv;
-      if (!get_int(p, &left, &lv) || !get_int(p, &right, &rv)) {
-        set_syntax_error(p);
-        return make_error();
+      // Use float math if either operand is a float
+      if (needs_float_math(&left, &right)) {
+        double lv, rv;
+        if (!get_double(p, &left, &lv) || !get_double(p, &right, &rv)) {
+          set_syntax_error(p);
+          return make_error();
+        }
+        left = make_double(lv * rv);
+      } else {
+        int64_t lv, rv;
+        if (!get_int(p, &left, &lv) || !get_int(p, &right, &rv)) {
+          // Fall back to double
+          double dlv, drv;
+          if (!get_double(p, &left, &dlv) || !get_double(p, &right, &drv)) {
+            set_syntax_error(p);
+            return make_error();
+          }
+          left = make_double(dlv * drv);
+        } else {
+          left = make_int(lv * rv);
+        }
       }
-      left = make_int(lv * rv);
     } else if (c == '/') {
       p->pos++;
       ExprValue right = parse_exponentiation(p);
       if (p->has_error) return make_error();
-      int64_t lv, rv;
-      if (!get_int(p, &left, &lv) || !get_int(p, &right, &rv)) {
-        set_syntax_error(p);
-        return make_error();
+      // Use float math if either operand is a float
+      if (needs_float_math(&left, &right)) {
+        double lv, rv;
+        if (!get_double(p, &left, &lv) || !get_double(p, &right, &rv)) {
+          set_syntax_error(p);
+          return make_error();
+        }
+        if (rv == 0.0) {
+          set_error(p, "divide by zero", 14);
+          return make_error();
+        }
+        left = make_double(lv / rv);
+      } else {
+        int64_t lv, rv;
+        if (!get_int(p, &left, &lv) || !get_int(p, &right, &rv)) {
+          // Fall back to double
+          double dlv, drv;
+          if (!get_double(p, &left, &dlv) || !get_double(p, &right, &drv)) {
+            set_syntax_error(p);
+            return make_error();
+          }
+          if (drv == 0.0) {
+            set_error(p, "divide by zero", 14);
+            return make_error();
+          }
+          left = make_double(dlv / drv);
+        } else {
+          if (rv == 0) {
+            set_error(p, "divide by zero", 14);
+            return make_error();
+          }
+          left = make_int(lv / rv);
+        }
       }
-      if (rv == 0) {
-        set_error(p, "divide by zero", 14);
-        return make_error();
-      }
-      left = make_int(lv / rv);
     } else if (c == '%') {
       p->pos++;
       ExprValue right = parse_exponentiation(p);
       if (p->has_error) return make_error();
+      // Modulo is always integer in TCL
       int64_t lv, rv;
       if (!get_int(p, &left, &lv) || !get_int(p, &right, &rv)) {
         set_syntax_error(p);
@@ -736,22 +982,54 @@ static ExprValue parse_additive(ExprParser *p) {
       p->pos++;
       ExprValue right = parse_multiplicative(p);
       if (p->has_error) return make_error();
-      int64_t lv, rv;
-      if (!get_int(p, &left, &lv) || !get_int(p, &right, &rv)) {
-        set_syntax_error(p);
-        return make_error();
+      // Use float math if either operand is a float
+      if (needs_float_math(&left, &right)) {
+        double lv, rv;
+        if (!get_double(p, &left, &lv) || !get_double(p, &right, &rv)) {
+          set_syntax_error(p);
+          return make_error();
+        }
+        left = make_double(lv + rv);
+      } else {
+        int64_t lv, rv;
+        if (!get_int(p, &left, &lv) || !get_int(p, &right, &rv)) {
+          // Fall back to double
+          double dlv, drv;
+          if (!get_double(p, &left, &dlv) || !get_double(p, &right, &drv)) {
+            set_syntax_error(p);
+            return make_error();
+          }
+          left = make_double(dlv + drv);
+        } else {
+          left = make_int(lv + rv);
+        }
       }
-      left = make_int(lv + rv);
     } else if (c == '-') {
       p->pos++;
       ExprValue right = parse_multiplicative(p);
       if (p->has_error) return make_error();
-      int64_t lv, rv;
-      if (!get_int(p, &left, &lv) || !get_int(p, &right, &rv)) {
-        set_syntax_error(p);
-        return make_error();
+      // Use float math if either operand is a float
+      if (needs_float_math(&left, &right)) {
+        double lv, rv;
+        if (!get_double(p, &left, &lv) || !get_double(p, &right, &rv)) {
+          set_syntax_error(p);
+          return make_error();
+        }
+        left = make_double(lv - rv);
+      } else {
+        int64_t lv, rv;
+        if (!get_int(p, &left, &lv) || !get_int(p, &right, &rv)) {
+          // Fall back to double
+          double dlv, drv;
+          if (!get_double(p, &left, &dlv) || !get_double(p, &right, &drv)) {
+            set_syntax_error(p);
+            return make_error();
+          }
+          left = make_double(dlv - drv);
+        } else {
+          left = make_int(lv - rv);
+        }
       }
-      left = make_int(lv - rv);
     } else {
       break;
     }
@@ -812,53 +1090,121 @@ static ExprValue parse_comparison(ExprParser *p) {
       p->pos += 2;
       ExprValue right = parse_additive(p);
       if (p->has_error) return make_error();
-      int64_t lv, rv;
-      if (get_int(p, &left, &lv) && get_int(p, &right, &rv)) {
-        left = make_int(lv <= rv ? 1 : 0);
+      if (needs_float_math(&left, &right)) {
+        double lv, rv;
+        if (get_double(p, &left, &lv) && get_double(p, &right, &rv)) {
+          left = make_int(lv <= rv ? 1 : 0);
+        } else {
+          TclObj lo = get_obj(p, &left);
+          TclObj ro = get_obj(p, &right);
+          int cmp = p->ops->string.compare(p->interp, lo, ro);
+          left = make_int(cmp <= 0 ? 1 : 0);
+        }
       } else {
-        TclObj lo = get_obj(p, &left);
-        TclObj ro = get_obj(p, &right);
-        int cmp = p->ops->string.compare(p->interp, lo, ro);
-        left = make_int(cmp <= 0 ? 1 : 0);
+        int64_t lv, rv;
+        if (get_int(p, &left, &lv) && get_int(p, &right, &rv)) {
+          left = make_int(lv <= rv ? 1 : 0);
+        } else {
+          double dlv, drv;
+          if (get_double(p, &left, &dlv) && get_double(p, &right, &drv)) {
+            left = make_int(dlv <= drv ? 1 : 0);
+          } else {
+            TclObj lo = get_obj(p, &left);
+            TclObj ro = get_obj(p, &right);
+            int cmp = p->ops->string.compare(p->interp, lo, ro);
+            left = make_int(cmp <= 0 ? 1 : 0);
+          }
+        }
       }
     } else if (c == '<') {
       p->pos++;
       ExprValue right = parse_additive(p);
       if (p->has_error) return make_error();
-      int64_t lv, rv;
-      if (get_int(p, &left, &lv) && get_int(p, &right, &rv)) {
-        left = make_int(lv < rv ? 1 : 0);
+      if (needs_float_math(&left, &right)) {
+        double lv, rv;
+        if (get_double(p, &left, &lv) && get_double(p, &right, &rv)) {
+          left = make_int(lv < rv ? 1 : 0);
+        } else {
+          TclObj lo = get_obj(p, &left);
+          TclObj ro = get_obj(p, &right);
+          int cmp = p->ops->string.compare(p->interp, lo, ro);
+          left = make_int(cmp < 0 ? 1 : 0);
+        }
       } else {
-        TclObj lo = get_obj(p, &left);
-        TclObj ro = get_obj(p, &right);
-        int cmp = p->ops->string.compare(p->interp, lo, ro);
-        left = make_int(cmp < 0 ? 1 : 0);
+        int64_t lv, rv;
+        if (get_int(p, &left, &lv) && get_int(p, &right, &rv)) {
+          left = make_int(lv < rv ? 1 : 0);
+        } else {
+          double dlv, drv;
+          if (get_double(p, &left, &dlv) && get_double(p, &right, &drv)) {
+            left = make_int(dlv < drv ? 1 : 0);
+          } else {
+            TclObj lo = get_obj(p, &left);
+            TclObj ro = get_obj(p, &right);
+            int cmp = p->ops->string.compare(p->interp, lo, ro);
+            left = make_int(cmp < 0 ? 1 : 0);
+          }
+        }
       }
     } else if (c == '>' && p->pos + 1 < p->end && p->pos[1] == '=') {
       p->pos += 2;
       ExprValue right = parse_additive(p);
       if (p->has_error) return make_error();
-      int64_t lv, rv;
-      if (get_int(p, &left, &lv) && get_int(p, &right, &rv)) {
-        left = make_int(lv >= rv ? 1 : 0);
+      if (needs_float_math(&left, &right)) {
+        double lv, rv;
+        if (get_double(p, &left, &lv) && get_double(p, &right, &rv)) {
+          left = make_int(lv >= rv ? 1 : 0);
+        } else {
+          TclObj lo = get_obj(p, &left);
+          TclObj ro = get_obj(p, &right);
+          int cmp = p->ops->string.compare(p->interp, lo, ro);
+          left = make_int(cmp >= 0 ? 1 : 0);
+        }
       } else {
-        TclObj lo = get_obj(p, &left);
-        TclObj ro = get_obj(p, &right);
-        int cmp = p->ops->string.compare(p->interp, lo, ro);
-        left = make_int(cmp >= 0 ? 1 : 0);
+        int64_t lv, rv;
+        if (get_int(p, &left, &lv) && get_int(p, &right, &rv)) {
+          left = make_int(lv >= rv ? 1 : 0);
+        } else {
+          double dlv, drv;
+          if (get_double(p, &left, &dlv) && get_double(p, &right, &drv)) {
+            left = make_int(dlv >= drv ? 1 : 0);
+          } else {
+            TclObj lo = get_obj(p, &left);
+            TclObj ro = get_obj(p, &right);
+            int cmp = p->ops->string.compare(p->interp, lo, ro);
+            left = make_int(cmp >= 0 ? 1 : 0);
+          }
+        }
       }
     } else if (c == '>') {
       p->pos++;
       ExprValue right = parse_additive(p);
       if (p->has_error) return make_error();
-      int64_t lv, rv;
-      if (get_int(p, &left, &lv) && get_int(p, &right, &rv)) {
-        left = make_int(lv > rv ? 1 : 0);
+      if (needs_float_math(&left, &right)) {
+        double lv, rv;
+        if (get_double(p, &left, &lv) && get_double(p, &right, &rv)) {
+          left = make_int(lv > rv ? 1 : 0);
+        } else {
+          TclObj lo = get_obj(p, &left);
+          TclObj ro = get_obj(p, &right);
+          int cmp = p->ops->string.compare(p->interp, lo, ro);
+          left = make_int(cmp > 0 ? 1 : 0);
+        }
       } else {
-        TclObj lo = get_obj(p, &left);
-        TclObj ro = get_obj(p, &right);
-        int cmp = p->ops->string.compare(p->interp, lo, ro);
-        left = make_int(cmp > 0 ? 1 : 0);
+        int64_t lv, rv;
+        if (get_int(p, &left, &lv) && get_int(p, &right, &rv)) {
+          left = make_int(lv > rv ? 1 : 0);
+        } else {
+          double dlv, drv;
+          if (get_double(p, &left, &dlv) && get_double(p, &right, &drv)) {
+            left = make_int(dlv > drv ? 1 : 0);
+          } else {
+            TclObj lo = get_obj(p, &left);
+            TclObj ro = get_obj(p, &right);
+            int cmp = p->ops->string.compare(p->interp, lo, ro);
+            left = make_int(cmp > 0 ? 1 : 0);
+          }
+        }
       }
     } else {
       break;
@@ -900,22 +1246,52 @@ static ExprValue parse_equality(ExprParser *p) {
       p->pos += 2;
       ExprValue right = parse_comparison(p);
       if (p->has_error) return make_error();
-      int64_t lv, rv;
-      if (!get_int(p, &left, &lv) || !get_int(p, &right, &rv)) {
-        set_syntax_error(p);
-        return make_error();
+      if (needs_float_math(&left, &right)) {
+        double lv, rv;
+        if (!get_double(p, &left, &lv) || !get_double(p, &right, &rv)) {
+          set_syntax_error(p);
+          return make_error();
+        }
+        left = make_int(lv == rv ? 1 : 0);
+      } else {
+        int64_t lv, rv;
+        if (!get_int(p, &left, &lv) || !get_int(p, &right, &rv)) {
+          // Fall back to double
+          double dlv, drv;
+          if (!get_double(p, &left, &dlv) || !get_double(p, &right, &drv)) {
+            set_syntax_error(p);
+            return make_error();
+          }
+          left = make_int(dlv == drv ? 1 : 0);
+        } else {
+          left = make_int(lv == rv ? 1 : 0);
+        }
       }
-      left = make_int(lv == rv ? 1 : 0);
     } else if (p->pos + 1 < p->end && p->pos[0] == '!' && p->pos[1] == '=') {
       p->pos += 2;
       ExprValue right = parse_comparison(p);
       if (p->has_error) return make_error();
-      int64_t lv, rv;
-      if (!get_int(p, &left, &lv) || !get_int(p, &right, &rv)) {
-        set_syntax_error(p);
-        return make_error();
+      if (needs_float_math(&left, &right)) {
+        double lv, rv;
+        if (!get_double(p, &left, &lv) || !get_double(p, &right, &rv)) {
+          set_syntax_error(p);
+          return make_error();
+        }
+        left = make_int(lv != rv ? 1 : 0);
+      } else {
+        int64_t lv, rv;
+        if (!get_int(p, &left, &lv) || !get_int(p, &right, &rv)) {
+          // Fall back to double
+          double dlv, drv;
+          if (!get_double(p, &left, &dlv) || !get_double(p, &right, &drv)) {
+            set_syntax_error(p);
+            return make_error();
+          }
+          left = make_int(dlv != drv ? 1 : 0);
+        } else {
+          left = make_int(lv != rv ? 1 : 0);
+        }
       }
-      left = make_int(lv != rv ? 1 : 0);
     } else {
       break;
     }

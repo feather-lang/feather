@@ -328,6 +328,24 @@ typedef struct TclIntOps {
 } TclIntOps;
 
 /**
+ * TclDoubleOps gives access to floating-point numbers from the host.
+ */
+typedef struct TclDoubleOps {
+  /**
+   * create requests a possibly new double from the host.
+   */
+  TclObj (*create)(TclInterp interp, double val);
+
+  /**
+   * get extracts the double value from an object.
+   *
+   * This can cause a conversion of the object's internal representation to a
+   * double.
+   */
+  TclResult (*get)(TclInterp interp, TclObj obj, double *out);
+} TclDoubleOps;
+
+/**
  * TclInterpOps holds the operations on the state of the
  * interpreter instance.
  *
@@ -567,6 +585,7 @@ typedef struct TclHostOps {
   TclStringOps string;
   TclListOps list;
   TclIntOps integer;
+  TclDoubleOps dbl;
   TclInterpOps interp;
   TclBindOpts bind;
 } TclHostOps;

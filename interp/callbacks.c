@@ -88,6 +88,14 @@ static TclResult c_int_get(TclInterp interp, TclObj obj, int64_t *out) {
     return goIntGet(interp, obj, out);
 }
 
+static TclObj c_dbl_create(TclInterp interp, double val) {
+    return goDoubleCreate(interp, val);
+}
+
+static TclResult c_dbl_get(TclInterp interp, TclObj obj, double *out) {
+    return goDoubleGet(interp, obj, out);
+}
+
 static TclResult c_frame_push(TclInterp interp, TclObj cmd, TclObj args) {
     return goFramePush(interp, cmd, args);
 }
@@ -177,6 +185,9 @@ TclHostOps make_host_ops(void) {
 
     ops.integer.create = c_int_create;
     ops.integer.get = c_int_get;
+
+    ops.dbl.create = c_dbl_create;
+    ops.dbl.get = c_dbl_get;
 
     ops.interp.set_result = c_interp_set_result;
     ops.interp.get_result = c_interp_get_result;

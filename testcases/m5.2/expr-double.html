@@ -1,0 +1,426 @@
+<test-suite>
+  <!-- M5.2: Floating-point (double) support in expr -->
+
+  <!-- ============================================= -->
+  <!-- Basic floating-point literals                -->
+  <!-- ============================================= -->
+
+  <test-case name="simple decimal literal">
+    <script>expr {3.14}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3.14</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="leading zero decimal">
+    <script>expr {0.5}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0.5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="no leading zero decimal">
+    <script>expr {.25}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0.25</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="trailing zero decimal">
+    <script>expr {5.0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scientific notation positive exponent">
+    <script>expr {1e3}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1000</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scientific notation negative exponent">
+    <script>expr {5e-2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0.05</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scientific notation with decimal">
+    <script>expr {2.5e2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>250</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="negative floating-point">
+    <script>expr {-3.14}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-3.14</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Floating-point arithmetic                    -->
+  <!-- ============================================= -->
+
+  <test-case name="float addition">
+    <script>expr {1.5 + 2.5}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>4</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="float subtraction">
+    <script>expr {5.5 - 2.25}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3.25</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="float multiplication">
+    <script>expr {2.5 * 4.0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="float division">
+    <script>expr {7.5 / 2.5}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="float division with fractional result">
+    <script>expr {5.0 / 2.0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2.5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Mixed int/float operations                   -->
+  <!-- ============================================= -->
+
+  <test-case name="int plus float">
+    <script>expr {3 + 0.14}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3.14</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="float plus int">
+    <script>expr {0.5 + 2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2.5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="int times float">
+    <script>expr {4 * 2.5}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="int divided by float">
+    <script>expr {10 / 4.0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2.5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="float minus int">
+    <script>expr {5.5 - 3}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2.5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Float comparisons                            -->
+  <!-- ============================================= -->
+
+  <test-case name="float less than">
+    <script>expr {1.5 < 2.5}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="float greater than">
+    <script>expr {3.14 > 3.0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="float less or equal">
+    <script>expr {2.5 <= 2.5}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="float greater or equal">
+    <script>expr {3.0 >= 2.9}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="float equality">
+    <script>expr {2.5 == 2.5}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="float inequality">
+    <script>expr {2.5 != 3.5}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="int vs float comparison">
+    <script>expr {3 < 3.5}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="int equals float">
+    <script>expr {3 == 3.0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Float exponentiation (integer exponents)     -->
+  <!-- Note: Fractional exponents (sqrt, etc.) are  -->
+  <!-- deferred to M14 (math functions)             -->
+  <!-- ============================================= -->
+
+  <test-case name="float base integer exponent">
+    <script>expr {2.0 ** 3}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>8</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="float base negative exponent">
+    <script>expr {2.0 ** -1}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0.5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="float exponentiation 0.5 ** 2">
+    <script>expr {0.5 ** 2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0.25</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Unary operators on floats                    -->
+  <!-- ============================================= -->
+
+  <test-case name="unary minus on float">
+    <script>expr {-2.5}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-2.5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="unary plus on float">
+    <script>expr {+3.14}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3.14</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="logical not on float zero">
+    <script>expr {!0.0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="logical not on float nonzero">
+    <script>expr {!3.14}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Float in ternary                             -->
+  <!-- ============================================= -->
+
+  <test-case name="ternary with float condition">
+    <script>expr {1.5 ? 10 : 20}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="ternary with float values">
+    <script>expr {1 ? 3.14 : 2.71}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3.14</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Float with variables                         -->
+  <!-- ============================================= -->
+
+  <test-case name="float variable in expression">
+    <script>set pi 3.14159
+expr {$pi * 2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>6.28318</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="float computation with variables">
+    <script>set r 2.5
+expr {$r * $r * 3.14}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>19.625</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Complex float expressions                    -->
+  <!-- ============================================= -->
+
+  <test-case name="mixed arithmetic chain">
+    <script>expr {1.5 + 2 * 3.0 - 0.5}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>7</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="parentheses with floats">
+    <script>expr {(1.5 + 2.5) * 2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>8</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="float comparison in logical expression">
+    <script>expr {3.14 > 3.0 && 2.71 < 3.0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Division behavior                            -->
+  <!-- ============================================= -->
+
+  <test-case name="integer division remains integer">
+    <script>expr {7 / 2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="force float division with .0">
+    <script>expr {7 / 2.0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3.5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

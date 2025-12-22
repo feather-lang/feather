@@ -105,6 +105,8 @@ type Object struct {
 	cstr      *C.char // cached C string for passing to C code
 	intVal    int64
 	isInt     bool
+	dblVal    float64
+	isDouble  bool
 	listItems []TclObj
 	isList    bool
 }
@@ -370,12 +372,16 @@ func (i *Interp) getObject(h TclObj) *Object {
 }
 
 // GetString returns the string representation of an object.
-// Performs shimmering: converts int/list representations to string as needed.
+// Performs shimmering: converts int/double/list representations to string as needed.
 func (i *Interp) GetString(h TclObj) string {
 	if obj := i.getObject(h); obj != nil {
 		// Shimmer: int → string
 		if obj.isInt && obj.stringVal == "" {
 			obj.stringVal = fmt.Sprintf("%d", obj.intVal)
+		}
+		// Shimmer: double → string
+		if obj.isDouble && obj.stringVal == "" {
+			obj.stringVal = strconv.FormatFloat(obj.dblVal, 'g', -1, 64)
 		}
 		// Shimmer: list → string (use listToValue for proper TCL semantics)
 		if obj.isList && obj.stringVal == "" {
@@ -398,6 +404,12 @@ func (i *Interp) GetInt(h TclObj) (int64, error) {
 	if obj.isInt {
 		return obj.intVal, nil
 	}
+	// Shimmer from double if available
+	if obj.isDouble {
+		obj.intVal = int64(obj.dblVal)
+		obj.isInt = true
+		return obj.intVal, nil
+	}
 	// Shimmer: string → int
 	val, err := strconv.ParseInt(obj.stringVal, 10, 64)
 	if err != nil {
@@ -406,6 +418,35 @@ func (i *Interp) GetInt(h TclObj) (int64, error) {
 	// Cache the parsed value
 	obj.intVal = val
 	obj.isInt = true
+	return val, nil
+}
+
+// GetDouble returns the floating-point representation of an object.
+// Performs shimmering: parses string representation as double if needed.
+// Returns an error if the value cannot be converted to a double.
+func (i *Interp) GetDouble(h TclObj) (float64, error) {
+	obj := i.getObject(h)
+	if obj == nil {
+		return 0, fmt.Errorf("nil object")
+	}
+	// Already a double
+	if obj.isDouble {
+		return obj.dblVal, nil
+	}
+	// Shimmer from int if available
+	if obj.isInt {
+		obj.dblVal = float64(obj.intVal)
+		obj.isDouble = true
+		return obj.dblVal, nil
+	}
+	// Shimmer: string → double
+	val, err := strconv.ParseFloat(obj.stringVal, 64)
+	if err != nil {
+		return 0, fmt.Errorf("expected floating-point number but got %q", obj.stringVal)
+	}
+	// Cache the parsed value
+	obj.dblVal = val
+	obj.isDouble = true
 	return val, nil
 }
 

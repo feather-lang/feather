@@ -305,6 +305,34 @@ func goIntGet(interp C.TclInterp, obj C.TclObj, out *C.int64_t) C.TclResult {
 	return C.TCL_OK
 }
 
+//export goDoubleCreate
+func goDoubleCreate(interp C.TclInterp, val C.double) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	id := i.nextID
+	i.nextID++
+	i.objects[id] = &Object{dblVal: float64(val), isDouble: true}
+	return C.TclObj(id)
+}
+
+//export goDoubleGet
+func goDoubleGet(interp C.TclInterp, obj C.TclObj, out *C.double) C.TclResult {
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	val, err := i.GetDouble(TclObj(obj))
+	if err != nil {
+		return C.TCL_ERROR
+	}
+	*out = C.double(val)
+	return C.TCL_OK
+}
+
 //export goFramePush
 func goFramePush(interp C.TclInterp, cmd C.TclObj, args C.TclObj) C.TclResult {
 	i := getInterp(interp)
