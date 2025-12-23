@@ -1,0 +1,597 @@
+<test-suite>
+  <!-- M7.1: String and Numeric Comparison Tests -->
+  <!-- Tests for expr comparison operators with various operand types -->
+
+  <!-- ============================================= -->
+  <!-- String equality with eq operator             -->
+  <!-- ============================================= -->
+
+  <test-case name="eq with identical quoted strings">
+    <script>expr {"ab" eq "ab"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="eq with different quoted strings">
+    <script>expr {"ab" eq "cd"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="eq with empty strings">
+    <script>expr {"" eq ""}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="eq with numeric strings">
+    <script>expr {"123" eq "123"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="eq string vs number different representations">
+    <script>expr {"1" eq "01"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- String inequality with ne operator           -->
+  <!-- ============================================= -->
+
+  <test-case name="ne with different quoted strings">
+    <script>expr {"ab" ne "cd"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="ne with identical quoted strings">
+    <script>expr {"ab" ne "ab"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- == operator on quoted strings                -->
+  <!-- TCL allows == on strings, comparing as       -->
+  <!-- strings if not valid numbers                 -->
+  <!-- ============================================= -->
+
+  <test-case name="== with identical quoted strings">
+    <script>expr {"ab" == "ab"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="== with different quoted strings">
+    <script>expr {"ab" == "cd"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="!= with different quoted strings">
+    <script>expr {"ab" != "cd"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="!= with identical quoted strings">
+    <script>expr {"ab" != "ab"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Numeric comparisons with ==                  -->
+  <!-- ============================================= -->
+
+  <test-case name="== with integers">
+    <script>expr {42 == 42}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="== with different integers">
+    <script>expr {42 == 43}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="== with numeric strings that are equal">
+    <script>expr {"42" == "42"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="== integer and quoted integer">
+    <script>expr {42 == "42"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Bareword errors                              -->
+  <!-- Barewords are invalid in expressions         -->
+  <!-- ============================================= -->
+
+  <test-case name="bareword in expression is error">
+    <script>expr {ab == ab}</script>
+    <return>TCL_ERROR</return>
+    <error>invalid bareword "ab"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="single bareword is error">
+    <script>expr {hello}</script>
+    <return>TCL_ERROR</return>
+    <error>invalid bareword "hello"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="bareword on left side of comparison">
+    <script>expr {foo < 5}</script>
+    <return>TCL_ERROR</return>
+    <error>invalid bareword "foo"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Boolean literals are NOT bareword errors     -->
+  <!-- ============================================= -->
+
+  <test-case name="true is valid boolean literal">
+    <script>expr {true}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="false is valid boolean literal">
+    <script>expr {false}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="yes is valid boolean literal">
+    <script>expr {yes}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="no is valid boolean literal">
+    <script>expr {no}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- String comparison operators lt, gt, le, ge   -->
+  <!-- These always compare as strings              -->
+  <!-- ============================================= -->
+
+  <test-case name="lt with quoted strings">
+    <script>expr {"apple" lt "banana"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="gt with quoted strings">
+    <script>expr {"zebra" gt "apple"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="le with equal strings">
+    <script>expr {"abc" le "abc"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="ge with equal strings">
+    <script>expr {"abc" ge "abc"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Numeric comparison operators < > <= >=       -->
+  <!-- These prefer numeric comparison              -->
+  <!-- ============================================= -->
+
+  <test-case name="< with integers">
+    <script>expr {5 < 10}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="> with integers">
+    <script>expr {10 > 5}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="< with quoted numbers compares numerically">
+    <script>expr {"5" < "10"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Mixed comparisons with variables             -->
+  <!-- ============================================= -->
+
+  <test-case name="eq with string variable">
+    <script>set x "hello"
+expr {$x eq "hello"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="== with numeric variable">
+    <script>set x 42
+expr {$x == 42}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="== with string variable containing non-numeric">
+    <script>set x "hello"
+expr {$x == "hello"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Edge cases                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="eq with string containing spaces">
+    <script>expr {"hello world" eq "hello world"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="comparison with empty string">
+    <script>expr {"" == ""}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="eq is case sensitive">
+    <script>expr {"ABC" eq "abc"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- < > <= >= string fallback                    -->
+  <!-- When operands aren't numeric, compare as     -->
+  <!-- strings using UNICODE ordering               -->
+  <!-- ============================================= -->
+
+  <test-case name="< with non-numeric strings falls back to string compare">
+    <script>expr {"apple" < "banana"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="> with non-numeric strings falls back to string compare">
+    <script>expr {"zebra" > "apple"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="<= with non-numeric strings">
+    <script>expr {"abc" <= "abd"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name=">= with non-numeric strings">
+    <script>expr {"xyz" >= "abc"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string fallback from manual: 0y > 0x12">
+    <script>expr {"0y" > "0x12"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="< prefers numeric when both are numeric strings">
+    <script>expr {"9" < "10"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Shift operators << and >>                    -->
+  <!-- Valid for integers only                      -->
+  <!-- ============================================= -->
+
+  <test-case name="left shift 1 << 4">
+    <script>expr {1 << 4}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>16</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="left shift 3 << 2">
+    <script>expr {3 << 2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>12</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="right shift 16 >> 2">
+    <script>expr {16 >> 2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>4</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="right shift 255 >> 4">
+    <script>expr {255 >> 4}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>15</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="right shift propagates sign bit">
+    <script>expr {-16 >> 2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-4</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="shift by zero">
+    <script>expr {42 << 0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- List containment: in and ni                  -->
+  <!-- First arg is string, second is list          -->
+  <!-- ============================================= -->
+
+  <test-case name="in returns 1 when element is in list">
+    <script>expr {"b" in {a b c}}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="in returns 0 when element is not in list">
+    <script>expr {"x" in {a b c}}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="in with numeric elements">
+    <script>expr {2 in {1 2 3}}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="in with empty list">
+    <script>expr {"x" in {}}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="ni returns 1 when element is not in list">
+    <script>expr {"x" ni {a b c}}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="ni returns 0 when element is in list">
+    <script>expr {"b" ni {a b c}}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="in with variable list">
+    <script>set mylist {apple banana cherry}
+expr {"banana" in $mylist}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Comments with #                              -->
+  <!-- # starts comment to end of line/expression   -->
+  <!-- ============================================= -->
+
+  <test-case name="comment at end of expression">
+    <script>expr {1 + 2 # this is a comment}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="comment on its own line in multiline expr">
+    <script>expr {
+  # this is a comment
+  5 * 3
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>15</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="comment after value">
+    <script>expr {42 # the answer}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="hash inside string is not a comment">
+    <script>expr {"hello#world" eq "hello#world"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>
