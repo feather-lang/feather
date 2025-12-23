@@ -67,3 +67,17 @@ zig cc -target wasm32-freestanding -nostdlib \
   -Wl,--export=__heap_base \
   -o wasmtcl/wasm/tclc.wasm src/*.c -I src
 """
+
+[tasks."build:wgcl"]
+description = "Builds the WASM host (wgcl)"
+depends = ["build:wasm"]
+run = """
+cd wasmtcl && go build -o $MISE_CONFIG_ROOT/bin/wgcl ./cmd/wgcl
+"""
+
+[tasks."test:wgcl"]
+description = "Run the test harness against wgcl"
+depends = ["build:harness", "build:wgcl"]
+run = """
+harness run --host bin/wgcl testcases/
+"""

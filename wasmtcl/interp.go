@@ -50,12 +50,12 @@ type Procedure struct {
 }
 
 // CommandType indicates the type of a command
-type CommandType int
+type CommandType = wasm.CmdType
 
 const (
-	CmdNone    CommandType = 0
-	CmdBuiltin CommandType = 1
-	CmdProc    CommandType = 2
+	CmdNone    = wasm.CmdNone
+	CmdBuiltin = wasm.CmdBuiltin
+	CmdProc    = wasm.CmdProc
 )
 
 // Command represents an entry in the unified command table
@@ -888,4 +888,106 @@ type EvalError struct {
 
 func (e *EvalError) Error() string {
 	return e.Message
+}
+
+// ParseStatus matching TclParseStatus enum
+type ParseStatus uint
+
+const (
+	ParseOK         ParseStatus = 0
+	ParseIncomplete ParseStatus = 1
+	ParseError      ParseStatus = 2
+	ParseDone       ParseStatus = 3
+)
+
+// ParseResult holds the result of parsing a script
+type ParseResult struct {
+	Status       ParseStatus
+	Result       string
+	ErrorMessage string
+}
+
+// Initialize calls wasm_interp_init to register builtin commands.
+func (i *Interp) Initialize() error {
+	if i.instance == nil {
+		return fmt.Errorf("no WASM instance")
+	}
+	return i.instance.InterpInit(i.instance.ID())
+}
+
+// Parse parses a script string and returns the parse status and result.
+func (i *Interp) Parse(script string) ParseResult {
+	// For now, return OK - full parsing requires more work
+	// This is a placeholder that allows basic operation
+	return ParseResult{
+		Status: ParseOK,
+		Result: "",
+	}
+}
+
+// Eval evaluates a script string using the WASM interpreter.
+func (i *Interp) Eval(script string) (string, error) {
+	if i.instance == nil {
+		return "", fmt.Errorf("no WASM instance")
+	}
+
+	// Allocate memory for the script
+	scriptLen := uint32(len(script))
+	scriptPtr, err := i.instance.Allocate(scriptLen + 1)
+	if err != nil {
+		return "", fmt.Errorf("allocate script: %w", err)
+	}
+
+	// Write the script to WASM memory
+	i.instance.WriteString(scriptPtr, script)
+
+	// Call wasm_script_eval
+	result, err := i.instance.ScriptEval(i.instance.ID(), scriptPtr, scriptLen, wasm.EvalLocal)
+	if err != nil {
+		return "", fmt.Errorf("eval: %w", err)
+	}
+
+	if result == ResultOK {
+		return i.GetString(i.result), nil
+	}
+
+	// Handle TCL_RETURN at top level
+	if result == ResultReturn {
+		var code TclResult = ResultOK
+		if i.returnOptions != 0 {
+			items, err := i.GetList(i.returnOptions)
+			if err == nil {
+				for j := 0; j+1 < len(items); j += 2 {
+					key := i.GetString(items[j])
+					if key == "-code" {
+						if codeVal, err := i.GetInt(items[j+1]); err == nil {
+							code = TclResult(codeVal)
+						}
+					}
+				}
+			}
+		}
+		if code == ResultOK {
+			return i.GetString(i.result), nil
+		}
+		if code == ResultError {
+			return "", &EvalError{Message: i.GetString(i.result)}
+		}
+		if code == ResultBreak {
+			return "", &EvalError{Message: "invoked \"break\" outside of a loop"}
+		}
+		if code == ResultContinue {
+			return "", &EvalError{Message: "invoked \"continue\" outside of a loop"}
+		}
+		return i.GetString(i.result), nil
+	}
+
+	if result == ResultBreak {
+		return "", &EvalError{Message: "invoked \"break\" outside of a loop"}
+	}
+	if result == ResultContinue {
+		return "", &EvalError{Message: "invoked \"continue\" outside of a loop"}
+	}
+
+	return "", &EvalError{Message: i.GetString(i.result)}
 }

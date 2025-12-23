@@ -1,0 +1,78 @@
+package main
+
+import (
+	"bufio"
+	"context"
+	"fmt"
+	"io"
+	"os"
+
+	"github.com/dhamidi/tclc/wasmtcl"
+	defaults "github.com/dhamidi/tclc/wasmtcl/default"
+)
+
+func main() {
+	ctx := context.Background()
+
+	host, err := defaults.NewHost(ctx)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error creating interpreter: %v\n", err)
+		writeHarnessResult("TCL_ERROR", "", err.Error())
+		os.Exit(1)
+	}
+	defer host.Close()
+
+	script, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error reading script: %v\n", err)
+		writeHarnessResult("TCL_ERROR", "", "")
+		os.Exit(1)
+	}
+
+	// First, parse the script to check for incomplete input
+	parseResult := host.Parse(string(script))
+	if parseResult.Status == wasmtcl.ParseIncomplete {
+		writeHarnessResult("TCL_OK", parseResult.Result, "")
+		os.Exit(2) // Exit code 2 signals incomplete input
+	}
+	if parseResult.Status == wasmtcl.ParseError {
+		writeHarnessResult("TCL_ERROR", parseResult.Result, parseResult.ErrorMessage)
+		os.Exit(3) // Exit code 3 signals parse error
+	}
+
+	// Parse succeeded, now evaluate
+	result, err := host.Eval(string(script))
+
+	if err != nil {
+		fmt.Println(err.Error())
+		writeHarnessResult("TCL_ERROR", "", err.Error())
+		os.Exit(1)
+	}
+
+	if result != "" {
+		fmt.Println(result)
+	}
+	writeHarnessResult("TCL_OK", result, "")
+}
+
+func writeHarnessResult(returnCode string, result string, errorMsg string) {
+	if os.Getenv("TCLC_IN_HARNESS") != "1" {
+		return
+	}
+
+	f := os.NewFile(3, "harness")
+	if f == nil {
+		return
+	}
+	defer f.Close()
+
+	w := bufio.NewWriter(f)
+	fmt.Fprintf(w, "return: %s\n", returnCode)
+	if result != "" {
+		fmt.Fprintf(w, "result: %s\n", result)
+	}
+	if errorMsg != "" {
+		fmt.Fprintf(w, "error: %s\n", errorMsg)
+	}
+	w.Flush()
+}

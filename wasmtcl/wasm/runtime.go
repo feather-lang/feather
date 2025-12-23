@@ -26,6 +26,15 @@ const (
 	ResultContinue TclResult = 4
 )
 
+// CmdType indicates the type of a command
+type CmdType int
+
+const (
+	CmdNone    CmdType = 0
+	CmdBuiltin CmdType = 1
+	CmdProc    CmdType = 2
+)
+
 // TclObj is a handle to a TCL object (matches TclHandle in C)
 type TclObj = uint32
 
@@ -135,12 +144,12 @@ func (r *Runtime) NewInstance(hostData any) (*Instance, error) {
 		memory:        mod.Memory(),
 		runtime:       r,
 		hostData:      hostData,
-		scriptEval:    mod.ExportedFunction("tcl_script_eval"),
-		interpInit:    mod.ExportedFunction("tcl_interp_init"),
+		scriptEval:    mod.ExportedFunction("wasm_script_eval"),
+		interpInit:    mod.ExportedFunction("wasm_interp_init"),
 		parseInit:     mod.ExportedFunction("tcl_parse_init"),
 		parseCommand:  mod.ExportedFunction("tcl_parse_command"),
-		commandExec:   mod.ExportedFunction("tcl_command_exec"),
-		scriptEvalObj: mod.ExportedFunction("tcl_script_eval_obj"),
+		commandExec:   mod.ExportedFunction("wasm_command_exec"),
+		scriptEvalObj: mod.ExportedFunction("wasm_script_eval_obj"),
 		subst:         mod.ExportedFunction("tcl_subst"),
 	}
 
@@ -227,15 +236,125 @@ func (i *Instance) ReadStringNullTerminated(offset uint32) (string, bool) {
 	}
 }
 
-// Allocate allocates memory in the WASM module.
-// For now this is a stub - proper allocation requires heap management.
+// heapBase is the starting address for heap allocation.
+// This is set when the instance is created from the __heap_base export.
+var heapBaseAddr uint32
+
+// allocator is a simple bump allocator for WASM memory.
+type allocator struct {
+	mu      sync.Mutex
+	nextPtr uint32
+	memory  api.Memory
+}
+
+var globalAllocator *allocator
+
+// initAllocator initializes the bump allocator from __heap_base.
+func (i *Instance) initAllocator() error {
+	heapBase := i.module.ExportedGlobal("__heap_base")
+	if heapBase == nil {
+		return fmt.Errorf("__heap_base not exported")
+	}
+	heapBaseAddr = uint32(heapBase.Get())
+	globalAllocator = &allocator{
+		nextPtr: heapBaseAddr,
+		memory:  i.memory,
+	}
+	return nil
+}
+
+// Allocate allocates memory in the WASM module using a bump allocator.
+// Returns the offset in WASM linear memory where the data can be written.
 func (i *Instance) Allocate(size uint32) (uint32, error) {
-	// This is a placeholder - in Phase 2 we'll implement proper allocation
-	// using __heap_base and a simple bump allocator or calling malloc
-	return 0, fmt.Errorf("allocation not yet implemented")
+	if globalAllocator == nil {
+		if err := i.initAllocator(); err != nil {
+			return 0, err
+		}
+	}
+
+	globalAllocator.mu.Lock()
+	defer globalAllocator.mu.Unlock()
+
+	// Align to 8 bytes
+	aligned := (globalAllocator.nextPtr + 7) &^ 7
+	newPtr := aligned + size
+
+	// Check if we need to grow memory
+	memSize := i.memory.Size()
+	if newPtr > memSize {
+		// Calculate pages needed (WASM page = 64KB)
+		pagesNeeded := (newPtr - memSize + 65535) / 65536
+		if _, ok := i.memory.Grow(pagesNeeded); !ok {
+			return 0, fmt.Errorf("failed to grow memory by %d pages", pagesNeeded)
+		}
+	}
+
+	globalAllocator.nextPtr = newPtr
+	return aligned, nil
 }
 
 // MemorySize returns the current memory size in bytes.
 func (i *Instance) MemorySize() uint32 {
 	return i.memory.Size()
+}
+
+// EvalFlags matching TclEvalFlags enum
+const (
+	EvalLocal  uint32 = 0
+	EvalGlobal uint32 = 1
+)
+
+// InterpInit calls wasm_interp_init to register builtin commands.
+func (i *Instance) InterpInit(interpID TclInterp) error {
+	if i.interpInit == nil {
+		return fmt.Errorf("wasm_interp_init not exported")
+	}
+	_, err := i.interpInit.Call(i.runtime.ctx, uint64(interpID))
+	return err
+}
+
+// ScriptEval calls wasm_script_eval to evaluate a script.
+// Returns the result code.
+func (i *Instance) ScriptEval(interpID TclInterp, scriptPtr, scriptLen, flags uint32) (TclResult, error) {
+	if i.scriptEval == nil {
+		return ResultError, fmt.Errorf("wasm_script_eval not exported")
+	}
+	results, err := i.scriptEval.Call(i.runtime.ctx, uint64(interpID), uint64(scriptPtr), uint64(scriptLen), uint64(flags))
+	if err != nil {
+		return ResultError, err
+	}
+	if len(results) == 0 {
+		return ResultError, fmt.Errorf("wasm_script_eval returned no results")
+	}
+	return TclResult(results[0]), nil
+}
+
+// ScriptEvalObj calls wasm_script_eval_obj to evaluate a script object.
+func (i *Instance) ScriptEvalObj(interpID TclInterp, scriptObj TclObj, flags uint32) (TclResult, error) {
+	if i.scriptEvalObj == nil {
+		return ResultError, fmt.Errorf("wasm_script_eval_obj not exported")
+	}
+	results, err := i.scriptEvalObj.Call(i.runtime.ctx, uint64(interpID), uint64(scriptObj), uint64(flags))
+	if err != nil {
+		return ResultError, err
+	}
+	if len(results) == 0 {
+		return ResultError, fmt.Errorf("wasm_script_eval_obj returned no results")
+	}
+	return TclResult(results[0]), nil
+}
+
+// CommandExec calls wasm_command_exec to execute a parsed command.
+func (i *Instance) CommandExec(interpID TclInterp, commandObj TclObj, flags uint32) (TclResult, error) {
+	if i.commandExec == nil {
+		return ResultError, fmt.Errorf("wasm_command_exec not exported")
+	}
+	results, err := i.commandExec.Call(i.runtime.ctx, uint64(interpID), uint64(commandObj), uint64(flags))
+	if err != nil {
+		return ResultError, err
+	}
+	if len(results) == 0 {
+		return ResultError, fmt.Errorf("wasm_command_exec returned no results")
+	}
+	return TclResult(results[0]), nil
 }

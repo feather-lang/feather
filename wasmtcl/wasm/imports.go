@@ -57,7 +57,7 @@ type InterpProvider interface {
 	ProcBody(name TclObj) (TclObj, bool)
 	ProcNames(namespace TclObj) TclObj
 	RegisterCommand(name TclObj)
-	CommandLookup(name TclObj) (cmdType int, canonicalName string)
+	CommandLookup(name TclObj) (cmdType CmdType, canonicalName string)
 	CommandRename(oldName, newName TclObj) TclResult
 	ResolveNamespace(path TclObj) (TclObj, bool)
 
@@ -311,10 +311,35 @@ func stringIntern(ctx context.Context, m api.Module, interp TclInterp, strPtr, s
 }
 
 func stringGet(ctx context.Context, m api.Module, interp TclInterp, obj TclObj, lenPtr uint32) uint32 {
-	// Returns pointer to string in WASM memory, sets length at lenPtr
-	// This is complex because we need to copy the string into WASM memory
-	// For now, return 0 to indicate we need a different approach
-	return 0
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	str := i.GetString(obj)
+	strLen := uint32(len(str))
+
+	inst := i.Instance()
+	if inst == nil {
+		return 0
+	}
+
+	// Allocate memory for the string (no null terminator needed, we pass length)
+	ptr, err := inst.Allocate(strLen + 1) // +1 for safety/null terminator
+	if err != nil {
+		return 0
+	}
+
+	// Write the string to WASM memory
+	if strLen > 0 {
+		inst.WriteString(ptr, str)
+	}
+
+	// Write the length to the output pointer
+	if lenPtr != 0 {
+		inst.memory.WriteUint32Le(lenPtr, strLen)
+	}
+
+	return ptr
 }
 
 func stringConcat(ctx context.Context, m api.Module, interp TclInterp, a, b TclObj) TclObj {
