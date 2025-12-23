@@ -54,6 +54,7 @@ static ExprValue parse_bitwise_xor(ExprParser *p);
 static ExprValue parse_bitwise_and(ExprParser *p);
 static ExprValue parse_equality(ExprParser *p);
 static ExprValue parse_comparison(ExprParser *p);
+static ExprValue parse_shift(ExprParser *p);
 static ExprValue parse_additive(ExprParser *p);
 static ExprValue parse_multiplicative(ExprParser *p);
 static ExprValue parse_exponentiation(ExprParser *p);
@@ -195,6 +196,19 @@ static void set_integer_error(ExprParser *p, const char *start, size_t len) {
   p->has_error = 1;
 
   TclObj part1 = p->ops->string.intern(p->interp, "expected integer but got \"", 26);
+  TclObj part2 = p->ops->string.intern(p->interp, start, len);
+  TclObj part3 = p->ops->string.intern(p->interp, "\"", 1);
+
+  TclObj msg = p->ops->string.concat(p->interp, part1, part2);
+  msg = p->ops->string.concat(p->interp, msg, part3);
+  p->error_msg = msg;
+}
+
+static void set_bareword_error(ExprParser *p, const char *start, size_t len) {
+  if (p->has_error) return;
+  p->has_error = 1;
+
+  TclObj part1 = p->ops->string.intern(p->interp, "invalid bareword \"", 18);
   TclObj part2 = p->ops->string.intern(p->interp, start, len);
   TclObj part3 = p->ops->string.intern(p->interp, "\"", 1);
 
@@ -714,7 +728,7 @@ static ExprValue parse_primary(ExprParser *p) {
     }
 
     // Unknown identifier - error
-    set_integer_error(p, start, len);
+    set_bareword_error(p, start, len);
     return make_error();
   }
 
@@ -1072,11 +1086,51 @@ static ExprValue parse_additive(ExprParser *p) {
   return left;
 }
 
-// Parse comparison: additive (< <= > >= lt le gt ge) additive
+// Parse shift: additive (<< >>) additive
+static ExprValue parse_shift(ExprParser *p) {
+  ExprValue left = parse_additive(p);
+  if (p->has_error) return make_error();
+
+  while (1) {
+    skip_whitespace(p);
+    if (p->pos >= p->end) break;
+
+    // Left shift <<
+    if (p->pos + 1 < p->end && p->pos[0] == '<' && p->pos[1] == '<') {
+      p->pos += 2;
+      ExprValue right = parse_additive(p);
+      if (p->has_error) return make_error();
+      int64_t lv, rv;
+      if (!get_int(p, &left, &lv) || !get_int(p, &right, &rv)) {
+        set_syntax_error(p);
+        return make_error();
+      }
+      left = make_int(lv << rv);
+    }
+    // Right shift >>
+    else if (p->pos + 1 < p->end && p->pos[0] == '>' && p->pos[1] == '>') {
+      p->pos += 2;
+      ExprValue right = parse_additive(p);
+      if (p->has_error) return make_error();
+      int64_t lv, rv;
+      if (!get_int(p, &left, &lv) || !get_int(p, &right, &rv)) {
+        set_syntax_error(p);
+        return make_error();
+      }
+      left = make_int(lv >> rv);
+    } else {
+      break;
+    }
+  }
+
+  return left;
+}
+
+// Parse comparison: shift (< <= > >= lt le gt ge) shift
 // Numeric-preferring: < <= > >= try int first, fall back to string
 // String-only: lt le gt ge always use string compare
 static ExprValue parse_comparison(ExprParser *p) {
-  ExprValue left = parse_additive(p);
+  ExprValue left = parse_shift(p);
   if (p->has_error) return make_error();
 
   while (1) {
@@ -1088,7 +1142,7 @@ static ExprValue parse_comparison(ExprParser *p) {
     // String comparison operators: lt, le, gt, ge
     if (match_keyword(p, "lt", 2)) {
       p->pos += 2;
-      ExprValue right = parse_additive(p);
+      ExprValue right = parse_shift(p);
       if (p->has_error) return make_error();
       TclObj lo = get_obj(p, &left);
       TclObj ro = get_obj(p, &right);
@@ -1096,7 +1150,7 @@ static ExprValue parse_comparison(ExprParser *p) {
       left = make_int(cmp < 0 ? 1 : 0);
     } else if (match_keyword(p, "le", 2)) {
       p->pos += 2;
-      ExprValue right = parse_additive(p);
+      ExprValue right = parse_shift(p);
       if (p->has_error) return make_error();
       TclObj lo = get_obj(p, &left);
       TclObj ro = get_obj(p, &right);
@@ -1104,7 +1158,7 @@ static ExprValue parse_comparison(ExprParser *p) {
       left = make_int(cmp <= 0 ? 1 : 0);
     } else if (match_keyword(p, "gt", 2)) {
       p->pos += 2;
-      ExprValue right = parse_additive(p);
+      ExprValue right = parse_shift(p);
       if (p->has_error) return make_error();
       TclObj lo = get_obj(p, &left);
       TclObj ro = get_obj(p, &right);
@@ -1112,7 +1166,7 @@ static ExprValue parse_comparison(ExprParser *p) {
       left = make_int(cmp > 0 ? 1 : 0);
     } else if (match_keyword(p, "ge", 2)) {
       p->pos += 2;
-      ExprValue right = parse_additive(p);
+      ExprValue right = parse_shift(p);
       if (p->has_error) return make_error();
       TclObj lo = get_obj(p, &left);
       TclObj ro = get_obj(p, &right);
@@ -1120,9 +1174,10 @@ static ExprValue parse_comparison(ExprParser *p) {
       left = make_int(cmp >= 0 ? 1 : 0);
     }
     // Numeric-preferring comparison operators
+    // Check for <= (but not <<)
     else if (c == '<' && p->pos + 1 < p->end && p->pos[1] == '=') {
       p->pos += 2;
-      ExprValue right = parse_additive(p);
+      ExprValue right = parse_shift(p);
       if (p->has_error) return make_error();
       if (needs_float_math(&left, &right)) {
         double lv, rv;
@@ -1150,9 +1205,10 @@ static ExprValue parse_comparison(ExprParser *p) {
           }
         }
       }
-    } else if (c == '<') {
+    // Single < but not << (shift is handled by parse_shift)
+    } else if (c == '<' && !(p->pos + 1 < p->end && p->pos[1] == '<')) {
       p->pos++;
-      ExprValue right = parse_additive(p);
+      ExprValue right = parse_shift(p);
       if (p->has_error) return make_error();
       if (needs_float_math(&left, &right)) {
         double lv, rv;
@@ -1180,9 +1236,10 @@ static ExprValue parse_comparison(ExprParser *p) {
           }
         }
       }
+    // Check for >= (but not >>)
     } else if (c == '>' && p->pos + 1 < p->end && p->pos[1] == '=') {
       p->pos += 2;
-      ExprValue right = parse_additive(p);
+      ExprValue right = parse_shift(p);
       if (p->has_error) return make_error();
       if (needs_float_math(&left, &right)) {
         double lv, rv;
@@ -1210,9 +1267,10 @@ static ExprValue parse_comparison(ExprParser *p) {
           }
         }
       }
-    } else if (c == '>') {
+    // Single > but not >> (shift is handled by parse_shift)
+    } else if (c == '>' && !(p->pos + 1 < p->end && p->pos[1] == '>')) {
       p->pos++;
-      ExprValue right = parse_additive(p);
+      ExprValue right = parse_shift(p);
       if (p->has_error) return make_error();
       if (needs_float_math(&left, &right)) {
         double lv, rv;
@@ -1240,6 +1298,44 @@ static ExprValue parse_comparison(ExprParser *p) {
           }
         }
       }
+    }
+    // List containment operators: in, ni
+    else if (match_keyword(p, "in", 2)) {
+      p->pos += 2;
+      ExprValue right = parse_shift(p);
+      if (p->has_error) return make_error();
+      TclObj needle = get_obj(p, &left);
+      TclObj haystack = get_obj(p, &right);
+      // Convert haystack to list and search
+      TclObj list = p->ops->list.from(p->interp, haystack);
+      size_t len = p->ops->list.length(p->interp, list);
+      int found = 0;
+      for (size_t i = 0; i < len; i++) {
+        TclObj elem = p->ops->list.at(p->interp, list, i);
+        if (p->ops->string.compare(p->interp, needle, elem) == 0) {
+          found = 1;
+          break;
+        }
+      }
+      left = make_int(found);
+    } else if (match_keyword(p, "ni", 2)) {
+      p->pos += 2;
+      ExprValue right = parse_shift(p);
+      if (p->has_error) return make_error();
+      TclObj needle = get_obj(p, &left);
+      TclObj haystack = get_obj(p, &right);
+      // Convert haystack to list and search
+      TclObj list = p->ops->list.from(p->interp, haystack);
+      size_t len = p->ops->list.length(p->interp, list);
+      int found = 0;
+      for (size_t i = 0; i < len; i++) {
+        TclObj elem = p->ops->list.at(p->interp, list, i);
+        if (p->ops->string.compare(p->interp, needle, elem) == 0) {
+          found = 1;
+          break;
+        }
+      }
+      left = make_int(found ? 0 : 1);  // ni is opposite of in
     } else {
       break;
     }
@@ -1275,30 +1371,38 @@ static ExprValue parse_equality(ExprParser *p) {
       int cmp = p->ops->string.compare(p->interp, lo, ro);
       left = make_int(cmp != 0 ? 1 : 0);
     }
-    // Numeric equality operators
+    // Numeric equality operators (with string fallback)
     else if (p->pos + 1 < p->end && p->pos[0] == '=' && p->pos[1] == '=') {
       p->pos += 2;
       ExprValue right = parse_comparison(p);
       if (p->has_error) return make_error();
       if (needs_float_math(&left, &right)) {
         double lv, rv;
-        if (!get_double(p, &left, &lv) || !get_double(p, &right, &rv)) {
-          set_syntax_error(p);
-          return make_error();
+        if (get_double(p, &left, &lv) && get_double(p, &right, &rv)) {
+          left = make_int(lv == rv ? 1 : 0);
+        } else {
+          // Fall back to string comparison
+          TclObj lo = get_obj(p, &left);
+          TclObj ro = get_obj(p, &right);
+          int cmp = p->ops->string.compare(p->interp, lo, ro);
+          left = make_int(cmp == 0 ? 1 : 0);
         }
-        left = make_int(lv == rv ? 1 : 0);
       } else {
         int64_t lv, rv;
-        if (!get_int(p, &left, &lv) || !get_int(p, &right, &rv)) {
-          // Fall back to double
-          double dlv, drv;
-          if (!get_double(p, &left, &dlv) || !get_double(p, &right, &drv)) {
-            set_syntax_error(p);
-            return make_error();
-          }
-          left = make_int(dlv == drv ? 1 : 0);
-        } else {
+        if (get_int(p, &left, &lv) && get_int(p, &right, &rv)) {
           left = make_int(lv == rv ? 1 : 0);
+        } else {
+          // Try double
+          double dlv, drv;
+          if (get_double(p, &left, &dlv) && get_double(p, &right, &drv)) {
+            left = make_int(dlv == drv ? 1 : 0);
+          } else {
+            // Fall back to string comparison
+            TclObj lo = get_obj(p, &left);
+            TclObj ro = get_obj(p, &right);
+            int cmp = p->ops->string.compare(p->interp, lo, ro);
+            left = make_int(cmp == 0 ? 1 : 0);
+          }
         }
       }
     } else if (p->pos + 1 < p->end && p->pos[0] == '!' && p->pos[1] == '=') {
@@ -1307,23 +1411,31 @@ static ExprValue parse_equality(ExprParser *p) {
       if (p->has_error) return make_error();
       if (needs_float_math(&left, &right)) {
         double lv, rv;
-        if (!get_double(p, &left, &lv) || !get_double(p, &right, &rv)) {
-          set_syntax_error(p);
-          return make_error();
+        if (get_double(p, &left, &lv) && get_double(p, &right, &rv)) {
+          left = make_int(lv != rv ? 1 : 0);
+        } else {
+          // Fall back to string comparison
+          TclObj lo = get_obj(p, &left);
+          TclObj ro = get_obj(p, &right);
+          int cmp = p->ops->string.compare(p->interp, lo, ro);
+          left = make_int(cmp != 0 ? 1 : 0);
         }
-        left = make_int(lv != rv ? 1 : 0);
       } else {
         int64_t lv, rv;
-        if (!get_int(p, &left, &lv) || !get_int(p, &right, &rv)) {
-          // Fall back to double
-          double dlv, drv;
-          if (!get_double(p, &left, &dlv) || !get_double(p, &right, &drv)) {
-            set_syntax_error(p);
-            return make_error();
-          }
-          left = make_int(dlv != drv ? 1 : 0);
-        } else {
+        if (get_int(p, &left, &lv) && get_int(p, &right, &rv)) {
           left = make_int(lv != rv ? 1 : 0);
+        } else {
+          // Try double
+          double dlv, drv;
+          if (get_double(p, &left, &dlv) && get_double(p, &right, &drv)) {
+            left = make_int(dlv != drv ? 1 : 0);
+          } else {
+            // Fall back to string comparison
+            TclObj lo = get_obj(p, &left);
+            TclObj ro = get_obj(p, &right);
+            int cmp = p->ops->string.compare(p->interp, lo, ro);
+            left = make_int(cmp != 0 ? 1 : 0);
+          }
         }
       }
     } else {

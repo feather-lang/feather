@@ -592,7 +592,7 @@ expr {[set x] >= 5}</script>
   <test-case name="expr with non-integer errors">
     <script>expr hello</script>
     <return>TCL_ERROR</return>
-    <error>expected integer but got "hello"</error>
+    <error>invalid bareword "hello"</error>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
