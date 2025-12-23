@@ -1,0 +1,409 @@
+<test-suite>
+  <!--
+    M8: upvar and uplevel commands
+
+    These commands break normal scoping rules, allowing code to
+    access variables from or execute in calling frames.
+
+    upvar ?level? otherVar myVar ?otherVar myVar ...?
+      Creates a link between myVar (local) and otherVar (in another frame)
+
+    uplevel ?level? script
+      Evaluates script in the context of a calling frame
+
+    Level syntax:
+      - Positive integer N: N levels up from current frame (1 = caller)
+      - #N: Absolute frame level (0 = global)
+  -->
+
+  <!-- ============================================= -->
+  <!-- upvar: Basic variable linking                -->
+  <!-- ============================================= -->
+
+  <test-case name="upvar 1 links to caller's variable for reading">
+    <script>proc get_via_link {varname} {
+    upvar 1 $varname local
+    set local
+}
+set x 42
+get_via_link x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="upvar 1 links to caller's variable for writing">
+    <script>proc set_via_link {varname value} {
+    upvar 1 $varname local
+    set local $value
+}
+set x 10
+set_via_link x 99
+set x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>99</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="upvar default level is 1">
+    <script>proc incr_caller_var {varname} {
+    upvar $varname v
+    incr v
+}
+set counter 5
+incr_caller_var counter
+set counter</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>6</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="upvar with multiple variable pairs">
+    <script>proc swap {a_name b_name} {
+    upvar 1 $a_name a $b_name b
+    set tmp $a
+    set a $b
+    set b $tmp
+}
+set x 1
+set y 2
+swap x y
+expr {$x * 10 + $y}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>21</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="upvar creates variable in caller if nonexistent">
+    <script>proc create_in_caller {varname value} {
+    upvar 1 $varname v
+    set v $value
+}
+create_in_caller newvar hello
+set newvar</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- upvar: Nested calls                          -->
+  <!-- ============================================= -->
+
+  <test-case name="upvar through nested call">
+    <script>proc inner {vname} {
+    upvar 1 $vname v
+    set v
+}
+proc outer {} {
+    set local_var 123
+    inner local_var
+}
+outer</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>123</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="upvar #0 links to global scope">
+    <script>set globalvar 777
+proc get_global {} {
+    upvar #0 globalvar g
+    set g
+}
+get_global</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>777</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="upvar #0 modifies global variable">
+    <script>set gval 100
+proc modify_global {} {
+    upvar #0 gval g
+    set g 200
+}
+modify_global
+set gval</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>200</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- upvar: Error cases                           -->
+  <!-- ============================================= -->
+
+  <test-case name="upvar with too few arguments">
+    <script>upvar</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "upvar ?level? otherVar localVar ?otherVar localVar ...?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="upvar with odd number of variable args">
+    <script>proc bad {} {
+    upvar 1 x
+}
+bad</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "upvar ?level? otherVar localVar ?otherVar localVar ...?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="upvar with invalid level">
+    <script>proc bad {} {
+    upvar 999 x y
+}
+bad</script>
+    <return>TCL_ERROR</return>
+    <error>bad level "999"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- uplevel: Basic script evaluation             -->
+  <!-- ============================================= -->
+
+  <test-case name="uplevel 1 accesses caller's variables">
+    <script>proc get_caller_var {varname} {
+    uplevel 1 [list set $varname]
+}
+set myvar hello
+get_caller_var myvar</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="uplevel 1 modifies caller's variables">
+    <script>proc set_caller_var {varname value} {
+    uplevel 1 [list set $varname $value]
+}
+set myvar old
+set_caller_var myvar new
+set myvar</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>new</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="uplevel default level is 1">
+    <script>proc double_in_caller {varname} {
+    upvar 1 $varname v
+    set v [expr {$v * 2}]
+}
+set x 7
+double_in_caller x
+set x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>14</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="uplevel returns result of script">
+    <script>proc calc_in_caller {} {
+    uplevel 1 {expr {3 + 4}}
+}
+set y 10
+calc_in_caller</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>7</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="uplevel with braced script">
+    <script>proc run_in_caller {script} {
+    uplevel 1 $script
+}
+set a 5
+set b 3
+run_in_caller {expr {$a + $b}}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>8</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- uplevel: Nested calls                        -->
+  <!-- ============================================= -->
+
+  <test-case name="uplevel 2 skips one frame">
+    <script>proc inner {} {
+    uplevel 2 {set x}
+}
+proc outer {} {
+    set x local_outer
+    inner
+}
+set x global_x
+outer</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>global_x</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="uplevel #0 evaluates in global scope">
+    <script>set gvar global_value
+proc deep {} {
+    uplevel #0 {set gvar}
+}
+proc middle {} {
+    set gvar local
+    deep
+}
+middle</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>global_value</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- uplevel: Concatenated arguments              -->
+  <!-- ============================================= -->
+
+  <test-case name="uplevel concatenates multiple arguments">
+    <script>proc run_expr {a op b} {
+    uplevel 1 expr $a $op $b
+}
+run_expr 10 + 5</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>15</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- uplevel: Error handling                      -->
+  <!-- ============================================= -->
+
+  <test-case name="uplevel with no arguments">
+    <script>uplevel</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "uplevel ?level? script ?arg ...?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="uplevel with invalid level">
+    <script>proc bad {} {
+    uplevel 999 {set x}
+}
+bad</script>
+    <return>TCL_ERROR</return>
+    <error>bad level "999"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="uplevel propagates errors from script">
+    <script>proc wrapper {} {
+    uplevel 1 {error "inner error"}
+}
+catch {wrapper} msg
+set msg</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>inner error</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Combined upvar and uplevel patterns          -->
+  <!-- ============================================= -->
+
+  <test-case name="foreach-like iteration with upvar">
+    <script>proc myforeach {varname list body} {
+    upvar 1 $varname v
+    set i 0
+    set len [llength $list]
+    while {$i < $len} {
+        set v [lindex $list $i]
+        uplevel 1 $body
+        incr i
+    }
+}
+set sum 0
+myforeach x {1 2 3 4} {
+    incr sum $x
+}
+set sum</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="custom control structure with uplevel">
+    <script>proc repeat {n body} {
+    set i 0
+    while {$i < $n} {
+        uplevel 1 $body
+        incr i
+    }
+}
+set count 0
+repeat 5 {
+    incr count
+}
+set count</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lassign-like command with upvar">
+    <script>proc myassign {list v1name v2name v3name} {
+    upvar 1 $v1name v1 $v2name v2 $v3name v3
+    set v1 [lindex $list 0]
+    set v2 [lindex $list 1]
+    set v3 [lindex $list 2]
+}
+myassign {a b c} x y z
+expr {"$x$y$z" eq "abc"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

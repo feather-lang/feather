@@ -363,6 +363,7 @@ func goFramePush(interp C.TclInterp, cmd C.TclObj, args C.TclObj) C.TclResult {
 		cmd:   TclObj(cmd),
 		args:  TclObj(args),
 		vars:  make(map[string]TclObj),
+		links: make(map[string]varLink),
 		level: newLevel,
 	}
 	i.frames = append(i.frames, frame)
@@ -456,7 +457,21 @@ func goVarGet(interp C.TclInterp, name C.TclObj) C.TclObj {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	frame := i.frames[i.active]
-	if val, ok := frame.vars[nameObj.stringVal]; ok {
+	varName := nameObj.stringVal
+	// Follow links to find the actual variable location
+	for {
+		if link, ok := frame.links[varName]; ok {
+			if link.targetLevel >= 0 && link.targetLevel < len(i.frames) {
+				frame = i.frames[link.targetLevel]
+				varName = link.targetName
+			} else {
+				return 0
+			}
+		} else {
+			break
+		}
+	}
+	if val, ok := frame.vars[varName]; ok {
 		return C.TclObj(val)
 	}
 	return 0
@@ -475,7 +490,21 @@ func goVarSet(interp C.TclInterp, name C.TclObj, value C.TclObj) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	frame := i.frames[i.active]
-	frame.vars[nameObj.stringVal] = TclObj(value)
+	varName := nameObj.stringVal
+	// Follow links to find the actual variable location
+	for {
+		if link, ok := frame.links[varName]; ok {
+			if link.targetLevel >= 0 && link.targetLevel < len(i.frames) {
+				frame = i.frames[link.targetLevel]
+				varName = link.targetName
+			} else {
+				return
+			}
+		} else {
+			break
+		}
+	}
+	frame.vars[varName] = TclObj(value)
 }
 
 //export goVarUnset
@@ -491,7 +520,21 @@ func goVarUnset(interp C.TclInterp, name C.TclObj) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	frame := i.frames[i.active]
-	delete(frame.vars, nameObj.stringVal)
+	varName := nameObj.stringVal
+	// Follow links to find the actual variable location
+	for {
+		if link, ok := frame.links[varName]; ok {
+			if link.targetLevel >= 0 && link.targetLevel < len(i.frames) {
+				frame = i.frames[link.targetLevel]
+				varName = link.targetName
+			} else {
+				return
+			}
+		} else {
+			break
+		}
+	}
+	delete(frame.vars, varName)
 }
 
 //export goVarExists
@@ -507,7 +550,21 @@ func goVarExists(interp C.TclInterp, name C.TclObj) C.TclResult {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	frame := i.frames[i.active]
-	if _, ok := frame.vars[nameObj.stringVal]; ok {
+	varName := nameObj.stringVal
+	// Follow links to find the actual variable location
+	for {
+		if link, ok := frame.links[varName]; ok {
+			if link.targetLevel >= 0 && link.targetLevel < len(i.frames) {
+				frame = i.frames[link.targetLevel]
+				varName = link.targetName
+			} else {
+				return C.TCL_ERROR
+			}
+		} else {
+			break
+		}
+	}
+	if _, ok := frame.vars[varName]; ok {
 		return C.TCL_OK
 	}
 	return C.TCL_ERROR
@@ -515,6 +572,22 @@ func goVarExists(interp C.TclInterp, name C.TclObj) C.TclResult {
 
 //export goVarLink
 func goVarLink(interp C.TclInterp, local C.TclObj, target_level C.size_t, target C.TclObj) {
+	i := getInterp(interp)
+	if i == nil {
+		return
+	}
+	localObj := i.getObject(TclObj(local))
+	targetObj := i.getObject(TclObj(target))
+	if localObj == nil || targetObj == nil {
+		return
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	frame := i.frames[i.active]
+	frame.links[localObj.stringVal] = varLink{
+		targetLevel: int(target_level),
+		targetName:  targetObj.stringVal,
+	}
 }
 
 //export goProcDefine

@@ -177,4 +177,29 @@ TclResult tcl_builtin_catch(const TclHostOps *ops, TclInterp interp,
 TclResult tcl_builtin_info(const TclHostOps *ops, TclInterp interp,
                             TclObj cmd, TclObj args);
 
+/**
+ * tcl_builtin_upvar implements the TCL 'upvar' command.
+ *
+ * Usage:
+ *   upvar ?level? otherVar myVar ?otherVar myVar ...?
+ *
+ * Creates a link between a local variable and a variable in another frame.
+ * Level defaults to 1 (caller's frame). Can be a number (relative) or #N (absolute).
+ */
+TclResult tcl_builtin_upvar(const TclHostOps *ops, TclInterp interp,
+                             TclObj cmd, TclObj args);
+
+/**
+ * tcl_builtin_uplevel implements the TCL 'uplevel' command.
+ *
+ * Usage:
+ *   uplevel ?level? script ?arg ...?
+ *
+ * Evaluates script in the context of a calling frame.
+ * Level defaults to 1 (caller's frame). Can be a number (relative) or #N (absolute).
+ * Multiple script arguments are concatenated with spaces.
+ */
+TclResult tcl_builtin_uplevel(const TclHostOps *ops, TclInterp interp,
+                               TclObj cmd, TclObj args);
+
 #endif

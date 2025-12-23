@@ -66,12 +66,19 @@ type TclObj Handle
 // To return a value, the command should set the interpreter's result value and return ResultOK
 type CommandFunc func(i *Interp, cmd TclObj, args []TclObj) TclResult
 
+// varLink represents a link to a variable in another frame (for upvar)
+type varLink struct {
+	targetLevel int    // frame level where the target variable lives
+	targetName  string // name of the variable in the target frame
+}
+
 // CallFrame represents an execution frame on the call stack.
 // Each frame has its own variable environment.
 type CallFrame struct {
 	cmd   TclObj            // command being evaluated
 	args  TclObj            // arguments to the command
 	vars  map[string]TclObj // local variable storage
+	links map[string]varLink // upvar links: local name -> target variable
 	level int               // frame index on the call stack
 }
 
@@ -124,6 +131,7 @@ func NewInterp() *Interp {
 	// Initialize the global frame (frame 0)
 	globalFrame := &CallFrame{
 		vars:  make(map[string]TclObj),
+		links: make(map[string]varLink),
 		level: 0,
 	}
 	interp.frames = []*CallFrame{globalFrame}
