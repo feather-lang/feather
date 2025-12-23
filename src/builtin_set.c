@@ -6,7 +6,7 @@ TclResult tcl_builtin_set(const TclHostOps *ops, TclInterp interp,
 
   if (argc == 0) {
     // No arguments - error
-    TclObj msg = ops->string.intern(interp, "wrong # args: should be \"set varName ?newValue?\"", 49);
+    TclObj msg = ops->string.intern(interp, "wrong # args: should be \"set varName ?newValue?\"", 48);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
@@ -39,6 +39,11 @@ TclResult tcl_builtin_set(const TclHostOps *ops, TclInterp interp,
   }
 
   // Two arguments: set variable value
+  if (argc > 2) {
+    TclObj msg = ops->string.intern(interp, "wrong # args: should be \"set varName ?newValue?\"", 48);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
   TclObj value = ops->list.shift(interp, args);
   ops->var.set(interp, varName, value);
   ops->interp.set_result(interp, value);

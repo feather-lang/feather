@@ -317,6 +317,56 @@ run_expr 10 + 5</script>
     <exit-code>0</exit-code>
   </test-case>
 
+  <test-case name="uplevel concatenates set command arguments">
+    <script>proc set_in_caller {name val} {
+    uplevel 1 set $name $val
+}
+set_in_caller x 42
+set x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="uplevel concatenation breaks quoted strings">
+    <script>proc try_set {name val} {
+    uplevel 1 set $name $val
+}
+catch {try_set x "hello world"} msg
+set msg</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>wrong # args: should be "set varName ?newValue?"</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="uplevel with list preserves argument structure">
+    <script>proc safe_set {name val} {
+    uplevel 1 [list set $name $val]
+}
+safe_set x "hello world"
+set x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="uplevel with braces preserves script literally">
+    <script>set x before
+uplevel #0 {set x "hello world"}
+set x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
   <!-- ============================================= -->
   <!-- uplevel: Error handling                      -->
   <!-- ============================================= -->
@@ -324,7 +374,7 @@ run_expr 10 + 5</script>
   <test-case name="uplevel with no arguments">
     <script>uplevel</script>
     <return>TCL_ERROR</return>
-    <error>wrong # args: should be "uplevel ?level? script ?arg ...?"</error>
+    <error>wrong # args: should be "uplevel ?level? command ?arg ...?"</error>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>

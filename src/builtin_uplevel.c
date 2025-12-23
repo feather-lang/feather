@@ -65,7 +65,7 @@ TclResult tcl_builtin_uplevel(const TclHostOps *ops, TclInterp interp,
   // uplevel requires at least 1 arg: script
   if (argc < 1) {
     TclObj msg = ops->string.intern(interp,
-      "wrong # args: should be \"uplevel ?level? script ?arg ...?\"", 58);
+      "wrong # args: should be \"uplevel ?level? command ?arg ...?\"", 59);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
@@ -119,7 +119,7 @@ TclResult tcl_builtin_uplevel(const TclHostOps *ops, TclInterp interp,
   // We need at least one script arg
   if (argc < 1) {
     TclObj msg = ops->string.intern(interp,
-      "wrong # args: should be \"uplevel ?level? script ?arg ...?\"", 58);
+      "wrong # args: should be \"uplevel ?level? command ?arg ...?\"", 59);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
