@@ -138,7 +138,7 @@ Builtin commands implemented:
 
 - proc: define named procedures with parameters
 
-### M4: Control Flow with break and continue
+### M4: Control Flow with break and continue ✓
 
 Before implementing `return` with its full option machinery, we introduce the simpler loop control commands. This forces us to handle non-OK return codes propagating through the interpreter, but with simpler semantics than `return -code`.
 
@@ -170,7 +170,7 @@ Builtin commands implemented:
 - incr: increment variable by amount (default 1)
 - llength, lindex: to have basic list access
 
-### M5: The return Command
+### M5: The return Command ✓
 
 With non-OK return codes working for loops, we add the general `return` command. The critical feature is `-code`: it allows a procedure to return any code, not just TCL_OK or TCL_RETURN.
 
@@ -190,7 +190,7 @@ Builtin commands implemented:
 
 - return: with -code and -level options
 
-### M6: Error Handling
+### M6: Error Handling ✓
 
 With return codes fully working, we can implement proper error handling. The `error` command is the producer; `catch` is the consumer.
 
@@ -216,7 +216,7 @@ Builtin commands implemented:
 
 The error needs to be stored in the interpreters error value, cf 
 
-### M7: Introspection with info
+### M7: Introspection with info ✓
 
 The `info` command is TCL's window into itself. We implement a minimal subset that exercises the key introspectable state:
 
@@ -235,7 +235,7 @@ Builtin commands implemented:
 
 - info: exists, level, commands, procs, body, args subcommands
 
-### M8: Metaprogramming with uplevel and upvar
+### M8: Metaprogramming with uplevel and upvar ✓
 
 These commands break the normal scoping rules, allowing code to execute in or access variables from calling frames. They are the heart of TCL's metaprogramming capability.
 
@@ -257,7 +257,7 @@ Builtin commands implemented:
 - upvar: link local variable to variable in another frame
 - uplevel: evaluate script in a calling frame
 
-### M9: The unknown Handler
+### M9: The unknown Handler ✓
 
 When a command is not found, TCL calls `unknown` with the original command and arguments. This enables auto-loading, abbreviation expansion, and domain-specific command resolution.
 
