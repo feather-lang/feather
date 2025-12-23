@@ -67,3 +67,6 @@ coverage.html
 *.tmp
 *.temp
 *.log
+
+# WASM build artifacts
+wasmtcl/wasm/tclc.wasm
