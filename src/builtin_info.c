@@ -2,6 +2,30 @@
 #include "tclc.h"
 
 /**
+ * Helper to get the display name for a command.
+ * Strips leading "::" for global namespace commands (e.g., "::set" -> "set")
+ * but preserves the full path for nested namespaces (e.g., "::foo::bar" stays as-is).
+ */
+static TclObj get_display_name(const TclHostOps *ops, TclInterp interp, TclObj name) {
+  size_t len;
+  const char *str = ops->string.get(interp, name, &len);
+
+  // Check if it starts with ::
+  if (len > 2 && str[0] == ':' && str[1] == ':') {
+    // Check if there's another :: after the initial one (nested namespace)
+    for (size_t i = 2; i + 1 < len; i++) {
+      if (str[i] == ':' && str[i + 1] == ':') {
+        // Nested namespace - return as-is
+        return name;
+      }
+    }
+    // Global namespace only - strip the leading ::
+    return ops->string.intern(interp, str + 2, len - 2);
+  }
+  return name;
+}
+
+/**
  * Helper to check if a string equals a literal.
  */
 static int str_eq(const char *s, size_t len, const char *lit) {
@@ -121,8 +145,10 @@ static TclResult info_level(const TclHostOps *ops, TclInterp interp,
   (void)frameNs; // Currently unused - info level doesn't include namespace
 
   // Build result list: {cmd arg1 arg2 ...}
+  // Use display name for the command (strips :: for global namespace)
   TclObj result = ops->list.create(interp);
-  result = ops->list.push(interp, result, cmd);
+  TclObj displayCmd = get_display_name(ops, interp, cmd);
+  result = ops->list.push(interp, result, displayCmd);
 
   // Append all arguments
   size_t argCount = ops->list.length(interp, frameArgs);
@@ -161,27 +187,34 @@ static TclResult info_commands(const TclHostOps *ops, TclInterp interp,
 
   // Get all command names
   TclObj allNames = ops->proc.names(interp, 0);
+  size_t count = ops->list.length(interp, allNames);
 
   if (argc == 0) {
-    // No pattern - return all commands
-    ops->interp.set_result(interp, allNames);
+    // No pattern - return all commands with display names
+    TclObj result = ops->list.create(interp);
+    for (size_t i = 0; i < count; i++) {
+      TclObj name = ops->list.at(interp, allNames, i);
+      TclObj displayName = get_display_name(ops, interp, name);
+      result = ops->list.push(interp, result, displayName);
+    }
+    ops->interp.set_result(interp, result);
     return TCL_OK;
   }
 
-  // Filter by pattern
+  // Filter by pattern using display names
   TclObj pattern = ops->list.at(interp, args, 0);
   size_t patLen;
   const char *patStr = ops->string.get(interp, pattern, &patLen);
 
   TclObj result = ops->list.create(interp);
-  size_t count = ops->list.length(interp, allNames);
   for (size_t i = 0; i < count; i++) {
     TclObj name = ops->list.at(interp, allNames, i);
-    size_t nameLen;
-    const char *nameStr = ops->string.get(interp, name, &nameLen);
+    TclObj displayName = get_display_name(ops, interp, name);
+    size_t displayLen;
+    const char *displayStr = ops->string.get(interp, displayName, &displayLen);
 
-    if (tcl_glob_match(patStr, patLen, nameStr, nameLen)) {
-      result = ops->list.push(interp, result, name);
+    if (tcl_glob_match(patStr, patLen, displayStr, displayLen)) {
+      result = ops->list.push(interp, result, displayName);
     }
   }
 
@@ -224,16 +257,19 @@ static TclResult info_procs(const TclHostOps *ops, TclInterp interp,
       continue;
     }
 
+    // Get display name for pattern matching and output
+    TclObj displayName = get_display_name(ops, interp, name);
+
     // Apply pattern filter if specified
     if (patStr != NULL) {
-      size_t nameLen;
-      const char *nameStr = ops->string.get(interp, name, &nameLen);
-      if (!tcl_glob_match(patStr, patLen, nameStr, nameLen)) {
+      size_t displayLen;
+      const char *displayStr = ops->string.get(interp, displayName, &displayLen);
+      if (!tcl_glob_match(patStr, patLen, displayStr, displayLen)) {
         continue;
       }
     }
 
-    result = ops->list.push(interp, result, name);
+    result = ops->list.push(interp, result, displayName);
   }
 
   ops->interp.set_result(interp, result);
@@ -407,6 +443,9 @@ static TclResult info_frame(const TclHostOps *ops, TclInterp interp,
     goto bad_level;
   }
 
+  // Use display name for the command (strips :: for global namespace)
+  TclObj displayCmd = get_display_name(ops, interp, cmd);
+
   // Build result dictionary as a list: {key value key value ...}
   TclObj result = ops->list.create(interp);
 
@@ -417,7 +456,7 @@ static TclResult info_frame(const TclHostOps *ops, TclInterp interp,
   // cmd {cmdname arg1 arg2 ...}
   result = ops->list.push(interp, result, ops->string.intern(interp, "cmd", 3));
   TclObj cmdList = ops->list.create(interp);
-  cmdList = ops->list.push(interp, cmdList, cmd);
+  cmdList = ops->list.push(interp, cmdList, displayCmd);
   size_t argCount = ops->list.length(interp, frameArgs);
   for (size_t i = 0; i < argCount; i++) {
     cmdList = ops->list.push(interp, cmdList, ops->list.at(interp, frameArgs, i));
@@ -426,7 +465,7 @@ static TclResult info_frame(const TclHostOps *ops, TclInterp interp,
 
   // proc name
   result = ops->list.push(interp, result, ops->string.intern(interp, "proc", 4));
-  result = ops->list.push(interp, result, cmd);
+  result = ops->list.push(interp, result, displayCmd);
 
   // level number
   result = ops->list.push(interp, result, ops->string.intern(interp, "level", 5));

@@ -1,6 +1,30 @@
 #include "tclc.h"
 #include "internal.h"
 
+/**
+ * Helper to get the display name for a command.
+ * Strips leading "::" for global namespace commands (e.g., "::set" -> "set")
+ * but preserves the full path for nested namespaces (e.g., "::foo::bar" stays as-is).
+ */
+static TclObj get_display_name(const TclHostOps *ops, TclInterp interp, TclObj name) {
+  size_t len;
+  const char *str = ops->string.get(interp, name, &len);
+
+  // Check if it starts with ::
+  if (len > 2 && str[0] == ':' && str[1] == ':') {
+    // Check if there's another :: after the initial one (nested namespace)
+    for (size_t i = 2; i + 1 < len; i++) {
+      if (str[i] == ':' && str[i + 1] == ':') {
+        // Nested namespace - return as-is
+        return name;
+      }
+    }
+    // Global namespace only - strip the leading ::
+    return ops->string.intern(interp, str + 2, len - 2);
+  }
+  return name;
+}
+
 TclResult tcl_builtin_proc(const TclHostOps *ops, TclInterp interp,
                            TclObj cmd, TclObj args) {
   size_t argc = ops->list.length(interp, args);
@@ -45,16 +69,18 @@ TclResult tcl_builtin_proc(const TclHostOps *ops, TclInterp interp,
 
     qualifiedName = name;
   } else {
-    // Unqualified name - prepend current namespace (except global)
+    // Unqualified name - prepend current namespace
     TclObj currentNs = ops->ns.current(interp);
     size_t nsLen;
     const char *nsStr = ops->string.get(interp, currentNs, &nsLen);
 
-    // If current namespace is "::", keep the name as-is (global procs don't need prefix)
-    // Otherwise prepend "currentns::"
+    // Always store with full namespace path
+    // Global namespace (::) -> "::name"
+    // Other namespace -> "::ns::name"
     if (nsLen == 2 && nsStr[0] == ':' && nsStr[1] == ':') {
-      // Global namespace: keep unqualified name
-      qualifiedName = name;
+      // Global namespace: prepend "::"
+      qualifiedName = ops->string.intern(interp, "::", 2);
+      qualifiedName = ops->string.concat(interp, qualifiedName, name);
     } else {
       // Other namespace: "::ns::name"
       qualifiedName = ops->string.concat(interp, currentNs,
@@ -124,12 +150,11 @@ TclResult tcl_invoke_proc(const TclHostOps *ops, TclInterp interp,
 
   if (!args_ok) {
     // Build error message: wrong # args: should be "name param1 param2 ..."
-    size_t nameLen;
-    const char *nameStr = ops->string.get(interp, name, &nameLen);
+    // Use display name to strip :: for global namespace commands
+    TclObj displayName = get_display_name(ops, interp, name);
 
     TclObj msg = ops->string.intern(interp, "wrong # args: should be \"", 25);
-    TclObj namePart = ops->string.intern(interp, nameStr, nameLen);
-    msg = ops->string.concat(interp, msg, namePart);
+    msg = ops->string.concat(interp, msg, displayName);
 
     // Add parameters to error message
     TclObj paramsCopy = ops->list.from(interp, params);

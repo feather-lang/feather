@@ -768,12 +768,15 @@ func fireCmdTraces(i *Interp, oldName string, newName string, op string, traces 
 		// Get the script command prefix - GetString acquires lock internally
 		scriptStr := i.GetString(trace.script)
 		// Build the full command: script oldName newName op
+		// Use display names (strip :: for global namespace commands)
+		displayOld := i.DisplayName(oldName)
+		displayNew := i.DisplayName(newName)
 		// Empty strings must be properly quoted with {}
-		quotedNew := newName
-		if newName == "" {
+		quotedNew := displayNew
+		if displayNew == "" {
 			quotedNew = "{}"
 		}
-		cmd := scriptStr + " " + oldName + " " + quotedNew + " " + op
+		cmd := scriptStr + " " + displayOld + " " + quotedNew + " " + op
 		cmdObj := i.internString(cmd)
 
 		// Fire the trace by evaluating the command
@@ -896,7 +899,7 @@ func goProcRename(interp C.TclInterp, oldName C.TclObj, newName C.TclObj) C.TclR
 	// Check if old command exists
 	cmd, ok := i.commands[oldNameStr]
 	if !ok {
-		i.SetErrorString("can't rename \"" + oldNameStr + "\": command doesn't exist")
+		i.SetErrorString("can't rename \"" + i.DisplayName(oldNameStr) + "\": command doesn't exist")
 		return C.TCL_ERROR
 	}
 
@@ -915,7 +918,7 @@ func goProcRename(interp C.TclInterp, oldName C.TclObj, newName C.TclObj) C.TclR
 
 	// Check if new name already exists
 	if _, exists := i.commands[newNameStr]; exists {
-		i.SetErrorString("can't rename to \"" + newNameStr + "\": command already exists")
+		i.SetErrorString("can't rename to \"" + i.DisplayName(newNameStr) + "\": command already exists")
 		return C.TCL_ERROR
 	}
 

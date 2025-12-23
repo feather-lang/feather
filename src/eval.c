@@ -44,29 +44,23 @@ TclResult tcl_command_exec(const TclHostOps *ops, TclInterp interp,
   if (tcl_is_qualified(cmdStr, cmdLen)) {
     // Qualified name - contains ::
     if (cmdLen >= 2 && cmdStr[0] == ':' && cmdStr[1] == ':') {
-      // Absolute qualified name like "::foo::bar" - use as-is
+      // Absolute qualified name like "::foo::bar" - lookup as-is
       lookupName = cmd;
       cmdType = ops->proc.lookup(interp, lookupName, &builtin);
     } else {
       // Relative qualified name like "bar::helper"
-      // First try as-is (for builtins like tcl::mathfunc::exp)
-      cmdType = ops->proc.lookup(interp, cmd, &builtin);
-      if (cmdType != TCL_CMD_NONE) {
-        lookupName = cmd;
+      // Prepend current namespace: "bar::helper" in ::foo -> "::foo::bar::helper"
+      if (inGlobalNs) {
+        // In global namespace: "bar::helper" -> "::bar::helper"
+        lookupName = ops->string.intern(interp, "::", 2);
+        lookupName = ops->string.concat(interp, lookupName, cmd);
       } else {
-        // Prepend current namespace: "bar::helper" in ::foo -> "::foo::bar::helper"
-        if (inGlobalNs) {
-          // In global namespace: "bar::helper" -> "::bar::helper"
-          lookupName = ops->string.intern(interp, "::", 2);
-          lookupName = ops->string.concat(interp, lookupName, cmd);
-        } else {
-          // In other namespace: "bar::helper" in ::foo -> "::foo::bar::helper"
-          lookupName = ops->string.concat(interp, currentNs,
-                                          ops->string.intern(interp, "::", 2));
-          lookupName = ops->string.concat(interp, lookupName, cmd);
-        }
-        cmdType = ops->proc.lookup(interp, lookupName, &builtin);
+        // In other namespace: "bar::helper" in ::foo -> "::foo::bar::helper"
+        lookupName = ops->string.concat(interp, currentNs,
+                                        ops->string.intern(interp, "::", 2));
+        lookupName = ops->string.concat(interp, lookupName, cmd);
       }
+      cmdType = ops->proc.lookup(interp, lookupName, &builtin);
     }
   } else {
     // Unqualified name - no ::
@@ -81,22 +75,13 @@ TclResult tcl_command_exec(const TclHostOps *ops, TclInterp interp,
       }
     }
 
-    // If not found in current namespace, try global namespace
+    // If not found in current namespace, try global namespace (::cmd)
     if (cmdType == TCL_CMD_NONE) {
-      // Try with :: prefix for global lookup
       TclObj globalQualified = ops->string.intern(interp, "::", 2);
       globalQualified = ops->string.concat(interp, globalQualified, cmd);
       cmdType = ops->proc.lookup(interp, globalQualified, &builtin);
       if (cmdType != TCL_CMD_NONE) {
         lookupName = globalQualified;
-      }
-    }
-
-    // If still not found, try as-is (for builtins registered without ::)
-    if (cmdType == TCL_CMD_NONE) {
-      cmdType = ops->proc.lookup(interp, cmd, &builtin);
-      if (cmdType != TCL_CMD_NONE) {
-        lookupName = cmd;
       }
     }
   }
@@ -117,17 +102,10 @@ TclResult tcl_command_exec(const TclHostOps *ops, TclInterp interp,
     break;
   }
 
-  // Check for user-defined 'unknown' procedure
-  // Try both "unknown" and "::unknown" since procs may be stored either way
-  TclObj unknownName = ops->string.intern(interp, "unknown", 7);
+  // Check for user-defined 'unknown' procedure in global namespace
+  TclObj unknownName = ops->string.intern(interp, "::unknown", 9);
   TclBuiltinCmd unusedFn = NULL;
   TclCommandType unknownType = ops->proc.lookup(interp, unknownName, &unusedFn);
-
-  // If not found as "unknown", try "::unknown"
-  if (unknownType == TCL_CMD_NONE) {
-    unknownName = ops->string.intern(interp, "::unknown", 9);
-    unknownType = ops->proc.lookup(interp, unknownName, &unusedFn);
-  }
 
   if (unknownType == TCL_CMD_PROC) {
     // Build args list: [originalCmd, arg1, arg2, ...]

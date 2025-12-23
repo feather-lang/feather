@@ -67,8 +67,20 @@ static TclResult trace_add(const TclHostOps *ops, TclInterp interp,
     opsString = ops->string.concat(interp, opsString, ops->list.at(interp, opsList, i));
   }
 
+  // For command traces, normalize the name to fully qualified form
+  TclObj traceName = name;
+  if (str_eq(kindStr, kindLen, "command")) {
+    size_t nameLen;
+    const char *nameStr = ops->string.get(interp, name, &nameLen);
+    // If unqualified, prepend ::
+    if (!tcl_is_qualified(nameStr, nameLen)) {
+      traceName = ops->string.intern(interp, "::", 2);
+      traceName = ops->string.concat(interp, traceName, name);
+    }
+  }
+
   // Register the trace
-  if (ops->trace.add(interp, kind, name, opsString, script) != TCL_OK) {
+  if (ops->trace.add(interp, kind, traceName, opsString, script) != TCL_OK) {
     return TCL_ERROR;
   }
 
@@ -121,9 +133,20 @@ static TclResult trace_remove(const TclHostOps *ops, TclInterp interp,
     }
   }
 
+  // For command traces, normalize the name to fully qualified form
+  TclObj traceName = name;
+  if (str_eq(kindStr, kindLen, "command")) {
+    size_t nameLen;
+    const char *nameStr = ops->string.get(interp, name, &nameLen);
+    if (!tcl_is_qualified(nameStr, nameLen)) {
+      traceName = ops->string.intern(interp, "::", 2);
+      traceName = ops->string.concat(interp, traceName, name);
+    }
+  }
+
   // Remove the trace - note: trace.remove returns error if not found
   // but TCL trace remove is silent if trace doesn't exist
-  ops->trace.remove(interp, kind, name, opsString, script);
+  ops->trace.remove(interp, kind, traceName, opsString, script);
 
   ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
   return TCL_OK;
@@ -160,8 +183,19 @@ static TclResult trace_info(const TclHostOps *ops, TclInterp interp,
     return TCL_ERROR;
   }
 
+  // For command traces, normalize the name to fully qualified form
+  TclObj traceName = name;
+  if (str_eq(kindStr, kindLen, "command")) {
+    size_t nameLen;
+    const char *nameStr = ops->string.get(interp, name, &nameLen);
+    if (!tcl_is_qualified(nameStr, nameLen)) {
+      traceName = ops->string.intern(interp, "::", 2);
+      traceName = ops->string.concat(interp, traceName, name);
+    }
+  }
+
   // Get trace info
-  TclObj info = ops->trace.info(interp, kind, name);
+  TclObj info = ops->trace.info(interp, kind, traceName);
   ops->interp.set_result(interp, info);
   return TCL_OK;
 }

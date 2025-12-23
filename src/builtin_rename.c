@@ -55,15 +55,15 @@ TclResult tcl_builtin_rename(const TclHostOps *ops, TclInterp interp,
 
   TclObj qualifiedNew = newName;
   if (newLen > 0 && !tcl_is_qualified(newStr, newLen)) {
-    // Prepend current namespace to new name (only if not in global namespace)
-    // Global procs are stored without :: prefix
+    // Prepend current namespace to new name
     TclObj currentNs = ops->ns.current(interp);
     size_t nsLen;
     const char *nsStr = ops->string.get(interp, currentNs, &nsLen);
 
     if (nsLen == 2 && nsStr[0] == ':' && nsStr[1] == ':') {
-      // Global namespace: keep name as-is
-      qualifiedNew = newName;
+      // Global namespace: prepend "::"
+      qualifiedNew = ops->string.intern(interp, "::", 2);
+      qualifiedNew = ops->string.concat(interp, qualifiedNew, newName);
     } else {
       // Other namespace: "::ns::name"
       qualifiedNew = ops->string.concat(interp, currentNs,
