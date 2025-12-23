@@ -60,6 +60,10 @@ zig cc -target wasm32-freestanding -nostdlib \
   -Wl,--export=tcl_script_eval_obj \
   -Wl,--export=tcl_builtin_set \
   -Wl,--export=tcl_builtin_expr \
+  -Wl,--export=wasm_interp_init \
+  -Wl,--export=wasm_script_eval \
+  -Wl,--export=wasm_script_eval_obj \
+  -Wl,--export=wasm_command_exec \
   -Wl,--export=__heap_base \
   -o wasmtcl/wasm/tclc.wasm src/*.c -I src
 """

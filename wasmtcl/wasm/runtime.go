@@ -152,27 +152,8 @@ func (r *Runtime) NewInstance(hostData any) (*Instance, error) {
 }
 
 // buildHostModule creates the host module with TclHostOps function imports.
-// This is a stub that will be expanded in Phase 2.
 func (r *Runtime) buildHostModule(interpID TclInterp) (wazero.CompiledModule, error) {
-	builder := r.runtime.NewHostModuleBuilder("env")
-
-	// Stub implementations for now - will be replaced in Phase 2
-	// These just return 0/success to allow the module to load
-
-	// Memory allocation stub (required for string operations)
-	builder.NewFunctionBuilder().
-		WithFunc(func(ctx context.Context, size uint32) uint32 {
-			return 0 // stub
-		}).
-		Export("malloc")
-
-	builder.NewFunctionBuilder().
-		WithFunc(func(ctx context.Context, ptr uint32) {
-			// stub
-		}).
-		Export("free")
-
-	return builder.Compile(r.ctx)
+	return BuildHostModule(r.ctx, r.runtime)
 }
 
 // ID returns the instance's unique identifier.
