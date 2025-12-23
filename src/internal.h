@@ -273,4 +273,22 @@ TclResult tcl_builtin_throw(const TclHostOps *ops, TclInterp interp,
 TclResult tcl_builtin_try(const TclHostOps *ops, TclInterp interp,
                            TclObj cmd, TclObj args);
 
+/**
+ * tcl_builtin_trace implements the TCL 'trace' command.
+ *
+ * Usage:
+ *   trace subcommand ?arg ...?
+ *
+ * Subcommands:
+ *   add type name opList command    - add a trace
+ *   remove type name opList command - remove a trace
+ *   info type name                  - list traces on name
+ *
+ * Type is 'variable' or 'command'.
+ * For variables, opList is a list of: read, write, unset
+ * For commands, opList is a list of: rename, delete
+ */
+TclResult tcl_builtin_trace(const TclHostOps *ops, TclInterp interp,
+                             TclObj cmd, TclObj args);
+
 #endif

@@ -165,8 +165,6 @@ func goListCreate(interp C.TclInterp) C.TclObj {
 	if i == nil {
 		return 0
 	}
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	id := i.nextID
 	i.nextID++
 	i.objects[id] = &Object{isList: true, listItems: []TclObj{}}
@@ -193,8 +191,6 @@ func goListFrom(interp C.TclInterp, obj C.TclObj) C.TclObj {
 		return 0
 	}
 	// Create a new list with copied items
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	id := i.nextID
 	i.nextID++
 	// Make a copy of the items slice
@@ -214,8 +210,6 @@ func goListPush(interp C.TclInterp, list C.TclObj, item C.TclObj) C.TclObj {
 	if o == nil || !o.isList {
 		return list
 	}
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	o.listItems = append(o.listItems, TclObj(item))
 	return list
 }
@@ -245,8 +239,6 @@ func goListShift(interp C.TclInterp, list C.TclObj) C.TclObj {
 	if o == nil {
 		return 0
 	}
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	first := o.listItems[0]
 	o.listItems = o.listItems[1:]
 	return C.TclObj(first)
@@ -289,8 +281,6 @@ func goIntCreate(interp C.TclInterp, val C.int64_t) C.TclObj {
 	if i == nil {
 		return 0
 	}
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	id := i.nextID
 	i.nextID++
 	i.objects[id] = &Object{intVal: int64(val), isInt: true}
@@ -317,8 +307,6 @@ func goDoubleCreate(interp C.TclInterp, val C.double) C.TclObj {
 	if i == nil {
 		return 0
 	}
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	id := i.nextID
 	i.nextID++
 	i.objects[id] = &Object{dblVal: float64(val), isDouble: true}
@@ -345,8 +333,6 @@ func goFramePush(interp C.TclInterp, cmd C.TclObj, args C.TclObj) C.TclResult {
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	newLevel := len(i.frames)
 	// Check recursion limit
 	limit := i.recursionLimit
@@ -386,8 +372,6 @@ func goFramePop(interp C.TclInterp) C.TclResult {
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	// Cannot pop the global frame (frame 0)
 	if len(i.frames) <= 1 {
 		return C.TCL_ERROR
@@ -403,8 +387,6 @@ func goFrameLevel(interp C.TclInterp) C.size_t {
 	if i == nil {
 		return 0
 	}
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	return C.size_t(i.active)
 }
 
@@ -414,8 +396,6 @@ func goFrameSetActive(interp C.TclInterp, level C.size_t) C.TclResult {
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	lvl := int(level)
 	if lvl < 0 || lvl >= len(i.frames) {
 		return C.TCL_ERROR
@@ -430,8 +410,6 @@ func goFrameSize(interp C.TclInterp) C.size_t {
 	if i == nil {
 		return 0
 	}
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	return C.size_t(len(i.frames))
 }
 
@@ -441,8 +419,6 @@ func goFrameInfo(interp C.TclInterp, level C.size_t, cmd *C.TclObj, args *C.TclO
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	lvl := int(level)
 	if lvl < 0 || lvl >= len(i.frames) {
 		return C.TCL_ERROR
@@ -452,9 +428,9 @@ func goFrameInfo(interp C.TclInterp, level C.size_t, cmd *C.TclObj, args *C.TclO
 	*args = C.TclObj(frame.args)
 	// Return the frame's namespace
 	if frame.ns != nil {
-		*ns = C.TclObj(i.internStringLocked(frame.ns.fullPath))
+		*ns = C.TclObj(i.internString(frame.ns.fullPath))
 	} else {
-		*ns = C.TclObj(i.internStringLocked("::"))
+		*ns = C.TclObj(i.internString("::"))
 	}
 	return C.TCL_OK
 }
@@ -469,10 +445,9 @@ func goVarGet(interp C.TclInterp, name C.TclObj) C.TclObj {
 	if nameObj == nil {
 		return 0
 	}
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	frame := i.frames[i.active]
 	varName := nameObj.stringVal
+	originalVarName := varName // Save for trace firing
 	// Follow links to find the actual variable location
 	for {
 		if link, ok := frame.links[varName]; ok {
@@ -480,6 +455,13 @@ func goVarGet(interp C.TclInterp, name C.TclObj) C.TclObj {
 				// Namespace variable link
 				if ns, ok := i.namespaces[link.nsPath]; ok {
 					if val, ok := ns.vars[link.nsName]; ok {
+						// Copy traces before unlocking
+						traces := make([]TraceEntry, len(i.varTraces[originalVarName]))
+						copy(traces, i.varTraces[originalVarName])
+						// Fire read traces
+						if len(traces) > 0 {
+							fireVarTraces(i, originalVarName, "read", traces)
+						}
 						return C.TclObj(val)
 					}
 				}
@@ -494,10 +476,18 @@ func goVarGet(interp C.TclInterp, name C.TclObj) C.TclObj {
 			break
 		}
 	}
+	var result C.TclObj
 	if val, ok := frame.vars[varName]; ok {
-		return C.TclObj(val)
+		result = C.TclObj(val)
 	}
-	return 0
+	// Copy traces before unlocking
+	traces := make([]TraceEntry, len(i.varTraces[originalVarName]))
+	copy(traces, i.varTraces[originalVarName])
+	// Fire read traces
+	if len(traces) > 0 {
+		fireVarTraces(i, originalVarName, "read", traces)
+	}
+	return result
 }
 
 //export goVarSet
@@ -510,10 +500,9 @@ func goVarSet(interp C.TclInterp, name C.TclObj, value C.TclObj) {
 	if nameObj == nil {
 		return
 	}
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	frame := i.frames[i.active]
 	varName := nameObj.stringVal
+	originalVarName := varName // Save for trace firing
 	// Follow links to find the actual variable location
 	for {
 		if link, ok := frame.links[varName]; ok {
@@ -521,6 +510,13 @@ func goVarSet(interp C.TclInterp, name C.TclObj, value C.TclObj) {
 				// Namespace variable link
 				if ns, ok := i.namespaces[link.nsPath]; ok {
 					ns.vars[link.nsName] = TclObj(value)
+				}
+				// Copy traces before unlocking
+				traces := make([]TraceEntry, len(i.varTraces[originalVarName]))
+				copy(traces, i.varTraces[originalVarName])
+				// Fire write traces
+				if len(traces) > 0 {
+					fireVarTraces(i, originalVarName, "write", traces)
 				}
 				return
 			} else if link.targetLevel >= 0 && link.targetLevel < len(i.frames) {
@@ -534,6 +530,13 @@ func goVarSet(interp C.TclInterp, name C.TclObj, value C.TclObj) {
 		}
 	}
 	frame.vars[varName] = TclObj(value)
+	// Copy traces before unlocking
+	traces := make([]TraceEntry, len(i.varTraces[originalVarName]))
+	copy(traces, i.varTraces[originalVarName])
+	// Fire write traces
+	if len(traces) > 0 {
+		fireVarTraces(i, originalVarName, "write", traces)
+	}
 }
 
 //export goVarUnset
@@ -546,10 +549,9 @@ func goVarUnset(interp C.TclInterp, name C.TclObj) {
 	if nameObj == nil {
 		return
 	}
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	frame := i.frames[i.active]
 	varName := nameObj.stringVal
+	originalVarName := varName // Save for trace firing
 	// Follow links to find the actual variable location
 	for {
 		if link, ok := frame.links[varName]; ok {
@@ -557,6 +559,13 @@ func goVarUnset(interp C.TclInterp, name C.TclObj) {
 				// Namespace variable link
 				if ns, ok := i.namespaces[link.nsPath]; ok {
 					delete(ns.vars, link.nsName)
+				}
+				// Copy traces before unlocking
+				traces := make([]TraceEntry, len(i.varTraces[originalVarName]))
+				copy(traces, i.varTraces[originalVarName])
+				// Fire unset traces
+				if len(traces) > 0 {
+					fireVarTraces(i, originalVarName, "unset", traces)
 				}
 				return
 			} else if link.targetLevel >= 0 && link.targetLevel < len(i.frames) {
@@ -570,6 +579,13 @@ func goVarUnset(interp C.TclInterp, name C.TclObj) {
 		}
 	}
 	delete(frame.vars, varName)
+	// Copy traces before unlocking
+	traces := make([]TraceEntry, len(i.varTraces[originalVarName]))
+	copy(traces, i.varTraces[originalVarName])
+	// Fire unset traces
+	if len(traces) > 0 {
+		fireVarTraces(i, originalVarName, "unset", traces)
+	}
 }
 
 //export goVarExists
@@ -582,8 +598,6 @@ func goVarExists(interp C.TclInterp, name C.TclObj) C.TclResult {
 	if nameObj == nil {
 		return C.TCL_ERROR
 	}
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	frame := i.frames[i.active]
 	varName := nameObj.stringVal
 	// Follow links to find the actual variable location
@@ -624,8 +638,6 @@ func goVarLink(interp C.TclInterp, local C.TclObj, target_level C.size_t, target
 	if localObj == nil || targetObj == nil {
 		return
 	}
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	frame := i.frames[i.active]
 	frame.links[localObj.stringVal] = varLink{
 		targetLevel: int(target_level),
@@ -640,8 +652,6 @@ func goProcDefine(interp C.TclInterp, name C.TclObj, params C.TclObj, body C.Tcl
 		return
 	}
 	nameStr := i.GetString(TclObj(name))
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	proc := &Procedure{
 		name:   TclObj(name),
 		params: TclObj(params),
@@ -660,8 +670,6 @@ func goProcExists(interp C.TclInterp, name C.TclObj) C.int {
 		return 0
 	}
 	nameStr := i.GetString(TclObj(name))
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	if cmd, ok := i.commands[nameStr]; ok && cmd.cmdType == CmdProc {
 		return 1
 	}
@@ -675,9 +683,7 @@ func goProcParams(interp C.TclInterp, name C.TclObj, result *C.TclObj) C.TclResu
 		return C.TCL_ERROR
 	}
 	nameStr := i.GetString(TclObj(name))
-	i.mu.Lock()
 	cmd, ok := i.commands[nameStr]
-	i.mu.Unlock()
 	if !ok || cmd.cmdType != CmdProc || cmd.proc == nil {
 		return C.TCL_ERROR
 	}
@@ -692,9 +698,7 @@ func goProcBody(interp C.TclInterp, name C.TclObj, result *C.TclObj) C.TclResult
 		return C.TCL_ERROR
 	}
 	nameStr := i.GetString(TclObj(name))
-	i.mu.Lock()
 	cmd, ok := i.commands[nameStr]
-	i.mu.Unlock()
 	if !ok || cmd.cmdType != CmdProc || cmd.proc == nil {
 		return C.TCL_ERROR
 	}
@@ -705,6 +709,76 @@ func goProcBody(interp C.TclInterp, name C.TclObj, result *C.TclObj) C.TclResult
 // callCEval invokes the C interpreter
 func callCEval(interpHandle TclInterp, scriptHandle TclObj) C.TclResult {
 	return C.call_tcl_eval_obj(C.TclInterp(interpHandle), C.TclObj(scriptHandle), C.TCL_EVAL_LOCAL)
+}
+
+// fireVarTraces fires variable traces for the given operation.
+// This function must be called WITHOUT holding the mutex.
+func fireVarTraces(i *Interp, varName string, op string, traces []TraceEntry) {
+	// Variable traces are invoked as: command name1 name2 op
+	// - name1 is the variable name
+	// - name2 is empty (array element, not supported)
+	// - op is "read", "write", or "unset"
+	for _, trace := range traces {
+		// Check if this trace matches the operation
+		ops := strings.Fields(trace.ops)
+		matches := false
+		for _, traceOp := range ops {
+			if traceOp == op {
+				matches = true
+				break
+			}
+		}
+		if !matches {
+			continue
+		}
+
+		// Get the script command prefix - GetString acquires lock internally
+		scriptStr := i.GetString(trace.script)
+		// Build the full command: script name1 name2 op
+		// We'll construct this as a string to eval
+		cmd := scriptStr + " " + varName + " {} " + op
+		cmdObj := i.internString(cmd)
+
+		// Fire the trace by evaluating the command
+		callCEval(i.handle, cmdObj)
+	}
+}
+
+// fireCmdTraces fires command traces for the given operation.
+// This function must be called WITHOUT holding the mutex.
+func fireCmdTraces(i *Interp, oldName string, newName string, op string, traces []TraceEntry) {
+	// Command traces are invoked as: command oldName newName op
+	// - oldName is the original command name
+	// - newName is the new name (empty for delete)
+	// - op is "rename" or "delete"
+	for _, trace := range traces {
+		// Check if this trace matches the operation
+		ops := strings.Fields(trace.ops)
+		matches := false
+		for _, traceOp := range ops {
+			if traceOp == op {
+				matches = true
+				break
+			}
+		}
+		if !matches {
+			continue
+		}
+
+		// Get the script command prefix - GetString acquires lock internally
+		scriptStr := i.GetString(trace.script)
+		// Build the full command: script oldName newName op
+		// Empty strings must be properly quoted with {}
+		quotedNew := newName
+		if newName == "" {
+			quotedNew = "{}"
+		}
+		cmd := scriptStr + " " + oldName + " " + quotedNew + " " + op
+		cmdObj := i.internString(cmd)
+
+		// Fire the trace by evaluating the command
+		callCEval(i.handle, cmdObj)
+	}
 }
 
 // callCParse invokes the C parser
@@ -725,19 +799,15 @@ func goProcNames(interp C.TclInterp, namespace C.TclObj) C.TclObj {
 	}
 	// For now, ignore namespace parameter (only global namespace exists)
 	// Collect all command names
-	i.mu.Lock()
 	names := make([]string, 0, len(i.commands))
 	for name := range i.commands {
 		names = append(names, name)
 	}
-	i.mu.Unlock()
 
 	// Sort for consistent ordering
 	sort.Strings(names)
 
 	// Create a list object with all names
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	id := i.nextID
 	i.nextID++
 	items := make([]TclObj, len(names))
@@ -780,8 +850,6 @@ func goProcRegisterBuiltin(interp C.TclInterp, name C.TclObj, fn C.TclBuiltinCmd
 		return
 	}
 	nameStr := i.GetString(TclObj(name))
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	// Register builtin with its function pointer
 	i.commands[nameStr] = &Command{
 		cmdType: CmdBuiltin,
@@ -797,9 +865,7 @@ func goProcLookup(interp C.TclInterp, name C.TclObj, fn *C.TclBuiltinCmd) C.TclC
 		return C.TCL_CMD_NONE
 	}
 	nameStr := i.GetString(TclObj(name))
-	i.mu.Lock()
 	cmd, ok := i.commands[nameStr]
-	i.mu.Unlock()
 	if !ok {
 		*fn = nil
 		return C.TCL_CMD_NONE
@@ -826,12 +892,10 @@ func goProcRename(interp C.TclInterp, oldName C.TclObj, newName C.TclObj) C.TclR
 	oldNameStr := i.GetString(TclObj(oldName))
 	newNameStr := i.GetString(TclObj(newName))
 
-	i.mu.Lock()
 
 	// Check if old command exists
 	cmd, ok := i.commands[oldNameStr]
 	if !ok {
-		i.mu.Unlock()
 		i.SetErrorString("can't rename \"" + oldNameStr + "\": command doesn't exist")
 		return C.TCL_ERROR
 	}
@@ -839,13 +903,18 @@ func goProcRename(interp C.TclInterp, oldName C.TclObj, newName C.TclObj) C.TclR
 	// If newName is empty, delete the command
 	if newNameStr == "" {
 		delete(i.commands, oldNameStr)
-		i.mu.Unlock()
+		// Copy traces before unlocking
+		traces := make([]TraceEntry, len(i.cmdTraces[oldNameStr]))
+		copy(traces, i.cmdTraces[oldNameStr])
+		// Fire delete traces
+		if len(traces) > 0 {
+			fireCmdTraces(i, oldNameStr, "", "delete", traces)
+		}
 		return C.TCL_OK
 	}
 
 	// Check if new name already exists
 	if _, exists := i.commands[newNameStr]; exists {
-		i.mu.Unlock()
 		i.SetErrorString("can't rename to \"" + newNameStr + "\": command already exists")
 		return C.TCL_ERROR
 	}
@@ -855,7 +924,13 @@ func goProcRename(interp C.TclInterp, oldName C.TclObj, newName C.TclObj) C.TclR
 	// For procs: procedure data comes along
 	i.commands[newNameStr] = cmd
 	delete(i.commands, oldNameStr)
-	i.mu.Unlock()
+	// Copy traces before unlocking
+	traces := make([]TraceEntry, len(i.cmdTraces[oldNameStr]))
+	copy(traces, i.cmdTraces[oldNameStr])
+	// Fire rename traces
+	if len(traces) > 0 {
+		fireCmdTraces(i, oldNameStr, newNameStr, "rename", traces)
+	}
 
 	return C.TCL_OK
 }
@@ -906,8 +981,6 @@ func goNsCreate(interp C.TclInterp, path C.TclObj) C.TclResult {
 		return C.TCL_ERROR
 	}
 	pathStr := i.GetString(TclObj(path))
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	i.ensureNamespace(pathStr)
 	return C.TCL_OK
 }
@@ -919,8 +992,6 @@ func goNsDelete(interp C.TclInterp, path C.TclObj) C.TclResult {
 		return C.TCL_ERROR
 	}
 	pathStr := i.GetString(TclObj(path))
-	i.mu.Lock()
-	defer i.mu.Unlock()
 
 	// Cannot delete global namespace
 	if pathStr == "::" {
@@ -962,8 +1033,6 @@ func goNsExists(interp C.TclInterp, path C.TclObj) C.int {
 		return 0
 	}
 	pathStr := i.GetString(TclObj(path))
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	if _, ok := i.namespaces[pathStr]; ok {
 		return 1
 	}
@@ -976,21 +1045,11 @@ func goNsCurrent(interp C.TclInterp) C.TclObj {
 	if i == nil {
 		return 0
 	}
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	frame := i.frames[i.active]
 	if frame.ns != nil {
-		return C.TclObj(i.internStringLocked(frame.ns.fullPath))
+		return C.TclObj(i.internString(frame.ns.fullPath))
 	}
-	return C.TclObj(i.internStringLocked("::"))
-}
-
-// internStringLocked is like internString but assumes lock is already held
-func (i *Interp) internStringLocked(s string) TclObj {
-	id := i.nextID
-	i.nextID++
-	i.objects[id] = &Object{stringVal: s}
-	return id
+	return C.TclObj(i.internString("::"))
 }
 
 //export goNsParent
@@ -1000,8 +1059,6 @@ func goNsParent(interp C.TclInterp, nsPath C.TclObj, result *C.TclObj) C.TclResu
 		return C.TCL_ERROR
 	}
 	pathStr := i.GetString(TclObj(nsPath))
-	i.mu.Lock()
-	defer i.mu.Unlock()
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
@@ -1010,9 +1067,9 @@ func goNsParent(interp C.TclInterp, nsPath C.TclObj, result *C.TclObj) C.TclResu
 
 	if ns.parent == nil {
 		// Global namespace has no parent - return empty string
-		*result = C.TclObj(i.internStringLocked(""))
+		*result = C.TclObj(i.internString(""))
 	} else {
-		*result = C.TclObj(i.internStringLocked(ns.parent.fullPath))
+		*result = C.TclObj(i.internString(ns.parent.fullPath))
 	}
 	return C.TCL_OK
 }
@@ -1024,8 +1081,6 @@ func goNsChildren(interp C.TclInterp, nsPath C.TclObj) C.TclObj {
 		return 0
 	}
 	pathStr := i.GetString(TclObj(nsPath))
-	i.mu.Lock()
-	defer i.mu.Unlock()
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
@@ -1047,7 +1102,7 @@ func goNsChildren(interp C.TclInterp, nsPath C.TclObj) C.TclObj {
 	items := make([]TclObj, len(names))
 	for idx, name := range names {
 		child := ns.children[name]
-		items[idx] = i.internStringLocked(child.fullPath)
+		items[idx] = i.internString(child.fullPath)
 	}
 
 	id := i.nextID
@@ -1064,8 +1119,6 @@ func goNsGetVar(interp C.TclInterp, nsPath C.TclObj, name C.TclObj) C.TclObj {
 	}
 	pathStr := i.GetString(TclObj(nsPath))
 	nameStr := i.GetString(TclObj(name))
-	i.mu.Lock()
-	defer i.mu.Unlock()
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
@@ -1085,8 +1138,6 @@ func goNsSetVar(interp C.TclInterp, nsPath C.TclObj, name C.TclObj, value C.TclO
 	}
 	pathStr := i.GetString(TclObj(nsPath))
 	nameStr := i.GetString(TclObj(name))
-	i.mu.Lock()
-	defer i.mu.Unlock()
 
 	// Create namespace if needed
 	ns := i.ensureNamespace(pathStr)
@@ -1101,8 +1152,6 @@ func goNsVarExists(interp C.TclInterp, nsPath C.TclObj, name C.TclObj) C.int {
 	}
 	pathStr := i.GetString(TclObj(nsPath))
 	nameStr := i.GetString(TclObj(name))
-	i.mu.Lock()
-	defer i.mu.Unlock()
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
@@ -1122,8 +1171,6 @@ func goNsUnsetVar(interp C.TclInterp, nsPath C.TclObj, name C.TclObj) {
 	}
 	pathStr := i.GetString(TclObj(nsPath))
 	nameStr := i.GetString(TclObj(name))
-	i.mu.Lock()
-	defer i.mu.Unlock()
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
@@ -1139,8 +1186,6 @@ func goFrameSetNamespace(interp C.TclInterp, nsPath C.TclObj) C.TclResult {
 		return C.TCL_ERROR
 	}
 	pathStr := i.GetString(TclObj(nsPath))
-	i.mu.Lock()
-	defer i.mu.Unlock()
 
 	// Create namespace if needed
 	ns := i.ensureNamespace(pathStr)
@@ -1154,13 +1199,11 @@ func goFrameGetNamespace(interp C.TclInterp) C.TclObj {
 	if i == nil {
 		return 0
 	}
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	frame := i.frames[i.active]
 	if frame.ns != nil {
-		return C.TclObj(i.internStringLocked(frame.ns.fullPath))
+		return C.TclObj(i.internString(frame.ns.fullPath))
 	}
-	return C.TclObj(i.internStringLocked("::"))
+	return C.TclObj(i.internString("::"))
 }
 
 //export goVarLinkNs
@@ -1172,8 +1215,6 @@ func goVarLinkNs(interp C.TclInterp, local C.TclObj, nsPath C.TclObj, name C.Tcl
 	localStr := i.GetString(TclObj(local))
 	pathStr := i.GetString(TclObj(nsPath))
 	nameStr := i.GetString(TclObj(name))
-	i.mu.Lock()
-	defer i.mu.Unlock()
 
 	frame := i.frames[i.active]
 	frame.links[localStr] = varLink{
@@ -1189,11 +1230,9 @@ func goInterpGetScript(interp C.TclInterp) C.TclObj {
 	if i == nil {
 		return 0
 	}
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	if i.scriptPath == 0 {
 		// Return empty string if no script path set
-		return C.TclObj(i.internStringLocked(""))
+		return C.TclObj(i.internString(""))
 	}
 	return C.TclObj(i.scriptPath)
 }
@@ -1204,8 +1243,6 @@ func goInterpSetScript(interp C.TclInterp, path C.TclObj) {
 	if i == nil {
 		return
 	}
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	i.scriptPath = TclObj(path)
 }
 
@@ -1215,8 +1252,6 @@ func goVarNames(interp C.TclInterp, ns C.TclObj) C.TclObj {
 	if i == nil {
 		return 0
 	}
-	i.mu.Lock()
-	defer i.mu.Unlock()
 
 	var names []string
 
@@ -1243,7 +1278,13 @@ func goVarNames(interp C.TclInterp, ns C.TclObj) C.TclObj {
 	} else {
 		// Return variables in the specified namespace
 		pathStr := i.GetString(TclObj(ns))
-		if nsObj, ok := i.namespaces[pathStr]; ok {
+		if pathStr == "::" {
+			// Global namespace - return variables from the global frame (frame 0)
+			globalFrame := i.frames[0]
+			for name := range globalFrame.vars {
+				names = append(names, name)
+			}
+		} else if nsObj, ok := i.namespaces[pathStr]; ok {
 			for name := range nsObj.vars {
 				names = append(names, name)
 			}
@@ -1256,7 +1297,7 @@ func goVarNames(interp C.TclInterp, ns C.TclObj) C.TclObj {
 	// Create list of names
 	items := make([]TclObj, len(names))
 	for idx, name := range names {
-		items[idx] = i.internStringLocked(name)
+		items[idx] = i.internString(name)
 	}
 
 	id := i.nextID
@@ -1275,8 +1316,6 @@ func goTraceAdd(interp C.TclInterp, kind C.TclObj, name C.TclObj, ops C.TclObj, 
 	nameStr := i.GetString(TclObj(name))
 	opsStr := i.GetString(TclObj(ops))
 
-	i.mu.Lock()
-	defer i.mu.Unlock()
 
 	entry := TraceEntry{
 		ops:    opsStr,
@@ -1303,10 +1342,7 @@ func goTraceRemove(interp C.TclInterp, kind C.TclObj, name C.TclObj, ops C.TclOb
 	kindStr := i.GetString(TclObj(kind))
 	nameStr := i.GetString(TclObj(name))
 	opsStr := i.GetString(TclObj(ops))
-	scriptObj := TclObj(script)
-
-	i.mu.Lock()
-	defer i.mu.Unlock()
+	scriptStr := i.GetString(TclObj(script))
 
 	var traces *map[string][]TraceEntry
 	if kindStr == "variable" {
@@ -1317,10 +1353,11 @@ func goTraceRemove(interp C.TclInterp, kind C.TclObj, name C.TclObj, ops C.TclOb
 		return C.TCL_ERROR
 	}
 
-	// Find and remove matching trace
+	// Find and remove matching trace - compare by string value, not handle
 	entries := (*traces)[nameStr]
 	for idx, entry := range entries {
-		if entry.ops == opsStr && entry.script == scriptObj {
+		entryScriptStr := i.GetString(entry.script)
+		if entry.ops == opsStr && entryScriptStr == scriptStr {
 			// Remove this entry
 			(*traces)[nameStr] = append(entries[:idx], entries[idx+1:]...)
 			return C.TCL_OK
@@ -1340,9 +1377,6 @@ func goTraceInfo(interp C.TclInterp, kind C.TclObj, name C.TclObj) C.TclObj {
 	kindStr := i.GetString(TclObj(kind))
 	nameStr := i.GetString(TclObj(name))
 
-	i.mu.Lock()
-	defer i.mu.Unlock()
-
 	var entries []TraceEntry
 	if kindStr == "variable" {
 		entries = i.varTraces[nameStr]
@@ -1350,14 +1384,19 @@ func goTraceInfo(interp C.TclInterp, kind C.TclObj, name C.TclObj) C.TclObj {
 		entries = i.cmdTraces[nameStr]
 	}
 
-	// Build list of {ops script} pairs
-	items := make([]TclObj, 0, len(entries)*2)
+	// Build list of {ops... script} sublists
+	// Format: each trace is {op1 op2 ... script} where ops are individual elements
+	items := make([]TclObj, 0, len(entries))
 	for _, entry := range entries {
-		// Create a sublist {ops script}
-		subItems := []TclObj{
-			i.internStringLocked(entry.ops),
-			entry.script,
+		// Split ops into individual elements
+		ops := strings.Fields(entry.ops)
+		subItems := make([]TclObj, 0, len(ops)+1)
+		for _, op := range ops {
+			subItems = append(subItems, i.internString(op))
 		}
+		// Add the script at the end
+		subItems = append(subItems, entry.script)
+
 		subId := i.nextID
 		i.nextID++
 		i.objects[subId] = &Object{isList: true, listItems: subItems}

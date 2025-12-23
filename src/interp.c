@@ -32,6 +32,7 @@ static const BuiltinEntry builtins[] = {
     {"variable", tcl_builtin_variable},
     {"throw", tcl_builtin_throw},
     {"try", tcl_builtin_try},
+    {"trace", tcl_builtin_trace},
     {NULL, NULL} // sentinel
 };
 

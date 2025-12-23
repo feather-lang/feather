@@ -404,7 +404,7 @@ info args noop</script>
   <test-case name="info with unknown subcommand">
     <script>info unknown_subcommand</script>
     <return>TCL_ERROR</return>
-    <error>unknown or ambiguous subcommand "unknown_subcommand": must be args, body, commands, exists, level, or procs</error>
+    <error>unknown or ambiguous subcommand "unknown_subcommand": must be args, body, commands, default, exists, frame, globals, level, locals, procs, script, or vars</error>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>

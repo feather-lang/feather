@@ -1,0 +1,286 @@
+<test-suite>
+  <!--
+    M12: Extended info command
+
+    Additional info subcommands:
+      info frame ?number?     - call stack frame information
+      info default proc arg var - check if parameter has default
+      info locals ?pattern?   - list local variables
+      info globals ?pattern?  - list global variables
+      info vars ?pattern?     - list visible variables
+      info script             - current script file
+  -->
+
+  <!-- ============================================= -->
+  <!-- info frame                                    -->
+  <!-- ============================================= -->
+
+  <test-case name="info frame with no args returns current level">
+    <script>info frame</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info frame in procedure returns 1">
+    <script>proc test {} {
+    info frame
+}
+test</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info frame with number returns frame info dict">
+    <script>proc test {a b} {
+    lindex [info frame 1] 3
+}
+test hello world</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>test hello world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info frame with negative number">
+    <script>proc inner {} {
+    lindex [info frame -1] 5
+}
+proc outer {} {
+    inner
+}
+outer</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>outer</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info frame includes namespace">
+    <script>proc test {} {
+    lindex [info frame 1] 9
+}
+test</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>::</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info frame bad level">
+    <script>info frame 999</script>
+    <return>TCL_ERROR</return>
+    <error>bad level "999"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- info default                                  -->
+  <!-- ============================================= -->
+
+  <test-case name="info default returns 1 for parameter with default">
+    <script>proc test {a {b 42}} {}
+info default test b defval</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info default sets variable to default value">
+    <script>proc test {a {b 42}} {}
+info default test b defval
+set defval</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info default returns 0 for parameter without default">
+    <script>proc test {a {b 42}} {}
+info default test a defval</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info default error for non-existent proc">
+    <script>info default nonexistent a defval</script>
+    <return>TCL_ERROR</return>
+    <error>"nonexistent" isn't a procedure</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="info default error for non-existent parameter">
+    <script>proc test {a} {}
+info default test b defval</script>
+    <return>TCL_ERROR</return>
+    <error>procedure "test" doesn't have an argument "b"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="info default wrong args">
+    <script>info default test</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "info default procname arg varname"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- info locals                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="info locals at global level">
+    <script>set x 1
+info locals x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>x</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info locals in procedure">
+    <script>proc test {a b} {
+    set c 3
+    info locals
+}
+test 1 2</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info locals with pattern">
+    <script>proc test {} {
+    set aa 1
+    set ab 2
+    set ba 3
+    info locals a*
+}
+test</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>aa ab</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info locals wrong args">
+    <script>info locals a b</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "info locals ?pattern?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- info globals                                  -->
+  <!-- ============================================= -->
+
+  <test-case name="info globals returns global variables">
+    <script>set globalVar 42
+proc test {} {
+    expr {[llength [info globals globalVar]] > 0}
+}
+test</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info globals with pattern">
+    <script>set testA 1
+set testB 2
+set other 3
+llength [info globals test*]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info globals wrong args">
+    <script>info globals a b</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "info globals ?pattern?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- info vars                                     -->
+  <!-- ============================================= -->
+
+  <test-case name="info vars in procedure">
+    <script>proc test {a} {
+    set b 2
+    info vars
+}
+test 1</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info vars with pattern">
+    <script>proc test {} {
+    set var1 1
+    set var2 2
+    set other 3
+    info vars var*
+}
+test</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>var1 var2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- info script                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="info script returns empty at repl">
+    <script>info script</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info script wrong args">
+    <script>info script extra</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "info script"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

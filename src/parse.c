@@ -20,9 +20,16 @@ static int is_hex_digit(char c) {
   return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }
 
-static int is_varname_char(char c) {
+// Check if character is valid in a variable name (excluding ::)
+static int is_varname_char_base(char c) {
   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-         (c >= '0' && c <= '9') || c == '_' || c == ':';
+         (c >= '0' && c <= '9') || c == '_';
+}
+
+// Check if we're at a valid namespace separator (::)
+// Returns 1 if at ::, 0 otherwise
+static int is_namespace_sep(const char *p, const char *end) {
+  return (p + 1 < end) && (p[0] == ':') && (p[1] == ':');
 }
 
 static int hex_value(char c) {
@@ -334,12 +341,20 @@ static TclResult substitute_variable(const TclHostOps *ops, TclInterp interp,
     *word_out = append_to_word(ops, interp, word, val_str, val_len);
     *consumed_out = (p - pos) + 1; // +1 for closing brace
     return TCL_OK;
-  } else if (is_varname_char(*pos)) {
+  } else if (is_varname_char_base(*pos) || is_namespace_sep(pos, end)) {
     // $name form - scan valid variable name characters
+    // Variable names can contain alphanumerics, underscores, and ::
+    // But NOT a single : (that terminates the name)
     const char *name_start = pos;
     const char *p = pos;
-    while (p < end && is_varname_char(*p)) {
-      p++;
+    while (p < end) {
+      if (is_varname_char_base(*p)) {
+        p++;
+      } else if (is_namespace_sep(p, end)) {
+        p += 2; // Skip both colons
+      } else {
+        break;
+      }
     }
     size_t name_len = p - name_start;
 

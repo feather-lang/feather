@@ -12,7 +12,6 @@ import (
 	"runtime/cgo"
 	"strconv"
 	"strings"
-	"sync"
 	"unsafe"
 )
 
@@ -142,7 +141,6 @@ type Interp struct {
 	scriptPath     TclObj       // current script file being executed (0 = none)
 	varTraces      map[string][]TraceEntry // variable name -> traces
 	cmdTraces      map[string][]TraceEntry // command name -> traces
-	mu             sync.Mutex
 
 	// UnknownHandler is called when an unknown command is invoked.
 	UnknownHandler CommandFunc
@@ -209,8 +207,6 @@ const DefaultRecursionLimit = 1000
 // SetRecursionLimit sets the maximum call stack depth.
 // If limit is 0 or negative, the default limit (1000) is used.
 func (i *Interp) SetRecursionLimit(limit int) {
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	if limit <= 0 {
 		i.recursionLimit = DefaultRecursionLimit
 	} else {
@@ -417,9 +413,6 @@ func (e *EvalError) Error() string {
 
 // internString stores a string and returns its handle
 func (i *Interp) internString(s string) TclObj {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-
 	id := i.nextID
 	i.nextID++
 	i.objects[id] = &Object{stringVal: s}
@@ -433,8 +426,6 @@ func (i *Interp) InternString(s string) TclObj {
 
 // getObject retrieves an object by handle
 func (i *Interp) getObject(h TclObj) *Object {
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	return i.objects[h]
 }
 
@@ -622,8 +613,6 @@ func (i *Interp) SetErrorString(s string) {
 
 // SetVar sets a variable by name to a string value in the current frame.
 func (i *Interp) SetVar(name, value string) {
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	frame := i.frames[i.active]
 	frame.vars[name] = i.nextID
 	i.objects[i.nextID] = &Object{stringVal: value}
@@ -632,8 +621,6 @@ func (i *Interp) SetVar(name, value string) {
 
 // GetVar returns the string value of a variable from the current frame, or empty string if not found.
 func (i *Interp) GetVar(name string) string {
-	i.mu.Lock()
-	defer i.mu.Unlock()
 	frame := i.frames[i.active]
 	if val, ok := frame.vars[name]; ok {
 		if obj := i.objects[val]; obj != nil {
