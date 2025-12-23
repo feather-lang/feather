@@ -528,4 +528,323 @@ foo::bar::baz</script>
     <exit-code>1</exit-code>
   </test-case>
 
+  <!-- ============================================= -->
+  <!-- namespace export: Marking commands for export-->
+  <!-- ============================================= -->
+
+  <test-case name="namespace export with no args returns current patterns">
+    <script>namespace eval foo {
+    namespace export
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace export sets pattern">
+    <script>namespace eval foo {
+    namespace export myproc
+    namespace export
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>myproc</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace export multiple patterns">
+    <script>namespace eval foo {
+    namespace export get* set*
+    namespace export
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>get* set*</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace export accumulates patterns">
+    <script>namespace eval foo {
+    namespace export a
+    namespace export b
+    namespace export
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace export -clear removes existing patterns">
+    <script>namespace eval foo {
+    namespace export a b
+    namespace export -clear c
+    namespace export
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace export -clear with no pattern clears all">
+    <script>namespace eval foo {
+    namespace export a b
+    namespace export -clear
+    namespace export
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- namespace import: Importing exported commands-->
+  <!-- ============================================= -->
+
+  <test-case name="namespace import brings command into current namespace">
+    <script>namespace eval math {
+    proc double {x} { expr {$x * 2} }
+    namespace export double
+}
+namespace import math::double
+double 5</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace import with glob pattern">
+    <script>namespace eval math {
+    proc add {a b} { expr {$a + $b} }
+    proc sub {a b} { expr {$a - $b} }
+    namespace export add sub
+}
+namespace import math::*
+add 3 4</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>7</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace import only imports exported commands">
+    <script>namespace eval math {
+    proc public {} { return "public" }
+    proc private {} { return "private" }
+    namespace export public
+}
+namespace import math::*
+public</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>public</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace import non-exported command fails">
+    <script>namespace eval math {
+    proc private {} { return "private" }
+}
+namespace import math::private</script>
+    <return>TCL_ERROR</return>
+    <error>unknown or unexported command "math::private"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="namespace import existing command fails">
+    <script>namespace eval foo {
+    proc test {} { return "foo" }
+    namespace export test
+}
+proc test {} { return "global" }
+namespace import foo::test</script>
+    <return>TCL_ERROR</return>
+    <error>can't import command "test": already exists</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="namespace import -force overwrites existing">
+    <script>namespace eval foo {
+    proc test {} { return "foo" }
+    namespace export test
+}
+proc test {} { return "global" }
+namespace import -force foo::test
+test</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>foo</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace import into another namespace">
+    <script>namespace eval source {
+    proc greet {} { return "hello" }
+    namespace export greet
+}
+namespace eval target {
+    namespace import ::source::greet
+    greet
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace import wrong args">
+    <script>namespace import</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "namespace import ?-force? ?pattern pattern ...?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="namespace import nonexistent namespace fails">
+    <script>namespace import nosuch::*</script>
+    <return>TCL_ERROR</return>
+    <error>namespace "nosuch" not found</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Command resolution in namespaces             -->
+  <!-- ============================================= -->
+
+  <test-case name="unqualified command resolves in current namespace first">
+    <script>namespace eval foo {
+    proc helper {} { return "foo::helper" }
+    proc main {} { helper }
+}
+foo::main</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>foo::helper</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="unqualified command falls back to global">
+    <script>proc global_cmd {} { return "global" }
+namespace eval foo {
+    proc main {} { global_cmd }
+}
+foo::main</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>global</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace command shadows global">
+    <script>proc shared {} { return "global" }
+namespace eval foo {
+    proc shared {} { return "foo" }
+    proc main {} { shared }
+}
+foo::main</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>foo</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="imported command is found in namespace">
+    <script>namespace eval source {
+    proc helper {} { return "source::helper" }
+    namespace export helper
+}
+namespace eval target {
+    namespace import ::source::helper
+    proc main {} { helper }
+}
+target::main</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>source::helper</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="local namespace command has priority over import">
+    <script>namespace eval source {
+    proc test {} { return "source" }
+    namespace export test
+}
+namespace eval target {
+    namespace import ::source::test
+    proc test {} { return "target" }
+    proc main {} { test }
+}
+target::main</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>target</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="builtin commands are found from any namespace">
+    <script>namespace eval foo {
+    proc main {} {
+        set x 10
+        expr {$x + 5}
+    }
+}
+foo::main</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>15</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="relative qualified call from namespace">
+    <script>namespace eval foo {
+    namespace eval bar {
+        proc helper {} { return "foo::bar::helper" }
+    }
+    proc main {} { bar::helper }
+}
+foo::main</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>foo::bar::helper</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="absolute qualified call from namespace">
+    <script>proc global_func {} { return "global" }
+namespace eval foo {
+    proc main {} { ::global_func }
+}
+foo::main</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>global</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
 </test-suite>
