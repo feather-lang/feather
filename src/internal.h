@@ -244,4 +244,33 @@ TclResult tcl_builtin_namespace(const TclHostOps *ops, TclInterp interp,
 TclResult tcl_builtin_variable(const TclHostOps *ops, TclInterp interp,
                                 TclObj cmd, TclObj args);
 
+/**
+ * tcl_builtin_throw implements the TCL 'throw' command.
+ *
+ * Usage:
+ *   throw type message
+ *
+ * Raises an error with the given type (list) as -errorcode.
+ * The type must be a non-empty list of words.
+ * The message is the human-readable error text.
+ */
+TclResult tcl_builtin_throw(const TclHostOps *ops, TclInterp interp,
+                             TclObj cmd, TclObj args);
+
+/**
+ * tcl_builtin_try implements the TCL 'try' command.
+ *
+ * Usage:
+ *   try body ?handler...? ?finally script?
+ *
+ * Evaluates body and handles results with optional handlers.
+ * Handlers can be:
+ *   on code variableList script - matches return codes
+ *   trap pattern variableList script - matches -errorcode prefix
+ *
+ * The finally script always executes, even on error.
+ */
+TclResult tcl_builtin_try(const TclHostOps *ops, TclInterp interp,
+                           TclObj cmd, TclObj args);
+
 #endif

@@ -30,6 +30,8 @@ static const BuiltinEntry builtins[] = {
     {"rename", tcl_builtin_rename},
     {"namespace", tcl_builtin_namespace},
     {"variable", tcl_builtin_variable},
+    {"throw", tcl_builtin_throw},
+    {"try", tcl_builtin_try},
     {NULL, NULL} // sentinel
 };
 

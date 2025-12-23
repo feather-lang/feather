@@ -1,0 +1,689 @@
+<test-suite>
+  <!--
+    M11: Advanced Error Handling
+
+    throw type message
+      - Raises an error with the given type (list) as -errorcode
+      - The message is the human-readable error text
+      - Essentially equivalent to: error message {} type
+
+    try body ?handler...? ?finally script?
+      - Evaluates body and handles results with optional handlers
+      - Handlers can be:
+        * on code variableList script - matches return codes (ok=0, error=1, return=2, break=3, continue=4)
+        * trap pattern variableList script - matches -errorcode prefix
+      - variableList can have 0, 1, or 2 elements:
+        * {} - no variables bound
+        * {result} - binds result/error message
+        * {result options} - binds result and options dictionary
+      - "-" as script means fallthrough to next handler's script
+      - finally script always executes, even on error
+  -->
+
+  <!-- ============================================= -->
+  <!-- throw command                                  -->
+  <!-- ============================================= -->
+
+  <test-case name="throw raises error with type and message">
+    <script>throw {ARITH DIVZERO} "divide by zero"</script>
+    <return>TCL_ERROR</return>
+    <error>divide by zero</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="catch captures throw errorcode">
+    <script>catch {throw {MYERR SUBTYPE} "my error"} result opts
+lindex $opts 3</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>MYERR SUBTYPE</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="throw with single-word type">
+    <script>throw {CUSTOM} "custom error"</script>
+    <return>TCL_ERROR</return>
+    <error>custom error</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="throw with multi-word type">
+    <script>throw {TCL LOOKUP VARNAME x} "can't read x"</script>
+    <return>TCL_ERROR</return>
+    <error>can't read x</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="throw wrong args - no arguments">
+    <script>throw</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "throw type message"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="throw wrong args - one argument">
+    <script>throw {MYERR}</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "throw type message"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="throw wrong args - too many arguments">
+    <script>throw {MYERR} "msg" extra</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "throw type message"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="throw with empty type">
+    <script>throw {} "no type"</script>
+    <return>TCL_ERROR</return>
+    <error>type must be non-empty</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- try with on handlers                          -->
+  <!-- ============================================= -->
+
+  <test-case name="try body on ok - success path">
+    <script>try {
+    expr {2 + 3}
+} on ok {result} {
+    set result
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="try body on error - error path">
+    <script>try {
+    error "failed"
+} on error {result} {
+    set result
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>failed</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="try body on ok and error - ok matches">
+    <script>try {
+    set x success
+} on ok {result} {
+    expr {"ok: $result"}
+} on error {result} {
+    expr {"error: $result"}
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>ok: success</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="try body on ok and error - error matches">
+    <script>try {
+    error "boom"
+} on ok {result} {
+    expr {"ok: $result"}
+} on error {result} {
+    expr {"error: $result"}
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>error: boom</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="try on with numeric code">
+    <script>try {
+    error "err"
+} on 1 {result} {
+    expr {"caught: $result"}
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>caught: err</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="try on return code">
+    <script>try {
+    return -code return "returning"
+} on return {result} {
+    expr {"return: $result"}
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>return: returning</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="try on break code">
+    <script>try {
+    return -code break
+} on break {} {
+    expr {"got break"}
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>got break</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="try on continue code">
+    <script>try {
+    return -code continue
+} on continue {} {
+    expr {"got continue"}
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>got continue</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="try on with options variable">
+    <script>try {
+    error "oops"
+} on error {result opts} {
+    lindex $opts 1
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="try on with empty varlist">
+    <script>try {
+    expr {10}
+} on ok {} {
+    expr {"handled ok"}
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>handled ok</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="try no handler matches - propagate error">
+    <script>try {
+    error "unhandled"
+} on ok {result} {
+    set result
+}</script>
+    <return>TCL_ERROR</return>
+    <error>unhandled</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="try no handler matches - propagate break">
+    <script>catch {
+    try {
+        return -code break
+    } on ok {} {
+        expr {"ok"}
+    }
+} result opts
+lindex $opts 1</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- try with trap handlers                        -->
+  <!-- ============================================= -->
+
+  <test-case name="trap matches errorcode prefix">
+    <script>try {
+    throw {ARITH DIVZERO} "divide by zero"
+} trap {ARITH} {result} {
+    expr {"arith: $result"}
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>arith: divide by zero</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="trap matches exact errorcode">
+    <script>try {
+    throw {ARITH DIVZERO} "divide by zero"
+} trap {ARITH DIVZERO} {result} {
+    expr {"exact: $result"}
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>exact: divide by zero</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="trap with longer prefix than errorcode does not match">
+    <script>try {
+    throw {ARITH} "arith error"
+} trap {ARITH DIVZERO} {result} {
+    expr {"should not match"}
+} on error {result} {
+    expr {"fallback: $result"}
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>fallback: arith error</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="trap empty pattern matches all errors">
+    <script>try {
+    error "any error"
+} trap {} {result} {
+    expr {"trapped: $result"}
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>trapped: any error</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="trap with options variable">
+    <script>try {
+    throw {MYERR TEST} "test error"
+} trap {MYERR} {result opts} {
+    lindex $opts 3
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>MYERR TEST</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="multiple traps - first match wins">
+    <script>try {
+    throw {ARITH DIVZERO} "div by zero"
+} trap {ARITH} {result} {
+    expr {"arith"}
+} trap {ARITH DIVZERO} {result} {
+    expr {"divzero"}
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>arith</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="trap does not match non-error codes">
+    <script>try {
+    return -code break
+} trap {} {result} {
+    expr {"trapped"}
+} on break {} {
+    expr {"break"}
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>break</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="on error masks subsequent trap">
+    <script>try {
+    throw {ARITH} "arith error"
+} on error {result} {
+    expr {"on error: $result"}
+} trap {ARITH} {result} {
+    expr {"trap arith: $result"}
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>on error: arith error</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="trap before on error gets priority">
+    <script>try {
+    throw {ARITH} "arith error"
+} trap {ARITH} {result} {
+    expr {"trap arith: $result"}
+} on error {result} {
+    expr {"on error: $result"}
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>trap arith: arith error</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- try with finally                              -->
+  <!-- ============================================= -->
+
+  <test-case name="finally runs on success">
+    <script>set cleanup ""
+try {
+    set x 10
+} finally {
+    set cleanup "done"
+}
+set cleanup</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>done</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="finally runs on error">
+    <script>set cleanup ""
+catch {
+    try {
+        error "boom"
+    } finally {
+        set cleanup "done"
+    }
+}
+set cleanup</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>done</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="finally runs with handler">
+    <script>set cleanup ""
+try {
+    error "boom"
+} on error {result} {
+    set handled $result
+} finally {
+    set cleanup "done"
+}
+expr {"$handled $cleanup"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>boom done</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="finally runs even when no handler matches">
+    <script>set cleanup ""
+catch {
+    try {
+        return -code break
+    } on ok {} {
+        set x ok
+    } finally {
+        set cleanup "done"
+    }
+}
+set cleanup</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>done</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="finally return value is ignored on success">
+    <script>try {
+    expr {42}
+} finally {
+    expr {999}
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="finally error overrides body result">
+    <script>try {
+    expr {42}
+} finally {
+    error "finally failed"
+}</script>
+    <return>TCL_ERROR</return>
+    <error>finally failed</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="finally error overrides handler result">
+    <script>try {
+    error "body error"
+} on error {} {
+    expr {"handled"}
+} finally {
+    error "finally failed"
+}</script>
+    <return>TCL_ERROR</return>
+    <error>finally failed</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- try with fallthrough (-)                      -->
+  <!-- ============================================= -->
+
+  <test-case name="on handler fallthrough with dash">
+    <script>try {
+    expr {5}
+} on ok {result} - on error {result} {
+    expr {"handled: $result"}
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>handled: 5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="trap handler fallthrough with dash">
+    <script>try {
+    throw {ERR A} "error a"
+} trap {ERR A} {result} - trap {ERR B} {result} {
+    expr {"handled: $result"}
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>handled: error a</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- try error cases                               -->
+  <!-- ============================================= -->
+
+  <test-case name="try wrong args - no body">
+    <script>try</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "try body ?handler ...? ?finally script?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="try on incomplete handler">
+    <script>try {expr 1} on</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args to on clause: must be "on code variableList script"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="try trap incomplete handler">
+    <script>try {expr 1} trap</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args to trap clause: must be "trap pattern variableList script"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="try finally without script">
+    <script>try {expr 1} finally</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args to finally clause: must be "finally script"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="try on invalid code">
+    <script>try {expr 1} on invalid {} {}</script>
+    <return>TCL_ERROR</return>
+    <error>bad completion code "invalid": must be ok, error, return, break, continue, or an integer</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="try on varlist too long">
+    <script>try {expr 1} on ok {a b c} {}</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "on code ?resultVar ?optionsVar?? script"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Integration tests                             -->
+  <!-- ============================================= -->
+
+  <test-case name="resource cleanup pattern">
+    <script>set resource "open"
+proc cleanup {} {
+    uplevel 1 {set resource "closed"}
+}
+try {
+    error "operation failed"
+} on error {msg} {
+    set error_msg $msg
+} finally {
+    cleanup
+}
+expr {"$error_msg $resource"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>operation failed closed</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="nested try blocks">
+    <script>try {
+    try {
+        throw {INNER} "inner error"
+    } trap {OUTER} {} {
+        expr {"outer trap"}
+    }
+} trap {INNER} {msg} {
+    expr {"caught inner: $msg"}
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>caught inner: inner error</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="divide by zero with throw">
+    <script>proc safe_divide {a b} {
+    if {$b == 0} {
+        throw {ARITH DIVZERO {divide by zero}} "divide by zero"
+    }
+    expr {$a / $b}
+}
+try {
+    safe_divide 10 0
+} trap {ARITH DIVZERO} {msg} {
+    expr {"caught: $msg"}
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>caught: divide by zero</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="try in procedure">
+    <script>proc test_try {} {
+    try {
+        error "proc error"
+    } on error {msg} {
+        return "caught: $msg"
+    }
+}
+test_try</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>caught: proc error</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="try in loop">
+    <script>set results ""
+set i 0
+while {$i < 3} {
+    try {
+        if {$i == 1} {
+            throw {SKIP} "skip"
+        }
+        if {$results == ""} {
+            set results $i
+        } else {
+            set results "$results $i"
+        }
+    } trap {SKIP} {} {
+        if {$results == ""} {
+            set results "skipped"
+        } else {
+            set results "$results skipped"
+        }
+    }
+    incr i
+}
+set results</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0 skipped 2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>
