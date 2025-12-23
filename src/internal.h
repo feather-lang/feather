@@ -214,4 +214,34 @@ TclResult tcl_builtin_uplevel(const TclHostOps *ops, TclInterp interp,
 TclResult tcl_builtin_rename(const TclHostOps *ops, TclInterp interp,
                               TclObj cmd, TclObj args);
 
+/**
+ * tcl_builtin_namespace implements the TCL 'namespace' command.
+ *
+ * Usage:
+ *   namespace subcommand ?arg ...?
+ *
+ * Subcommands:
+ *   eval ns script      - evaluate script in namespace context
+ *   current             - return current namespace path
+ *   exists ns           - check if namespace exists (returns 0 or 1)
+ *   children ?ns?       - list child namespaces
+ *   parent ?ns?         - get parent namespace
+ *   delete ns ?ns ...?  - delete namespaces
+ */
+TclResult tcl_builtin_namespace(const TclHostOps *ops, TclInterp interp,
+                                 TclObj cmd, TclObj args);
+
+/**
+ * tcl_builtin_variable implements the TCL 'variable' command.
+ *
+ * Usage:
+ *   variable name ?value? ?name value ...?
+ *
+ * Declares or links namespace variables. When called inside a namespace
+ * eval, creates namespace variables. When called inside a proc, links
+ * local variables to the proc's namespace variables.
+ */
+TclResult tcl_builtin_variable(const TclHostOps *ops, TclInterp interp,
+                                TclObj cmd, TclObj args);
+
 #endif

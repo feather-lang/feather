@@ -13,17 +13,26 @@ TclResult tcl_builtin_set(const TclHostOps *ops, TclInterp interp,
 
   // Get the variable name (first argument)
   TclObj varName = ops->list.shift(interp, args);
+  size_t nameLen;
+  const char *nameStr = ops->string.get(interp, varName, &nameLen);
+
+  // Resolve the variable name (handles qualified names)
+  TclObj ns, localName;
+  tcl_resolve_variable(ops, interp, nameStr, nameLen, &ns, &localName);
 
   if (argc == 1) {
     // One argument: get variable value
-    TclObj value = ops->var.get(interp, varName);
+    TclObj value;
+    if (ops->list.is_nil(interp, ns)) {
+      // Unqualified - frame-local lookup
+      value = ops->var.get(interp, localName);
+    } else {
+      // Qualified - namespace lookup
+      value = ops->ns.get_var(interp, ns, localName);
+    }
+
     if (ops->list.is_nil(interp, value)) {
       // Variable doesn't exist - build error message
-      size_t nameLen;
-      const char *nameStr = ops->string.get(interp, varName, &nameLen);
-
-      // Build: can't read "X": no such variable
-      // We need to concatenate strings
       TclObj part1 = ops->string.intern(interp, "can't read \"", 12);
       TclObj part2 = ops->string.intern(interp, nameStr, nameLen);
       TclObj part3 = ops->string.intern(interp, "\": no such variable", 19);
@@ -45,7 +54,15 @@ TclResult tcl_builtin_set(const TclHostOps *ops, TclInterp interp,
     return TCL_ERROR;
   }
   TclObj value = ops->list.shift(interp, args);
-  ops->var.set(interp, varName, value);
+
+  if (ops->list.is_nil(interp, ns)) {
+    // Unqualified - frame-local
+    ops->var.set(interp, localName, value);
+  } else {
+    // Qualified - namespace
+    ops->ns.set_var(interp, ns, localName, value);
+  }
+
   ops->interp.set_result(interp, value);
   return TCL_OK;
 }

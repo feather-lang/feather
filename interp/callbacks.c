@@ -176,6 +176,61 @@ static TclResult c_proc_rename(TclInterp interp, TclObj oldName, TclObj newName)
     return goProcRename(interp, oldName, newName);
 }
 
+// Namespace operations
+static TclResult c_ns_create(TclInterp interp, TclObj path) {
+    return goNsCreate(interp, path);
+}
+
+static TclResult c_ns_delete(TclInterp interp, TclObj path) {
+    return goNsDelete(interp, path);
+}
+
+static int c_ns_exists(TclInterp interp, TclObj path) {
+    return goNsExists(interp, path);
+}
+
+static TclObj c_ns_current(TclInterp interp) {
+    return goNsCurrent(interp);
+}
+
+static TclResult c_ns_parent(TclInterp interp, TclObj ns, TclObj *result) {
+    return goNsParent(interp, ns, result);
+}
+
+static TclObj c_ns_children(TclInterp interp, TclObj ns) {
+    return goNsChildren(interp, ns);
+}
+
+static TclObj c_ns_get_var(TclInterp interp, TclObj ns, TclObj name) {
+    return goNsGetVar(interp, ns, name);
+}
+
+static void c_ns_set_var(TclInterp interp, TclObj ns, TclObj name, TclObj value) {
+    goNsSetVar(interp, ns, name, value);
+}
+
+static int c_ns_var_exists(TclInterp interp, TclObj ns, TclObj name) {
+    return goNsVarExists(interp, ns, name);
+}
+
+static void c_ns_unset_var(TclInterp interp, TclObj ns, TclObj name) {
+    goNsUnsetVar(interp, ns, name);
+}
+
+// Frame namespace extensions
+static TclResult c_frame_set_namespace(TclInterp interp, TclObj ns) {
+    return goFrameSetNamespace(interp, ns);
+}
+
+static TclObj c_frame_get_namespace(TclInterp interp) {
+    return goFrameGetNamespace(interp);
+}
+
+// Var namespace link
+static void c_var_link_ns(TclInterp interp, TclObj local, TclObj ns, TclObj name) {
+    goVarLinkNs(interp, local, ns, name);
+}
+
 // Build the TclHostOps struct with all callbacks
 TclHostOps make_host_ops(void) {
     TclHostOps ops;
@@ -186,12 +241,15 @@ TclHostOps make_host_ops(void) {
     ops.frame.set_active = c_frame_set_active;
     ops.frame.size = c_frame_size;
     ops.frame.info = c_frame_info;
+    ops.frame.set_namespace = c_frame_set_namespace;
+    ops.frame.get_namespace = c_frame_get_namespace;
 
     ops.var.get = c_var_get;
     ops.var.set = c_var_set;
     ops.var.unset = c_var_unset;
     ops.var.exists = c_var_exists;
     ops.var.link = c_var_link;
+    ops.var.link_ns = c_var_link_ns;
 
     ops.proc.define = c_proc_define;
     ops.proc.exists = c_proc_exists;
@@ -202,6 +260,17 @@ TclHostOps make_host_ops(void) {
     ops.proc.register_builtin = c_proc_register_builtin;
     ops.proc.lookup = c_proc_lookup;
     ops.proc.rename = c_proc_rename;
+
+    ops.ns.create = c_ns_create;
+    ops.ns.delete = c_ns_delete;
+    ops.ns.exists = c_ns_exists;
+    ops.ns.current = c_ns_current;
+    ops.ns.parent = c_ns_parent;
+    ops.ns.children = c_ns_children;
+    ops.ns.get_var = c_ns_get_var;
+    ops.ns.set_var = c_ns_set_var;
+    ops.ns.var_exists = c_ns_var_exists;
+    ops.ns.unset_var = c_ns_unset_var;
 
     ops.string.intern = c_string_intern;
     ops.string.get = c_string_get;

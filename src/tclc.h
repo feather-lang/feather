@@ -367,6 +367,19 @@ typedef struct TclFrameOps {
    * Returns TCL_ERROR if the level is out of bounds.
    */
   TclResult (*info)(TclInterp interp, size_t level, TclObj *cmd, TclObj *args);
+
+  /**
+   * set_namespace changes the namespace of the current frame.
+   *
+   * Used by 'namespace eval' to temporarily change context.
+   * The namespace is created if it doesn't exist.
+   */
+  TclResult (*set_namespace)(TclInterp interp, TclObj ns);
+
+  /**
+   * get_namespace returns the namespace of the current frame.
+   */
+  TclObj (*get_namespace)(TclInterp interp);
 } TclFrameOps;
 
 /**
@@ -531,6 +544,22 @@ typedef struct TclVarOps {
    */
   void (*link)(TclInterp interp, TclObj local, size_t target_level,
                TclObj target);
+
+  /**
+   * link_ns creates a link from a local variable to a namespace variable.
+   *
+   * Used by 'variable' command. After linking, operations on the
+   * local variable name affect the namespace variable:
+   *   - get(local) returns ns.get_var(ns, name)
+   *   - set(local, val) calls ns.set_var(ns, name, val)
+   *   - exists(local) checks ns.var_exists(ns, name)
+   *   - unset(local) calls ns.unset_var(ns, name)
+   *
+   * The 'local' parameter is the local name in the current frame.
+   * The 'ns' parameter is the absolute namespace path.
+   * The 'name' parameter is the variable name in the namespace.
+   */
+  void (*link_ns)(TclInterp interp, TclObj local, TclObj ns, TclObj name);
 
 } TclVarOps;
 
@@ -703,6 +732,95 @@ typedef struct TclListOps {
 } TclListOps;
 
 /**
+ * TclNamespaceOps provides operations on the namespace hierarchy.
+ *
+ * Namespaces are containers for commands and persistent variables.
+ * The global namespace "::" always exists and is the root.
+ * Namespace paths use "::" as separator (e.g., "::foo::bar").
+ */
+typedef struct TclNamespaceOps {
+  /**
+   * create ensures a namespace exists, creating it and parents as needed.
+   *
+   * Returns TCL_OK on success.
+   * Creating "::" is a no-op (always exists).
+   */
+  TclResult (*create)(TclInterp interp, TclObj path);
+
+  /**
+   * delete removes a namespace and all its children.
+   *
+   * Variables and commands in the namespace are destroyed.
+   * Returns TCL_ERROR if path is "::" (cannot delete global).
+   * Returns TCL_ERROR if namespace doesn't exist.
+   */
+  TclResult (*delete)(TclInterp interp, TclObj path);
+
+  /**
+   * exists checks if a namespace exists.
+   *
+   * Returns 1 if it exists, 0 if not.
+   */
+  int (*exists)(TclInterp interp, TclObj path);
+
+  /**
+   * current returns the namespace path of the current call frame.
+   *
+   * Returns a string like "::" or "::foo::bar".
+   */
+  TclObj (*current)(TclInterp interp);
+
+  /**
+   * parent returns the parent namespace path.
+   *
+   * For "::", returns empty string.
+   * For "::foo::bar", returns "::foo".
+   * Returns TCL_ERROR if namespace doesn't exist.
+   */
+  TclResult (*parent)(TclInterp interp, TclObj ns, TclObj *result);
+
+  /**
+   * children returns a list of child namespace paths.
+   *
+   * Returns full paths (e.g., "::foo::bar" for child "bar" of "::foo").
+   * Returns empty list if no children.
+   */
+  TclObj (*children)(TclInterp interp, TclObj ns);
+
+  /**
+   * get_var retrieves a variable from namespace storage.
+   *
+   * Returns nil if variable doesn't exist.
+   * The 'name' parameter must be unqualified (just "x", not "::foo::x").
+   * The namespace path must be absolute.
+   */
+  TclObj (*get_var)(TclInterp interp, TclObj ns, TclObj name);
+
+  /**
+   * set_var sets a variable in namespace storage.
+   *
+   * Creates the variable if it doesn't exist.
+   * Creates the namespace if it doesn't exist.
+   * The 'name' parameter must be unqualified.
+   */
+  void (*set_var)(TclInterp interp, TclObj ns, TclObj name, TclObj value);
+
+  /**
+   * var_exists checks if a variable exists in namespace storage.
+   *
+   * Returns 1 if exists, 0 if not.
+   */
+  int (*var_exists)(TclInterp interp, TclObj ns, TclObj name);
+
+  /**
+   * unset_var removes a variable from namespace storage.
+   *
+   * No-op if variable doesn't exist.
+   */
+  void (*unset_var)(TclInterp interp, TclObj ns, TclObj name);
+} TclNamespaceOps;
+
+/**
  * TclBindOps defines the operations for host <> interpreter interop.
  */
 typedef struct TclBindOpts {
@@ -725,6 +843,7 @@ typedef struct TclHostOps {
   TclFrameOps frame;
   TclVarOps var;
   TclProcOps proc;
+  TclNamespaceOps ns;
   TclStringOps string;
   TclListOps list;
   TclIntOps integer;
@@ -788,5 +907,31 @@ size_t tcl_strlen(const char *s);
  */
 int tcl_glob_match(const char *pattern, size_t pattern_len,
                    const char *string, size_t string_len);
+
+/**
+ * tcl_is_qualified returns 1 if name contains "::", 0 otherwise.
+ */
+int tcl_is_qualified(const char *name, size_t len);
+
+/**
+ * tcl_resolve_variable resolves a variable name to namespace + local parts.
+ *
+ * Three cases:
+ *   1. Unqualified ("x") - no "::" in name
+ *      -> ns_out = nil, local_out = "x"
+ *      -> Caller uses var.get for frame-local lookup
+ *
+ *   2. Absolute ("::foo::x") - starts with "::"
+ *      -> ns_out = "::foo", local_out = "x"
+ *
+ *   3. Relative ("foo::x") - contains "::" but doesn't start with it
+ *      -> Prepends current namespace from ops->ns.current()
+ *      -> If current is "::bar", resolves to ns="::bar::foo", local="x"
+ *
+ * Returns TCL_OK on success.
+ */
+TclResult tcl_resolve_variable(const TclHostOps *ops, TclInterp interp,
+                               const char *name, size_t len,
+                               TclObj *ns_out, TclObj *local_out);
 
 #endif

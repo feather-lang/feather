@@ -12,7 +12,10 @@ extern void call_tcl_interp_init(TclInterp interp);
 */
 import "C"
 
-import "sort"
+import (
+	"sort"
+	"strings"
+)
 
 // Go callback implementations - these are called from C via the wrappers in callbacks.c
 
@@ -359,12 +362,18 @@ func goFramePush(interp C.TclInterp, cmd C.TclObj, args C.TclObj) C.TclResult {
 		i.result = id
 		return C.TCL_ERROR
 	}
+	// Inherit namespace from current frame
+	currentNS := i.globalNamespace
+	if i.active < len(i.frames) && i.frames[i.active].ns != nil {
+		currentNS = i.frames[i.active].ns
+	}
 	frame := &CallFrame{
 		cmd:   TclObj(cmd),
 		args:  TclObj(args),
 		vars:  make(map[string]TclObj),
 		links: make(map[string]varLink),
 		level: newLevel,
+		ns:    currentNS,
 	}
 	i.frames = append(i.frames, frame)
 	i.active = newLevel
@@ -461,7 +470,15 @@ func goVarGet(interp C.TclInterp, name C.TclObj) C.TclObj {
 	// Follow links to find the actual variable location
 	for {
 		if link, ok := frame.links[varName]; ok {
-			if link.targetLevel >= 0 && link.targetLevel < len(i.frames) {
+			if link.targetLevel == -1 {
+				// Namespace variable link
+				if ns, ok := i.namespaces[link.nsPath]; ok {
+					if val, ok := ns.vars[link.nsName]; ok {
+						return C.TclObj(val)
+					}
+				}
+				return 0
+			} else if link.targetLevel >= 0 && link.targetLevel < len(i.frames) {
 				frame = i.frames[link.targetLevel]
 				varName = link.targetName
 			} else {
@@ -494,7 +511,13 @@ func goVarSet(interp C.TclInterp, name C.TclObj, value C.TclObj) {
 	// Follow links to find the actual variable location
 	for {
 		if link, ok := frame.links[varName]; ok {
-			if link.targetLevel >= 0 && link.targetLevel < len(i.frames) {
+			if link.targetLevel == -1 {
+				// Namespace variable link
+				if ns, ok := i.namespaces[link.nsPath]; ok {
+					ns.vars[link.nsName] = TclObj(value)
+				}
+				return
+			} else if link.targetLevel >= 0 && link.targetLevel < len(i.frames) {
 				frame = i.frames[link.targetLevel]
 				varName = link.targetName
 			} else {
@@ -524,7 +547,13 @@ func goVarUnset(interp C.TclInterp, name C.TclObj) {
 	// Follow links to find the actual variable location
 	for {
 		if link, ok := frame.links[varName]; ok {
-			if link.targetLevel >= 0 && link.targetLevel < len(i.frames) {
+			if link.targetLevel == -1 {
+				// Namespace variable link
+				if ns, ok := i.namespaces[link.nsPath]; ok {
+					delete(ns.vars, link.nsName)
+				}
+				return
+			} else if link.targetLevel >= 0 && link.targetLevel < len(i.frames) {
 				frame = i.frames[link.targetLevel]
 				varName = link.targetName
 			} else {
@@ -554,7 +583,15 @@ func goVarExists(interp C.TclInterp, name C.TclObj) C.TclResult {
 	// Follow links to find the actual variable location
 	for {
 		if link, ok := frame.links[varName]; ok {
-			if link.targetLevel >= 0 && link.targetLevel < len(i.frames) {
+			if link.targetLevel == -1 {
+				// Namespace variable link
+				if ns, ok := i.namespaces[link.nsPath]; ok {
+					if _, ok := ns.vars[link.nsName]; ok {
+						return C.TCL_OK
+					}
+				}
+				return C.TCL_ERROR
+			} else if link.targetLevel >= 0 && link.targetLevel < len(i.frames) {
 				frame = i.frames[link.targetLevel]
 				varName = link.targetName
 			} else {
@@ -815,4 +852,327 @@ func goProcRename(interp C.TclInterp, oldName C.TclObj, newName C.TclObj) C.TclR
 	i.mu.Unlock()
 
 	return C.TCL_OK
+}
+
+// Helper to create or get a namespace by path
+func (i *Interp) ensureNamespace(path string) *Namespace {
+	if ns, ok := i.namespaces[path]; ok {
+		return ns
+	}
+	// Parse path and create hierarchy
+	// Path like "::foo::bar" -> create :: -> ::foo -> ::foo::bar
+	parts := strings.Split(strings.TrimPrefix(path, "::"), "::")
+	current := i.globalNamespace
+	currentPath := "::"
+
+	for _, part := range parts {
+		if part == "" {
+			continue
+		}
+		childPath := currentPath
+		if currentPath == "::" {
+			childPath = "::" + part
+		} else {
+			childPath = currentPath + "::" + part
+		}
+
+		child, ok := current.children[part]
+		if !ok {
+			child = &Namespace{
+				fullPath: childPath,
+				parent:   current,
+				children: make(map[string]*Namespace),
+				vars:     make(map[string]TclObj),
+			}
+			current.children[part] = child
+			i.namespaces[childPath] = child
+		}
+		current = child
+		currentPath = childPath
+	}
+	return current
+}
+
+//export goNsCreate
+func goNsCreate(interp C.TclInterp, path C.TclObj) C.TclResult {
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	pathStr := i.GetString(TclObj(path))
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.ensureNamespace(pathStr)
+	return C.TCL_OK
+}
+
+//export goNsDelete
+func goNsDelete(interp C.TclInterp, path C.TclObj) C.TclResult {
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	pathStr := i.GetString(TclObj(path))
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	// Cannot delete global namespace
+	if pathStr == "::" {
+		return C.TCL_ERROR
+	}
+
+	ns, ok := i.namespaces[pathStr]
+	if !ok {
+		return C.TCL_ERROR
+	}
+
+	// Delete all children recursively
+	var deleteRecursive func(n *Namespace)
+	deleteRecursive = func(n *Namespace) {
+		for _, child := range n.children {
+			deleteRecursive(child)
+		}
+		delete(i.namespaces, n.fullPath)
+	}
+	deleteRecursive(ns)
+
+	// Remove from parent's children
+	if ns.parent != nil {
+		for name, child := range ns.parent.children {
+			if child == ns {
+				delete(ns.parent.children, name)
+				break
+			}
+		}
+	}
+
+	return C.TCL_OK
+}
+
+//export goNsExists
+func goNsExists(interp C.TclInterp, path C.TclObj) C.int {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	pathStr := i.GetString(TclObj(path))
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if _, ok := i.namespaces[pathStr]; ok {
+		return 1
+	}
+	return 0
+}
+
+//export goNsCurrent
+func goNsCurrent(interp C.TclInterp) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	frame := i.frames[i.active]
+	if frame.ns != nil {
+		return C.TclObj(i.internStringLocked(frame.ns.fullPath))
+	}
+	return C.TclObj(i.internStringLocked("::"))
+}
+
+// internStringLocked is like internString but assumes lock is already held
+func (i *Interp) internStringLocked(s string) TclObj {
+	id := i.nextID
+	i.nextID++
+	i.objects[id] = &Object{stringVal: s}
+	return id
+}
+
+//export goNsParent
+func goNsParent(interp C.TclInterp, nsPath C.TclObj, result *C.TclObj) C.TclResult {
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	pathStr := i.GetString(TclObj(nsPath))
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	ns, ok := i.namespaces[pathStr]
+	if !ok {
+		return C.TCL_ERROR
+	}
+
+	if ns.parent == nil {
+		// Global namespace has no parent - return empty string
+		*result = C.TclObj(i.internStringLocked(""))
+	} else {
+		*result = C.TclObj(i.internStringLocked(ns.parent.fullPath))
+	}
+	return C.TCL_OK
+}
+
+//export goNsChildren
+func goNsChildren(interp C.TclInterp, nsPath C.TclObj) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	pathStr := i.GetString(TclObj(nsPath))
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	ns, ok := i.namespaces[pathStr]
+	if !ok {
+		// Return empty list
+		id := i.nextID
+		i.nextID++
+		i.objects[id] = &Object{isList: true, listItems: []TclObj{}}
+		return C.TclObj(id)
+	}
+
+	// Collect and sort child names for consistent ordering
+	names := make([]string, 0, len(ns.children))
+	for name := range ns.children {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	// Build list of full paths
+	items := make([]TclObj, len(names))
+	for idx, name := range names {
+		child := ns.children[name]
+		items[idx] = i.internStringLocked(child.fullPath)
+	}
+
+	id := i.nextID
+	i.nextID++
+	i.objects[id] = &Object{isList: true, listItems: items}
+	return C.TclObj(id)
+}
+
+//export goNsGetVar
+func goNsGetVar(interp C.TclInterp, nsPath C.TclObj, name C.TclObj) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	pathStr := i.GetString(TclObj(nsPath))
+	nameStr := i.GetString(TclObj(name))
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	ns, ok := i.namespaces[pathStr]
+	if !ok {
+		return 0
+	}
+	if val, ok := ns.vars[nameStr]; ok {
+		return C.TclObj(val)
+	}
+	return 0
+}
+
+//export goNsSetVar
+func goNsSetVar(interp C.TclInterp, nsPath C.TclObj, name C.TclObj, value C.TclObj) {
+	i := getInterp(interp)
+	if i == nil {
+		return
+	}
+	pathStr := i.GetString(TclObj(nsPath))
+	nameStr := i.GetString(TclObj(name))
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	// Create namespace if needed
+	ns := i.ensureNamespace(pathStr)
+	ns.vars[nameStr] = TclObj(value)
+}
+
+//export goNsVarExists
+func goNsVarExists(interp C.TclInterp, nsPath C.TclObj, name C.TclObj) C.int {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	pathStr := i.GetString(TclObj(nsPath))
+	nameStr := i.GetString(TclObj(name))
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	ns, ok := i.namespaces[pathStr]
+	if !ok {
+		return 0
+	}
+	if _, ok := ns.vars[nameStr]; ok {
+		return 1
+	}
+	return 0
+}
+
+//export goNsUnsetVar
+func goNsUnsetVar(interp C.TclInterp, nsPath C.TclObj, name C.TclObj) {
+	i := getInterp(interp)
+	if i == nil {
+		return
+	}
+	pathStr := i.GetString(TclObj(nsPath))
+	nameStr := i.GetString(TclObj(name))
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	ns, ok := i.namespaces[pathStr]
+	if !ok {
+		return
+	}
+	delete(ns.vars, nameStr)
+}
+
+//export goFrameSetNamespace
+func goFrameSetNamespace(interp C.TclInterp, nsPath C.TclObj) C.TclResult {
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	pathStr := i.GetString(TclObj(nsPath))
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	// Create namespace if needed
+	ns := i.ensureNamespace(pathStr)
+	i.frames[i.active].ns = ns
+	return C.TCL_OK
+}
+
+//export goFrameGetNamespace
+func goFrameGetNamespace(interp C.TclInterp) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	frame := i.frames[i.active]
+	if frame.ns != nil {
+		return C.TclObj(i.internStringLocked(frame.ns.fullPath))
+	}
+	return C.TclObj(i.internStringLocked("::"))
+}
+
+//export goVarLinkNs
+func goVarLinkNs(interp C.TclInterp, local C.TclObj, nsPath C.TclObj, name C.TclObj) {
+	i := getInterp(interp)
+	if i == nil {
+		return
+	}
+	localStr := i.GetString(TclObj(local))
+	pathStr := i.GetString(TclObj(nsPath))
+	nameStr := i.GetString(TclObj(name))
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	frame := i.frames[i.active]
+	frame.links[localStr] = varLink{
+		targetLevel: -1, // -1 indicates namespace link
+		nsPath:      pathStr,
+		nsName:      nameStr,
+	}
 }

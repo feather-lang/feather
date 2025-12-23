@@ -67,9 +67,22 @@ type TclObj Handle
 type CommandFunc func(i *Interp, cmd TclObj, args []TclObj) TclResult
 
 // varLink represents a link to a variable in another frame (for upvar)
+// or a link to a namespace variable (for variable command)
 type varLink struct {
-	targetLevel int    // frame level where the target variable lives
+	targetLevel int    // frame level where the target variable lives (-1 for namespace links)
 	targetName  string // name of the variable in the target frame
+
+	// For namespace variable links (set when targetLevel == -1)
+	nsPath string // absolute namespace path, e.g., "::foo"
+	nsName string // variable name in namespace
+}
+
+// Namespace represents a namespace in the hierarchy
+type Namespace struct {
+	fullPath string
+	parent   *Namespace
+	children map[string]*Namespace
+	vars     map[string]TclObj
 }
 
 // CallFrame represents an execution frame on the call stack.
@@ -80,6 +93,7 @@ type CallFrame struct {
 	vars  map[string]TclObj // local variable storage
 	links map[string]varLink // upvar links: local name -> target variable
 	level int               // frame index on the call stack
+	ns    *Namespace        // current namespace context
 }
 
 // Procedure represents a user-defined procedure
@@ -110,7 +124,9 @@ type Interp struct {
 	handle         TclInterp
 	objects        map[TclObj]*Object
 	commands       map[string]*Command // unified command table
-	globalNS       TclObj              // global namespace object
+	globalNS       TclObj              // global namespace object (TclObj handle for "::")
+	namespaces     map[string]*Namespace // namespace path -> Namespace
+	globalNamespace *Namespace           // the global namespace "::"
 	nextID         TclObj
 	result         TclObj
 	returnOptions  TclObj       // options from the last return command
@@ -138,21 +154,32 @@ type Object struct {
 // NewInterp creates a new interpreter
 func NewInterp() *Interp {
 	interp := &Interp{
-		objects:  make(map[TclObj]*Object),
-		commands: make(map[string]*Command),
-		nextID:   1,
+		objects:    make(map[TclObj]*Object),
+		commands:   make(map[string]*Command),
+		namespaces: make(map[string]*Namespace),
+		nextID:     1,
 	}
+	// Create the global namespace
+	globalNS := &Namespace{
+		fullPath: "::",
+		parent:   nil,
+		children: make(map[string]*Namespace),
+		vars:     make(map[string]TclObj),
+	}
+	interp.globalNamespace = globalNS
+	interp.namespaces["::"] = globalNS
 	// Initialize the global frame (frame 0)
 	globalFrame := &CallFrame{
 		vars:  make(map[string]TclObj),
 		links: make(map[string]varLink),
 		level: 0,
+		ns:    globalNS,
 	}
 	interp.frames = []*CallFrame{globalFrame}
 	interp.active = 0
 	// Use cgo.Handle to allow C callbacks to find this interpreter
 	interp.handle = TclInterp(cgo.NewHandle(interp))
-	// Create the global namespace object
+	// Create the global namespace object (TclObj handle for "::")
 	interp.globalNS = interp.internString("::")
 	// Initialize the C interpreter (registers builtins)
 	callCInterpInit(interp.handle)

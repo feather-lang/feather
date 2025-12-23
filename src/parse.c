@@ -304,8 +304,20 @@ static TclResult substitute_variable(const TclHostOps *ops, TclInterp interp,
     }
     // Found closing brace
     size_t name_len = p - name_start;
-    TclObj name = ops->string.intern(interp, name_start, name_len);
-    TclObj value = ops->var.get(interp, name);
+
+    // Resolve the variable name (handles qualified names)
+    TclObj ns, localName;
+    tcl_resolve_variable(ops, interp, name_start, name_len, &ns, &localName);
+
+    TclObj value;
+    if (ops->list.is_nil(interp, ns)) {
+      // Unqualified - frame-local lookup
+      value = ops->var.get(interp, localName);
+    } else {
+      // Qualified - namespace lookup
+      value = ops->ns.get_var(interp, ns, localName);
+    }
+
     if (ops->list.is_nil(interp, value)) {
       // Variable not found - raise error
       TclObj msg1 = ops->string.intern(interp, "can't read \"", 12);
@@ -330,8 +342,20 @@ static TclResult substitute_variable(const TclHostOps *ops, TclInterp interp,
       p++;
     }
     size_t name_len = p - name_start;
-    TclObj name = ops->string.intern(interp, name_start, name_len);
-    TclObj value = ops->var.get(interp, name);
+
+    // Resolve the variable name (handles qualified names)
+    TclObj ns, localName;
+    tcl_resolve_variable(ops, interp, name_start, name_len, &ns, &localName);
+
+    TclObj value;
+    if (ops->list.is_nil(interp, ns)) {
+      // Unqualified - frame-local lookup
+      value = ops->var.get(interp, localName);
+    } else {
+      // Qualified - namespace lookup
+      value = ops->ns.get_var(interp, ns, localName);
+    }
+
     if (ops->list.is_nil(interp, value)) {
       // Variable not found - raise error
       TclObj msg1 = ops->string.intern(interp, "can't read \"", 12);

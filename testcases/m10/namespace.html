@@ -1,0 +1,531 @@
+<test-suite>
+  <!--
+    M10: Namespaces
+
+    Namespaces provide hierarchical organization for commands and variables.
+    The global namespace "::" always exists. Namespaces use "::" as separator.
+
+    Commands:
+    - namespace eval ns script - evaluate script in namespace context
+    - namespace current - return current namespace path
+    - namespace exists ns - check if namespace exists (returns 0 or 1)
+    - namespace children ?ns? - list child namespaces
+    - namespace parent ?ns? - get parent namespace
+    - namespace delete ns ?ns ...? - delete namespaces
+    - variable name ?value? - declare/link namespace variables
+  -->
+
+  <!-- ============================================= -->
+  <!-- namespace current: Basic functionality       -->
+  <!-- ============================================= -->
+
+  <test-case name="namespace current returns :: at global level">
+    <script>namespace current</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>::</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace current inside namespace eval">
+    <script>namespace eval foo {
+    namespace current
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>::foo</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace current in nested namespace">
+    <script>namespace eval foo {
+    namespace eval bar {
+        namespace current
+    }
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>::foo::bar</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- namespace eval: Creating and using namespaces-->
+  <!-- ============================================= -->
+
+  <test-case name="namespace eval creates namespace">
+    <script>namespace eval foo {
+    set x 1
+}
+namespace exists foo</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace eval returns script result">
+    <script>namespace eval foo {
+    expr {1 + 2}
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace eval with absolute path">
+    <script>namespace eval ::foo::bar {
+    namespace current
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>::foo::bar</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace eval with relative path">
+    <script>namespace eval foo {
+    namespace eval bar {
+        namespace current
+    }
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>::foo::bar</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace eval wrong args">
+    <script>namespace eval</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "namespace eval name arg ?arg ...?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- namespace exists: Checking namespace existence-->
+  <!-- ============================================= -->
+
+  <test-case name="namespace exists returns 0 for nonexistent">
+    <script>namespace exists nosuchns</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace exists returns 1 for global">
+    <script>namespace exists ::</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace exists returns 1 after creation">
+    <script>namespace eval foo {}
+namespace exists foo</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace exists with absolute path">
+    <script>namespace eval foo {}
+namespace exists ::foo</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace exists wrong args">
+    <script>namespace exists</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "namespace exists name"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- namespace children: Listing child namespaces -->
+  <!-- ============================================= -->
+
+  <test-case name="namespace children returns empty list initially">
+    <script>namespace children</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace children lists created namespaces">
+    <script>namespace eval foo {}
+namespace eval bar {}
+namespace children</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>::bar ::foo</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace children of specific namespace">
+    <script>namespace eval foo {
+    namespace eval child1 {}
+    namespace eval child2 {}
+}
+namespace children ::foo</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>::foo::child1 ::foo::child2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- namespace parent: Getting parent namespace   -->
+  <!-- ============================================= -->
+
+  <test-case name="namespace parent of global is empty">
+    <script>namespace parent ::</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace parent of child is parent">
+    <script>namespace eval foo {}
+namespace parent ::foo</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>::</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace parent of nested namespace">
+    <script>namespace eval foo {
+    namespace eval bar {}
+}
+namespace parent ::foo::bar</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>::foo</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace parent default is current">
+    <script>namespace eval foo {
+    namespace parent
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>::</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace parent of nonexistent is error">
+    <script>namespace parent nosuchns</script>
+    <return>TCL_ERROR</return>
+    <error>namespace "nosuchns" not found</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- namespace delete: Removing namespaces        -->
+  <!-- ============================================= -->
+
+  <test-case name="namespace delete removes namespace">
+    <script>namespace eval foo {}
+namespace delete foo
+namespace exists foo</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace delete removes children">
+    <script>namespace eval foo {
+    namespace eval bar {}
+}
+namespace delete foo
+namespace exists ::foo::bar</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="namespace delete global is error">
+    <script>namespace delete ::</script>
+    <return>TCL_ERROR</return>
+    <error>cannot delete namespace "::"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="namespace delete nonexistent is error">
+    <script>namespace delete nosuchns</script>
+    <return>TCL_ERROR</return>
+    <error>namespace "nosuchns" not found</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="namespace delete wrong args">
+    <script>namespace delete</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "namespace delete ?name name ...?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- variable: Namespace variable declaration     -->
+  <!-- ============================================= -->
+
+  <test-case name="variable creates and initializes in namespace">
+    <script>namespace eval foo {
+    variable x 10
+    set x
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="variable persists after namespace eval">
+    <script>namespace eval foo {
+    variable x 10
+}
+set ::foo::x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="variable links to namespace storage">
+    <script>namespace eval foo {
+    variable x 10
+    set x 20
+}
+set ::foo::x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>20</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="variable in proc links to namespace">
+    <script>namespace eval counter {
+    variable count 0
+    proc incr {} {
+        variable count
+        incr count
+    }
+    proc get {} {
+        variable count
+        set count
+    }
+}
+counter::incr
+counter::incr
+counter::get</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="variable without value just declares">
+    <script>namespace eval foo {
+    variable x
+    info exists x
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="variable with multiple pairs">
+    <script>namespace eval foo {
+    variable a 1 b 2 c 3
+    expr {$a + $b + $c}
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>6</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Qualified variable access                    -->
+  <!-- ============================================= -->
+
+  <test-case name="set with absolute qualified name">
+    <script>set ::foo::x 42
+set ::foo::x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="set creates parent namespaces">
+    <script>set ::a::b::c::x 1
+namespace exists ::a::b::c</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="variable substitution with qualified name">
+    <script>set ::config::debug 1
+if {$::config::debug} {
+    set result "debug on"
+} else {
+    set result "debug off"
+}
+set result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>debug on</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="relative qualified name in namespace">
+    <script>namespace eval foo {
+    namespace eval bar {
+        variable x 1
+    }
+    set bar::x 2
+}
+set ::foo::bar::x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info exists with qualified name">
+    <script>set ::foo::x 1
+info exists ::foo::x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info exists qualified nonexistent">
+    <script>info exists ::nosuch::var</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Procs in namespaces                          -->
+  <!-- ============================================= -->
+
+  <test-case name="proc defined in namespace eval">
+    <script>namespace eval math {
+    proc double {x} {
+        expr {$x * 2}
+    }
+}
+math::double 5</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="qualified proc call from global">
+    <script>namespace eval foo {
+    proc greet {name} {
+        return "hello $name"
+    }
+}
+::foo::greet world</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc defined with qualified name">
+    <script>proc ::foo::bar::baz {} {
+    return "baz"
+}
+foo::bar::baz</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>baz</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Unknown subcommand                           -->
+  <!-- ============================================= -->
+
+  <test-case name="namespace unknown subcommand">
+    <script>namespace nosuchsubcmd</script>
+    <return>TCL_ERROR</return>
+    <error>bad option "nosuchsubcmd": must be children, current, delete, eval, exists, or parent</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="namespace no args">
+    <script>namespace</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "namespace subcommand ?arg ...?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

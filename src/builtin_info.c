@@ -31,10 +31,23 @@ static TclResult info_exists(const TclHostOps *ops, TclInterp interp,
   }
 
   TclObj varName = ops->list.at(interp, args, 0);
-  TclResult exists = ops->var.exists(interp, varName);
+  size_t nameLen;
+  const char *nameStr = ops->string.get(interp, varName, &nameLen);
 
-  ops->interp.set_result(interp,
-                         ops->integer.create(interp, exists == TCL_OK ? 1 : 0));
+  // Resolve the variable name (handles qualified names)
+  TclObj ns, localName;
+  tcl_resolve_variable(ops, interp, nameStr, nameLen, &ns, &localName);
+
+  int exists;
+  if (ops->list.is_nil(interp, ns)) {
+    // Unqualified - frame-local lookup
+    exists = (ops->var.exists(interp, localName) == TCL_OK);
+  } else {
+    // Qualified - namespace lookup
+    exists = ops->ns.var_exists(interp, ns, localName);
+  }
+
+  ops->interp.set_result(interp, ops->integer.create(interp, exists ? 1 : 0));
   return TCL_OK;
 }
 
@@ -227,6 +240,29 @@ static TclResult info_procs(const TclHostOps *ops, TclInterp interp,
 }
 
 /**
+ * Helper to resolve a proc name to its fully qualified form.
+ * Tries the name as-is, then with :: prefix.
+ * Returns the resolved name if found, or the original name if not found.
+ */
+static TclObj resolve_proc_name(const TclHostOps *ops, TclInterp interp,
+                                TclObj procName) {
+  // First try the name as-is
+  if (ops->proc.exists(interp, procName)) {
+    return procName;
+  }
+
+  // Try with :: prefix
+  TclObj qualified = ops->string.intern(interp, "::", 2);
+  qualified = ops->string.concat(interp, qualified, procName);
+  if (ops->proc.exists(interp, qualified)) {
+    return qualified;
+  }
+
+  // Return original name (will fail in caller)
+  return procName;
+}
+
+/**
  * info body procname
  */
 static TclResult info_body(const TclHostOps *ops, TclInterp interp,
@@ -240,9 +276,10 @@ static TclResult info_body(const TclHostOps *ops, TclInterp interp,
   }
 
   TclObj procName = ops->list.at(interp, args, 0);
+  TclObj resolvedName = resolve_proc_name(ops, interp, procName);
 
   // Check if it's a user-defined procedure
-  if (!ops->proc.exists(interp, procName)) {
+  if (!ops->proc.exists(interp, resolvedName)) {
     TclObj msg = ops->string.intern(interp, "\"", 1);
     msg = ops->string.concat(interp, msg, procName);
     msg = ops->string.concat(interp, msg,
@@ -252,7 +289,7 @@ static TclResult info_body(const TclHostOps *ops, TclInterp interp,
   }
 
   TclObj body;
-  if (ops->proc.body(interp, procName, &body) != TCL_OK) {
+  if (ops->proc.body(interp, resolvedName, &body) != TCL_OK) {
     TclObj msg = ops->string.intern(interp, "\"", 1);
     msg = ops->string.concat(interp, msg, procName);
     msg = ops->string.concat(interp, msg,
@@ -279,9 +316,10 @@ static TclResult info_args(const TclHostOps *ops, TclInterp interp,
   }
 
   TclObj procName = ops->list.at(interp, args, 0);
+  TclObj resolvedName = resolve_proc_name(ops, interp, procName);
 
   // Check if it's a user-defined procedure
-  if (!ops->proc.exists(interp, procName)) {
+  if (!ops->proc.exists(interp, resolvedName)) {
     TclObj msg = ops->string.intern(interp, "\"", 1);
     msg = ops->string.concat(interp, msg, procName);
     msg = ops->string.concat(interp, msg,
@@ -291,7 +329,7 @@ static TclResult info_args(const TclHostOps *ops, TclInterp interp,
   }
 
   TclObj params;
-  if (ops->proc.params(interp, procName, &params) != TCL_OK) {
+  if (ops->proc.params(interp, resolvedName, &params) != TCL_OK) {
     TclObj msg = ops->string.intern(interp, "\"", 1);
     msg = ops->string.concat(interp, msg, procName);
     msg = ops->string.concat(interp, msg,

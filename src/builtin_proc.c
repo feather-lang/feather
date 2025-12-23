@@ -18,8 +18,53 @@ TclResult tcl_builtin_proc(const TclHostOps *ops, TclInterp interp,
   TclObj params = ops->list.shift(interp, args);
   TclObj body = ops->list.shift(interp, args);
 
-  // Register the procedure
-  ops->proc.define(interp, name, params, body);
+  // Get the proc name string
+  size_t nameLen;
+  const char *nameStr = ops->string.get(interp, name, &nameLen);
+
+  // Determine the fully qualified proc name
+  TclObj qualifiedName;
+  if (tcl_is_qualified(nameStr, nameLen)) {
+    // Name is already qualified (starts with :: or contains ::)
+    // Use it as-is, but ensure the namespace exists
+    // For "::foo::bar::baz", create namespaces ::foo and ::foo::bar
+
+    // Find the last :: to split namespace from proc name
+    size_t lastSep = 0;
+    for (size_t i = 0; i + 1 < nameLen; i++) {
+      if (nameStr[i] == ':' && nameStr[i + 1] == ':') {
+        lastSep = i;
+      }
+    }
+
+    // Create namespace path if needed (everything before last ::)
+    if (lastSep > 0) {
+      TclObj nsPath = ops->string.intern(interp, nameStr, lastSep);
+      ops->ns.create(interp, nsPath);
+    }
+
+    qualifiedName = name;
+  } else {
+    // Unqualified name - prepend current namespace (except global)
+    TclObj currentNs = ops->ns.current(interp);
+    size_t nsLen;
+    const char *nsStr = ops->string.get(interp, currentNs, &nsLen);
+
+    // If current namespace is "::", keep the name as-is (global procs don't need prefix)
+    // Otherwise prepend "currentns::"
+    if (nsLen == 2 && nsStr[0] == ':' && nsStr[1] == ':') {
+      // Global namespace: keep unqualified name
+      qualifiedName = name;
+    } else {
+      // Other namespace: "::ns::name"
+      qualifiedName = ops->string.concat(interp, currentNs,
+                                         ops->string.intern(interp, "::", 2));
+      qualifiedName = ops->string.concat(interp, qualifiedName, name);
+    }
+  }
+
+  // Register the procedure with its fully qualified name
+  ops->proc.define(interp, qualifiedName, params, body);
 
   // proc returns empty string
   TclObj empty = ops->string.intern(interp, "", 0);
@@ -116,6 +161,35 @@ TclResult tcl_invoke_proc(const TclHostOps *ops, TclInterp interp,
   if (ops->frame.push(interp, name, args) != TCL_OK) {
     return TCL_ERROR;
   }
+
+  // Set the namespace for this frame based on the proc's qualified name
+  // For "::counter::incr", the namespace is "::counter"
+  // For "incr", the namespace is "::" (global)
+  size_t nameLen;
+  const char *nameStr = ops->string.get(interp, name, &nameLen);
+
+  if (tcl_is_qualified(nameStr, nameLen)) {
+    // Find the last :: to extract the namespace part
+    size_t lastSep = 0;
+    int foundSep = 0;
+    for (size_t i = 0; i + 1 < nameLen; i++) {
+      if (nameStr[i] == ':' && nameStr[i + 1] == ':') {
+        lastSep = i;
+        foundSep = 1;
+      }
+    }
+    if (foundSep && lastSep > 0) {
+      // Namespace is everything before the last ::
+      TclObj ns = ops->string.intern(interp, nameStr, lastSep);
+      ops->frame.set_namespace(interp, ns);
+    } else if (foundSep && lastSep == 0) {
+      // Starts with :: but has no more separators, e.g., "::incr"
+      // Namespace is "::" (global)
+      TclObj globalNs = ops->string.intern(interp, "::", 2);
+      ops->frame.set_namespace(interp, globalNs);
+    }
+  }
+  // For unqualified names, leave namespace as default (global)
 
   // Create copies of params and args for binding (since shift mutates)
   TclObj paramsList = ops->list.from(interp, params);

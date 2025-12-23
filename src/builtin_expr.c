@@ -1,4 +1,5 @@
 #include "tclc.h"
+#include "internal.h"
 
 /**
  * Expression parser for TCL expr command.
@@ -255,6 +256,12 @@ static int match_keyword(ExprParser *p, const char *kw, size_t len) {
   return 1;
 }
 
+// Check if character is valid in a variable name (including :: for namespaces)
+static int is_varname_char(char c) {
+  return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+         (c >= '0' && c <= '9') || c == '_' || c == ':';
+}
+
 // Parse a variable reference $name or ${name}
 static ExprValue parse_variable(ExprParser *p) {
   p->pos++; // skip $
@@ -281,7 +288,7 @@ static ExprValue parse_variable(ExprParser *p) {
     p->pos++;
   } else {
     name_start = p->pos;
-    while (p->pos < p->end && is_alnum(*p->pos)) {
+    while (p->pos < p->end && is_varname_char(*p->pos)) {
       p->pos++;
     }
     name_len = p->pos - name_start;
@@ -297,10 +304,21 @@ static ExprValue parse_variable(ExprParser *p) {
     return make_int(0);
   }
 
-  TclObj name = p->ops->string.intern(p->interp, name_start, name_len);
-  TclObj value = p->ops->var.get(p->interp, name);
+  // Resolve the qualified variable name
+  TclObj ns, localName;
+  tcl_resolve_variable(p->ops, p->interp, name_start, name_len, &ns, &localName);
+
+  TclObj value;
+  if (p->ops->list.is_nil(p->interp, ns)) {
+    // Unqualified - frame-local lookup
+    value = p->ops->var.get(p->interp, localName);
+  } else {
+    // Qualified - namespace lookup
+    value = p->ops->ns.get_var(p->interp, ns, localName);
+  }
 
   if (p->ops->list.is_nil(p->interp, value)) {
+    TclObj name = p->ops->string.intern(p->interp, name_start, name_len);
     TclObj part1 = p->ops->string.intern(p->interp, "can't read \"", 12);
     TclObj part3 = p->ops->string.intern(p->interp, "\": no such variable", 19);
     TclObj msg = p->ops->string.concat(p->interp, part1, name);
