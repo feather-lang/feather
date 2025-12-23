@@ -436,7 +436,7 @@ func goFrameSize(interp C.TclInterp) C.size_t {
 }
 
 //export goFrameInfo
-func goFrameInfo(interp C.TclInterp, level C.size_t, cmd *C.TclObj, args *C.TclObj) C.TclResult {
+func goFrameInfo(interp C.TclInterp, level C.size_t, cmd *C.TclObj, args *C.TclObj, ns *C.TclObj) C.TclResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
@@ -450,6 +450,12 @@ func goFrameInfo(interp C.TclInterp, level C.size_t, cmd *C.TclObj, args *C.TclO
 	frame := i.frames[lvl]
 	*cmd = C.TclObj(frame.cmd)
 	*args = C.TclObj(frame.args)
+	// Return the frame's namespace
+	if frame.ns != nil {
+		*ns = C.TclObj(i.internStringLocked(frame.ns.fullPath))
+	} else {
+		*ns = C.TclObj(i.internStringLocked("::"))
+	}
 	return C.TCL_OK
 }
 
@@ -1175,4 +1181,191 @@ func goVarLinkNs(interp C.TclInterp, local C.TclObj, nsPath C.TclObj, name C.Tcl
 		nsPath:      pathStr,
 		nsName:      nameStr,
 	}
+}
+
+//export goInterpGetScript
+func goInterpGetScript(interp C.TclInterp) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if i.scriptPath == 0 {
+		// Return empty string if no script path set
+		return C.TclObj(i.internStringLocked(""))
+	}
+	return C.TclObj(i.scriptPath)
+}
+
+//export goInterpSetScript
+func goInterpSetScript(interp C.TclInterp, path C.TclObj) {
+	i := getInterp(interp)
+	if i == nil {
+		return
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.scriptPath = TclObj(path)
+}
+
+//export goVarNames
+func goVarNames(interp C.TclInterp, ns C.TclObj) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	var names []string
+
+	if ns == 0 {
+		// Return variables in current frame (locals)
+		frame := i.frames[i.active]
+		for name := range frame.vars {
+			names = append(names, name)
+		}
+		// Also include linked variables (upvar, variable)
+		for name := range frame.links {
+			// Only include if not already in vars (avoid duplicates)
+			found := false
+			for _, n := range names {
+				if n == name {
+					found = true
+					break
+				}
+			}
+			if !found {
+				names = append(names, name)
+			}
+		}
+	} else {
+		// Return variables in the specified namespace
+		pathStr := i.GetString(TclObj(ns))
+		if nsObj, ok := i.namespaces[pathStr]; ok {
+			for name := range nsObj.vars {
+				names = append(names, name)
+			}
+		}
+	}
+
+	// Sort for consistent ordering
+	sort.Strings(names)
+
+	// Create list of names
+	items := make([]TclObj, len(names))
+	for idx, name := range names {
+		items[idx] = i.internStringLocked(name)
+	}
+
+	id := i.nextID
+	i.nextID++
+	i.objects[id] = &Object{isList: true, listItems: items}
+	return C.TclObj(id)
+}
+
+//export goTraceAdd
+func goTraceAdd(interp C.TclInterp, kind C.TclObj, name C.TclObj, ops C.TclObj, script C.TclObj) C.TclResult {
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	kindStr := i.GetString(TclObj(kind))
+	nameStr := i.GetString(TclObj(name))
+	opsStr := i.GetString(TclObj(ops))
+
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	entry := TraceEntry{
+		ops:    opsStr,
+		script: TclObj(script),
+	}
+
+	if kindStr == "variable" {
+		i.varTraces[nameStr] = append(i.varTraces[nameStr], entry)
+	} else if kindStr == "command" {
+		i.cmdTraces[nameStr] = append(i.cmdTraces[nameStr], entry)
+	} else {
+		return C.TCL_ERROR
+	}
+
+	return C.TCL_OK
+}
+
+//export goTraceRemove
+func goTraceRemove(interp C.TclInterp, kind C.TclObj, name C.TclObj, ops C.TclObj, script C.TclObj) C.TclResult {
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	kindStr := i.GetString(TclObj(kind))
+	nameStr := i.GetString(TclObj(name))
+	opsStr := i.GetString(TclObj(ops))
+	scriptObj := TclObj(script)
+
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	var traces *map[string][]TraceEntry
+	if kindStr == "variable" {
+		traces = &i.varTraces
+	} else if kindStr == "command" {
+		traces = &i.cmdTraces
+	} else {
+		return C.TCL_ERROR
+	}
+
+	// Find and remove matching trace
+	entries := (*traces)[nameStr]
+	for idx, entry := range entries {
+		if entry.ops == opsStr && entry.script == scriptObj {
+			// Remove this entry
+			(*traces)[nameStr] = append(entries[:idx], entries[idx+1:]...)
+			return C.TCL_OK
+		}
+	}
+
+	// No matching trace found
+	return C.TCL_ERROR
+}
+
+//export goTraceInfo
+func goTraceInfo(interp C.TclInterp, kind C.TclObj, name C.TclObj) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	kindStr := i.GetString(TclObj(kind))
+	nameStr := i.GetString(TclObj(name))
+
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	var entries []TraceEntry
+	if kindStr == "variable" {
+		entries = i.varTraces[nameStr]
+	} else if kindStr == "command" {
+		entries = i.cmdTraces[nameStr]
+	}
+
+	// Build list of {ops script} pairs
+	items := make([]TclObj, 0, len(entries)*2)
+	for _, entry := range entries {
+		// Create a sublist {ops script}
+		subItems := []TclObj{
+			i.internStringLocked(entry.ops),
+			entry.script,
+		}
+		subId := i.nextID
+		i.nextID++
+		i.objects[subId] = &Object{isList: true, listItems: subItems}
+		items = append(items, subId)
+	}
+
+	id := i.nextID
+	i.nextID++
+	i.objects[id] = &Object{isList: true, listItems: items}
+	return C.TclObj(id)
 }

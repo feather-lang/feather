@@ -119,6 +119,12 @@ type Command struct {
 	proc    *Procedure       // procedure info (only for CmdProc)
 }
 
+// TraceEntry represents a single trace registration
+type TraceEntry struct {
+	ops    string // space-separated operations: "read write" or "rename delete"
+	script TclObj // the command prefix to invoke
+}
+
 // Interp represents a TCL interpreter instance
 type Interp struct {
 	handle         TclInterp
@@ -133,6 +139,9 @@ type Interp struct {
 	frames         []*CallFrame // call stack (frame 0 is global)
 	active         int          // currently active frame index
 	recursionLimit int          // maximum call stack depth (0 means use default)
+	scriptPath     TclObj       // current script file being executed (0 = none)
+	varTraces      map[string][]TraceEntry // variable name -> traces
+	cmdTraces      map[string][]TraceEntry // command name -> traces
 	mu             sync.Mutex
 
 	// UnknownHandler is called when an unknown command is invoked.
@@ -157,6 +166,8 @@ func NewInterp() *Interp {
 		objects:    make(map[TclObj]*Object),
 		commands:   make(map[string]*Command),
 		namespaces: make(map[string]*Namespace),
+		varTraces:  make(map[string][]TraceEntry),
+		cmdTraces:  make(map[string][]TraceEntry),
 		nextID:     1,
 	}
 	// Create the global namespace

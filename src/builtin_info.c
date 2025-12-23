@@ -114,10 +114,11 @@ static TclResult info_level(const TclHostOps *ops, TclInterp interp,
   }
 
   // Get frame info
-  TclObj cmd, frameArgs;
-  if (ops->frame.info(interp, targetLevel, &cmd, &frameArgs) != TCL_OK) {
+  TclObj cmd, frameArgs, frameNs;
+  if (ops->frame.info(interp, targetLevel, &cmd, &frameArgs, &frameNs) != TCL_OK) {
     goto bad_level;
   }
+  (void)frameNs; // Currently unused - info level doesn't include namespace
 
   // Build result list: {cmd arg1 arg2 ...}
   TclObj result = ops->list.create(interp);

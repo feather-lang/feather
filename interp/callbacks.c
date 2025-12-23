@@ -44,6 +44,14 @@ static TclObj c_interp_get_return_options(TclInterp interp, TclResult code) {
     return goInterpGetReturnOptions(interp, code);
 }
 
+static TclObj c_interp_get_script(TclInterp interp) {
+    return goInterpGetScript(interp);
+}
+
+static void c_interp_set_script(TclInterp interp, TclObj path) {
+    goInterpSetScript(interp, path);
+}
+
 static TclObj c_list_create(TclInterp interp) {
     return goListCreate(interp);
 }
@@ -116,8 +124,8 @@ static size_t c_frame_size(TclInterp interp) {
     return goFrameSize(interp);
 }
 
-static TclResult c_frame_info(TclInterp interp, size_t level, TclObj *cmd, TclObj *args) {
-    return goFrameInfo(interp, level, cmd, args);
+static TclResult c_frame_info(TclInterp interp, size_t level, TclObj *cmd, TclObj *args, TclObj *ns) {
+    return goFrameInfo(interp, level, cmd, args, ns);
 }
 
 static TclObj c_var_get(TclInterp interp, TclObj name) {
@@ -231,6 +239,23 @@ static void c_var_link_ns(TclInterp interp, TclObj local, TclObj ns, TclObj name
     goVarLinkNs(interp, local, ns, name);
 }
 
+static TclObj c_var_names(TclInterp interp, TclObj ns) {
+    return goVarNames(interp, ns);
+}
+
+// Trace operations
+static TclResult c_trace_add(TclInterp interp, TclObj kind, TclObj name, TclObj ops, TclObj script) {
+    return goTraceAdd(interp, kind, name, ops, script);
+}
+
+static TclResult c_trace_remove(TclInterp interp, TclObj kind, TclObj name, TclObj ops, TclObj script) {
+    return goTraceRemove(interp, kind, name, ops, script);
+}
+
+static TclObj c_trace_info(TclInterp interp, TclObj kind, TclObj name) {
+    return goTraceInfo(interp, kind, name);
+}
+
 // Build the TclHostOps struct with all callbacks
 TclHostOps make_host_ops(void) {
     TclHostOps ops;
@@ -250,6 +275,7 @@ TclHostOps make_host_ops(void) {
     ops.var.exists = c_var_exists;
     ops.var.link = c_var_link;
     ops.var.link_ns = c_var_link_ns;
+    ops.var.names = c_var_names;
 
     ops.proc.define = c_proc_define;
     ops.proc.exists = c_proc_exists;
@@ -298,8 +324,14 @@ TclHostOps make_host_ops(void) {
     ops.interp.reset_result = c_interp_reset_result;
     ops.interp.set_return_options = c_interp_set_return_options;
     ops.interp.get_return_options = c_interp_get_return_options;
+    ops.interp.get_script = c_interp_get_script;
+    ops.interp.set_script = c_interp_set_script;
 
     ops.bind.unknown = c_bind_unknown;
+
+    ops.trace.add = c_trace_add;
+    ops.trace.remove = c_trace_remove;
+    ops.trace.info = c_trace_info;
 
     return ops;
 }
