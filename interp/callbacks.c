@@ -168,6 +168,14 @@ static void c_proc_register_command(TclInterp interp, TclObj name) {
     goProcRegisterCommand(interp, name);
 }
 
+static TclCommandType c_proc_lookup(TclInterp interp, TclObj name, TclObj *canonical_name) {
+    return goProcLookup(interp, name, canonical_name);
+}
+
+static TclResult c_proc_rename(TclInterp interp, TclObj oldName, TclObj newName) {
+    return goProcRename(interp, oldName, newName);
+}
+
 // Build the TclHostOps struct with all callbacks
 TclHostOps make_host_ops(void) {
     TclHostOps ops;
@@ -192,6 +200,8 @@ TclHostOps make_host_ops(void) {
     ops.proc.names = c_proc_names;
     ops.proc.resolve_namespace = c_proc_resolve_namespace;
     ops.proc.register_command = c_proc_register_command;
+    ops.proc.lookup = c_proc_lookup;
+    ops.proc.rename = c_proc_rename;
 
     ops.string.intern = c_string_intern;
     ops.string.get = c_string_get;

@@ -599,13 +599,16 @@ func goProcDefine(interp C.TclInterp, name C.TclObj, params C.TclObj, body C.Tcl
 	nameStr := i.GetString(TclObj(name))
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	i.procs[nameStr] = &Procedure{
+	proc := &Procedure{
 		name:   TclObj(name),
 		params: TclObj(params),
 		body:   TclObj(body),
 	}
-	// Also register in commands map for enumeration
-	i.commands[nameStr] = struct{}{}
+	i.commands[nameStr] = &Command{
+		cmdType:       CmdProc,
+		canonicalName: nameStr,
+		proc:          proc,
+	}
 }
 
 //export goProcExists
@@ -617,7 +620,7 @@ func goProcExists(interp C.TclInterp, name C.TclObj) C.int {
 	nameStr := i.GetString(TclObj(name))
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	if _, ok := i.procs[nameStr]; ok {
+	if cmd, ok := i.commands[nameStr]; ok && cmd.cmdType == CmdProc {
 		return 1
 	}
 	return 0
@@ -631,12 +634,12 @@ func goProcParams(interp C.TclInterp, name C.TclObj, result *C.TclObj) C.TclResu
 	}
 	nameStr := i.GetString(TclObj(name))
 	i.mu.Lock()
-	proc, ok := i.procs[nameStr]
+	cmd, ok := i.commands[nameStr]
 	i.mu.Unlock()
-	if !ok {
+	if !ok || cmd.cmdType != CmdProc || cmd.proc == nil {
 		return C.TCL_ERROR
 	}
-	*result = C.TclObj(proc.params)
+	*result = C.TclObj(cmd.proc.params)
 	return C.TCL_OK
 }
 
@@ -648,12 +651,12 @@ func goProcBody(interp C.TclInterp, name C.TclObj, result *C.TclObj) C.TclResult
 	}
 	nameStr := i.GetString(TclObj(name))
 	i.mu.Lock()
-	proc, ok := i.procs[nameStr]
+	cmd, ok := i.commands[nameStr]
 	i.mu.Unlock()
-	if !ok {
+	if !ok || cmd.cmdType != CmdProc || cmd.proc == nil {
 		return C.TCL_ERROR
 	}
-	*result = C.TclObj(proc.body)
+	*result = C.TclObj(cmd.proc.body)
 	return C.TCL_OK
 }
 
@@ -737,5 +740,80 @@ func goProcRegisterCommand(interp C.TclInterp, name C.TclObj) {
 	nameStr := i.GetString(TclObj(name))
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	i.commands[nameStr] = struct{}{}
+	// Register as a builtin command with canonical name = current name
+	i.commands[nameStr] = &Command{
+		cmdType:       CmdBuiltin,
+		canonicalName: nameStr,
+	}
+}
+
+//export goProcLookup
+func goProcLookup(interp C.TclInterp, name C.TclObj, canonicalName *C.TclObj) C.TclCommandType {
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_CMD_NONE
+	}
+	nameStr := i.GetString(TclObj(name))
+	i.mu.Lock()
+	cmd, ok := i.commands[nameStr]
+	i.mu.Unlock()
+	if !ok {
+		return C.TCL_CMD_NONE
+	}
+	// Return the canonical name (original builtin name or proc name)
+	*canonicalName = C.TclObj(i.internString(cmd.canonicalName))
+	switch cmd.cmdType {
+	case CmdBuiltin:
+		return C.TCL_CMD_BUILTIN
+	case CmdProc:
+		return C.TCL_CMD_PROC
+	default:
+		return C.TCL_CMD_NONE
+	}
+}
+
+//export goProcRename
+func goProcRename(interp C.TclInterp, oldName C.TclObj, newName C.TclObj) C.TclResult {
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	oldNameStr := i.GetString(TclObj(oldName))
+	newNameStr := i.GetString(TclObj(newName))
+
+	i.mu.Lock()
+
+	// Check if old command exists
+	cmd, ok := i.commands[oldNameStr]
+	if !ok {
+		i.mu.Unlock()
+		i.SetErrorString("can't rename \"" + oldNameStr + "\": command doesn't exist")
+		return C.TCL_ERROR
+	}
+
+	// If newName is empty, delete the command
+	if newNameStr == "" {
+		delete(i.commands, oldNameStr)
+		i.mu.Unlock()
+		return C.TCL_OK
+	}
+
+	// Check if new name already exists
+	if _, exists := i.commands[newNameStr]; exists {
+		i.mu.Unlock()
+		i.SetErrorString("can't rename to \"" + newNameStr + "\": command already exists")
+		return C.TCL_ERROR
+	}
+
+	// Perform the rename: copy to new name, delete old
+	// For procs, update canonicalName to new name (since proc data is in the struct)
+	// For builtins, keep the original canonical name (needed to find the function pointer)
+	if cmd.cmdType == CmdProc {
+		cmd.canonicalName = newNameStr
+	}
+	i.commands[newNameStr] = cmd
+	delete(i.commands, oldNameStr)
+	i.mu.Unlock()
+
+	return C.TCL_OK
 }

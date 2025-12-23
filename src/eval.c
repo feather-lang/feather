@@ -20,17 +20,44 @@ TclResult tcl_command_exec(const TclHostOps *ops, TclInterp interp,
   // The remaining list is the arguments
   TclObj args = command;
 
-  // Check for builtin commands first
-  size_t cmdLen;
-  const char *cmdStr = ops->string.get(interp, cmd, &cmdLen);
-  TclBuiltinCmd builtin = tcl_lookup_builtin(cmdStr, cmdLen);
-  if (builtin != NULL) {
-    return builtin(ops, interp, cmd, args);
+  // Look up the command in the unified command table
+  TclObj canonical;
+  TclCommandType cmdType = ops->proc.lookup(interp, cmd, &canonical);
+
+  switch (cmdType) {
+  case TCL_CMD_BUILTIN: {
+    // Use canonical name to find the builtin function
+    size_t canonLen;
+    const char *canonStr = ops->string.get(interp, canonical, &canonLen);
+    TclBuiltinCmd builtin = tcl_lookup_builtin(canonStr, canonLen);
+    if (builtin != NULL) {
+      return builtin(ops, interp, cmd, args);
+    }
+    // Shouldn't happen if host is consistent, but fall through to unknown
+    break;
+  }
+  case TCL_CMD_PROC:
+    return tcl_invoke_proc(ops, interp, canonical, args);
+  case TCL_CMD_NONE:
+    // Fall through to unknown handling
+    break;
   }
 
-  // Check for user-defined procedures
-  if (ops->proc.exists(interp, cmd)) {
-    return tcl_invoke_proc(ops, interp, cmd, args);
+  // Check for user-defined 'unknown' procedure
+  TclObj unknownName = ops->string.intern(interp, "unknown", 7);
+  TclObj unknownCanonical;
+  TclCommandType unknownType = ops->proc.lookup(interp, unknownName, &unknownCanonical);
+
+  if (unknownType == TCL_CMD_PROC) {
+    // Build args list: [originalCmd, arg1, arg2, ...]
+    TclObj unknownArgs = ops->list.create(interp);
+    unknownArgs = ops->list.push(interp, unknownArgs, cmd);
+    size_t argc = ops->list.length(interp, args);
+    for (size_t i = 0; i < argc; i++) {
+      TclObj arg = ops->list.at(interp, args, i);
+      unknownArgs = ops->list.push(interp, unknownArgs, arg);
+    }
+    return tcl_invoke_proc(ops, interp, unknownCanonical, unknownArgs);
   }
 
   // Fall back to host command lookup via bind.unknown

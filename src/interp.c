@@ -27,6 +27,7 @@ static const BuiltinEntry builtins[] = {
     {"info", tcl_builtin_info},
     {"upvar", tcl_builtin_upvar},
     {"uplevel", tcl_builtin_uplevel},
+    {"rename", tcl_builtin_rename},
     {NULL, NULL} // sentinel
 };
 

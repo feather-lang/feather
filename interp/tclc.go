@@ -89,19 +89,34 @@ type Procedure struct {
 	body   TclObj
 }
 
+// CommandType indicates the type of a command
+type CommandType int
+
+const (
+	CmdNone    CommandType = 0 // command doesn't exist
+	CmdBuiltin CommandType = 1 // it's a builtin command
+	CmdProc    CommandType = 2 // it's a user-defined procedure
+)
+
+// Command represents an entry in the unified command table
+type Command struct {
+	cmdType       CommandType // type of command
+	canonicalName string      // original builtin name (for renamed builtins) or proc name
+	proc          *Procedure  // procedure info (only for CmdProc)
+}
+
 // Interp represents a TCL interpreter instance
 type Interp struct {
 	handle         TclInterp
 	objects        map[TclObj]*Object
-	procs          map[string]*Procedure // user-defined procedures
-	commands       map[string]struct{}   // registered command names (builtins + procs + host)
-	globalNS       TclObj                // global namespace object
+	commands       map[string]*Command // unified command table
+	globalNS       TclObj              // global namespace object
 	nextID         TclObj
 	result         TclObj
-	returnOptions  TclObj               // options from the last return command
-	frames         []*CallFrame         // call stack (frame 0 is global)
-	active         int                  // currently active frame index
-	recursionLimit int                  // maximum call stack depth (0 means use default)
+	returnOptions  TclObj       // options from the last return command
+	frames         []*CallFrame // call stack (frame 0 is global)
+	active         int          // currently active frame index
+	recursionLimit int          // maximum call stack depth (0 means use default)
 	mu             sync.Mutex
 
 	// UnknownHandler is called when an unknown command is invoked.
@@ -124,8 +139,7 @@ type Object struct {
 func NewInterp() *Interp {
 	interp := &Interp{
 		objects:  make(map[TclObj]*Object),
-		procs:    make(map[string]*Procedure),
-		commands: make(map[string]struct{}),
+		commands: make(map[string]*Command),
 		nextID:   1,
 	}
 	// Initialize the global frame (frame 0)

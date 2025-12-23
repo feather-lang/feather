@@ -1,0 +1,257 @@
+<test-suite>
+  <!--
+    M9: The unknown handler and rename command
+
+    When a command is not found, TCL calls the user-defined 'unknown'
+    procedure with the original command and arguments. This enables
+    auto-loading, abbreviation expansion, and domain-specific command
+    resolution.
+
+    rename oldName newName
+      Renames a command. If newName is empty, deletes the command.
+      This is needed to replace or wrap the 'unknown' procedure.
+  -->
+
+  <!-- ============================================= -->
+  <!-- rename: Basic command renaming               -->
+  <!-- ============================================= -->
+
+  <test-case name="rename renames a user-defined procedure">
+    <script>proc greet {name} {
+    return "hello $name"
+}
+rename greet say_hello
+say_hello world</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="rename makes old name unavailable">
+    <script>proc greet {name} {
+    return "hello $name"
+}
+rename greet say_hello
+greet world</script>
+    <return>TCL_ERROR</return>
+    <error>invalid command name "greet"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="rename with empty newName deletes command">
+    <script>proc greet {name} {
+    return "hello $name"
+}
+rename greet {}
+greet world</script>
+    <return>TCL_ERROR</return>
+    <error>invalid command name "greet"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="rename nonexistent command is error">
+    <script>rename nosuchcmd newname</script>
+    <return>TCL_ERROR</return>
+    <error>can't rename "nosuchcmd": command doesn't exist</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="rename with wrong argument count is error">
+    <script>rename foo</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "rename oldName newName"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="rename to existing name is error">
+    <script>proc foo {} { return "foo" }
+proc bar {} { return "bar" }
+rename foo bar</script>
+    <return>TCL_ERROR</return>
+    <error>can't rename to "bar": command already exists</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="rename can rename builtin commands">
+    <script>rename incr my_incr
+set x 5
+my_incr x
+set x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>6</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="rename builtin makes old name unavailable">
+    <script>rename incr my_incr
+incr x</script>
+    <return>TCL_ERROR</return>
+    <error>invalid command name "incr"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- unknown: Default error handling              -->
+  <!-- ============================================= -->
+
+  <test-case name="unknown command without unknown handler gives error">
+    <script>nosuchcommand arg1 arg2</script>
+    <return>TCL_ERROR</return>
+    <error>invalid command name "nosuchcommand"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- unknown: User-defined handler                -->
+  <!-- ============================================= -->
+
+  <test-case name="unknown procedure is called for missing commands">
+    <script>proc unknown {cmd args} {
+    return "caught: $cmd"
+}
+nosuchcmd</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>caught: nosuchcmd</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="unknown receives command arguments">
+    <script>proc unknown {cmd args} {
+    return "cmd=$cmd args=$args"
+}
+nosuchcmd a b c</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>cmd=nosuchcmd args=a b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="unknown can return error">
+    <script>proc unknown {cmd args} {
+    error "unknown command: $cmd"
+}
+nosuchcmd</script>
+    <return>TCL_ERROR</return>
+    <error>unknown command: nosuchcmd</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="unknown can call actual command after lookup">
+    <script>proc unknown {cmd args} {
+    if {$cmd eq "greet"} {
+        return "hello [lindex $args 0]"
+    }
+    error "invalid command name \"$cmd\""
+}
+greet world</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="unknown can implement command abbreviation">
+    <script>proc say_hello {name} {
+    return "hello $name"
+}
+proc unknown {cmd args} {
+    # Simple abbreviation: "say" matches "say_hello"
+    if {$cmd eq "say"} {
+        return [say_hello {*}$args]
+    }
+    error "invalid command name \"$cmd\""
+}
+say Alice</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello Alice</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="unknown with renamed wrapper">
+    <script>proc unknown {cmd args} {
+    return "default: $cmd"
+}
+rename unknown original_unknown
+proc unknown {cmd args} {
+    if {$cmd eq "special"} {
+        return "handled specially"
+    }
+    return [original_unknown $cmd {*}$args]
+}
+special</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>handled specially</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="unknown wrapper falls back to original">
+    <script>proc unknown {cmd args} {
+    return "default: $cmd"
+}
+rename unknown original_unknown
+proc unknown {cmd args} {
+    if {$cmd eq "special"} {
+        return "handled specially"
+    }
+    return [original_unknown $cmd {*}$args]
+}
+other</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>default: other</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- unknown: Edge cases                          -->
+  <!-- ============================================= -->
+
+  <test-case name="unknown not called for existing commands">
+    <script>proc unknown {cmd args} {
+    return "from unknown"
+}
+proc existing {} {
+    return "from existing"
+}
+existing</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>from existing</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="deleting unknown restores default error">
+    <script>proc unknown {cmd args} {
+    return "caught: $cmd"
+}
+rename unknown {}
+nosuchcmd</script>
+    <return>TCL_ERROR</return>
+    <error>invalid command name "nosuchcmd"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

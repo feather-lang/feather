@@ -24,7 +24,10 @@ func (h *Host) Register(name string, fn CommandFunc) {
 	h.Commands[name] = fn
 	// Also register in interpreter's commands map for enumeration
 	h.Interp.mu.Lock()
-	h.Interp.commands[name] = struct{}{}
+	h.Interp.commands[name] = &Command{
+		cmdType:       CmdBuiltin,
+		canonicalName: name,
+	}
 	h.Interp.mu.Unlock()
 }
 

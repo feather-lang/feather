@@ -202,4 +202,16 @@ TclResult tcl_builtin_upvar(const TclHostOps *ops, TclInterp interp,
 TclResult tcl_builtin_uplevel(const TclHostOps *ops, TclInterp interp,
                                TclObj cmd, TclObj args);
 
+/**
+ * tcl_builtin_rename implements the TCL 'rename' command.
+ *
+ * Usage:
+ *   rename oldName newName
+ *
+ * Renames a command from oldName to newName.
+ * If newName is an empty string, the command is deleted.
+ */
+TclResult tcl_builtin_rename(const TclHostOps *ops, TclInterp interp,
+                              TclObj cmd, TclObj args);
+
 #endif

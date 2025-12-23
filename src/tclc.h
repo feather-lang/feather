@@ -535,6 +535,15 @@ typedef struct TclVarOps {
 } TclVarOps;
 
 /**
+ * TclCommandType indicates the type of a command in the unified command table.
+ */
+typedef enum {
+  TCL_CMD_NONE = 0,    // command doesn't exist
+  TCL_CMD_BUILTIN = 1, // it's a builtin command
+  TCL_CMD_PROC = 2,    // it's a user-defined procedure
+} TclCommandType;
+
+/**
  * TclProcOps define operations on the interpreter's symbol table.
  *
  * Variables and procs exist in separate namespaces, so having a variable xyz
@@ -598,6 +607,23 @@ typedef struct TclProcOps {
    * The host should add this name to its command enumeration.
    */
   void (*register_command)(TclInterp interp, TclObj name);
+
+  /**
+   * lookup checks if a command exists and returns its type.
+   *
+   * For renamed builtins, canonical_name is set to the original builtin name.
+   * For procs, canonical_name is set to the proc name.
+   * For non-existent commands, returns TCL_CMD_NONE.
+   */
+  TclCommandType (*lookup)(TclInterp interp, TclObj name, TclObj *canonical_name);
+
+  /**
+   * rename changes a command's name in the unified command table.
+   *
+   * If newName is empty (zero-length string), the command is deleted.
+   * Returns TCL_ERROR if oldName doesn't exist or newName already exists.
+   */
+  TclResult (*rename)(TclInterp interp, TclObj oldName, TclObj newName);
 } TclProcOps;
 
 /**
