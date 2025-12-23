@@ -605,9 +605,8 @@ func goProcDefine(interp C.TclInterp, name C.TclObj, params C.TclObj, body C.Tcl
 		body:   TclObj(body),
 	}
 	i.commands[nameStr] = &Command{
-		cmdType:       CmdProc,
-		canonicalName: nameStr,
-		proc:          proc,
+		cmdType: CmdProc,
+		proc:    proc,
 	}
 }
 
@@ -731,8 +730,8 @@ func goProcResolveNamespace(interp C.TclInterp, path C.TclObj, result *C.TclObj)
 	return C.TCL_ERROR
 }
 
-//export goProcRegisterCommand
-func goProcRegisterCommand(interp C.TclInterp, name C.TclObj) {
+//export goProcRegisterBuiltin
+func goProcRegisterBuiltin(interp C.TclInterp, name C.TclObj, fn C.TclBuiltinCmd) {
 	i := getInterp(interp)
 	if i == nil {
 		return
@@ -740,17 +739,18 @@ func goProcRegisterCommand(interp C.TclInterp, name C.TclObj) {
 	nameStr := i.GetString(TclObj(name))
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	// Register as a builtin command with canonical name = current name
+	// Register builtin with its function pointer
 	i.commands[nameStr] = &Command{
-		cmdType:       CmdBuiltin,
-		canonicalName: nameStr,
+		cmdType: CmdBuiltin,
+		builtin: fn,
 	}
 }
 
 //export goProcLookup
-func goProcLookup(interp C.TclInterp, name C.TclObj, canonicalName *C.TclObj) C.TclCommandType {
+func goProcLookup(interp C.TclInterp, name C.TclObj, fn *C.TclBuiltinCmd) C.TclCommandType {
 	i := getInterp(interp)
 	if i == nil {
+		*fn = nil
 		return C.TCL_CMD_NONE
 	}
 	nameStr := i.GetString(TclObj(name))
@@ -758,16 +758,18 @@ func goProcLookup(interp C.TclInterp, name C.TclObj, canonicalName *C.TclObj) C.
 	cmd, ok := i.commands[nameStr]
 	i.mu.Unlock()
 	if !ok {
+		*fn = nil
 		return C.TCL_CMD_NONE
 	}
-	// Return the canonical name (original builtin name or proc name)
-	*canonicalName = C.TclObj(i.internString(cmd.canonicalName))
 	switch cmd.cmdType {
 	case CmdBuiltin:
+		*fn = cmd.builtin
 		return C.TCL_CMD_BUILTIN
 	case CmdProc:
+		*fn = nil
 		return C.TCL_CMD_PROC
 	default:
+		*fn = nil
 		return C.TCL_CMD_NONE
 	}
 }
@@ -805,12 +807,9 @@ func goProcRename(interp C.TclInterp, oldName C.TclObj, newName C.TclObj) C.TclR
 		return C.TCL_ERROR
 	}
 
-	// Perform the rename: copy to new name, delete old
-	// For procs, update canonicalName to new name (since proc data is in the struct)
-	// For builtins, keep the original canonical name (needed to find the function pointer)
-	if cmd.cmdType == CmdProc {
-		cmd.canonicalName = newNameStr
-	}
+	// Simply move the entry to the new key
+	// For builtins: function pointer comes along
+	// For procs: procedure data comes along
 	i.commands[newNameStr] = cmd
 	delete(i.commands, oldNameStr)
 	i.mu.Unlock()

@@ -21,23 +21,20 @@ TclResult tcl_command_exec(const TclHostOps *ops, TclInterp interp,
   TclObj args = command;
 
   // Look up the command in the unified command table
-  TclObj canonical;
-  TclCommandType cmdType = ops->proc.lookup(interp, cmd, &canonical);
+  TclBuiltinCmd builtin = NULL;
+  TclCommandType cmdType = ops->proc.lookup(interp, cmd, &builtin);
 
   switch (cmdType) {
-  case TCL_CMD_BUILTIN: {
-    // Use canonical name to find the builtin function
-    size_t canonLen;
-    const char *canonStr = ops->string.get(interp, canonical, &canonLen);
-    TclBuiltinCmd builtin = tcl_lookup_builtin(canonStr, canonLen);
+  case TCL_CMD_BUILTIN:
     if (builtin != NULL) {
+      // Call the builtin function directly
       return builtin(ops, interp, cmd, args);
     }
-    // Shouldn't happen if host is consistent, but fall through to unknown
+    // NULL builtin means host-registered command - fall through to unknown
     break;
-  }
   case TCL_CMD_PROC:
-    return tcl_invoke_proc(ops, interp, canonical, args);
+    // For procs, use the invoked name (after rename, entry is at new name)
+    return tcl_invoke_proc(ops, interp, cmd, args);
   case TCL_CMD_NONE:
     // Fall through to unknown handling
     break;
@@ -45,8 +42,8 @@ TclResult tcl_command_exec(const TclHostOps *ops, TclInterp interp,
 
   // Check for user-defined 'unknown' procedure
   TclObj unknownName = ops->string.intern(interp, "unknown", 7);
-  TclObj unknownCanonical;
-  TclCommandType unknownType = ops->proc.lookup(interp, unknownName, &unknownCanonical);
+  TclBuiltinCmd unusedFn = NULL;
+  TclCommandType unknownType = ops->proc.lookup(interp, unknownName, &unusedFn);
 
   if (unknownType == TCL_CMD_PROC) {
     // Build args list: [originalCmd, arg1, arg2, ...]
@@ -57,7 +54,7 @@ TclResult tcl_command_exec(const TclHostOps *ops, TclInterp interp,
       TclObj arg = ops->list.at(interp, args, i);
       unknownArgs = ops->list.push(interp, unknownArgs, arg);
     }
-    return tcl_invoke_proc(ops, interp, unknownCanonical, unknownArgs);
+    return tcl_invoke_proc(ops, interp, unknownName, unknownArgs);
   }
 
   // Fall back to host command lookup via bind.unknown

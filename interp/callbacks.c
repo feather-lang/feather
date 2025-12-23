@@ -164,12 +164,12 @@ static TclResult c_proc_resolve_namespace(TclInterp interp, TclObj path, TclObj 
     return goProcResolveNamespace(interp, path, result);
 }
 
-static void c_proc_register_command(TclInterp interp, TclObj name) {
-    goProcRegisterCommand(interp, name);
+static void c_proc_register_builtin(TclInterp interp, TclObj name, TclBuiltinCmd fn) {
+    goProcRegisterBuiltin(interp, name, fn);
 }
 
-static TclCommandType c_proc_lookup(TclInterp interp, TclObj name, TclObj *canonical_name) {
-    return goProcLookup(interp, name, canonical_name);
+static TclCommandType c_proc_lookup(TclInterp interp, TclObj name, TclBuiltinCmd *fn) {
+    return goProcLookup(interp, name, fn);
 }
 
 static TclResult c_proc_rename(TclInterp interp, TclObj oldName, TclObj newName) {
@@ -199,7 +199,7 @@ TclHostOps make_host_ops(void) {
     ops.proc.body = c_proc_body;
     ops.proc.names = c_proc_names;
     ops.proc.resolve_namespace = c_proc_resolve_namespace;
-    ops.proc.register_command = c_proc_register_command;
+    ops.proc.register_builtin = c_proc_register_builtin;
     ops.proc.lookup = c_proc_lookup;
     ops.proc.rename = c_proc_rename;
 

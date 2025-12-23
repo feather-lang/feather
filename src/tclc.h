@@ -601,21 +601,21 @@ typedef struct TclProcOps {
   TclResult (*resolve_namespace)(TclInterp interp, TclObj path, TclObj *result);
 
   /**
-   * register_command records that a command with the given name exists.
+   * register_builtin records a builtin command with its implementation.
    *
    * Used by tcl_interp_init to register builtin commands with the host.
-   * The host should add this name to its command enumeration.
+   * The host stores the function pointer for later dispatch.
    */
-  void (*register_command)(TclInterp interp, TclObj name);
+  void (*register_builtin)(TclInterp interp, TclObj name, TclBuiltinCmd fn);
 
   /**
    * lookup checks if a command exists and returns its type.
    *
-   * For renamed builtins, canonical_name is set to the original builtin name.
-   * For procs, canonical_name is set to the proc name.
-   * For non-existent commands, returns TCL_CMD_NONE.
+   * For builtins, sets *fn to the function pointer.
+   * For procs, *fn is set to NULL.
+   * For non-existent commands, returns TCL_CMD_NONE and *fn is NULL.
    */
-  TclCommandType (*lookup)(TclInterp interp, TclObj name, TclObj *canonical_name);
+  TclCommandType (*lookup)(TclInterp interp, TclObj name, TclBuiltinCmd *fn);
 
   /**
    * rename changes a command's name in the unified command table.

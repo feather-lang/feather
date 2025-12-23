@@ -52,9 +52,9 @@ TclBuiltinCmd tcl_lookup_builtin(const char *name, size_t len) {
 }
 
 void tcl_interp_init(const TclHostOps *ops, TclInterp interp) {
-  // Register all builtin commands with the host for enumeration
+  // Register all builtin commands with the host, including their function pointers
   for (const BuiltinEntry *entry = builtins; entry->name != NULL; entry++) {
     TclObj name = ops->string.intern(interp, entry->name, tcl_strlen(entry->name));
-    ops->proc.register_command(interp, name);
+    ops->proc.register_builtin(interp, name, entry->cmd);
   }
 }

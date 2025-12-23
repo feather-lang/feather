@@ -22,11 +22,13 @@ func NewHost() *Host {
 // Register adds a command to the host.
 func (h *Host) Register(name string, fn CommandFunc) {
 	h.Commands[name] = fn
-	// Also register in interpreter's commands map for enumeration
+	// Also register in interpreter's commands map for enumeration.
+	// These are Go commands dispatched via bind.unknown, not C builtins.
+	// We set builtin to nil so the C code falls through to unknown handler.
 	h.Interp.mu.Lock()
 	h.Interp.commands[name] = &Command{
-		cmdType:       CmdBuiltin,
-		canonicalName: name,
+		cmdType: CmdBuiltin,
+		builtin: nil, // nil means dispatch via bind.unknown
 	}
 	h.Interp.mu.Unlock()
 }

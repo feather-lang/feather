@@ -100,9 +100,9 @@ const (
 
 // Command represents an entry in the unified command table
 type Command struct {
-	cmdType       CommandType // type of command
-	canonicalName string      // original builtin name (for renamed builtins) or proc name
-	proc          *Procedure  // procedure info (only for CmdProc)
+	cmdType CommandType      // type of command
+	builtin C.TclBuiltinCmd  // function pointer (only for CmdBuiltin)
+	proc    *Procedure       // procedure info (only for CmdProc)
 }
 
 // Interp represents a TCL interpreter instance
