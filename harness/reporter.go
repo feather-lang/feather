@@ -3,6 +3,7 @@ package harness
 import (
 	"fmt"
 	"io"
+	"strings"
 )
 
 // Reporter outputs test results.
@@ -27,10 +28,18 @@ func (r *Reporter) ReportResult(testFile string, result TestResult) {
 		for _, failure := range result.Failures {
 			fmt.Fprintf(r.Out, "  %s\n", failure)
 		}
+		fmt.Fprintf(r.Out, "  script:\n")
+		fmt.Fprintf(r.Out, "    %s\n", indentScript(result.TestCase.Script))
 	}
 }
 
 // ReportSummary outputs the final summary.
 func (r *Reporter) ReportSummary(summary Summary) {
 	fmt.Fprintf(r.Out, "\n%d tests, %d passed, %d failed\n", summary.Total, summary.Passed, summary.Failed)
+}
+
+// indentScript adds indentation to each line of a multi-line script.
+func indentScript(script string) string {
+	lines := strings.Split(strings.TrimSpace(script), "\n")
+	return strings.Join(lines, "\n    ")
 }

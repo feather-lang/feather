@@ -3,11 +3,13 @@ package harness
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // TestResult holds the outcome of running a single test case.
@@ -46,17 +48,33 @@ func NewRunner(hostPath string, output io.Writer) *Runner {
 func (r *Runner) RunSuite(suite *TestSuite) []TestResult {
 	results := make([]TestResult, 0, len(suite.Cases))
 	for _, tc := range suite.Cases {
-		result := r.RunTest(tc)
+		result := r.runTestWithTimeout(tc, suite.Timeout)
 		results = append(results, result)
 	}
 	return results
 }
 
 // RunTest executes a single test case and returns the result.
+// Uses DefaultTimeout if no timeout is specified in the test case.
 func (r *Runner) RunTest(tc TestCase) TestResult {
+	return r.runTestWithTimeout(tc, 0)
+}
+
+// runTestWithTimeout executes a test case with timeout inheritance.
+// Timeout priority: test case > suite > DefaultTimeout
+func (r *Runner) runTestWithTimeout(tc TestCase, suiteTimeout time.Duration) TestResult {
 	result := TestResult{
 		TestCase: tc,
 		Passed:   true,
+	}
+
+	// Determine effective timeout: test > suite > default
+	timeout := DefaultTimeout
+	if suiteTimeout > 0 {
+		timeout = suiteTimeout
+	}
+	if tc.Timeout > 0 {
+		timeout = tc.Timeout
 	}
 
 	// Create a pipe for the harness communication channel (fd 3)
@@ -68,7 +86,11 @@ func (r *Runner) RunTest(tc TestCase) TestResult {
 	}
 	defer harnessReader.Close()
 
-	cmd := exec.Command(r.HostPath)
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, r.HostPath)
 	cmd.Stdin = strings.NewReader(tc.Script)
 	cmd.Env = append(os.Environ(), "TCLC_IN_HARNESS=1")
 
@@ -102,7 +124,10 @@ func (r *Runner) RunTest(tc TestCase) TestResult {
 	result.Actual.Error = harnessOutput.Error
 
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		// Check if the error was due to context timeout
+		if ctx.Err() == context.DeadlineExceeded {
+			result.Actual.ExitCode = 124 // Standard timeout exit code
+		} else if exitErr, ok := err.(*exec.ExitError); ok {
 			result.Actual.ExitCode = exitErr.ExitCode()
 		} else {
 			result.Passed = false

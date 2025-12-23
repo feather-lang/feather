@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/net/html"
 )
@@ -44,18 +45,32 @@ func Parse(r io.Reader) (*TestSuite, error) {
 		Cases: make([]TestCase, 0),
 	}
 
-	// Find all test-case elements
-	var findTestCases func(*html.Node)
-	findTestCases = func(n *html.Node) {
-		if n.Type == html.ElementNode && n.Data == "test-case" {
-			tc := parseTestCase(n)
-			suite.Cases = append(suite.Cases, tc)
+	// Find test-suite element and test-case elements
+	var findElements func(*html.Node)
+	findElements = func(n *html.Node) {
+		if n.Type == html.ElementNode {
+			switch n.Data {
+			case "test-suite":
+				// Parse timeout attribute from test-suite
+				for _, attr := range n.Attr {
+					if attr.Key == "timeout" {
+						if d, err := time.ParseDuration(attr.Val); err == nil {
+							suite.Timeout = d
+						}
+					} else if attr.Key == "name" {
+						suite.Name = attr.Val
+					}
+				}
+			case "test-case":
+				tc := parseTestCase(n)
+				suite.Cases = append(suite.Cases, tc)
+			}
 		}
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			findTestCases(c)
+			findElements(c)
 		}
 	}
-	findTestCases(doc)
+	findElements(doc)
 
 	return suite, nil
 }
@@ -64,11 +79,15 @@ func Parse(r io.Reader) (*TestSuite, error) {
 func parseTestCase(n *html.Node) TestCase {
 	tc := TestCase{}
 
-	// Get name attribute
+	// Get attributes
 	for _, attr := range n.Attr {
-		if attr.Key == "name" {
+		switch attr.Key {
+		case "name":
 			tc.Name = attr.Val
-			break
+		case "timeout":
+			if d, err := time.ParseDuration(attr.Val); err == nil {
+				tc.Timeout = d
+			}
 		}
 	}
 
