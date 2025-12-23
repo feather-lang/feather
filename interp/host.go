@@ -22,6 +22,10 @@ func NewHost() *Host {
 // Register adds a command to the host.
 func (h *Host) Register(name string, fn CommandFunc) {
 	h.Commands[name] = fn
+	// Also register in interpreter's commands map for enumeration
+	h.Interp.mu.Lock()
+	h.Interp.commands[name] = struct{}{}
+	h.Interp.mu.Unlock()
 }
 
 // Parse parses a script and returns the parse result.

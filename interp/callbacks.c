@@ -112,6 +112,14 @@ static TclResult c_frame_set_active(TclInterp interp, size_t level) {
     return goFrameSetActive(interp, level);
 }
 
+static size_t c_frame_size(TclInterp interp) {
+    return goFrameSize(interp);
+}
+
+static TclResult c_frame_info(TclInterp interp, size_t level, TclObj *cmd, TclObj *args) {
+    return goFrameInfo(interp, level, cmd, args);
+}
+
 static TclObj c_var_get(TclInterp interp, TclObj name) {
     return goVarGet(interp, name);
 }
@@ -148,6 +156,18 @@ static TclResult c_proc_body(TclInterp interp, TclObj name, TclObj *result) {
     return goProcBody(interp, name, result);
 }
 
+static TclObj c_proc_names(TclInterp interp, TclObj namespace) {
+    return goProcNames(interp, namespace);
+}
+
+static TclResult c_proc_resolve_namespace(TclInterp interp, TclObj path, TclObj *result) {
+    return goProcResolveNamespace(interp, path, result);
+}
+
+static void c_proc_register_command(TclInterp interp, TclObj name) {
+    goProcRegisterCommand(interp, name);
+}
+
 // Build the TclHostOps struct with all callbacks
 TclHostOps make_host_ops(void) {
     TclHostOps ops;
@@ -156,6 +176,8 @@ TclHostOps make_host_ops(void) {
     ops.frame.pop = c_frame_pop;
     ops.frame.level = c_frame_level;
     ops.frame.set_active = c_frame_set_active;
+    ops.frame.size = c_frame_size;
+    ops.frame.info = c_frame_info;
 
     ops.var.get = c_var_get;
     ops.var.set = c_var_set;
@@ -167,6 +189,9 @@ TclHostOps make_host_ops(void) {
     ops.proc.exists = c_proc_exists;
     ops.proc.params = c_proc_params;
     ops.proc.body = c_proc_body;
+    ops.proc.names = c_proc_names;
+    ops.proc.resolve_namespace = c_proc_resolve_namespace;
+    ops.proc.register_command = c_proc_register_command;
 
     ops.string.intern = c_string_intern;
     ops.string.get = c_string_get;
@@ -222,4 +247,10 @@ TclParseStatus call_tcl_parse(TclInterp interp, TclObj script) {
         return TCL_PARSE_OK;
     }
     return status;
+}
+
+// Initialize the C interpreter with host ops
+void call_tcl_interp_init(TclInterp interp) {
+    TclHostOps ops = make_host_ops();
+    tcl_interp_init(&ops, interp);
 }

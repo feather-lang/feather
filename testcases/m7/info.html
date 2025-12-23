@@ -1,0 +1,412 @@
+<test-suite>
+  <!--
+    M7: Introspection with info
+
+    The info command provides introspection into the interpreter's state.
+
+    Subcommands implemented:
+      info exists varName     - check if variable exists (returns 1/0)
+      info level              - return current call stack depth
+      info level N            - return command/args at level N
+      info commands ?pattern? - list available commands
+      info procs ?pattern?    - list user-defined procedures
+      info body procName      - get procedure body
+      info args procName      - get procedure parameters
+  -->
+
+  <!-- ============================================= -->
+  <!-- info exists                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="info exists returns 1 for existing variable">
+    <script>set x 42
+info exists x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info exists returns 0 for non-existing variable">
+    <script>info exists undefined_var</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info exists in procedure for local variable">
+    <script>proc test {} {
+    set local 1
+    info exists local
+}
+test</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info exists in procedure for parameter">
+    <script>proc test {x} {
+    info exists x
+}
+test 42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info exists in procedure for undefined variable">
+    <script>proc test {} {
+    info exists undefined
+}
+test</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info exists wrong args - no arguments">
+    <script>info exists</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "info exists varName"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="info exists wrong args - too many">
+    <script>info exists a b</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "info exists varName"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- info level (no args)                          -->
+  <!-- ============================================= -->
+
+  <test-case name="info level at global scope returns 0">
+    <script>info level</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info level in procedure returns 1">
+    <script>proc test {} {
+    info level
+}
+test</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info level in nested procedures">
+    <script>proc inner {} {
+    info level
+}
+proc outer {} {
+    inner
+}
+outer</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- info level N                                  -->
+  <!-- ============================================= -->
+
+  <test-case name="info level 0 returns current invocation">
+    <script>proc test {a b} {
+    info level 0
+}
+test hello world</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>test hello world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info level 1 from nested proc returns caller info">
+    <script>proc inner {} {
+    info level 1
+}
+proc outer {x} {
+    inner
+}
+outer 42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>outer 42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info level with negative index">
+    <script>proc inner {} {
+    info level -1
+}
+proc outer {x} {
+    inner
+}
+outer 42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>outer 42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info level out of range">
+    <script>proc test {} {
+    info level 10
+}
+test</script>
+    <return>TCL_ERROR</return>
+    <error>bad level "10"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- info commands                                 -->
+  <!-- ============================================= -->
+
+  <test-case name="info commands returns list of commands">
+    <script>expr {[llength [info commands]] > 0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info commands includes set">
+    <script>expr {[llength [info commands set]] > 0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info commands includes user-defined procs">
+    <script>proc myproc {} { return 1 }
+expr {[llength [info commands myproc]] > 0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info commands with pattern">
+    <script>proc test_one {} {}
+proc test_two {} {}
+proc other {} {}
+set cmds [info commands test_*]
+llength $cmds</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info commands with pattern no match">
+    <script>info commands zzznonexistent*</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- info procs                                    -->
+  <!-- ============================================= -->
+
+  <test-case name="info procs returns only user-defined procs">
+    <script>proc mytest {} { return 1 }
+expr {[llength [info procs mytest]] > 0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info procs does not include builtins">
+    <script>expr {[llength [info procs set]] == 0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info procs with pattern">
+    <script>proc test_alpha {} {}
+proc test_beta {} {}
+proc other_proc {} {}
+set procs [info procs test_*]
+llength $procs</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- info body                                     -->
+  <!-- ============================================= -->
+
+  <test-case name="info body returns procedure body">
+    <script>proc greet {name} {
+    return "Hello, $name"
+}
+info body greet</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>
+    return "Hello, $name"
+</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info body with simple procedure">
+    <script>proc add {a b} {expr {$a + $b}}
+info body add</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>expr {$a + $b}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info body for non-existent procedure">
+    <script>info body nonexistent</script>
+    <return>TCL_ERROR</return>
+    <error>"nonexistent" isn't a procedure</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="info body for builtin">
+    <script>info body set</script>
+    <return>TCL_ERROR</return>
+    <error>"set" isn't a procedure</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="info body wrong args">
+    <script>info body</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "info body procname"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- info args                                     -->
+  <!-- ============================================= -->
+
+  <test-case name="info args returns procedure parameters">
+    <script>proc greet {name} {
+    return "Hello, $name"
+}
+info args greet</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>name</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info args with multiple parameters">
+    <script>proc add {a b c} {expr {$a + $b + $c}}
+info args add</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info args with no parameters">
+    <script>proc noop {} {}
+info args noop</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info args for non-existent procedure">
+    <script>info args nonexistent</script>
+    <return>TCL_ERROR</return>
+    <error>"nonexistent" isn't a procedure</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="info args for builtin">
+    <script>info args set</script>
+    <return>TCL_ERROR</return>
+    <error>"set" isn't a procedure</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="info args wrong args">
+    <script>info args</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "info args procname"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- info error cases                              -->
+  <!-- ============================================= -->
+
+  <test-case name="info with no subcommand">
+    <script>info</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "info subcommand ?arg ...?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="info with unknown subcommand">
+    <script>info unknown_subcommand</script>
+    <return>TCL_ERROR</return>
+    <error>unknown or ambiguous subcommand "unknown_subcommand": must be args, body, commands, exists, level, or procs</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

@@ -24,6 +24,7 @@ static const BuiltinEntry builtins[] = {
     {"tcl::mathfunc::exp", tcl_builtin_mathfunc_exp},
     {"error", tcl_builtin_error},
     {"catch", tcl_builtin_catch},
+    {"info", tcl_builtin_info},
     {NULL, NULL} // sentinel
 };
 
@@ -48,7 +49,9 @@ TclBuiltinCmd tcl_lookup_builtin(const char *name, size_t len) {
 }
 
 void tcl_interp_init(const TclHostOps *ops, TclInterp interp) {
-  // Currently nothing to initialize - builtins are looked up statically
-  (void)ops;
-  (void)interp;
+  // Register all builtin commands with the host for enumeration
+  for (const BuiltinEntry *entry = builtins; entry->name != NULL; entry++) {
+    TclObj name = ops->string.intern(interp, entry->name, tcl_strlen(entry->name));
+    ops->proc.register_command(interp, name);
+  }
 }

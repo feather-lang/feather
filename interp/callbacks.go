@@ -8,8 +8,11 @@ package interp
 // Implemented in callbacks.c
 extern TclResult call_tcl_eval_obj(TclInterp interp, TclObj script, TclEvalFlags flags);
 extern TclParseStatus call_tcl_parse(TclInterp interp, TclObj script);
+extern void call_tcl_interp_init(TclInterp interp);
 */
 import "C"
+
+import "sort"
 
 // Go callback implementations - these are called from C via the wrappers in callbacks.c
 
@@ -411,6 +414,35 @@ func goFrameSetActive(interp C.TclInterp, level C.size_t) C.TclResult {
 	return C.TCL_OK
 }
 
+//export goFrameSize
+func goFrameSize(interp C.TclInterp) C.size_t {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return C.size_t(len(i.frames))
+}
+
+//export goFrameInfo
+func goFrameInfo(interp C.TclInterp, level C.size_t, cmd *C.TclObj, args *C.TclObj) C.TclResult {
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	lvl := int(level)
+	if lvl < 0 || lvl >= len(i.frames) {
+		return C.TCL_ERROR
+	}
+	frame := i.frames[lvl]
+	*cmd = C.TclObj(frame.cmd)
+	*args = C.TclObj(frame.args)
+	return C.TCL_OK
+}
+
 //export goVarGet
 func goVarGet(interp C.TclInterp, name C.TclObj) C.TclObj {
 	i := getInterp(interp)
@@ -499,6 +531,8 @@ func goProcDefine(interp C.TclInterp, name C.TclObj, params C.TclObj, body C.Tcl
 		params: TclObj(params),
 		body:   TclObj(body),
 	}
+	// Also register in commands map for enumeration
+	i.commands[nameStr] = struct{}{}
 }
 
 //export goProcExists
@@ -558,4 +592,77 @@ func callCEval(interpHandle TclInterp, scriptHandle TclObj) C.TclResult {
 // callCParse invokes the C parser
 func callCParse(interpHandle TclInterp, scriptHandle TclObj) C.TclParseStatus {
 	return C.call_tcl_parse(C.TclInterp(interpHandle), C.TclObj(scriptHandle))
+}
+
+// callCInterpInit invokes the C interpreter initialization
+func callCInterpInit(interpHandle TclInterp) {
+	C.call_tcl_interp_init(C.TclInterp(interpHandle))
+}
+
+//export goProcNames
+func goProcNames(interp C.TclInterp, namespace C.TclObj) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	// For now, ignore namespace parameter (only global namespace exists)
+	// Collect all command names
+	i.mu.Lock()
+	names := make([]string, 0, len(i.commands))
+	for name := range i.commands {
+		names = append(names, name)
+	}
+	i.mu.Unlock()
+
+	// Sort for consistent ordering
+	sort.Strings(names)
+
+	// Create a list object with all names
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	id := i.nextID
+	i.nextID++
+	items := make([]TclObj, len(names))
+	for idx, name := range names {
+		itemID := i.nextID
+		i.nextID++
+		i.objects[itemID] = &Object{stringVal: name}
+		items[idx] = itemID
+	}
+	i.objects[id] = &Object{isList: true, listItems: items}
+	return C.TclObj(id)
+}
+
+//export goProcResolveNamespace
+func goProcResolveNamespace(interp C.TclInterp, path C.TclObj, result *C.TclObj) C.TclResult {
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	// For now, only the global namespace "::" exists
+	// If path is nil, empty, or "::", return global namespace
+	if path == 0 {
+		*result = C.TclObj(i.globalNS)
+		return C.TCL_OK
+	}
+	pathStr := i.GetString(TclObj(path))
+	if pathStr == "" || pathStr == "::" {
+		*result = C.TclObj(i.globalNS)
+		return C.TCL_OK
+	}
+	// Any other namespace doesn't exist yet
+	i.SetErrorString("namespace \"" + pathStr + "\" not found")
+	return C.TCL_ERROR
+}
+
+//export goProcRegisterCommand
+func goProcRegisterCommand(interp C.TclInterp, name C.TclObj) {
+	i := getInterp(interp)
+	if i == nil {
+		return
+	}
+	nameStr := i.GetString(TclObj(name))
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.commands[nameStr] = struct{}{}
 }

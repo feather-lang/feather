@@ -160,4 +160,21 @@ TclResult tcl_builtin_error(const TclHostOps *ops, TclInterp interp,
 TclResult tcl_builtin_catch(const TclHostOps *ops, TclInterp interp,
                              TclObj cmd, TclObj args);
 
+/**
+ * tcl_builtin_info implements the TCL 'info' command.
+ *
+ * Usage:
+ *   info subcommand ?arg ...?
+ *
+ * Subcommands:
+ *   exists varName      - returns 1 if variable exists, 0 otherwise
+ *   level ?number?      - returns current level or frame info at level
+ *   commands ?pattern?  - returns list of command names
+ *   procs ?pattern?     - returns list of user-defined procedure names
+ *   body procname       - returns body of procedure
+ *   args procname       - returns argument list of procedure
+ */
+TclResult tcl_builtin_info(const TclHostOps *ops, TclInterp interp,
+                            TclObj cmd, TclObj args);
+
 #endif

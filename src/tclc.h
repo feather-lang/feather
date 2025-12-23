@@ -358,6 +358,15 @@ typedef struct TclFrameOps {
    * This is important because the level reported by level can
    * be less than the size because of a prior call to set_active.
    */
+  size_t (*size)(TclInterp interp);
+
+  /**
+   * info returns information about a frame at the given level.
+   *
+   * Sets *cmd and *args to the command and arguments at that level.
+   * Returns TCL_ERROR if the level is out of bounds.
+   */
+  TclResult (*info)(TclInterp interp, size_t level, TclObj *cmd, TclObj *args);
 } TclFrameOps;
 
 /**
@@ -565,6 +574,30 @@ typedef struct TclProcOps {
    * puts the interpreter into an error state as indicated by the result.
    */
   TclResult (*body)(TclInterp interp, TclObj name, TclObj *result);
+
+  /**
+   * names returns a list of all command names visible in the given namespace.
+   *
+   * If namespace is nil (0), uses the global namespace.
+   * This includes builtins, user-defined procs, and host-registered commands.
+   */
+  TclObj (*names)(TclInterp interp, TclObj namespace);
+
+  /**
+   * resolve_namespace resolves a namespace path and returns the namespace object.
+   *
+   * If path is nil or empty, returns the global namespace object.
+   * Returns TCL_ERROR if the namespace does not exist.
+   */
+  TclResult (*resolve_namespace)(TclInterp interp, TclObj path, TclObj *result);
+
+  /**
+   * register_command records that a command with the given name exists.
+   *
+   * Used by tcl_interp_init to register builtin commands with the host.
+   * The host should add this name to its command enumeration.
+   */
+  void (*register_command)(TclInterp interp, TclObj name);
 } TclProcOps;
 
 /**
@@ -714,5 +747,20 @@ TclResult tcl_builtin_expr(const TclHostOps *ops, TclInterp interp,
  * This is equivalent to strlen but avoids stdlib dependency.
  */
 size_t tcl_strlen(const char *s);
+
+/**
+ * tcl_glob_match performs glob pattern matching.
+ *
+ * Supports:
+ *   * - matches any sequence of characters (including empty)
+ *   ? - matches any single character
+ *   [...] - matches any character in the set
+ *   [^...] or [!...] - matches any character NOT in the set
+ *   \x - matches x literally (escape)
+ *
+ * Returns 1 if string matches pattern, 0 otherwise.
+ */
+int tcl_glob_match(const char *pattern, size_t pattern_len,
+                   const char *string, size_t string_len);
 
 #endif

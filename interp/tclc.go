@@ -87,6 +87,8 @@ type Interp struct {
 	handle         TclInterp
 	objects        map[TclObj]*Object
 	procs          map[string]*Procedure // user-defined procedures
+	commands       map[string]struct{}   // registered command names (builtins + procs + host)
+	globalNS       TclObj                // global namespace object
 	nextID         TclObj
 	result         TclObj
 	returnOptions  TclObj               // options from the last return command
@@ -114,9 +116,10 @@ type Object struct {
 // NewInterp creates a new interpreter
 func NewInterp() *Interp {
 	interp := &Interp{
-		objects: make(map[TclObj]*Object),
-		procs:   make(map[string]*Procedure),
-		nextID:  1,
+		objects:  make(map[TclObj]*Object),
+		procs:    make(map[string]*Procedure),
+		commands: make(map[string]struct{}),
+		nextID:   1,
 	}
 	// Initialize the global frame (frame 0)
 	globalFrame := &CallFrame{
@@ -127,6 +130,10 @@ func NewInterp() *Interp {
 	interp.active = 0
 	// Use cgo.Handle to allow C callbacks to find this interpreter
 	interp.handle = TclInterp(cgo.NewHandle(interp))
+	// Create the global namespace object
+	interp.globalNS = interp.internString("::")
+	// Initialize the C interpreter (registers builtins)
+	callCInterpInit(interp.handle)
 	return interp
 }
 
