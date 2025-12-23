@@ -30,5 +30,5 @@ depends = ["build:core", "build:harness", "build:gcl"]
 description = "Run the test harness"
 depends = ["build"]
 run = """
-harness --host bin/gcl testcases/
+harness run --host bin/gcl testcases/
 """

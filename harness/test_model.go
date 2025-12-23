@@ -16,6 +16,7 @@ type TestCase struct {
 
 // TestSuite represents a collection of test cases parsed from an HTML file.
 type TestSuite struct {
+	Name  string
 	Path  string
 	Cases []TestCase
 }

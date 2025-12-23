@@ -3,6 +3,7 @@ package harness
 import (
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -22,6 +23,11 @@ func ParseFile(path string) (*TestSuite, error) {
 		return nil, err
 	}
 	suite.Path = path
+	// Use filename without extension as suite name if not set
+	if suite.Name == "" {
+		base := filepath.Base(path)
+		suite.Name = strings.TrimSuffix(base, filepath.Ext(base))
+	}
 	return suite, nil
 }
 
