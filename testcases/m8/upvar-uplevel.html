@@ -158,15 +158,25 @@ set gval</script>
     <exit-code>1</exit-code>
   </test-case>
 
-  <test-case name="upvar with odd number of variable args">
-    <script>proc bad {} {
+  <!--
+    Note: "upvar 1 x" is NOT an error in TCL. Because consuming "1" as a level
+    would leave an odd number of args (1), TCL treats "1" as a variable NAME
+    and "x" as the local alias. This links local "x" to caller's var named "1".
+
+    TCL's rule: only consume first arg as level if remaining args are even.
+  -->
+  <test-case name="upvar with apparent level but odd remaining args treats level as varname">
+    <script>proc test {} {
     upvar 1 x
+    if {[info exists x]} { set x } else { return "x not linked" }
 }
-bad</script>
-    <return>TCL_ERROR</return>
-    <error>wrong # args: should be "upvar ?level? otherVar localVar ?otherVar localVar ...?"</error>
+set 1 "value of var named 1"
+test</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>value of var named 1</stdout>
     <stderr></stderr>
-    <exit-code>1</exit-code>
+    <exit-code>0</exit-code>
   </test-case>
 
   <test-case name="upvar with invalid level">

@@ -1,15 +1,6 @@
 #include "tclc.h"
 #include "internal.h"
 
-// Helper to check string equality
-static int str_eq(const char *s, size_t len, const char *keyword) {
-  size_t i = 0;
-  while (i < len && keyword[i] && s[i] == keyword[i]) {
-    i++;
-  }
-  return i == len && keyword[i] == '\0';
-}
-
 // Parse a level specification and compute the absolute frame level
 // Level can be:
 //   N     - relative level (N levels up from current)
@@ -94,35 +85,43 @@ TclResult tcl_builtin_upvar(const TclHostOps *ops, TclInterp interp,
   size_t firstLen;
   const char *firstStr = ops->string.get(interp, first, &firstLen);
 
-  int hasExplicitLevel = 0;
-
-  // A level starts with # or is purely numeric
-  if (firstLen > 0 && (firstStr[0] == '#' || (firstStr[0] >= '0' && firstStr[0] <= '9'))) {
-    // Check if the first arg is purely numeric (level) or alphanumeric (variable name)
-    int isPurelyNumeric = 1;
-    if (firstStr[0] != '#') {
+  // TCL's level detection rule: only consume the first arg as a level if
+  // doing so leaves an EVEN number of remaining args (to form pairs).
+  // This means:
+  //   upvar 1 x       (2 args) → 1 left after consuming → odd → "1" is var name
+  //   upvar 1 x y     (3 args) → 2 left after consuming → even → "1" is level
+  //   upvar #0 x      (2 args) → 1 left after consuming → odd → "#0" is var name
+  //   upvar #0 x y    (3 args) → 2 left after consuming → even → "#0" is level
+  //
+  // Only consider consuming as level if it would leave an even number of args
+  if ((argc - 1) % 2 == 0 && argc >= 3) {
+    // Check if first arg looks like a level (# prefix or purely numeric)
+    int looksLikeLevel = 0;
+    if (firstLen > 0 && firstStr[0] == '#') {
+      looksLikeLevel = 1;
+    } else if (firstLen > 0) {
+      int isPurelyNumeric = 1;
       for (size_t i = 0; i < firstLen; i++) {
         if (firstStr[i] < '0' || firstStr[i] > '9') {
           isPurelyNumeric = 0;
           break;
         }
       }
+      looksLikeLevel = isPurelyNumeric;
     }
 
-    if (isPurelyNumeric || firstStr[0] == '#') {
+    if (looksLikeLevel) {
       // Try to parse as level
       size_t parsedLevel;
       if (parse_level(ops, interp, first, currentLevel, stackSize, &parsedLevel) == TCL_OK) {
         targetLevel = parsedLevel;
-        hasExplicitLevel = 1;
         ops->list.shift(interp, argsCopy);
         argc--;
       } else {
-        // Parse failed - this is an error since it looks like a level
+        // Parse failed (e.g., level out of range) - this is an error
         return TCL_ERROR;  // Error already set by parse_level
       }
     }
-    // Otherwise treat as variable name
   }
 
   // Now we need pairs of otherVar localVar
