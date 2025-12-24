@@ -165,11 +165,11 @@ namespace exists ::foo</script>
   <!-- namespace children: Listing child namespaces -->
   <!-- ============================================= -->
 
-  <test-case name="namespace children returns empty list initially">
+  <test-case name="namespace children includes tcl namespace">
     <script>namespace children</script>
     <return>TCL_OK</return>
     <error></error>
-    <stdout></stdout>
+    <stdout>::tcl</stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
@@ -180,7 +180,7 @@ namespace eval bar {}
 namespace children</script>
     <return>TCL_OK</return>
     <error></error>
-    <stdout>::bar ::foo</stdout>
+    <stdout>::bar ::foo ::tcl</stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
@@ -348,7 +348,7 @@ set ::foo::x</script>
   <test-case name="variable in proc links to namespace">
     <script>namespace eval counter {
     variable count 0
-    proc incr {} {
+    proc increment {} {
         variable count
         incr count
     }
@@ -357,8 +357,8 @@ set ::foo::x</script>
         set count
     }
 }
-counter::incr
-counter::incr
+counter::increment
+counter::increment
 counter::get</script>
     <return>TCL_OK</return>
     <error></error>
