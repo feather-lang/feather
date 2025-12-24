@@ -1,0 +1,320 @@
+<test-suite>
+  <!--
+    M13: foreach command (list iteration)
+
+    The foreach command iterates over one or more lists, setting variables
+    for each iteration.
+
+    Syntax: foreach varlist list ?varlist list ...? body
+  -->
+
+  <!-- ============================================= -->
+  <!-- Basic foreach                                 -->
+  <!-- ============================================= -->
+
+  <test-case name="foreach iterates over list">
+    <script>set result {}
+foreach x {a b c} {
+    set result "$result$x"
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>abc</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="foreach with numbers">
+    <script>set sum 0
+foreach n {1 2 3 4 5} {
+    incr sum $n
+}
+set sum $sum</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>15</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="foreach with empty list does nothing">
+    <script>set x untouched
+foreach i {} {
+    set x touched
+}
+set x $x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>untouched</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="foreach returns empty string">
+    <script>foreach x {a b c} {
+    set y $x
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="foreach with single element list">
+    <script>set result ""
+foreach x {only} {
+    set result $x
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>only</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Multiple variables per iteration              -->
+  <!-- ============================================= -->
+
+  <test-case name="foreach with two variables per iteration">
+    <script>set result {}
+foreach {a b} {1 2 3 4 5 6} {
+    set result "$result($a,$b)"
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>(1,2)(3,4)(5,6)</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="foreach with uneven list pads with empty">
+    <script>set result {}
+foreach {a b} {1 2 3} {
+    set result "$result($a,$b)"
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>(1,2)(3,)</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="foreach with three variables">
+    <script>set result {}
+foreach {a b c} {1 2 3 4 5 6} {
+    set result "$result$a$b$c"
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>123456</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Multiple lists                                -->
+  <!-- ============================================= -->
+
+  <test-case name="foreach with two lists">
+    <script>set result {}
+foreach a {1 2 3} b {x y z} {
+    set result "$result($a:$b)"
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>(1:x)(2:y)(3:z)</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="foreach with lists of different lengths">
+    <script>set result {}
+foreach a {1 2 3 4} b {x y} {
+    set result "$result($a:$b)"
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>(1:x)(2:y)(3:)(4:)</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="foreach with three lists">
+    <script>set result {}
+foreach a {1 2} b {x y} c {p q} {
+    set result "$result$a$b$c"
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1xp2yq</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- break in foreach                              -->
+  <!-- ============================================= -->
+
+  <test-case name="break exits foreach loop">
+    <script>set result {}
+foreach x {a b c d e} {
+    if {$x eq "c"} {
+        break
+    }
+    set result "$result$x"
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>ab</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="break at first iteration">
+    <script>set x untouched
+foreach i {1 2 3} {
+    break
+    set x touched
+}
+set x $x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>untouched</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="foreach returns empty after break">
+    <script>foreach x {a b c d} {
+    if {$x eq "b"} {
+        break
+    }
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- continue in foreach                           -->
+  <!-- ============================================= -->
+
+  <test-case name="continue skips rest of body">
+    <script>set result {}
+foreach x {a b c d e} {
+    if {$x eq "c"} {
+        continue
+    }
+    set result "$result$x"
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>abde</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="continue in every iteration">
+    <script>set x unchanged
+foreach i {1 2 3} {
+    continue
+    set x changed
+}
+set x $x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>unchanged</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Nested foreach                                -->
+  <!-- ============================================= -->
+
+  <test-case name="nested foreach loops">
+    <script>set result {}
+foreach a {1 2} {
+    foreach b {x y} {
+        set result "$result($a$b)"
+    }
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>(1x)(1y)(2x)(2y)</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="break only exits innermost foreach">
+    <script>set inner_count 0
+foreach a {1 2 3} {
+    foreach b {x y z w} {
+        incr inner_count
+        if {$b eq "y"} {
+            break
+        }
+    }
+}
+set inner_count $inner_count</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>6</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Error cases                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="foreach with no arguments errors">
+    <script>foreach</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "foreach varList list ?varList list ...? command"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="foreach with missing body errors">
+    <script>foreach x {1 2 3}</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "foreach varList list ?varList list ...? command"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="foreach with empty varlist errors">
+    <script>foreach {} {1 2 3} {}</script>
+    <return>TCL_ERROR</return>
+    <error>foreach varlist is empty</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="error in body propagates">
+    <script>foreach x {a b c} {
+    error "body error"
+}</script>
+    <return>TCL_ERROR</return>
+    <error>body error</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

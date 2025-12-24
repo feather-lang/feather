@@ -51,6 +51,56 @@ TclResult tcl_builtin_while(const TclHostOps *ops, TclInterp interp,
                              TclObj cmd, TclObj args);
 
 /**
+ * tcl_builtin_for implements the TCL 'for' command.
+ *
+ * Usage:
+ *   for start test next command
+ *
+ * C-style loop: executes start once, then repeatedly evaluates test,
+ * executes command if true, then executes next. Catches TCL_BREAK
+ * and TCL_CONTINUE from the body.
+ */
+TclResult tcl_builtin_for(const TclHostOps *ops, TclInterp interp,
+                           TclObj cmd, TclObj args);
+
+/**
+ * tcl_builtin_foreach implements the TCL 'foreach' command.
+ *
+ * Usage:
+ *   foreach varList list ?varList list ...? command
+ *
+ * Iterates over one or more lists, setting variables for each iteration.
+ * Catches TCL_BREAK and TCL_CONTINUE from the body.
+ */
+TclResult tcl_builtin_foreach(const TclHostOps *ops, TclInterp interp,
+                               TclObj cmd, TclObj args);
+
+/**
+ * tcl_builtin_switch implements the TCL 'switch' command.
+ *
+ * Usage:
+ *   switch ?options? string pattern body ?pattern body ...?
+ *   switch ?options? string {pattern body ?pattern body ...?}
+ *
+ * Options: -exact, -glob, -regexp, --
+ * Matches string against patterns and executes the corresponding body.
+ */
+TclResult tcl_builtin_switch(const TclHostOps *ops, TclInterp interp,
+                              TclObj cmd, TclObj args);
+
+/**
+ * tcl_builtin_tailcall implements the TCL 'tailcall' command.
+ *
+ * Usage:
+ *   tailcall command ?arg ...?
+ *
+ * Replaces the current procedure invocation with a call to another command.
+ * Must be called from within a proc or lambda.
+ */
+TclResult tcl_builtin_tailcall(const TclHostOps *ops, TclInterp interp,
+                                TclObj cmd, TclObj args);
+
+/**
  * tcl_builtin_break implements the TCL 'break' command.
  *
  * Usage:

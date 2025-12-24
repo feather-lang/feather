@@ -1,0 +1,265 @@
+<test-suite>
+  <!--
+    M13: for command (C-style loop)
+
+    The for command implements C-style loops with:
+    - init: executed once before the loop
+    - test: condition checked before each iteration
+    - next: executed after each iteration
+    - body: the loop body
+
+    Syntax: for init test next body
+  -->
+
+  <!-- ============================================= -->
+  <!-- Basic for loop                                -->
+  <!-- ============================================= -->
+
+  <test-case name="for loop counts to 3">
+    <script>set result {}
+for {set i 0} {$i < 3} {incr i} {
+    set result "$result$i"
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>012</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="for loop with false initial condition never executes body">
+    <script>set x before
+for {set i 10} {$i < 5} {incr i} {
+    set x inside
+}
+set x $x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>before</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="for loop init script runs exactly once">
+    <script>set count 0
+for {incr count} {$count < 5} {incr count} {
+}
+set count $count</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="for loop returns empty on normal completion">
+    <script>for {set i 0} {$i < 3} {incr i} {
+    set x $i
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="for loop can count down">
+    <script>set result {}
+for {set i 5} {$i > 0} {incr i -1} {
+    set result "$result$i"
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>54321</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="for loop with multiple statements in init">
+    <script>for {set i 0; set j 10} {$i < 3} {incr i; incr j} {
+}
+set j $j</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>13</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- break in for                                  -->
+  <!-- ============================================= -->
+
+  <test-case name="break exits for loop">
+    <script>set result {}
+for {set i 0} {$i < 10} {incr i} {
+    if {$i == 3} {
+        break
+    }
+    set result "$result$i"
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>012</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="break at first iteration skips all">
+    <script>set x untouched
+for {set i 0} {1} {incr i} {
+    break
+    set x touched
+}
+set x $x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>untouched</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="for returns empty after break">
+    <script>for {set i 0} {1} {incr i} {
+    if {$i == 5} {
+        break
+    }
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- continue in for                               -->
+  <!-- ============================================= -->
+
+  <test-case name="continue skips rest of body but runs next">
+    <script>set result {}
+for {set i 0} {$i < 5} {incr i} {
+    if {$i == 2} {
+        continue
+    }
+    set result "$result$i"
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0134</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="continue still executes next script">
+    <script>set next_count 0
+for {set i 0} {$i < 5} {incr next_count; incr i} {
+    continue
+}
+set next_count $next_count</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Nested for loops                              -->
+  <!-- ============================================= -->
+
+  <test-case name="nested for loops">
+    <script>set total 0
+for {set i 0} {$i < 3} {incr i} {
+    for {set j 0} {$j < 4} {incr j} {
+        incr total
+    }
+}
+set total $total</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>12</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="break only exits innermost for loop">
+    <script>set outer_count 0
+set inner_count 0
+for {set i 0} {$i < 3} {incr i} {
+    incr outer_count
+    for {set j 0} {$j < 10} {incr j} {
+        incr inner_count
+        if {$j == 2} {
+            break
+        }
+    }
+}
+set inner_count $inner_count</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>9</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Error cases                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="for with no arguments errors">
+    <script>for</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "for start test next command"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="for with missing arguments errors">
+    <script>for {set i 0} {$i < 5}</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "for start test next command"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="error in init propagates">
+    <script>for {error "init failed"} {1} {} {}</script>
+    <return>TCL_ERROR</return>
+    <error>init failed</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="error in test propagates">
+    <script>for {set i 0} {$undefined} {incr i} {}</script>
+    <return>TCL_ERROR</return>
+    <error>can't read "undefined": no such variable</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="error in body propagates">
+    <script>for {set i 0} {$i < 3} {incr i} {
+    error "body error"
+}</script>
+    <return>TCL_ERROR</return>
+    <error>body error</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="error in next propagates">
+    <script>for {set i 0} {$i < 3} {error "next failed"} {
+}</script>
+    <return>TCL_ERROR</return>
+    <error>next failed</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

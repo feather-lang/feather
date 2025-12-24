@@ -13,6 +13,7 @@ extern void call_tcl_interp_init(TclInterp interp);
 import "C"
 
 import (
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -109,6 +110,30 @@ func goStringCompare(interp C.TclInterp, a C.TclObj, b C.TclObj) C.int {
 		return 1
 	}
 	return 0
+}
+
+//export goStringRegexMatch
+func goStringRegexMatch(interp C.TclInterp, pattern C.TclObj, str C.TclObj, result *C.int) C.TclResult {
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	patternStr := i.GetString(TclObj(pattern))
+	strStr := i.GetString(TclObj(str))
+
+	re, err := regexp.Compile(patternStr)
+	if err != nil {
+		errMsg := i.internString("couldn't compile regular expression pattern: " + err.Error())
+		i.result = errMsg
+		return C.TCL_ERROR
+	}
+
+	if re.MatchString(strStr) {
+		*result = 1
+	} else {
+		*result = 0
+	}
+	return C.TCL_OK
 }
 
 //export goInterpSetResult

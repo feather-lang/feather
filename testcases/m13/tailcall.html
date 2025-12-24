@@ -1,0 +1,263 @@
+<test-suite>
+  <!--
+    M13: tailcall command
+
+    The tailcall command replaces the current procedure invocation
+    with a call to another command. This is tail-call optimization
+    that prevents stack growth.
+
+    Syntax: tailcall command ?arg ...?
+  -->
+
+  <!-- ============================================= -->
+  <!-- Basic tailcall                                -->
+  <!-- ============================================= -->
+
+  <test-case name="tailcall to simple command">
+    <script>proc foo {} {
+    tailcall set result "from tailcall"
+}
+foo
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>from tailcall</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="tailcall returns command result">
+    <script>proc double {x} {
+    expr {$x * 2}
+}
+proc calc {x} {
+    tailcall double $x
+}
+calc 21</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="tailcall replaces frame">
+    <script>proc inner {} {
+    info level
+}
+proc outer {} {
+    tailcall inner
+}
+outer</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="code after tailcall does not execute">
+    <script>proc foo {} {
+    tailcall set x done
+    set x "should not happen"
+}
+foo</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>done</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Tailcall with arguments                       -->
+  <!-- ============================================= -->
+
+  <test-case name="tailcall passes multiple arguments">
+    <script>proc add {a b} {
+    expr {$a + $b}
+}
+proc compute {x y} {
+    tailcall add $x $y
+}
+compute 10 32</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="tailcall arguments are evaluated before frame pop">
+    <script>proc target {val} {
+    set val $val
+}
+proc source {} {
+    set x local
+    tailcall target $x
+}
+source</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>local</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Tail recursion                                -->
+  <!-- ============================================= -->
+
+  <test-case name="tailcall enables tail recursion">
+    <script>proc countdown {n acc} {
+    if {$n == 0} {
+        return $acc
+    }
+    tailcall countdown [expr {$n - 1}] [expr {$acc + $n}]
+}
+countdown 5 0</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>15</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="tailcall factorial">
+    <script>proc fact_tail {n acc} {
+    if {$n <= 1} {
+        return $acc
+    }
+    tailcall fact_tail [expr {$n - 1}] [expr {$acc * $n}]
+}
+fact_tail 5 1</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>120</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Tailcall with different command types         -->
+  <!-- ============================================= -->
+
+  <test-case name="tailcall to builtin command">
+    <script>proc foo {} {
+    tailcall expr {2 + 2}
+}
+foo</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>4</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="tailcall to proc">
+    <script>proc target {} {
+    return "from target"
+}
+proc source {} {
+    tailcall target
+}
+source</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>from target</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Tailcall in nested procs                      -->
+  <!-- ============================================= -->
+
+  <test-case name="tailcall from nested call">
+    <script>proc a {} {
+    b
+}
+proc b {} {
+    tailcall c
+}
+proc c {} {
+    return "from c"
+}
+a</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>from c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Tailcall and upvar/uplevel                    -->
+  <!-- ============================================= -->
+
+  <test-case name="tailcall executes in caller context">
+    <script>proc setvar {name val} {
+    upvar 1 $name v
+    set v $val
+}
+proc wrapper {name val} {
+    tailcall setvar $name $val
+}
+wrapper x 42
+set x $x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Error cases                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="tailcall at global level errors">
+    <script>tailcall set x 1</script>
+    <return>TCL_ERROR</return>
+    <error>tailcall can only be called from a proc or lambda</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="tailcall with no arguments errors">
+    <script>proc foo {} {
+    tailcall
+}
+foo</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "tailcall command ?arg ...?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="tailcall propagates errors">
+    <script>proc fail {} {
+    error "failure"
+}
+proc wrapper {} {
+    tailcall fail
+}
+wrapper</script>
+    <return>TCL_ERROR</return>
+    <error>failure</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="tailcall to undefined command errors">
+    <script>proc foo {} {
+    tailcall nonexistent
+}
+foo</script>
+    <return>TCL_ERROR</return>
+    <error>invalid command name "nonexistent"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

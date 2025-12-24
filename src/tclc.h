@@ -415,6 +415,16 @@ typedef struct TclStringOps {
    * Returns <0 if a < b, 0 if a == b, >0 if a > b.
    */
   int (*compare)(TclInterp interp, TclObj a, TclObj b);
+
+  /**
+   * regex_match tests if a string matches a regular expression pattern.
+   *
+   * Returns TCL_OK and sets *result to 1 if the string matches the pattern,
+   * or 0 if it doesn't match. Returns TCL_ERROR if the pattern is invalid,
+   * with an error message in the interpreter's result.
+   */
+  TclResult (*regex_match)(TclInterp interp, TclObj pattern, TclObj string,
+                           int *result);
 } TclStringOps;
 
 /**

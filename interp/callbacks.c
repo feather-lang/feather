@@ -24,6 +24,10 @@ static int c_string_compare(TclInterp interp, TclObj a, TclObj b) {
     return goStringCompare(interp, a, b);
 }
 
+static TclResult c_string_regex_match(TclInterp interp, TclObj pattern, TclObj string, int *result) {
+    return goStringRegexMatch(interp, pattern, string, result);
+}
+
 static TclResult c_interp_set_result(TclInterp interp, TclObj result) {
     return goInterpSetResult(interp, result);
 }
@@ -345,6 +349,7 @@ TclHostOps make_host_ops(void) {
     ops.string.get = c_string_get;
     ops.string.concat = c_string_concat;
     ops.string.compare = c_string_compare;
+    ops.string.regex_match = c_string_regex_match;
 
     ops.list.is_nil = c_list_is_nil;
     ops.list.create = c_list_create;
