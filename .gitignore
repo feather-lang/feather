@@ -70,3 +70,4 @@ coverage.html
 
 # WASM build artifacts
 feather-wasm/wasm/feather.wasm
+/feather-tester
