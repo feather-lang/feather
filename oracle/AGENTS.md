@@ -5,7 +5,7 @@ The oracle is a test harness host that embeds the **real TCL interpreter** (via 
 Its purpose is to provide ground truth for feather's behavior. When developing new features
 or debugging discrepancies, we can run the same test cases through both:
 
-- `bin/gcl` (or other feather hosts) - our implementation
+- `bin/feather-tester` (or other feather hosts) - our implementation
 - `bin/oracle` - the reference TCL implementation
 
 This allows us to verify that feather behaves identically to standard TCL for the subset
@@ -38,7 +38,7 @@ harness run --host bin/oracle testcases/
 
 ## Harness Protocol
 
-The oracle implements the same harness protocol as gcl:
+The oracle implements the same harness protocol as feather-tester:
 
 - Reads script from stdin
 - Writes result to stdout

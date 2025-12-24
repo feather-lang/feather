@@ -2,7 +2,7 @@
 
 This is the meat and bones of the implementation of the Go host.
 
-./cmd/gcl/main.go is the thinnest possible wrapper to provider access
+./cmd/feather-tester/main.go is the thinnest possible wrapper to provide access
 to the host implementation here.
 
 We are targeting go 1.24

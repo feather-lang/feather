@@ -8,15 +8,8 @@ cd harness
 go build -o $MISE_CONFIG_ROOT/bin/harness ./cmd/harness
 """
 
-[tasks."build:gcl"]
-description = "Builds the Go host (gcl)"
-depends = ["build:core"]
-run = """
-go build -o $MISE_CONFIG_ROOT/bin/gcl ./cmd/gcl
-"""
-
 [tasks."build:feather-tester"]
-description = "Builds the test interpreter with test-specific commands"
+description = "Builds the feather-tester binary"
 depends = ["build:core"]
 run = """
 go build -o $MISE_CONFIG_ROOT/bin/feather-tester ./cmd/feather-tester
@@ -51,7 +44,7 @@ go build -o $MISE_CONFIG_ROOT/bin/feather-httpd ./cmd/feather-httpd
 
 [tasks.build]
 description = "build all binaries in bin/"
-depends = ["build:core", "build:harness", "build:gcl", "build:feather-tester"]
+depends = ["build:core", "build:harness", "build:feather-tester"]
 
 [tasks.test]
 description = "Run the test harness"

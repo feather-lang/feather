@@ -74,15 +74,15 @@ you need a host for running feather.
 The default host for feather, used for developing feather, is written in Go:
 
 > [!CAUTION]
-> The gcl (Go Command Language) interpreter provided here is only for Feather's
+> The feather-tester interpreter provided here is only for Feather's
 > internal use and will change frequently -- only use this for playing around.
 
 ```bash
-# build they example interpreter in bin/gcl
+# build the example interpreter in bin/feather-tester
 mise build
 
 # start the repl
-mise exec -- gcl
+mise exec -- feather-tester
 ```
 
 In the REPL:
@@ -137,9 +137,9 @@ $ mise test
 [build:core] $ mkdir -p build
 [build:harness] Finished in 207.2ms
 [build:core] Finished in 800.3ms
-[build:gcl] $ go build -o $MISE_CONFIG_ROOT/bin/gcl ./cmd/gcl
-[build:gcl] Finished in 503.8ms
-[test] $ harness run --host bin/gcl testcases/
+[build:feather-tester] $ go build -o $MISE_CONFIG_ROOT/bin/feather-tester ./cmd/feather-tester
+[build:feather-tester] Finished in 503.8ms
+[test] $ harness run --host bin/feather-tester testcases/
 [test]
 [test] 1024 tests, 1024 passed, 0 failed
 [test] Finished in 9.88s
