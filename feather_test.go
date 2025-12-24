@@ -248,6 +248,59 @@ func TestParse(t *testing.T) {
 	}
 }
 
+func TestEvalReturnsTypedValues(t *testing.T) {
+	interp := feather.New()
+	defer interp.Close()
+
+	// Integer result
+	result, err := interp.Eval("expr {2 + 2}")
+	if err != nil {
+		t.Fatalf("Eval failed: %v", err)
+	}
+	if result.Type() != "int" {
+		t.Errorf("expr result type: expected 'int', got %q", result.Type())
+	}
+	n, err := result.Int()
+	if err != nil || n != 4 {
+		t.Errorf("Int() = %d, %v; want 4, nil", n, err)
+	}
+
+	// List result
+	result, err = interp.Eval("list a b c")
+	if err != nil {
+		t.Fatalf("Eval failed: %v", err)
+	}
+	if result.Type() != "list" {
+		t.Errorf("list result type: expected 'list', got %q", result.Type())
+	}
+	items, err := result.List()
+	if err != nil || len(items) != 3 {
+		t.Errorf("List() = %v, %v; want 3 items", items, err)
+	}
+
+	// Dict result
+	result, err = interp.Eval("dict create x 1 y 2")
+	if err != nil {
+		t.Fatalf("Eval failed: %v", err)
+	}
+	if result.Type() != "dict" {
+		t.Errorf("dict result type: expected 'dict', got %q", result.Type())
+	}
+	m, err := result.Dict()
+	if err != nil || len(m) != 2 {
+		t.Errorf("Dict() = %v, %v; want 2 items", m, err)
+	}
+
+	// String result (from set)
+	result, err = interp.Eval("set x hello")
+	if err != nil {
+		t.Fatalf("Eval failed: %v", err)
+	}
+	if result.Type() != "string" {
+		t.Errorf("set result type: expected 'string', got %q", result.Type())
+	}
+}
+
 func TestValueTypes(t *testing.T) {
 	t.Run("intValue", func(t *testing.T) {
 		v := feather.NewInt(42)

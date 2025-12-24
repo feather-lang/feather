@@ -58,11 +58,38 @@ func (i *Interp) Close() {
 
 // Eval evaluates a TCL script and returns the result.
 func (i *Interp) Eval(script string) (Value, error) {
-	result, err := i.host.Eval(script)
+	result, err := i.host.EvalTyped(script)
 	if err != nil {
 		return nil, err
 	}
-	return stringValue(result), nil
+	return resultInfoToValue(result), nil
+}
+
+// resultInfoToValue converts interp.ResultInfo to a Value.
+func resultInfoToValue(r interp.ResultInfo) Value {
+	switch {
+	case r.IsForeign:
+		return foreignValue{typeName: r.ForeignType, handle: r.String}
+	case r.IsDict:
+		keys := r.DictKeys
+		values := make(map[string]Value, len(r.DictValues))
+		for k, v := range r.DictValues {
+			values[k] = resultInfoToValue(v)
+		}
+		return dictValue{keys: keys, values: values}
+	case r.IsList:
+		items := make([]Value, len(r.ListItems))
+		for i, item := range r.ListItems {
+			items[i] = resultInfoToValue(item)
+		}
+		return listValue(items)
+	case r.IsDouble:
+		return floatValue(r.DoubleVal)
+	case r.IsInt:
+		return intValue(r.IntVal)
+	default:
+		return stringValue(r.String)
+	}
 }
 
 // Call invokes a TCL command with the given arguments.
