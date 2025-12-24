@@ -247,3 +247,114 @@ func TestParse(t *testing.T) {
 		t.Errorf("expected ParseIncomplete, got %v", pr.Status)
 	}
 }
+
+func TestValueTypes(t *testing.T) {
+	t.Run("intValue", func(t *testing.T) {
+		v := feather.NewInt(42)
+		if v.Type() != "int" {
+			t.Errorf("expected type 'int', got %q", v.Type())
+		}
+		if v.String() != "42" {
+			t.Errorf("expected '42', got %q", v.String())
+		}
+		n, err := v.Int()
+		if err != nil || n != 42 {
+			t.Errorf("Int() = %d, %v; want 42, nil", n, err)
+		}
+		f, err := v.Float()
+		if err != nil || f != 42.0 {
+			t.Errorf("Float() = %f, %v; want 42.0, nil", f, err)
+		}
+		_, err = v.Bool()
+		if err == nil {
+			t.Error("Bool() on 42 should fail")
+		}
+		// 0 and 1 should work for Bool
+		v0 := feather.NewInt(0)
+		b, err := v0.Bool()
+		if err != nil || b != false {
+			t.Errorf("Bool() on 0 = %v, %v; want false, nil", b, err)
+		}
+		v1 := feather.NewInt(1)
+		b, err = v1.Bool()
+		if err != nil || b != true {
+			t.Errorf("Bool() on 1 = %v, %v; want true, nil", b, err)
+		}
+	})
+
+	t.Run("floatValue", func(t *testing.T) {
+		v := feather.NewFloat(3.14)
+		if v.Type() != "double" {
+			t.Errorf("expected type 'double', got %q", v.Type())
+		}
+		f, err := v.Float()
+		if err != nil || f != 3.14 {
+			t.Errorf("Float() = %f, %v; want 3.14, nil", f, err)
+		}
+		n, err := v.Int()
+		if err != nil || n != 3 {
+			t.Errorf("Int() = %d, %v; want 3, nil", n, err)
+		}
+	})
+
+	t.Run("listValue", func(t *testing.T) {
+		v := feather.NewList(feather.NewInt(1), feather.NewString("two"), feather.NewFloat(3.0))
+		if v.Type() != "list" {
+			t.Errorf("expected type 'list', got %q", v.Type())
+		}
+		if v.String() != "1 two 3" {
+			t.Errorf("String() = %q; want '1 two 3'", v.String())
+		}
+		items, err := v.List()
+		if err != nil || len(items) != 3 {
+			t.Errorf("List() = %v, %v; want 3 items", items, err)
+		}
+		if items[0].Type() != "int" {
+			t.Errorf("items[0].Type() = %q; want 'int'", items[0].Type())
+		}
+
+		// Single-element list can shimmer to scalar
+		single := feather.NewList(feather.NewInt(42))
+		n, err := single.Int()
+		if err != nil || n != 42 {
+			t.Errorf("single.Int() = %d, %v; want 42, nil", n, err)
+		}
+	})
+
+	t.Run("dictValue", func(t *testing.T) {
+		v := feather.NewDict(
+			feather.NewString("a"), feather.NewInt(1),
+			feather.NewString("b"), feather.NewString("two"),
+		)
+		if v.Type() != "dict" {
+			t.Errorf("expected type 'dict', got %q", v.Type())
+		}
+		m, err := v.Dict()
+		if err != nil || len(m) != 2 {
+			t.Errorf("Dict() = %v, %v; want 2 items", m, err)
+		}
+		if m["a"].String() != "1" {
+			t.Errorf("m['a'] = %q; want '1'", m["a"].String())
+		}
+
+		// Dict to list
+		items, err := v.List()
+		if err != nil || len(items) != 4 {
+			t.Errorf("List() = %v, %v; want 4 items", items, err)
+		}
+	})
+
+	t.Run("foreignValue", func(t *testing.T) {
+		v := feather.NewForeign("Mux", "mux1")
+		if v.Type() != "Mux" {
+			t.Errorf("expected type 'Mux', got %q", v.Type())
+		}
+		if v.String() != "mux1" {
+			t.Errorf("String() = %q; want 'mux1'", v.String())
+		}
+		_, err := v.Int()
+		if err == nil {
+			t.Error("Int() on foreign should fail")
+		}
+	})
+}
