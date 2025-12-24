@@ -236,17 +236,18 @@ func (lib *Library) CreateForeign(typeName string, value any) TclObj {
 3. Add `NewForeign(typeName string, value any) TclObj` method
 4. Add type registry: `map[string]*ForeignTypeDef`
 
-### M3: Go Library - High-Level API
+### M3: Go Library - High-Level API ✓
 
 **Files:**
-- extend interp/ with interp/foreign.go
+- `interp/foreign.go` - DefineType, ForeignRegistry, method dispatch
+- `interp/foreign_test.go` - comprehensive test suite
 
 **Scope:**
 1. `DefineType[T]()` - generic type registration with reflection
 2. Automatic argument conversion via reflection
 3. Object-as-command registration
 4. Handle generation (`mux1`, `mux2`, ...)
-5. Lifecycle management via command traces
+5. Lifecycle management via destroy method
 
 ### M4: Documentation & Examples
 
