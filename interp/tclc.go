@@ -82,6 +82,7 @@ type Namespace struct {
 	parent   *Namespace
 	children map[string]*Namespace
 	vars     map[string]TclObj
+	commands map[string]*Command // commands defined in this namespace
 }
 
 // CallFrame represents an execution frame on the call stack.
@@ -128,7 +129,6 @@ type TraceEntry struct {
 type Interp struct {
 	handle         TclInterp
 	objects        map[TclObj]*Object
-	commands       map[string]*Command // unified command table
 	globalNS       TclObj              // global namespace object (TclObj handle for "::")
 	namespaces     map[string]*Namespace // namespace path -> Namespace
 	globalNamespace *Namespace           // the global namespace "::"
@@ -162,7 +162,6 @@ type Object struct {
 func NewInterp() *Interp {
 	interp := &Interp{
 		objects:    make(map[TclObj]*Object),
-		commands:   make(map[string]*Command),
 		namespaces: make(map[string]*Namespace),
 		varTraces:  make(map[string][]TraceEntry),
 		cmdTraces:  make(map[string][]TraceEntry),
@@ -174,6 +173,7 @@ func NewInterp() *Interp {
 		parent:   nil,
 		children: make(map[string]*Namespace),
 		vars:     make(map[string]TclObj),
+		commands: make(map[string]*Command),
 	}
 	interp.globalNamespace = globalNS
 	interp.namespaces["::"] = globalNS

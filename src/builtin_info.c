@@ -185,23 +185,19 @@ static TclResult info_commands(const TclHostOps *ops, TclInterp interp,
     return TCL_ERROR;
   }
 
-  // Get all command names
-  TclObj allNames = ops->proc.names(interp, 0);
+  // Get all command names from global namespace
+  // Names are already simple (no :: prefix)
+  TclObj globalNs = ops->string.intern(interp, "::", 2);
+  TclObj allNames = ops->ns.list_commands(interp, globalNs);
   size_t count = ops->list.length(interp, allNames);
 
   if (argc == 0) {
-    // No pattern - return all commands with display names
-    TclObj result = ops->list.create(interp);
-    for (size_t i = 0; i < count; i++) {
-      TclObj name = ops->list.at(interp, allNames, i);
-      TclObj displayName = get_display_name(ops, interp, name);
-      result = ops->list.push(interp, result, displayName);
-    }
-    ops->interp.set_result(interp, result);
+    // No pattern - return all commands (names are already simple)
+    ops->interp.set_result(interp, allNames);
     return TCL_OK;
   }
 
-  // Filter by pattern using display names
+  // Filter by pattern
   TclObj pattern = ops->list.at(interp, args, 0);
   size_t patLen;
   const char *patStr = ops->string.get(interp, pattern, &patLen);
@@ -209,12 +205,11 @@ static TclResult info_commands(const TclHostOps *ops, TclInterp interp,
   TclObj result = ops->list.create(interp);
   for (size_t i = 0; i < count; i++) {
     TclObj name = ops->list.at(interp, allNames, i);
-    TclObj displayName = get_display_name(ops, interp, name);
-    size_t displayLen;
-    const char *displayStr = ops->string.get(interp, displayName, &displayLen);
+    size_t nameLen;
+    const char *nameStr = ops->string.get(interp, name, &nameLen);
 
-    if (tcl_glob_match(patStr, patLen, displayStr, displayLen)) {
-      result = ops->list.push(interp, result, displayName);
+    if (tcl_glob_match(patStr, patLen, nameStr, nameLen)) {
+      result = ops->list.push(interp, result, name);
     }
   }
 
@@ -235,8 +230,9 @@ static TclResult info_procs(const TclHostOps *ops, TclInterp interp,
     return TCL_ERROR;
   }
 
-  // Get all command names
-  TclObj allNames = ops->proc.names(interp, 0);
+  // Get all command names from global namespace
+  TclObj globalNs = ops->string.intern(interp, "::", 2);
+  TclObj allNames = ops->ns.list_commands(interp, globalNs);
 
   TclObj result = ops->list.create(interp);
   size_t count = ops->list.length(interp, allNames);
@@ -253,23 +249,23 @@ static TclResult info_procs(const TclHostOps *ops, TclInterp interp,
     TclObj name = ops->list.at(interp, allNames, i);
 
     // Check if it's a user-defined procedure (not a builtin)
-    if (!ops->proc.exists(interp, name)) {
+    // Use ns.get_command to check the type
+    TclBuiltinCmd unusedFn = NULL;
+    TclCommandType cmdType = ops->ns.get_command(interp, globalNs, name, &unusedFn);
+    if (cmdType != TCL_CMD_PROC) {
       continue;
     }
 
-    // Get display name for pattern matching and output
-    TclObj displayName = get_display_name(ops, interp, name);
-
     // Apply pattern filter if specified
     if (patStr != NULL) {
-      size_t displayLen;
-      const char *displayStr = ops->string.get(interp, displayName, &displayLen);
-      if (!tcl_glob_match(patStr, patLen, displayStr, displayLen)) {
+      size_t nameLen;
+      const char *nameStr = ops->string.get(interp, name, &nameLen);
+      if (!tcl_glob_match(patStr, patLen, nameStr, nameLen)) {
         continue;
       }
     }
 
-    result = ops->list.push(interp, result, displayName);
+    result = ops->list.push(interp, result, name);
   }
 
   ops->interp.set_result(interp, result);

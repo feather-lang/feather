@@ -657,10 +657,59 @@ func goProcDefine(interp C.TclInterp, name C.TclObj, params C.TclObj, body C.Tcl
 		params: TclObj(params),
 		body:   TclObj(body),
 	}
-	i.commands[nameStr] = &Command{
+	cmd := &Command{
 		cmdType: CmdProc,
 		proc:    proc,
 	}
+
+	// Store in namespace's commands map
+	// Split the qualified name into namespace and simple name
+	var nsPath, simpleName string
+	if strings.HasPrefix(nameStr, "::") {
+		// Absolute path like "::foo::bar" or "::cmd"
+		lastSep := strings.LastIndex(nameStr, "::")
+		if lastSep == 0 {
+			// Just "::cmd"
+			nsPath = "::"
+			simpleName = nameStr[2:]
+		} else {
+			nsPath = nameStr[:lastSep]
+			simpleName = nameStr[lastSep+2:]
+		}
+	} else {
+		// Should not happen - procs should always be fully qualified by now
+		nsPath = "::"
+		simpleName = nameStr
+	}
+
+	ns := i.ensureNamespace(nsPath)
+	ns.commands[simpleName] = cmd
+}
+
+// lookupCommandByQualified looks up a command by its fully-qualified name.
+// Returns the command and true if found, nil and false otherwise.
+func (i *Interp) lookupCommandByQualified(nameStr string) (*Command, bool) {
+	var nsPath, simpleName string
+	if strings.HasPrefix(nameStr, "::") {
+		lastSep := strings.LastIndex(nameStr, "::")
+		if lastSep == 0 {
+			nsPath = "::"
+			simpleName = nameStr[2:]
+		} else {
+			nsPath = nameStr[:lastSep]
+			simpleName = nameStr[lastSep+2:]
+		}
+	} else {
+		nsPath = "::"
+		simpleName = nameStr
+	}
+
+	ns, ok := i.namespaces[nsPath]
+	if !ok {
+		return nil, false
+	}
+	cmd, ok := ns.commands[simpleName]
+	return cmd, ok
 }
 
 //export goProcExists
@@ -670,7 +719,8 @@ func goProcExists(interp C.TclInterp, name C.TclObj) C.int {
 		return 0
 	}
 	nameStr := i.GetString(TclObj(name))
-	if cmd, ok := i.commands[nameStr]; ok && cmd.cmdType == CmdProc {
+	cmd, ok := i.lookupCommandByQualified(nameStr)
+	if ok && cmd.cmdType == CmdProc {
 		return 1
 	}
 	return 0
@@ -683,7 +733,7 @@ func goProcParams(interp C.TclInterp, name C.TclObj, result *C.TclObj) C.TclResu
 		return C.TCL_ERROR
 	}
 	nameStr := i.GetString(TclObj(name))
-	cmd, ok := i.commands[nameStr]
+	cmd, ok := i.lookupCommandByQualified(nameStr)
 	if !ok || cmd.cmdType != CmdProc || cmd.proc == nil {
 		return C.TCL_ERROR
 	}
@@ -698,7 +748,7 @@ func goProcBody(interp C.TclInterp, name C.TclObj, result *C.TclObj) C.TclResult
 		return C.TCL_ERROR
 	}
 	nameStr := i.GetString(TclObj(name))
-	cmd, ok := i.commands[nameStr]
+	cmd, ok := i.lookupCommandByQualified(nameStr)
 	if !ok || cmd.cmdType != CmdProc || cmd.proc == nil {
 		return C.TCL_ERROR
 	}
@@ -800,26 +850,48 @@ func goProcNames(interp C.TclInterp, namespace C.TclObj) C.TclObj {
 	if i == nil {
 		return 0
 	}
-	// For now, ignore namespace parameter (only global namespace exists)
-	// Collect all command names
-	names := make([]string, 0, len(i.commands))
-	for name := range i.commands {
-		names = append(names, name)
+
+	// Determine which namespace to list (default to global)
+	nsPath := "::"
+	if namespace != 0 {
+		nsPath = i.GetString(TclObj(namespace))
+	}
+	if nsPath == "" {
+		nsPath = "::"
+	}
+
+	ns, ok := i.namespaces[nsPath]
+	if !ok {
+		// Return empty list
+		id := i.nextID
+		i.nextID++
+		i.objects[id] = &Object{isList: true, listItems: []TclObj{}}
+		return C.TclObj(id)
+	}
+
+	// Collect command names and build fully-qualified names
+	names := make([]string, 0, len(ns.commands))
+	for name := range ns.commands {
+		// Build fully-qualified name
+		var fullName string
+		if nsPath == "::" {
+			fullName = "::" + name
+		} else {
+			fullName = nsPath + "::" + name
+		}
+		names = append(names, fullName)
 	}
 
 	// Sort for consistent ordering
 	sort.Strings(names)
 
 	// Create a list object with all names
-	id := i.nextID
-	i.nextID++
 	items := make([]TclObj, len(names))
 	for idx, name := range names {
-		itemID := i.nextID
-		i.nextID++
-		i.objects[itemID] = &Object{stringVal: name}
-		items[idx] = itemID
+		items[idx] = i.internString(name)
 	}
+	id := i.nextID
+	i.nextID++
 	i.objects[id] = &Object{isList: true, listItems: items}
 	return C.TclObj(id)
 }
@@ -853,11 +925,29 @@ func goProcRegisterBuiltin(interp C.TclInterp, name C.TclObj, fn C.TclBuiltinCmd
 		return
 	}
 	nameStr := i.GetString(TclObj(name))
-	// Register builtin with its function pointer
-	i.commands[nameStr] = &Command{
+
+	// Split the qualified name and store in namespace
+	var nsPath, simpleName string
+	if strings.HasPrefix(nameStr, "::") {
+		lastSep := strings.LastIndex(nameStr, "::")
+		if lastSep == 0 {
+			nsPath = "::"
+			simpleName = nameStr[2:]
+		} else {
+			nsPath = nameStr[:lastSep]
+			simpleName = nameStr[lastSep+2:]
+		}
+	} else {
+		nsPath = "::"
+		simpleName = nameStr
+	}
+
+	cmd := &Command{
 		cmdType: CmdBuiltin,
 		builtin: fn,
 	}
+	ns := i.ensureNamespace(nsPath)
+	ns.commands[simpleName] = cmd
 }
 
 //export goProcLookup
@@ -868,7 +958,7 @@ func goProcLookup(interp C.TclInterp, name C.TclObj, fn *C.TclBuiltinCmd) C.TclC
 		return C.TCL_CMD_NONE
 	}
 	nameStr := i.GetString(TclObj(name))
-	cmd, ok := i.commands[nameStr]
+	cmd, ok := i.lookupCommandByQualified(nameStr)
 	if !ok {
 		*fn = nil
 		return C.TCL_CMD_NONE
@@ -895,9 +985,39 @@ func goProcRename(interp C.TclInterp, oldName C.TclObj, newName C.TclObj) C.TclR
 	oldNameStr := i.GetString(TclObj(oldName))
 	newNameStr := i.GetString(TclObj(newName))
 
+	// Helper to split qualified name into namespace and simple name
+	splitQualified := func(name string) (nsPath, simple string) {
+		if strings.HasPrefix(name, "::") {
+			lastSep := strings.LastIndex(name, "::")
+			if lastSep == 0 {
+				return "::", name[2:]
+			}
+			return name[:lastSep], name[lastSep+2:]
+		}
+		return "::", name
+	}
 
-	// Check if old command exists
-	cmd, ok := i.commands[oldNameStr]
+	// Get old namespace location
+	oldNsPath, oldSimple := splitQualified(oldNameStr)
+
+	// Compute fully qualified name for trace lookups
+	// Traces are always registered with fully qualified names
+	oldQualified := oldNameStr
+	if !strings.HasPrefix(oldNameStr, "::") {
+		if oldNsPath == "::" {
+			oldQualified = "::" + oldSimple
+		} else {
+			oldQualified = oldNsPath + "::" + oldSimple
+		}
+	}
+
+	// Check if old command exists in namespace
+	oldNs, ok := i.namespaces[oldNsPath]
+	if !ok {
+		i.SetErrorString("can't rename \"" + i.DisplayName(oldNameStr) + "\": command doesn't exist")
+		return C.TCL_ERROR
+	}
+	cmd, ok := oldNs.commands[oldSimple]
 	if !ok {
 		i.SetErrorString("can't rename \"" + i.DisplayName(oldNameStr) + "\": command doesn't exist")
 		return C.TCL_ERROR
@@ -905,34 +1025,37 @@ func goProcRename(interp C.TclInterp, oldName C.TclObj, newName C.TclObj) C.TclR
 
 	// If newName is empty, delete the command
 	if newNameStr == "" {
-		delete(i.commands, oldNameStr)
-		// Copy traces before unlocking
-		traces := make([]TraceEntry, len(i.cmdTraces[oldNameStr]))
-		copy(traces, i.cmdTraces[oldNameStr])
+		delete(oldNs.commands, oldSimple)
+		// Copy traces before unlocking - use fully qualified name
+		traces := make([]TraceEntry, len(i.cmdTraces[oldQualified]))
+		copy(traces, i.cmdTraces[oldQualified])
 		// Fire delete traces
 		if len(traces) > 0 {
-			fireCmdTraces(i, oldNameStr, "", "delete", traces)
+			fireCmdTraces(i, oldQualified, "", "delete", traces)
 		}
 		return C.TCL_OK
 	}
 
+	// Get new namespace location
+	newNsPath, newSimple := splitQualified(newNameStr)
+
 	// Check if new name already exists
-	if _, exists := i.commands[newNameStr]; exists {
+	newNs := i.ensureNamespace(newNsPath)
+	if _, exists := newNs.commands[newSimple]; exists {
 		i.SetErrorString("can't rename to \"" + i.DisplayName(newNameStr) + "\": command already exists")
 		return C.TCL_ERROR
 	}
 
-	// Simply move the entry to the new key
-	// For builtins: function pointer comes along
-	// For procs: procedure data comes along
-	i.commands[newNameStr] = cmd
-	delete(i.commands, oldNameStr)
-	// Copy traces before unlocking
-	traces := make([]TraceEntry, len(i.cmdTraces[oldNameStr]))
-	copy(traces, i.cmdTraces[oldNameStr])
+	// Move command from old namespace to new namespace
+	delete(oldNs.commands, oldSimple)
+	newNs.commands[newSimple] = cmd
+
+	// Copy traces before unlocking - use fully qualified name
+	traces := make([]TraceEntry, len(i.cmdTraces[oldQualified]))
+	copy(traces, i.cmdTraces[oldQualified])
 	// Fire rename traces
 	if len(traces) > 0 {
-		fireCmdTraces(i, oldNameStr, newNameStr, "rename", traces)
+		fireCmdTraces(i, oldQualified, newNameStr, "rename", traces)
 	}
 
 	return C.TCL_OK
@@ -967,6 +1090,7 @@ func (i *Interp) ensureNamespace(path string) *Namespace {
 				parent:   current,
 				children: make(map[string]*Namespace),
 				vars:     make(map[string]TclObj),
+				commands: make(map[string]*Command),
 			}
 			current.children[part] = child
 			i.namespaces[childPath] = child
@@ -1180,6 +1304,126 @@ func goNsUnsetVar(interp C.TclInterp, nsPath C.TclObj, name C.TclObj) {
 		return
 	}
 	delete(ns.vars, nameStr)
+}
+
+//export goNsGetCommand
+func goNsGetCommand(interp C.TclInterp, nsPath C.TclObj, name C.TclObj, fn *C.TclBuiltinCmd) C.TclCommandType {
+	i := getInterp(interp)
+	if i == nil {
+		*fn = nil
+		return C.TCL_CMD_NONE
+	}
+	pathStr := i.GetString(TclObj(nsPath))
+	nameStr := i.GetString(TclObj(name))
+
+	ns, ok := i.namespaces[pathStr]
+	if !ok {
+		*fn = nil
+		return C.TCL_CMD_NONE
+	}
+
+	cmd, ok := ns.commands[nameStr]
+	if !ok {
+		*fn = nil
+		return C.TCL_CMD_NONE
+	}
+
+	switch cmd.cmdType {
+	case CmdBuiltin:
+		*fn = cmd.builtin
+		return C.TCL_CMD_BUILTIN
+	case CmdProc:
+		*fn = nil
+		return C.TCL_CMD_PROC
+	default:
+		*fn = nil
+		return C.TCL_CMD_NONE
+	}
+}
+
+//export goNsSetCommand
+func goNsSetCommand(interp C.TclInterp, nsPath C.TclObj, name C.TclObj,
+	kind C.TclCommandType, fn C.TclBuiltinCmd,
+	params C.TclObj, body C.TclObj) {
+	i := getInterp(interp)
+	if i == nil {
+		return
+	}
+	pathStr := i.GetString(TclObj(nsPath))
+	nameStr := i.GetString(TclObj(name))
+
+	// Ensure namespace exists
+	ns := i.ensureNamespace(pathStr)
+
+	cmd := &Command{
+		cmdType: CommandType(kind),
+	}
+	if kind == C.TCL_CMD_BUILTIN {
+		cmd.builtin = fn
+	} else if kind == C.TCL_CMD_PROC {
+		cmd.proc = &Procedure{
+			name:   TclObj(name),
+			params: TclObj(params),
+			body:   TclObj(body),
+		}
+	}
+	ns.commands[nameStr] = cmd
+}
+
+//export goNsDeleteCommand
+func goNsDeleteCommand(interp C.TclInterp, nsPath C.TclObj, name C.TclObj) C.TclResult {
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	pathStr := i.GetString(TclObj(nsPath))
+	nameStr := i.GetString(TclObj(name))
+
+	ns, ok := i.namespaces[pathStr]
+	if !ok {
+		return C.TCL_ERROR
+	}
+
+	if _, ok := ns.commands[nameStr]; !ok {
+		return C.TCL_ERROR
+	}
+
+	delete(ns.commands, nameStr)
+	return C.TCL_OK
+}
+
+//export goNsListCommands
+func goNsListCommands(interp C.TclInterp, nsPath C.TclObj) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	pathStr := i.GetString(TclObj(nsPath))
+
+	ns, ok := i.namespaces[pathStr]
+	if !ok {
+		// Return empty list
+		id := i.nextID
+		i.nextID++
+		i.objects[id] = &Object{isList: true, listItems: []TclObj{}}
+		return C.TclObj(id)
+	}
+
+	names := make([]string, 0, len(ns.commands))
+	for name := range ns.commands {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	items := make([]TclObj, len(names))
+	for idx, name := range names {
+		items[idx] = i.internString(name)
+	}
+
+	id := i.nextID
+	i.nextID++
+	i.objects[id] = &Object{isList: true, listItems: items}
+	return C.TclObj(id)
 }
 
 //export goFrameSetNamespace

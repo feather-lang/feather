@@ -58,9 +58,23 @@ TclBuiltinCmd tcl_lookup_builtin(const char *name, size_t len) {
 }
 
 void tcl_interp_init(const TclHostOps *ops, TclInterp interp) {
-  // Register all builtin commands with the host, including their function pointers
+  // Register all builtin commands in their respective namespaces
   for (const BuiltinEntry *entry = builtins; entry->name != NULL; entry++) {
-    TclObj name = ops->string.intern(interp, entry->name, tcl_strlen(entry->name));
-    ops->proc.register_builtin(interp, name, entry->cmd);
+    TclObj fullName = ops->string.intern(interp, entry->name, tcl_strlen(entry->name));
+
+    // Split the qualified name into namespace and simple name
+    TclObj ns, simpleName;
+    tcl_split_command(ops, interp, fullName, &ns, &simpleName);
+
+    // If no namespace part (shouldn't happen for our table), use global
+    if (ops->list.is_nil(interp, ns)) {
+      ns = ops->string.intern(interp, "::", 2);
+    }
+
+    // Create namespace if needed (for ::tcl::mathfunc)
+    ops->ns.create(interp, ns);
+
+    // Store command in namespace
+    ops->ns.set_command(interp, ns, simpleName, TCL_CMD_BUILTIN, entry->cmd, 0, 0);
   }
 }

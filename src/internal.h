@@ -291,4 +291,15 @@ TclResult tcl_builtin_try(const TclHostOps *ops, TclInterp interp,
 TclResult tcl_builtin_trace(const TclHostOps *ops, TclInterp interp,
                              TclObj cmd, TclObj args);
 
+/**
+ * tcl_split_command splits a qualified command name into namespace and simple name.
+ *
+ * For "::foo::bar": ns_out = "::foo", name_out = "bar"
+ * For "::cmd": ns_out = "::", name_out = "cmd"
+ * For "cmd" (unqualified): ns_out = nil (0), name_out = "cmd"
+ * For "foo::bar" (relative) in ::current: ns_out = "::current::foo", name_out = "bar"
+ */
+TclResult tcl_split_command(const TclHostOps *ops, TclInterp interp,
+                            TclObj qualified, TclObj *ns_out, TclObj *name_out);
+
 #endif

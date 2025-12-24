@@ -225,6 +225,24 @@ static void c_ns_unset_var(TclInterp interp, TclObj ns, TclObj name) {
     goNsUnsetVar(interp, ns, name);
 }
 
+static TclCommandType c_ns_get_command(TclInterp interp, TclObj ns, TclObj name, TclBuiltinCmd *fn) {
+    return goNsGetCommand(interp, ns, name, fn);
+}
+
+static void c_ns_set_command(TclInterp interp, TclObj ns, TclObj name,
+                             TclCommandType kind, TclBuiltinCmd fn,
+                             TclObj params, TclObj body) {
+    goNsSetCommand(interp, ns, name, kind, fn, params, body);
+}
+
+static TclResult c_ns_delete_command(TclInterp interp, TclObj ns, TclObj name) {
+    return goNsDeleteCommand(interp, ns, name);
+}
+
+static TclObj c_ns_list_commands(TclInterp interp, TclObj ns) {
+    return goNsListCommands(interp, ns);
+}
+
 // Frame namespace extensions
 static TclResult c_frame_set_namespace(TclInterp interp, TclObj ns) {
     return goFrameSetNamespace(interp, ns);
@@ -297,6 +315,10 @@ TclHostOps make_host_ops(void) {
     ops.ns.set_var = c_ns_set_var;
     ops.ns.var_exists = c_ns_var_exists;
     ops.ns.unset_var = c_ns_unset_var;
+    ops.ns.get_command = c_ns_get_command;
+    ops.ns.set_command = c_ns_set_command;
+    ops.ns.delete_command = c_ns_delete_command;
+    ops.ns.list_commands = c_ns_list_commands;
 
     ops.string.intern = c_string_intern;
     ops.string.get = c_string_get;

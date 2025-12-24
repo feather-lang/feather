@@ -852,6 +852,48 @@ typedef struct TclNamespaceOps {
    * No-op if variable doesn't exist.
    */
   void (*unset_var)(TclInterp interp, TclObj ns, TclObj name);
+
+  /**
+   * get_command retrieves a command from a namespace.
+   *
+   * The 'name' parameter must be unqualified (just "set", not "::set").
+   * The 'ns' parameter must be an absolute namespace path.
+   *
+   * For builtins, sets *fn to the function pointer and returns TCL_CMD_BUILTIN.
+   * For procs, sets *fn to NULL and returns TCL_CMD_PROC.
+   * Returns TCL_CMD_NONE if the command doesn't exist in this namespace.
+   */
+  TclCommandType (*get_command)(TclInterp interp, TclObj ns, TclObj name,
+                                TclBuiltinCmd *fn);
+
+  /**
+   * set_command stores a command in a namespace.
+   *
+   * The 'name' parameter must be unqualified.
+   * The 'ns' parameter must be an absolute namespace path.
+   * Creates the namespace if it doesn't exist.
+   *
+   * For builtins: kind=TCL_CMD_BUILTIN, fn=function pointer, params=0, body=0
+   * For procs: kind=TCL_CMD_PROC, fn=NULL, params=param list, body=body obj
+   */
+  void (*set_command)(TclInterp interp, TclObj ns, TclObj name,
+                      TclCommandType kind, TclBuiltinCmd fn,
+                      TclObj params, TclObj body);
+
+  /**
+   * delete_command removes a command from a namespace.
+   *
+   * Returns TCL_ERROR if the command doesn't exist.
+   */
+  TclResult (*delete_command)(TclInterp interp, TclObj ns, TclObj name);
+
+  /**
+   * list_commands returns a list of command names in a namespace.
+   *
+   * Returns simple names (not qualified).
+   * Does NOT include commands from parent or child namespaces.
+   */
+  TclObj (*list_commands)(TclInterp interp, TclObj ns);
 } TclNamespaceOps;
 
 /**
