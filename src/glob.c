@@ -1,4 +1,4 @@
-#include "tclc.h"
+#include "feather.h"
 
 /**
  * Helper: check if character c is in the character class [start, end).
@@ -39,7 +39,7 @@ static int match_char_class(const char *class_start, size_t class_len, char c) {
   return negated ? !matched : matched;
 }
 
-int tcl_glob_match(const char *pattern, size_t pattern_len,
+int feather_glob_match(const char *pattern, size_t pattern_len,
                    const char *string, size_t string_len) {
   size_t p = 0; // pattern position
   size_t s = 0; // string position

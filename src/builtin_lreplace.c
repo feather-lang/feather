@@ -1,9 +1,9 @@
-#include "tclc.h"
+#include "feather.h"
 #include "internal.h"
 
 // Parse an index like "end", "end-N", or integer
-static TclResult parse_index(const TclHostOps *ops, TclInterp interp,
-                             TclObj indexObj, size_t listLen, int64_t *out) {
+static FeatherResult parse_index(const FeatherHostOps *ops, FeatherInterp interp,
+                             FeatherObj indexObj, size_t listLen, int64_t *out) {
   size_t len;
   const char *str = ops->string.get(interp, indexObj, &len);
 
@@ -18,9 +18,9 @@ static TclResult parse_index(const TclHostOps *ops, TclInterp interp,
     int64_t offset = 0;
     for (size_t i = 4; i < len; i++) {
       if (str[i] < '0' || str[i] > '9') {
-        TclObj msg = ops->string.intern(interp, "bad index \"", 11);
+        FeatherObj msg = ops->string.intern(interp, "bad index \"", 11);
         msg = ops->string.concat(interp, msg, indexObj);
-        TclObj suffix = ops->string.intern(interp, "\"", 1);
+        FeatherObj suffix = ops->string.intern(interp, "\"", 1);
         msg = ops->string.concat(interp, msg, suffix);
         ops->interp.set_result(interp, msg);
         return TCL_ERROR;
@@ -33,9 +33,9 @@ static TclResult parse_index(const TclHostOps *ops, TclInterp interp,
 
   // Try integer
   if (ops->integer.get(interp, indexObj, out) != TCL_OK) {
-    TclObj msg = ops->string.intern(interp, "bad index \"", 11);
+    FeatherObj msg = ops->string.intern(interp, "bad index \"", 11);
     msg = ops->string.concat(interp, msg, indexObj);
-    TclObj suffix = ops->string.intern(interp, "\"", 1);
+    FeatherObj suffix = ops->string.intern(interp, "\"", 1);
     msg = ops->string.concat(interp, msg, suffix);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
@@ -44,24 +44,24 @@ static TclResult parse_index(const TclHostOps *ops, TclInterp interp,
   return TCL_OK;
 }
 
-TclResult tcl_builtin_lreplace(const TclHostOps *ops, TclInterp interp,
-                                TclObj cmd, TclObj args) {
+FeatherResult feather_builtin_lreplace(const FeatherHostOps *ops, FeatherInterp interp,
+                                FeatherObj cmd, FeatherObj args) {
   (void)cmd;
   size_t argc = ops->list.length(interp, args);
 
   if (argc < 3) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"lreplace list first last ?element ...?\"", 64);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj listObj = ops->list.shift(interp, args);
-  TclObj firstObj = ops->list.shift(interp, args);
-  TclObj lastObj = ops->list.shift(interp, args);
+  FeatherObj listObj = ops->list.shift(interp, args);
+  FeatherObj firstObj = ops->list.shift(interp, args);
+  FeatherObj lastObj = ops->list.shift(interp, args);
 
   // Convert to list
-  TclObj list = ops->list.from(interp, listObj);
+  FeatherObj list = ops->list.from(interp, listObj);
   size_t listLen = ops->list.length(interp, list);
 
   // Parse indices
@@ -86,7 +86,7 @@ TclResult tcl_builtin_lreplace(const TclHostOps *ops, TclInterp interp,
   }
 
   // Use splice for efficient O(n) replacement
-  TclObj result = ops->list.splice(interp, list, (size_t)first, deleteCount, args);
+  FeatherObj result = ops->list.splice(interp, list, (size_t)first, deleteCount, args);
   ops->interp.set_result(interp, result);
   return TCL_OK;
 }

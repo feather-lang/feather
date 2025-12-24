@@ -47,7 +47,7 @@ func (h *Host) Close() {
 }
 
 // dispatch handles command lookup and execution.
-func (h *Host) dispatch(i *Interp, cmd TclObj, args []TclObj) TclResult {
+func (h *Host) dispatch(i *Interp, cmd FeatherObj, args []FeatherObj) FeatherResult {
 	cmdStr := i.GetString(cmd)
 	if fn, ok := h.Commands[cmdStr]; ok {
 		return fn(i, cmd, args)

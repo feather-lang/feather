@@ -1,4 +1,4 @@
-#include "tclc.h"
+#include "feather.h"
 #include "internal.h"
 
 // Default split characters (whitespace)
@@ -6,19 +6,19 @@ static int is_default_split_char(char c) {
   return c == ' ' || c == '\t' || c == '\n' || c == '\r';
 }
 
-TclResult tcl_builtin_split(const TclHostOps *ops, TclInterp interp,
-                             TclObj cmd, TclObj args) {
+FeatherResult feather_builtin_split(const FeatherHostOps *ops, FeatherInterp interp,
+                             FeatherObj cmd, FeatherObj args) {
   (void)cmd;
   size_t argc = ops->list.length(interp, args);
 
   if (argc < 1 || argc > 2) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"split string ?splitChars?\"", 51);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj strObj = ops->list.shift(interp, args);
+  FeatherObj strObj = ops->list.shift(interp, args);
   size_t strLen;
   const char *str = ops->string.get(interp, strObj, &strLen);
 
@@ -27,14 +27,14 @@ TclResult tcl_builtin_split(const TclHostOps *ops, TclInterp interp,
   int emptyDelim = 0;
 
   if (argc == 2) {
-    TclObj splitObj = ops->list.shift(interp, args);
+    FeatherObj splitObj = ops->list.shift(interp, args);
     splitChars = ops->string.get(interp, splitObj, &splitLen);
     if (splitLen == 0) {
       emptyDelim = 1;  // Split into individual characters
     }
   }
 
-  TclObj result = ops->list.create(interp);
+  FeatherObj result = ops->list.create(interp);
 
   // Handle empty string
   if (strLen == 0) {
@@ -45,7 +45,7 @@ TclResult tcl_builtin_split(const TclHostOps *ops, TclInterp interp,
   // Split into individual characters
   if (emptyDelim) {
     for (size_t i = 0; i < strLen; i++) {
-      TclObj elem = ops->string.intern(interp, str + i, 1);
+      FeatherObj elem = ops->string.intern(interp, str + i, 1);
       result = ops->list.push(interp, result, elem);
     }
     ops->interp.set_result(interp, result);
@@ -73,7 +73,7 @@ TclResult tcl_builtin_split(const TclHostOps *ops, TclInterp interp,
 
     if (isDelim || i == strLen) {
       // End of segment
-      TclObj elem = ops->string.intern(interp, str + start, i - start);
+      FeatherObj elem = ops->string.intern(interp, str + start, i - start);
       result = ops->list.push(interp, result, elem);
       start = i + 1;
     }

@@ -1,4 +1,4 @@
-#include "tclc.h"
+#include "feather.h"
 #include "internal.h"
 
 // Sort mode
@@ -10,8 +10,8 @@ typedef enum {
 
 // Comparison context
 typedef struct {
-  const TclHostOps *ops;
-  TclInterp interp;
+  const FeatherHostOps *ops;
+  FeatherInterp interp;
   SortMode mode;
   int nocase;
   int decreasing;
@@ -23,8 +23,8 @@ static int char_tolower(int c) {
   return c;
 }
 
-static int compare_nocase(const TclHostOps *ops, TclInterp interp,
-                          TclObj a, TclObj b) {
+static int compare_nocase(const FeatherHostOps *ops, FeatherInterp interp,
+                          FeatherObj a, FeatherObj b) {
   size_t lenA, lenB;
   const char *strA = ops->string.get(interp, a, &lenA);
   const char *strB = ops->string.get(interp, b, &lenB);
@@ -41,7 +41,7 @@ static int compare_nocase(const TclHostOps *ops, TclInterp interp,
 }
 
 // Compare two elements - signature matches the host sort callback
-static int compare_elements(TclInterp interp, TclObj a, TclObj b, void *ctx_ptr) {
+static int compare_elements(FeatherInterp interp, FeatherObj a, FeatherObj b, void *ctx_ptr) {
   SortContext *ctx = (SortContext *)ctx_ptr;
   int result = 0;
 
@@ -92,13 +92,13 @@ static int str_eq(const char *s, size_t len, const char *lit) {
   return 1;
 }
 
-TclResult tcl_builtin_lsort(const TclHostOps *ops, TclInterp interp,
-                             TclObj cmd, TclObj args) {
+FeatherResult feather_builtin_lsort(const FeatherHostOps *ops, FeatherInterp interp,
+                             FeatherObj cmd, FeatherObj args) {
   (void)cmd;
   size_t argc = ops->list.length(interp, args);
 
   if (argc < 1) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"lsort ?options? list\"", 46);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
@@ -114,9 +114,9 @@ TclResult tcl_builtin_lsort(const TclHostOps *ops, TclInterp interp,
   int unique = 0;
 
   // Process options until we find a non-option (the list)
-  TclObj listObj = 0;
+  FeatherObj listObj = 0;
   while (ops->list.length(interp, args) > 0) {
-    TclObj arg = ops->list.shift(interp, args);
+    FeatherObj arg = ops->list.shift(interp, args);
     size_t len;
     const char *str = ops->string.get(interp, arg, &len);
 
@@ -136,9 +136,9 @@ TclResult tcl_builtin_lsort(const TclHostOps *ops, TclInterp interp,
       } else if (str_eq(str, len, "-unique")) {
         unique = 1;
       } else {
-        TclObj msg = ops->string.intern(interp, "bad option \"", 12);
+        FeatherObj msg = ops->string.intern(interp, "bad option \"", 12);
         msg = ops->string.concat(interp, msg, arg);
-        TclObj suffix = ops->string.intern(interp,
+        FeatherObj suffix = ops->string.intern(interp,
           "\": must be -ascii, -decreasing, -increasing, -integer, -nocase, -real, or -unique", 81);
         msg = ops->string.concat(interp, msg, suffix);
         ops->interp.set_result(interp, msg);
@@ -152,14 +152,14 @@ TclResult tcl_builtin_lsort(const TclHostOps *ops, TclInterp interp,
   }
 
   if (ops->list.is_nil(interp, listObj)) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"lsort ?options? list\"", 46);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
   // Convert to list
-  TclObj list = ops->list.from(interp, listObj);
+  FeatherObj list = ops->list.from(interp, listObj);
   size_t listLen = ops->list.length(interp, list);
 
   // Handle empty or single-element list
@@ -170,17 +170,17 @@ TclResult tcl_builtin_lsort(const TclHostOps *ops, TclInterp interp,
 
   // Use host's O(n log n) sort - no size limit!
   if (ops->list.sort(interp, list, compare_elements, &ctx) != TCL_OK) {
-    TclObj msg = ops->string.intern(interp, "sort failed", 11);
+    FeatherObj msg = ops->string.intern(interp, "sort failed", 11);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
   // Handle -unique: remove consecutive duplicates after sorting
   if (unique) {
-    TclObj result = ops->list.create(interp);
-    TclObj prev = 0;
+    FeatherObj result = ops->list.create(interp);
+    FeatherObj prev = 0;
     for (size_t i = 0; i < listLen; i++) {
-      TclObj elem = ops->list.at(interp, list, i);
+      FeatherObj elem = ops->list.at(interp, list, i);
       if (i == 0 || compare_elements(interp, elem, prev, &ctx) != 0) {
         result = ops->list.push(interp, result, elem);
         prev = elem;

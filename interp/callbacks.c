@@ -1,409 +1,409 @@
-#include "tclc.h"
+#include "feather.h"
 #include "_cgo_export.h"
 
-// C wrapper functions that can be used as function pointers in TclHostOps
+// C wrapper functions that can be used as function pointers in FeatherHostOps
 // These call through to the Go functions exported via //export
 
-static TclResult c_bind_unknown(TclInterp interp, TclObj cmd, TclObj args, TclObj *value) {
+static FeatherResult c_bind_unknown(FeatherInterp interp, FeatherObj cmd, FeatherObj args, FeatherObj *value) {
     return goBindUnknown(interp, cmd, args, value);
 }
 
-static TclObj c_string_intern(TclInterp interp, const char *s, size_t len) {
+static FeatherObj c_string_intern(FeatherInterp interp, const char *s, size_t len) {
     return goStringIntern(interp, (char*)s, len);
 }
 
-static const char* c_string_get(TclInterp interp, TclObj obj, size_t *len) {
+static const char* c_string_get(FeatherInterp interp, FeatherObj obj, size_t *len) {
     return goStringGet(interp, obj, len);
 }
 
-static TclObj c_string_concat(TclInterp interp, TclObj a, TclObj b) {
+static FeatherObj c_string_concat(FeatherInterp interp, FeatherObj a, FeatherObj b) {
     return goStringConcat(interp, a, b);
 }
 
-static int c_string_compare(TclInterp interp, TclObj a, TclObj b) {
+static int c_string_compare(FeatherInterp interp, FeatherObj a, FeatherObj b) {
     return goStringCompare(interp, a, b);
 }
 
-static TclResult c_string_regex_match(TclInterp interp, TclObj pattern, TclObj string, int *result) {
+static FeatherResult c_string_regex_match(FeatherInterp interp, FeatherObj pattern, FeatherObj string, int *result) {
     return goStringRegexMatch(interp, pattern, string, result);
 }
 
 // Rune operations (Unicode-aware)
-static size_t c_rune_length(TclInterp interp, TclObj str) {
+static size_t c_rune_length(FeatherInterp interp, FeatherObj str) {
     return goRuneLength(interp, str);
 }
 
-static TclObj c_rune_at(TclInterp interp, TclObj str, size_t index) {
+static FeatherObj c_rune_at(FeatherInterp interp, FeatherObj str, size_t index) {
     return goRuneAt(interp, str, index);
 }
 
-static TclObj c_rune_range(TclInterp interp, TclObj str, int64_t first, int64_t last) {
+static FeatherObj c_rune_range(FeatherInterp interp, FeatherObj str, int64_t first, int64_t last) {
     return goRuneRange(interp, str, first, last);
 }
 
-static TclObj c_rune_to_upper(TclInterp interp, TclObj str) {
+static FeatherObj c_rune_to_upper(FeatherInterp interp, FeatherObj str) {
     return goRuneToUpper(interp, str);
 }
 
-static TclObj c_rune_to_lower(TclInterp interp, TclObj str) {
+static FeatherObj c_rune_to_lower(FeatherInterp interp, FeatherObj str) {
     return goRuneToLower(interp, str);
 }
 
-static TclObj c_rune_fold(TclInterp interp, TclObj str) {
+static FeatherObj c_rune_fold(FeatherInterp interp, FeatherObj str) {
     return goRuneFold(interp, str);
 }
 
-static TclResult c_interp_set_result(TclInterp interp, TclObj result) {
+static FeatherResult c_interp_set_result(FeatherInterp interp, FeatherObj result) {
     return goInterpSetResult(interp, result);
 }
 
-static TclObj c_interp_get_result(TclInterp interp) {
+static FeatherObj c_interp_get_result(FeatherInterp interp) {
     return goInterpGetResult(interp);
 }
 
-static TclResult c_interp_reset_result(TclInterp interp, TclObj result) {
+static FeatherResult c_interp_reset_result(FeatherInterp interp, FeatherObj result) {
     return goInterpResetResult(interp, result);
 }
 
-static TclResult c_interp_set_return_options(TclInterp interp, TclObj options) {
+static FeatherResult c_interp_set_return_options(FeatherInterp interp, FeatherObj options) {
     return goInterpSetReturnOptions(interp, options);
 }
 
-static TclObj c_interp_get_return_options(TclInterp interp, TclResult code) {
+static FeatherObj c_interp_get_return_options(FeatherInterp interp, FeatherResult code) {
     return goInterpGetReturnOptions(interp, code);
 }
 
-static TclObj c_interp_get_script(TclInterp interp) {
+static FeatherObj c_interp_get_script(FeatherInterp interp) {
     return goInterpGetScript(interp);
 }
 
-static void c_interp_set_script(TclInterp interp, TclObj path) {
+static void c_interp_set_script(FeatherInterp interp, FeatherObj path) {
     goInterpSetScript(interp, path);
 }
 
-static TclObj c_list_create(TclInterp interp) {
+static FeatherObj c_list_create(FeatherInterp interp) {
     return goListCreate(interp);
 }
 
-static int c_list_is_nil(TclInterp interp, TclObj obj) {
+static int c_list_is_nil(FeatherInterp interp, FeatherObj obj) {
     return goListIsNil(interp, obj);
 }
 
-static TclObj c_list_from(TclInterp interp, TclObj obj) {
+static FeatherObj c_list_from(FeatherInterp interp, FeatherObj obj) {
     return goListFrom(interp, obj);
 }
 
-static TclObj c_list_push(TclInterp interp, TclObj list, TclObj item) {
+static FeatherObj c_list_push(FeatherInterp interp, FeatherObj list, FeatherObj item) {
     return goListPush(interp, list, item);
 }
 
-static TclObj c_list_pop(TclInterp interp, TclObj list) {
+static FeatherObj c_list_pop(FeatherInterp interp, FeatherObj list) {
     return goListPop(interp, list);
 }
 
-static TclObj c_list_unshift(TclInterp interp, TclObj list, TclObj item) {
+static FeatherObj c_list_unshift(FeatherInterp interp, FeatherObj list, FeatherObj item) {
     return goListUnshift(interp, list, item);
 }
 
-static TclObj c_list_shift(TclInterp interp, TclObj list) {
+static FeatherObj c_list_shift(FeatherInterp interp, FeatherObj list) {
     return goListShift(interp, list);
 }
 
-static size_t c_list_length(TclInterp interp, TclObj list) {
+static size_t c_list_length(FeatherInterp interp, FeatherObj list) {
     return goListLength(interp, list);
 }
 
-static TclObj c_list_at(TclInterp interp, TclObj list, size_t index) {
+static FeatherObj c_list_at(FeatherInterp interp, FeatherObj list, size_t index) {
     return goListAt(interp, list, index);
 }
 
-static TclObj c_list_slice(TclInterp interp, TclObj list, size_t first, size_t last) {
+static FeatherObj c_list_slice(FeatherInterp interp, FeatherObj list, size_t first, size_t last) {
     return goListSlice(interp, list, first, last);
 }
 
-static TclResult c_list_set_at(TclInterp interp, TclObj list, size_t index, TclObj value) {
+static FeatherResult c_list_set_at(FeatherInterp interp, FeatherObj list, size_t index, FeatherObj value) {
     return goListSetAt(interp, list, index, value);
 }
 
-static TclObj c_list_splice(TclInterp interp, TclObj list, size_t first,
-                            size_t deleteCount, TclObj insertions) {
+static FeatherObj c_list_splice(FeatherInterp interp, FeatherObj list, size_t first,
+                            size_t deleteCount, FeatherObj insertions) {
     return goListSplice(interp, list, first, deleteCount, insertions);
 }
 
-static TclResult c_list_sort(TclInterp interp, TclObj list,
-                             int (*cmp)(TclInterp interp, TclObj a, TclObj b, void *ctx),
+static FeatherResult c_list_sort(FeatherInterp interp, FeatherObj list,
+                             int (*cmp)(FeatherInterp interp, FeatherObj a, FeatherObj b, void *ctx),
                              void *ctx) {
     return goListSort(interp, list, (void*)cmp, ctx);
 }
 
 // Dict operations
-static TclObj c_dict_create(TclInterp interp) {
+static FeatherObj c_dict_create(FeatherInterp interp) {
     return goDictCreate(interp);
 }
 
-static TclObj c_dict_from(TclInterp interp, TclObj obj) {
+static FeatherObj c_dict_from(FeatherInterp interp, FeatherObj obj) {
     return goDictFrom(interp, obj);
 }
 
-static TclObj c_dict_get(TclInterp interp, TclObj dict, TclObj key) {
+static FeatherObj c_dict_get(FeatherInterp interp, FeatherObj dict, FeatherObj key) {
     return goDictGet(interp, dict, key);
 }
 
-static TclObj c_dict_set(TclInterp interp, TclObj dict, TclObj key, TclObj value) {
+static FeatherObj c_dict_set(FeatherInterp interp, FeatherObj dict, FeatherObj key, FeatherObj value) {
     return goDictSet(interp, dict, key, value);
 }
 
-static int c_dict_exists(TclInterp interp, TclObj dict, TclObj key) {
+static int c_dict_exists(FeatherInterp interp, FeatherObj dict, FeatherObj key) {
     return goDictExists(interp, dict, key);
 }
 
-static TclObj c_dict_remove(TclInterp interp, TclObj dict, TclObj key) {
+static FeatherObj c_dict_remove(FeatherInterp interp, FeatherObj dict, FeatherObj key) {
     return goDictRemove(interp, dict, key);
 }
 
-static size_t c_dict_size(TclInterp interp, TclObj dict) {
+static size_t c_dict_size(FeatherInterp interp, FeatherObj dict) {
     return goDictSize(interp, dict);
 }
 
-static TclObj c_dict_keys(TclInterp interp, TclObj dict) {
+static FeatherObj c_dict_keys(FeatherInterp interp, FeatherObj dict) {
     return goDictKeys(interp, dict);
 }
 
-static TclObj c_dict_values(TclInterp interp, TclObj dict) {
+static FeatherObj c_dict_values(FeatherInterp interp, FeatherObj dict) {
     return goDictValues(interp, dict);
 }
 
-static TclObj c_int_create(TclInterp interp, int64_t val) {
+static FeatherObj c_int_create(FeatherInterp interp, int64_t val) {
     return goIntCreate(interp, val);
 }
 
-static TclResult c_int_get(TclInterp interp, TclObj obj, int64_t *out) {
+static FeatherResult c_int_get(FeatherInterp interp, FeatherObj obj, int64_t *out) {
     return goIntGet(interp, obj, out);
 }
 
-static TclObj c_dbl_create(TclInterp interp, double val) {
+static FeatherObj c_dbl_create(FeatherInterp interp, double val) {
     return goDoubleCreate(interp, val);
 }
 
-static TclResult c_dbl_get(TclInterp interp, TclObj obj, double *out) {
+static FeatherResult c_dbl_get(FeatherInterp interp, FeatherObj obj, double *out) {
     return goDoubleGet(interp, obj, out);
 }
 
-static TclResult c_frame_push(TclInterp interp, TclObj cmd, TclObj args) {
+static FeatherResult c_frame_push(FeatherInterp interp, FeatherObj cmd, FeatherObj args) {
     return goFramePush(interp, cmd, args);
 }
 
-static TclResult c_frame_pop(TclInterp interp) {
+static FeatherResult c_frame_pop(FeatherInterp interp) {
     return goFramePop(interp);
 }
 
-static size_t c_frame_level(TclInterp interp) {
+static size_t c_frame_level(FeatherInterp interp) {
     return goFrameLevel(interp);
 }
 
-static TclResult c_frame_set_active(TclInterp interp, size_t level) {
+static FeatherResult c_frame_set_active(FeatherInterp interp, size_t level) {
     return goFrameSetActive(interp, level);
 }
 
-static size_t c_frame_size(TclInterp interp) {
+static size_t c_frame_size(FeatherInterp interp) {
     return goFrameSize(interp);
 }
 
-static TclResult c_frame_info(TclInterp interp, size_t level, TclObj *cmd, TclObj *args, TclObj *ns) {
+static FeatherResult c_frame_info(FeatherInterp interp, size_t level, FeatherObj *cmd, FeatherObj *args, FeatherObj *ns) {
     return goFrameInfo(interp, level, cmd, args, ns);
 }
 
-static TclObj c_var_get(TclInterp interp, TclObj name) {
+static FeatherObj c_var_get(FeatherInterp interp, FeatherObj name) {
     return goVarGet(interp, name);
 }
 
-static void c_var_set(TclInterp interp, TclObj name, TclObj value) {
+static void c_var_set(FeatherInterp interp, FeatherObj name, FeatherObj value) {
     goVarSet(interp, name, value);
 }
 
-static void c_var_unset(TclInterp interp, TclObj name) {
+static void c_var_unset(FeatherInterp interp, FeatherObj name) {
     goVarUnset(interp, name);
 }
 
-static TclResult c_var_exists(TclInterp interp, TclObj name) {
+static FeatherResult c_var_exists(FeatherInterp interp, FeatherObj name) {
     return goVarExists(interp, name);
 }
 
-static void c_var_link(TclInterp interp, TclObj local, size_t target_level, TclObj target) {
+static void c_var_link(FeatherInterp interp, FeatherObj local, size_t target_level, FeatherObj target) {
     goVarLink(interp, local, target_level, target);
 }
 
-static void c_proc_define(TclInterp interp, TclObj name, TclObj params, TclObj body) {
+static void c_proc_define(FeatherInterp interp, FeatherObj name, FeatherObj params, FeatherObj body) {
     goProcDefine(interp, name, params, body);
 }
 
-static int c_proc_exists(TclInterp interp, TclObj name) {
+static int c_proc_exists(FeatherInterp interp, FeatherObj name) {
     return goProcExists(interp, name);
 }
 
-static TclResult c_proc_params(TclInterp interp, TclObj name, TclObj *result) {
+static FeatherResult c_proc_params(FeatherInterp interp, FeatherObj name, FeatherObj *result) {
     return goProcParams(interp, name, result);
 }
 
-static TclResult c_proc_body(TclInterp interp, TclObj name, TclObj *result) {
+static FeatherResult c_proc_body(FeatherInterp interp, FeatherObj name, FeatherObj *result) {
     return goProcBody(interp, name, result);
 }
 
-static TclObj c_proc_names(TclInterp interp, TclObj namespace) {
+static FeatherObj c_proc_names(FeatherInterp interp, FeatherObj namespace) {
     return goProcNames(interp, namespace);
 }
 
-static TclResult c_proc_resolve_namespace(TclInterp interp, TclObj path, TclObj *result) {
+static FeatherResult c_proc_resolve_namespace(FeatherInterp interp, FeatherObj path, FeatherObj *result) {
     return goProcResolveNamespace(interp, path, result);
 }
 
-static void c_proc_register_builtin(TclInterp interp, TclObj name, TclBuiltinCmd fn) {
+static void c_proc_register_builtin(FeatherInterp interp, FeatherObj name, FeatherBuiltinCmd fn) {
     goProcRegisterBuiltin(interp, name, fn);
 }
 
-static TclCommandType c_proc_lookup(TclInterp interp, TclObj name, TclBuiltinCmd *fn) {
+static FeatherCommandType c_proc_lookup(FeatherInterp interp, FeatherObj name, FeatherBuiltinCmd *fn) {
     return goProcLookup(interp, name, fn);
 }
 
-static TclResult c_proc_rename(TclInterp interp, TclObj oldName, TclObj newName) {
+static FeatherResult c_proc_rename(FeatherInterp interp, FeatherObj oldName, FeatherObj newName) {
     return goProcRename(interp, oldName, newName);
 }
 
 // Namespace operations
-static TclResult c_ns_create(TclInterp interp, TclObj path) {
+static FeatherResult c_ns_create(FeatherInterp interp, FeatherObj path) {
     return goNsCreate(interp, path);
 }
 
-static TclResult c_ns_delete(TclInterp interp, TclObj path) {
+static FeatherResult c_ns_delete(FeatherInterp interp, FeatherObj path) {
     return goNsDelete(interp, path);
 }
 
-static int c_ns_exists(TclInterp interp, TclObj path) {
+static int c_ns_exists(FeatherInterp interp, FeatherObj path) {
     return goNsExists(interp, path);
 }
 
-static TclObj c_ns_current(TclInterp interp) {
+static FeatherObj c_ns_current(FeatherInterp interp) {
     return goNsCurrent(interp);
 }
 
-static TclResult c_ns_parent(TclInterp interp, TclObj ns, TclObj *result) {
+static FeatherResult c_ns_parent(FeatherInterp interp, FeatherObj ns, FeatherObj *result) {
     return goNsParent(interp, ns, result);
 }
 
-static TclObj c_ns_children(TclInterp interp, TclObj ns) {
+static FeatherObj c_ns_children(FeatherInterp interp, FeatherObj ns) {
     return goNsChildren(interp, ns);
 }
 
-static TclObj c_ns_get_var(TclInterp interp, TclObj ns, TclObj name) {
+static FeatherObj c_ns_get_var(FeatherInterp interp, FeatherObj ns, FeatherObj name) {
     return goNsGetVar(interp, ns, name);
 }
 
-static void c_ns_set_var(TclInterp interp, TclObj ns, TclObj name, TclObj value) {
+static void c_ns_set_var(FeatherInterp interp, FeatherObj ns, FeatherObj name, FeatherObj value) {
     goNsSetVar(interp, ns, name, value);
 }
 
-static int c_ns_var_exists(TclInterp interp, TclObj ns, TclObj name) {
+static int c_ns_var_exists(FeatherInterp interp, FeatherObj ns, FeatherObj name) {
     return goNsVarExists(interp, ns, name);
 }
 
-static void c_ns_unset_var(TclInterp interp, TclObj ns, TclObj name) {
+static void c_ns_unset_var(FeatherInterp interp, FeatherObj ns, FeatherObj name) {
     goNsUnsetVar(interp, ns, name);
 }
 
-static TclCommandType c_ns_get_command(TclInterp interp, TclObj ns, TclObj name, TclBuiltinCmd *fn) {
+static FeatherCommandType c_ns_get_command(FeatherInterp interp, FeatherObj ns, FeatherObj name, FeatherBuiltinCmd *fn) {
     return goNsGetCommand(interp, ns, name, fn);
 }
 
-static void c_ns_set_command(TclInterp interp, TclObj ns, TclObj name,
-                             TclCommandType kind, TclBuiltinCmd fn,
-                             TclObj params, TclObj body) {
+static void c_ns_set_command(FeatherInterp interp, FeatherObj ns, FeatherObj name,
+                             FeatherCommandType kind, FeatherBuiltinCmd fn,
+                             FeatherObj params, FeatherObj body) {
     goNsSetCommand(interp, ns, name, kind, fn, params, body);
 }
 
-static TclResult c_ns_delete_command(TclInterp interp, TclObj ns, TclObj name) {
+static FeatherResult c_ns_delete_command(FeatherInterp interp, FeatherObj ns, FeatherObj name) {
     return goNsDeleteCommand(interp, ns, name);
 }
 
-static TclObj c_ns_list_commands(TclInterp interp, TclObj ns) {
+static FeatherObj c_ns_list_commands(FeatherInterp interp, FeatherObj ns) {
     return goNsListCommands(interp, ns);
 }
 
-static TclObj c_ns_get_exports(TclInterp interp, TclObj ns) {
+static FeatherObj c_ns_get_exports(FeatherInterp interp, FeatherObj ns) {
     return goNsGetExports(interp, ns);
 }
 
-static void c_ns_set_exports(TclInterp interp, TclObj ns, TclObj patterns, int clear) {
+static void c_ns_set_exports(FeatherInterp interp, FeatherObj ns, FeatherObj patterns, int clear) {
     goNsSetExports(interp, ns, patterns, clear);
 }
 
-static int c_ns_is_exported(TclInterp interp, TclObj ns, TclObj name) {
+static int c_ns_is_exported(FeatherInterp interp, FeatherObj ns, FeatherObj name) {
     return goNsIsExported(interp, ns, name);
 }
 
-static TclResult c_ns_copy_command(TclInterp interp, TclObj srcNs, TclObj srcName,
-                                   TclObj dstNs, TclObj dstName) {
+static FeatherResult c_ns_copy_command(FeatherInterp interp, FeatherObj srcNs, FeatherObj srcName,
+                                   FeatherObj dstNs, FeatherObj dstName) {
     return goNsCopyCommand(interp, srcNs, srcName, dstNs, dstName);
 }
 
 // Frame namespace extensions
-static TclResult c_frame_set_namespace(TclInterp interp, TclObj ns) {
+static FeatherResult c_frame_set_namespace(FeatherInterp interp, FeatherObj ns) {
     return goFrameSetNamespace(interp, ns);
 }
 
-static TclObj c_frame_get_namespace(TclInterp interp) {
+static FeatherObj c_frame_get_namespace(FeatherInterp interp) {
     return goFrameGetNamespace(interp);
 }
 
 // Var namespace link
-static void c_var_link_ns(TclInterp interp, TclObj local, TclObj ns, TclObj name) {
+static void c_var_link_ns(FeatherInterp interp, FeatherObj local, FeatherObj ns, FeatherObj name) {
     goVarLinkNs(interp, local, ns, name);
 }
 
-static TclObj c_var_names(TclInterp interp, TclObj ns) {
+static FeatherObj c_var_names(FeatherInterp interp, FeatherObj ns) {
     return goVarNames(interp, ns);
 }
 
 // Trace operations
-static TclResult c_trace_add(TclInterp interp, TclObj kind, TclObj name, TclObj ops, TclObj script) {
+static FeatherResult c_trace_add(FeatherInterp interp, FeatherObj kind, FeatherObj name, FeatherObj ops, FeatherObj script) {
     return goTraceAdd(interp, kind, name, ops, script);
 }
 
-static TclResult c_trace_remove(TclInterp interp, TclObj kind, TclObj name, TclObj ops, TclObj script) {
+static FeatherResult c_trace_remove(FeatherInterp interp, FeatherObj kind, FeatherObj name, FeatherObj ops, FeatherObj script) {
     return goTraceRemove(interp, kind, name, ops, script);
 }
 
-static TclObj c_trace_info(TclInterp interp, TclObj kind, TclObj name) {
+static FeatherObj c_trace_info(FeatherInterp interp, FeatherObj kind, FeatherObj name) {
     return goTraceInfo(interp, kind, name);
 }
 
 // Foreign object operations
-static int c_foreign_is_foreign(TclInterp interp, TclObj obj) {
+static int c_foreign_is_foreign(FeatherInterp interp, FeatherObj obj) {
     return goForeignIsForeign(interp, obj);
 }
 
-static TclObj c_foreign_type_name(TclInterp interp, TclObj obj) {
+static FeatherObj c_foreign_type_name(FeatherInterp interp, FeatherObj obj) {
     return goForeignTypeName(interp, obj);
 }
 
-static TclObj c_foreign_string_rep(TclInterp interp, TclObj obj) {
+static FeatherObj c_foreign_string_rep(FeatherInterp interp, FeatherObj obj) {
     return goForeignStringRep(interp, obj);
 }
 
-static TclObj c_foreign_methods(TclInterp interp, TclObj obj) {
+static FeatherObj c_foreign_methods(FeatherInterp interp, FeatherObj obj) {
     return goForeignMethods(interp, obj);
 }
 
-static TclResult c_foreign_invoke(TclInterp interp, TclObj obj, TclObj method, TclObj args) {
+static FeatherResult c_foreign_invoke(FeatherInterp interp, FeatherObj obj, FeatherObj method, FeatherObj args) {
     return goForeignInvoke(interp, obj, method, args);
 }
 
-static void c_foreign_destroy(TclInterp interp, TclObj obj) {
+static void c_foreign_destroy(FeatherInterp interp, FeatherObj obj) {
     goForeignDestroy(interp, obj);
 }
 
-// Build the TclHostOps struct with all callbacks
-TclHostOps make_host_ops(void) {
-    TclHostOps ops;
+// Build the FeatherHostOps struct with all callbacks
+FeatherHostOps make_host_ops(void) {
+    FeatherHostOps ops;
 
     ops.frame.push = c_frame_push;
     ops.frame.pop = c_frame_pop;
@@ -519,20 +519,20 @@ TclHostOps make_host_ops(void) {
 }
 
 // Call the C interpreter with host ops
-TclResult call_tcl_eval_obj(TclInterp interp, TclObj script, TclEvalFlags flags) {
-    TclHostOps ops = make_host_ops();
+FeatherResult call_feather_eval_obj(FeatherInterp interp, FeatherObj script, FeatherEvalFlags flags) {
+    FeatherHostOps ops = make_host_ops();
     // Evaluate the script object
-    return tcl_script_eval_obj(&ops, interp, script, flags);
+    return feather_script_eval_obj(&ops, interp, script, flags);
 }
 
 // Call the C parser with host ops
-TclParseStatus call_tcl_parse(TclInterp interp, TclObj script) {
-    TclHostOps ops = make_host_ops();
+FeatherParseStatus call_feather_parse(FeatherInterp interp, FeatherObj script) {
+    FeatherHostOps ops = make_host_ops();
     size_t len;
     const char *str = ops.string.get(interp, script, &len);
-    TclParseContext ctx;
-    tcl_parse_init(&ctx, str, len);
-    TclParseStatus status = tcl_parse_command(&ops, interp, &ctx);
+    FeatherParseContext ctx;
+    feather_parse_init(&ctx, str, len);
+    FeatherParseStatus status = feather_parse_command(&ops, interp, &ctx);
     // Convert TCL_PARSE_DONE to TCL_PARSE_OK for backwards compatibility
     // (empty script should return OK with empty result)
     if (status == TCL_PARSE_DONE) {
@@ -543,7 +543,7 @@ TclParseStatus call_tcl_parse(TclInterp interp, TclObj script) {
 }
 
 // Initialize the C interpreter with host ops
-void call_tcl_interp_init(TclInterp interp) {
-    TclHostOps ops = make_host_ops();
-    tcl_interp_init(&ops, interp);
+void call_feather_interp_init(FeatherInterp interp) {
+    FeatherHostOps ops = make_host_ops();
+    feather_interp_init(&ops, interp);
 }

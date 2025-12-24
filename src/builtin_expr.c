@@ -1,4 +1,4 @@
-#include "tclc.h"
+#include "feather.h"
 #include "internal.h"
 
 /**
@@ -25,24 +25,24 @@
  * Math functions are delegated to tcl::mathfunc::name commands.
  */
 
-// ExprValue can be an integer, double, or string (TclObj)
+// ExprValue can be an integer, double, or string (FeatherObj)
 typedef struct {
   int64_t int_val;
   double dbl_val;
-  TclObj str_val;      // 0 means no string value
+  FeatherObj str_val;      // 0 means no string value
   int is_int;          // 1 if has valid integer rep
   int is_double;       // 1 if has valid double rep
 } ExprValue;
 
 typedef struct {
-  const TclHostOps *ops;
-  TclInterp interp;
+  const FeatherHostOps *ops;
+  FeatherInterp interp;
   const char *expr;    // Original expression string (for error messages)
   size_t expr_len;
   const char *pos;     // Current position
   const char *end;     // End of expression
   int has_error;
-  TclObj error_msg;
+  FeatherObj error_msg;
   int skip_mode;       // When true, skip evaluation (for lazy eval)
 } ExprParser;
 
@@ -75,7 +75,7 @@ static ExprValue make_double(double val) {
 }
 
 // Create a string ExprValue
-static ExprValue make_str(TclObj obj) {
+static ExprValue make_str(FeatherObj obj) {
   ExprValue v = {.int_val = 0, .dbl_val = 0, .str_val = obj, .is_int = 0, .is_double = 0};
   return v;
 }
@@ -141,8 +141,8 @@ static int is_floating(ExprValue *v) {
   return v->is_double && !v->is_int;
 }
 
-// Get TclObj from ExprValue
-static TclObj get_obj(ExprParser *p, ExprValue *v) {
+// Get FeatherObj from ExprValue
+static FeatherObj get_obj(ExprParser *p, ExprValue *v) {
   if (v->str_val != 0) {
     return v->str_val;
   }
@@ -183,11 +183,11 @@ static void set_syntax_error(ExprParser *p) {
   if (p->has_error) return;
   p->has_error = 1;
 
-  TclObj part1 = p->ops->string.intern(p->interp, "syntax error in expression \"", 28);
-  TclObj part2 = p->ops->string.intern(p->interp, p->expr, p->expr_len);
-  TclObj part3 = p->ops->string.intern(p->interp, "\"", 1);
+  FeatherObj part1 = p->ops->string.intern(p->interp, "syntax error in expression \"", 28);
+  FeatherObj part2 = p->ops->string.intern(p->interp, p->expr, p->expr_len);
+  FeatherObj part3 = p->ops->string.intern(p->interp, "\"", 1);
 
-  TclObj msg = p->ops->string.concat(p->interp, part1, part2);
+  FeatherObj msg = p->ops->string.concat(p->interp, part1, part2);
   msg = p->ops->string.concat(p->interp, msg, part3);
   p->error_msg = msg;
 }
@@ -196,11 +196,11 @@ static void set_integer_error(ExprParser *p, const char *start, size_t len) {
   if (p->has_error) return;
   p->has_error = 1;
 
-  TclObj part1 = p->ops->string.intern(p->interp, "expected integer but got \"", 26);
-  TclObj part2 = p->ops->string.intern(p->interp, start, len);
-  TclObj part3 = p->ops->string.intern(p->interp, "\"", 1);
+  FeatherObj part1 = p->ops->string.intern(p->interp, "expected integer but got \"", 26);
+  FeatherObj part2 = p->ops->string.intern(p->interp, start, len);
+  FeatherObj part3 = p->ops->string.intern(p->interp, "\"", 1);
 
-  TclObj msg = p->ops->string.concat(p->interp, part1, part2);
+  FeatherObj msg = p->ops->string.concat(p->interp, part1, part2);
   msg = p->ops->string.concat(p->interp, msg, part3);
   p->error_msg = msg;
 }
@@ -209,11 +209,11 @@ static void set_bareword_error(ExprParser *p, const char *start, size_t len) {
   if (p->has_error) return;
   p->has_error = 1;
 
-  TclObj part1 = p->ops->string.intern(p->interp, "invalid bareword \"", 18);
-  TclObj part2 = p->ops->string.intern(p->interp, start, len);
-  TclObj part3 = p->ops->string.intern(p->interp, "\"", 1);
+  FeatherObj part1 = p->ops->string.intern(p->interp, "invalid bareword \"", 18);
+  FeatherObj part2 = p->ops->string.intern(p->interp, start, len);
+  FeatherObj part3 = p->ops->string.intern(p->interp, "\"", 1);
 
-  TclObj msg = p->ops->string.concat(p->interp, part1, part2);
+  FeatherObj msg = p->ops->string.concat(p->interp, part1, part2);
   msg = p->ops->string.concat(p->interp, msg, part3);
   p->error_msg = msg;
 }
@@ -222,11 +222,11 @@ static void set_paren_error(ExprParser *p) {
   if (p->has_error) return;
   p->has_error = 1;
 
-  TclObj part1 = p->ops->string.intern(p->interp, "unbalanced parentheses in expression \"", 38);
-  TclObj part2 = p->ops->string.intern(p->interp, p->expr, p->expr_len);
-  TclObj part3 = p->ops->string.intern(p->interp, "\"", 1);
+  FeatherObj part1 = p->ops->string.intern(p->interp, "unbalanced parentheses in expression \"", 38);
+  FeatherObj part2 = p->ops->string.intern(p->interp, p->expr, p->expr_len);
+  FeatherObj part3 = p->ops->string.intern(p->interp, "\"", 1);
 
-  TclObj msg = p->ops->string.concat(p->interp, part1, part2);
+  FeatherObj msg = p->ops->string.concat(p->interp, part1, part2);
   msg = p->ops->string.concat(p->interp, msg, part3);
   p->error_msg = msg;
 }
@@ -305,10 +305,10 @@ static ExprValue parse_variable(ExprParser *p) {
   }
 
   // Resolve the qualified variable name
-  TclObj ns, localName;
-  tcl_resolve_variable(p->ops, p->interp, name_start, name_len, &ns, &localName);
+  FeatherObj ns, localName;
+  feather_resolve_variable(p->ops, p->interp, name_start, name_len, &ns, &localName);
 
-  TclObj value;
+  FeatherObj value;
   if (p->ops->list.is_nil(p->interp, ns)) {
     // Unqualified - frame-local lookup
     value = p->ops->var.get(p->interp, localName);
@@ -318,10 +318,10 @@ static ExprValue parse_variable(ExprParser *p) {
   }
 
   if (p->ops->list.is_nil(p->interp, value)) {
-    TclObj name = p->ops->string.intern(p->interp, name_start, name_len);
-    TclObj part1 = p->ops->string.intern(p->interp, "can't read \"", 12);
-    TclObj part3 = p->ops->string.intern(p->interp, "\": no such variable", 19);
-    TclObj msg = p->ops->string.concat(p->interp, part1, name);
+    FeatherObj name = p->ops->string.intern(p->interp, name_start, name_len);
+    FeatherObj part1 = p->ops->string.intern(p->interp, "can't read \"", 12);
+    FeatherObj part3 = p->ops->string.intern(p->interp, "\": no such variable", 19);
+    FeatherObj msg = p->ops->string.concat(p->interp, part1, name);
     msg = p->ops->string.concat(p->interp, msg, part3);
     p->has_error = 1;
     p->error_msg = msg;
@@ -362,8 +362,8 @@ static ExprValue parse_command(ExprParser *p) {
     return make_int(0);
   }
 
-  // Use tcl_script_eval to evaluate the command
-  TclResult result = tcl_script_eval(p->ops, p->interp, cmd_start, cmd_len, TCL_EVAL_LOCAL);
+  // Use feather_script_eval to evaluate the command
+  FeatherResult result = feather_script_eval(p->ops, p->interp, cmd_start, cmd_len, TCL_EVAL_LOCAL);
   if (result != TCL_OK) {
     p->has_error = 1;
     p->error_msg = p->ops->interp.get_result(p->interp);
@@ -391,7 +391,7 @@ static ExprValue parse_braced(ExprParser *p) {
   }
 
   size_t len = p->pos - start - 1;
-  TclObj str = p->ops->string.intern(p->interp, start, len);
+  FeatherObj str = p->ops->string.intern(p->interp, start, len);
   return make_str(str);
 }
 
@@ -423,7 +423,7 @@ static ExprValue parse_quoted(ExprParser *p) {
   }
 
   // Perform substitutions on the quoted content
-  TclResult result = tcl_subst(p->ops, p->interp, start, len, TCL_SUBST_ALL);
+  FeatherResult result = feather_subst(p->ops, p->interp, start, len, TCL_SUBST_ALL);
   if (result != TCL_OK) {
     p->has_error = 1;
     p->error_msg = p->ops->interp.get_result(p->interp);
@@ -580,11 +580,11 @@ static ExprValue parse_function_call(ExprParser *p, const char *name, size_t nam
   p->pos++; // skip (
 
   // Build command: tcl::mathfunc::name arg arg ...
-  TclObj prefix = p->ops->string.intern(p->interp, "tcl::mathfunc::", 15);
-  TclObj func_name = p->ops->string.intern(p->interp, name, name_len);
-  TclObj full_cmd = p->ops->string.concat(p->interp, prefix, func_name);
+  FeatherObj prefix = p->ops->string.intern(p->interp, "tcl::mathfunc::", 15);
+  FeatherObj func_name = p->ops->string.intern(p->interp, name, name_len);
+  FeatherObj full_cmd = p->ops->string.concat(p->interp, prefix, func_name);
 
-  TclObj args = p->ops->list.create(p->interp);
+  FeatherObj args = p->ops->list.create(p->interp);
 
   // Parse arguments
   skip_whitespace(p);
@@ -594,7 +594,7 @@ static ExprValue parse_function_call(ExprParser *p, const char *name, size_t nam
 
     // Only collect argument values when not in skip mode
     if (!p->skip_mode) {
-      TclObj arg_obj = get_obj(p, &arg);
+      FeatherObj arg_obj = get_obj(p, &arg);
       args = p->ops->list.push(p->interp, args, arg_obj);
     }
 
@@ -617,11 +617,11 @@ static ExprValue parse_function_call(ExprParser *p, const char *name, size_t nam
   }
 
   // Build the command string: "tcl::mathfunc::name arg1 arg2 ..."
-  TclObj cmd_str = full_cmd;
+  FeatherObj cmd_str = full_cmd;
   size_t argc = p->ops->list.length(p->interp, args);
   for (size_t i = 0; i < argc; i++) {
-    TclObj space = p->ops->string.intern(p->interp, " ", 1);
-    TclObj arg = p->ops->list.at(p->interp, args, i);
+    FeatherObj space = p->ops->string.intern(p->interp, " ", 1);
+    FeatherObj arg = p->ops->list.at(p->interp, args, i);
     cmd_str = p->ops->string.concat(p->interp, cmd_str, space);
     cmd_str = p->ops->string.concat(p->interp, cmd_str, arg);
   }
@@ -629,7 +629,7 @@ static ExprValue parse_function_call(ExprParser *p, const char *name, size_t nam
   // Evaluate the command
   size_t cmd_len;
   const char *cmd_cstr = p->ops->string.get(p->interp, cmd_str, &cmd_len);
-  TclResult result = tcl_script_eval(p->ops, p->interp, cmd_cstr, cmd_len, TCL_EVAL_LOCAL);
+  FeatherResult result = feather_script_eval(p->ops, p->interp, cmd_cstr, cmd_len, TCL_EVAL_LOCAL);
   if (result != TCL_OK) {
     p->has_error = 1;
     p->error_msg = p->ops->interp.get_result(p->interp);
@@ -805,7 +805,7 @@ static ExprValue parse_unary(ExprParser *p) {
       if (get_double(p, &v, &dval)) {
         return make_double(-dval);
       }
-      TclObj obj = get_obj(p, &v);
+      FeatherObj obj = get_obj(p, &v);
       size_t len;
       const char *s = p->ops->string.get(p->interp, obj, &len);
       set_integer_error(p, s, len);
@@ -830,7 +830,7 @@ static ExprValue parse_unary(ExprParser *p) {
       if (p->has_error) return make_error();
       int64_t val;
       if (!get_int(p, &v, &val)) {
-        TclObj obj = get_obj(p, &v);
+        FeatherObj obj = get_obj(p, &v);
         size_t len;
         const char *s = p->ops->string.get(p->interp, obj, &len);
         set_integer_error(p, s, len);
@@ -854,7 +854,7 @@ static ExprValue parse_unary(ExprParser *p) {
       if (get_double(p, &v, &dval)) {
         return make_int(dval != 0.0 ? 0 : 1);
       }
-      TclObj obj = get_obj(p, &v);
+      FeatherObj obj = get_obj(p, &v);
       size_t len;
       const char *s = p->ops->string.get(p->interp, obj, &len);
       set_integer_error(p, s, len);
@@ -1162,32 +1162,32 @@ static ExprValue parse_comparison(ExprParser *p) {
       p->pos += 2;
       ExprValue right = parse_shift(p);
       if (p->has_error) return make_error();
-      TclObj lo = get_obj(p, &left);
-      TclObj ro = get_obj(p, &right);
+      FeatherObj lo = get_obj(p, &left);
+      FeatherObj ro = get_obj(p, &right);
       int cmp = p->ops->string.compare(p->interp, lo, ro);
       left = make_int(cmp < 0 ? 1 : 0);
     } else if (match_keyword(p, "le", 2)) {
       p->pos += 2;
       ExprValue right = parse_shift(p);
       if (p->has_error) return make_error();
-      TclObj lo = get_obj(p, &left);
-      TclObj ro = get_obj(p, &right);
+      FeatherObj lo = get_obj(p, &left);
+      FeatherObj ro = get_obj(p, &right);
       int cmp = p->ops->string.compare(p->interp, lo, ro);
       left = make_int(cmp <= 0 ? 1 : 0);
     } else if (match_keyword(p, "gt", 2)) {
       p->pos += 2;
       ExprValue right = parse_shift(p);
       if (p->has_error) return make_error();
-      TclObj lo = get_obj(p, &left);
-      TclObj ro = get_obj(p, &right);
+      FeatherObj lo = get_obj(p, &left);
+      FeatherObj ro = get_obj(p, &right);
       int cmp = p->ops->string.compare(p->interp, lo, ro);
       left = make_int(cmp > 0 ? 1 : 0);
     } else if (match_keyword(p, "ge", 2)) {
       p->pos += 2;
       ExprValue right = parse_shift(p);
       if (p->has_error) return make_error();
-      TclObj lo = get_obj(p, &left);
-      TclObj ro = get_obj(p, &right);
+      FeatherObj lo = get_obj(p, &left);
+      FeatherObj ro = get_obj(p, &right);
       int cmp = p->ops->string.compare(p->interp, lo, ro);
       left = make_int(cmp >= 0 ? 1 : 0);
     }
@@ -1202,8 +1202,8 @@ static ExprValue parse_comparison(ExprParser *p) {
         if (get_double(p, &left, &lv) && get_double(p, &right, &rv)) {
           left = make_int(lv <= rv ? 1 : 0);
         } else {
-          TclObj lo = get_obj(p, &left);
-          TclObj ro = get_obj(p, &right);
+          FeatherObj lo = get_obj(p, &left);
+          FeatherObj ro = get_obj(p, &right);
           int cmp = p->ops->string.compare(p->interp, lo, ro);
           left = make_int(cmp <= 0 ? 1 : 0);
         }
@@ -1216,8 +1216,8 @@ static ExprValue parse_comparison(ExprParser *p) {
           if (get_double(p, &left, &dlv) && get_double(p, &right, &drv)) {
             left = make_int(dlv <= drv ? 1 : 0);
           } else {
-            TclObj lo = get_obj(p, &left);
-            TclObj ro = get_obj(p, &right);
+            FeatherObj lo = get_obj(p, &left);
+            FeatherObj ro = get_obj(p, &right);
             int cmp = p->ops->string.compare(p->interp, lo, ro);
             left = make_int(cmp <= 0 ? 1 : 0);
           }
@@ -1233,8 +1233,8 @@ static ExprValue parse_comparison(ExprParser *p) {
         if (get_double(p, &left, &lv) && get_double(p, &right, &rv)) {
           left = make_int(lv < rv ? 1 : 0);
         } else {
-          TclObj lo = get_obj(p, &left);
-          TclObj ro = get_obj(p, &right);
+          FeatherObj lo = get_obj(p, &left);
+          FeatherObj ro = get_obj(p, &right);
           int cmp = p->ops->string.compare(p->interp, lo, ro);
           left = make_int(cmp < 0 ? 1 : 0);
         }
@@ -1247,8 +1247,8 @@ static ExprValue parse_comparison(ExprParser *p) {
           if (get_double(p, &left, &dlv) && get_double(p, &right, &drv)) {
             left = make_int(dlv < drv ? 1 : 0);
           } else {
-            TclObj lo = get_obj(p, &left);
-            TclObj ro = get_obj(p, &right);
+            FeatherObj lo = get_obj(p, &left);
+            FeatherObj ro = get_obj(p, &right);
             int cmp = p->ops->string.compare(p->interp, lo, ro);
             left = make_int(cmp < 0 ? 1 : 0);
           }
@@ -1264,8 +1264,8 @@ static ExprValue parse_comparison(ExprParser *p) {
         if (get_double(p, &left, &lv) && get_double(p, &right, &rv)) {
           left = make_int(lv >= rv ? 1 : 0);
         } else {
-          TclObj lo = get_obj(p, &left);
-          TclObj ro = get_obj(p, &right);
+          FeatherObj lo = get_obj(p, &left);
+          FeatherObj ro = get_obj(p, &right);
           int cmp = p->ops->string.compare(p->interp, lo, ro);
           left = make_int(cmp >= 0 ? 1 : 0);
         }
@@ -1278,8 +1278,8 @@ static ExprValue parse_comparison(ExprParser *p) {
           if (get_double(p, &left, &dlv) && get_double(p, &right, &drv)) {
             left = make_int(dlv >= drv ? 1 : 0);
           } else {
-            TclObj lo = get_obj(p, &left);
-            TclObj ro = get_obj(p, &right);
+            FeatherObj lo = get_obj(p, &left);
+            FeatherObj ro = get_obj(p, &right);
             int cmp = p->ops->string.compare(p->interp, lo, ro);
             left = make_int(cmp >= 0 ? 1 : 0);
           }
@@ -1295,8 +1295,8 @@ static ExprValue parse_comparison(ExprParser *p) {
         if (get_double(p, &left, &lv) && get_double(p, &right, &rv)) {
           left = make_int(lv > rv ? 1 : 0);
         } else {
-          TclObj lo = get_obj(p, &left);
-          TclObj ro = get_obj(p, &right);
+          FeatherObj lo = get_obj(p, &left);
+          FeatherObj ro = get_obj(p, &right);
           int cmp = p->ops->string.compare(p->interp, lo, ro);
           left = make_int(cmp > 0 ? 1 : 0);
         }
@@ -1309,8 +1309,8 @@ static ExprValue parse_comparison(ExprParser *p) {
           if (get_double(p, &left, &dlv) && get_double(p, &right, &drv)) {
             left = make_int(dlv > drv ? 1 : 0);
           } else {
-            TclObj lo = get_obj(p, &left);
-            TclObj ro = get_obj(p, &right);
+            FeatherObj lo = get_obj(p, &left);
+            FeatherObj ro = get_obj(p, &right);
             int cmp = p->ops->string.compare(p->interp, lo, ro);
             left = make_int(cmp > 0 ? 1 : 0);
           }
@@ -1322,14 +1322,14 @@ static ExprValue parse_comparison(ExprParser *p) {
       p->pos += 2;
       ExprValue right = parse_shift(p);
       if (p->has_error) return make_error();
-      TclObj needle = get_obj(p, &left);
-      TclObj haystack = get_obj(p, &right);
+      FeatherObj needle = get_obj(p, &left);
+      FeatherObj haystack = get_obj(p, &right);
       // Convert haystack to list and search
-      TclObj list = p->ops->list.from(p->interp, haystack);
+      FeatherObj list = p->ops->list.from(p->interp, haystack);
       size_t len = p->ops->list.length(p->interp, list);
       int found = 0;
       for (size_t i = 0; i < len; i++) {
-        TclObj elem = p->ops->list.at(p->interp, list, i);
+        FeatherObj elem = p->ops->list.at(p->interp, list, i);
         if (p->ops->string.compare(p->interp, needle, elem) == 0) {
           found = 1;
           break;
@@ -1340,14 +1340,14 @@ static ExprValue parse_comparison(ExprParser *p) {
       p->pos += 2;
       ExprValue right = parse_shift(p);
       if (p->has_error) return make_error();
-      TclObj needle = get_obj(p, &left);
-      TclObj haystack = get_obj(p, &right);
+      FeatherObj needle = get_obj(p, &left);
+      FeatherObj haystack = get_obj(p, &right);
       // Convert haystack to list and search
-      TclObj list = p->ops->list.from(p->interp, haystack);
+      FeatherObj list = p->ops->list.from(p->interp, haystack);
       size_t len = p->ops->list.length(p->interp, list);
       int found = 0;
       for (size_t i = 0; i < len; i++) {
-        TclObj elem = p->ops->list.at(p->interp, list, i);
+        FeatherObj elem = p->ops->list.at(p->interp, list, i);
         if (p->ops->string.compare(p->interp, needle, elem) == 0) {
           found = 1;
           break;
@@ -1376,16 +1376,16 @@ static ExprValue parse_equality(ExprParser *p) {
       p->pos += 2;
       ExprValue right = parse_comparison(p);
       if (p->has_error) return make_error();
-      TclObj lo = get_obj(p, &left);
-      TclObj ro = get_obj(p, &right);
+      FeatherObj lo = get_obj(p, &left);
+      FeatherObj ro = get_obj(p, &right);
       int cmp = p->ops->string.compare(p->interp, lo, ro);
       left = make_int(cmp == 0 ? 1 : 0);
     } else if (match_keyword(p, "ne", 2)) {
       p->pos += 2;
       ExprValue right = parse_comparison(p);
       if (p->has_error) return make_error();
-      TclObj lo = get_obj(p, &left);
-      TclObj ro = get_obj(p, &right);
+      FeatherObj lo = get_obj(p, &left);
+      FeatherObj ro = get_obj(p, &right);
       int cmp = p->ops->string.compare(p->interp, lo, ro);
       left = make_int(cmp != 0 ? 1 : 0);
     }
@@ -1400,8 +1400,8 @@ static ExprValue parse_equality(ExprParser *p) {
           left = make_int(lv == rv ? 1 : 0);
         } else {
           // Fall back to string comparison
-          TclObj lo = get_obj(p, &left);
-          TclObj ro = get_obj(p, &right);
+          FeatherObj lo = get_obj(p, &left);
+          FeatherObj ro = get_obj(p, &right);
           int cmp = p->ops->string.compare(p->interp, lo, ro);
           left = make_int(cmp == 0 ? 1 : 0);
         }
@@ -1416,8 +1416,8 @@ static ExprValue parse_equality(ExprParser *p) {
             left = make_int(dlv == drv ? 1 : 0);
           } else {
             // Fall back to string comparison
-            TclObj lo = get_obj(p, &left);
-            TclObj ro = get_obj(p, &right);
+            FeatherObj lo = get_obj(p, &left);
+            FeatherObj ro = get_obj(p, &right);
             int cmp = p->ops->string.compare(p->interp, lo, ro);
             left = make_int(cmp == 0 ? 1 : 0);
           }
@@ -1433,8 +1433,8 @@ static ExprValue parse_equality(ExprParser *p) {
           left = make_int(lv != rv ? 1 : 0);
         } else {
           // Fall back to string comparison
-          TclObj lo = get_obj(p, &left);
-          TclObj ro = get_obj(p, &right);
+          FeatherObj lo = get_obj(p, &left);
+          FeatherObj ro = get_obj(p, &right);
           int cmp = p->ops->string.compare(p->interp, lo, ro);
           left = make_int(cmp != 0 ? 1 : 0);
         }
@@ -1449,8 +1449,8 @@ static ExprValue parse_equality(ExprParser *p) {
             left = make_int(dlv != drv ? 1 : 0);
           } else {
             // Fall back to string comparison
-            TclObj lo = get_obj(p, &left);
-            TclObj ro = get_obj(p, &right);
+            FeatherObj lo = get_obj(p, &left);
+            FeatherObj ro = get_obj(p, &right);
             int cmp = p->ops->string.compare(p->interp, lo, ro);
             left = make_int(cmp != 0 ? 1 : 0);
           }
@@ -1690,24 +1690,24 @@ static ExprValue parse_ternary(ExprParser *p) {
   return cond;
 }
 
-TclResult tcl_builtin_expr(const TclHostOps *ops, TclInterp interp,
-                           TclObj cmd, TclObj args) {
+FeatherResult feather_builtin_expr(const FeatherHostOps *ops, FeatherInterp interp,
+                           FeatherObj cmd, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
 
   if (argc == 0) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
         "wrong # args: should be \"expr arg ?arg ...?\"", 44);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
   // Concatenate all arguments with spaces
-  TclObj expr_obj = ops->list.shift(interp, args);
+  FeatherObj expr_obj = ops->list.shift(interp, args);
   argc--;
 
   while (argc > 0) {
-    TclObj space = ops->string.intern(interp, " ", 1);
-    TclObj next = ops->list.shift(interp, args);
+    FeatherObj space = ops->string.intern(interp, " ", 1);
+    FeatherObj next = ops->list.shift(interp, args);
     expr_obj = ops->string.concat(interp, expr_obj, space);
     expr_obj = ops->string.concat(interp, expr_obj, next);
     argc--;
@@ -1749,7 +1749,7 @@ TclResult tcl_builtin_expr(const TclHostOps *ops, TclInterp interp,
   }
 
   // Return result
-  TclObj result_obj = get_obj(&parser, &result);
+  FeatherObj result_obj = get_obj(&parser, &result);
   ops->interp.set_result(interp, result_obj);
   return TCL_OK;
 }

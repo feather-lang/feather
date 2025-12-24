@@ -1,35 +1,35 @@
-#include "tclc.h"
+#include "feather.h"
 #include "internal.h"
 
 // Helper macro
-#define S(lit) (lit), tcl_strlen(lit)
+#define S(lit) (lit), feather_strlen(lit)
 
-TclResult tcl_builtin_error(const TclHostOps *ops, TclInterp interp,
-                             TclObj cmd, TclObj args) {
+FeatherResult feather_builtin_error(const FeatherHostOps *ops, FeatherInterp interp,
+                             FeatherObj cmd, FeatherObj args) {
   (void)cmd;
 
   size_t argc = ops->list.length(interp, args);
 
   // error message ?info? ?code?
   if (argc < 1 || argc > 3) {
-    TclObj msg = ops->string.intern(
+    FeatherObj msg = ops->string.intern(
         interp, S("wrong # args: should be \"error message ?info? ?code?\""));
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
   // Get the error message
-  TclObj message = ops->list.at(interp, args, 0);
+  FeatherObj message = ops->list.at(interp, args, 0);
 
   // Build return options dictionary
-  TclObj options = ops->list.create(interp);
+  FeatherObj options = ops->list.create(interp);
   options = ops->list.push(interp, options,
                            ops->string.intern(interp, S("-code")));
   options = ops->list.push(interp, options, ops->integer.create(interp, 1));
 
   // Add -errorinfo if provided
   if (argc >= 2) {
-    TclObj info = ops->list.at(interp, args, 1);
+    FeatherObj info = ops->list.at(interp, args, 1);
     options = ops->list.push(interp, options,
                              ops->string.intern(interp, S("-errorinfo")));
     options = ops->list.push(interp, options, info);
@@ -37,7 +37,7 @@ TclResult tcl_builtin_error(const TclHostOps *ops, TclInterp interp,
 
   // Add -errorcode if provided
   if (argc >= 3) {
-    TclObj code = ops->list.at(interp, args, 2);
+    FeatherObj code = ops->list.at(interp, args, 2);
     options = ops->list.push(interp, options,
                              ops->string.intern(interp, S("-errorcode")));
     options = ops->list.push(interp, options, code);

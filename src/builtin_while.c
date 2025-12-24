@@ -1,21 +1,21 @@
-#include "tclc.h"
+#include "feather.h"
 #include "internal.h"
 
 // Helper to evaluate a condition expression using expr
-static TclResult eval_while_condition(const TclHostOps *ops, TclInterp interp,
-                                       TclObj condition, int *result) {
+static FeatherResult eval_while_condition(const FeatherHostOps *ops, FeatherInterp interp,
+                                       FeatherObj condition, int *result) {
   // Build args list with the condition for expr
-  TclObj exprArgs = ops->list.create(interp);
+  FeatherObj exprArgs = ops->list.create(interp);
   exprArgs = ops->list.push(interp, exprArgs, condition);
 
   // Call expr builtin
-  TclObj exprCmd = ops->string.intern(interp, "expr", 4);
-  TclResult rc = tcl_builtin_expr(ops, interp, exprCmd, exprArgs);
+  FeatherObj exprCmd = ops->string.intern(interp, "expr", 4);
+  FeatherResult rc = feather_builtin_expr(ops, interp, exprCmd, exprArgs);
   if (rc != TCL_OK) {
     return rc;
   }
 
-  TclObj resultObj = ops->interp.get_result(interp);
+  FeatherObj resultObj = ops->interp.get_result(interp);
 
   // Check for boolean literals
   size_t len;
@@ -47,33 +47,33 @@ static TclResult eval_while_condition(const TclHostOps *ops, TclInterp interp,
   }
 
   // Invalid boolean expression
-  TclObj part1 = ops->string.intern(interp, "expected boolean value but got \"", 32);
-  TclObj part2 = ops->string.intern(interp, str, len);
-  TclObj part3 = ops->string.intern(interp, "\"", 1);
-  TclObj msg = ops->string.concat(interp, part1, part2);
+  FeatherObj part1 = ops->string.intern(interp, "expected boolean value but got \"", 32);
+  FeatherObj part2 = ops->string.intern(interp, str, len);
+  FeatherObj part3 = ops->string.intern(interp, "\"", 1);
+  FeatherObj msg = ops->string.concat(interp, part1, part2);
   msg = ops->string.concat(interp, msg, part3);
   ops->interp.set_result(interp, msg);
   return TCL_ERROR;
 }
 
-TclResult tcl_builtin_while(const TclHostOps *ops, TclInterp interp,
-                             TclObj cmd, TclObj args) {
+FeatherResult feather_builtin_while(const FeatherHostOps *ops, FeatherInterp interp,
+                             FeatherObj cmd, FeatherObj args) {
   (void)cmd;
   size_t argc = ops->list.length(interp, args);
 
   if (argc != 2) {
-    TclObj msg = ops->string.intern(interp, "wrong # args: should be \"while test command\"", 44);
+    FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"while test command\"", 44);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj condition = ops->list.shift(interp, args);
-  TclObj body = ops->list.shift(interp, args);
+  FeatherObj condition = ops->list.shift(interp, args);
+  FeatherObj body = ops->list.shift(interp, args);
 
   while (1) {
     // Evaluate condition
     int condResult;
-    TclResult rc = eval_while_condition(ops, interp, condition, &condResult);
+    FeatherResult rc = eval_while_condition(ops, interp, condition, &condResult);
     if (rc != TCL_OK) {
       return rc;
     }
@@ -84,7 +84,7 @@ TclResult tcl_builtin_while(const TclHostOps *ops, TclInterp interp,
     }
 
     // Execute body as a script
-    rc = tcl_script_eval_obj(ops, interp, body, TCL_EVAL_LOCAL);
+    rc = feather_script_eval_obj(ops, interp, body, TCL_EVAL_LOCAL);
 
     if (rc == TCL_BREAK) {
       // break was invoked - exit loop normally

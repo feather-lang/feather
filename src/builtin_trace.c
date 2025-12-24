@@ -1,11 +1,11 @@
 #include "internal.h"
-#include "tclc.h"
+#include "feather.h"
 
 /**
  * Helper to check if a string equals a literal.
  */
 static int str_eq(const char *s, size_t len, const char *lit) {
-  size_t lit_len = tcl_strlen(lit);
+  size_t lit_len = feather_strlen(lit);
   if (len != lit_len) {
     return 0;
   }
@@ -21,8 +21,8 @@ static int str_eq(const char *s, size_t len, const char *lit) {
  * trace add variable name ops script
  * trace add command name ops script
  */
-static TclResult trace_add(const TclHostOps *ops, TclInterp interp,
-                           TclObj args) {
+static FeatherResult trace_add(const FeatherHostOps *ops, FeatherInterp interp,
+                           FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc != 4) {
     ops->interp.set_result(
@@ -33,16 +33,16 @@ static TclResult trace_add(const TclHostOps *ops, TclInterp interp,
     return TCL_ERROR;
   }
 
-  TclObj kind = ops->list.at(interp, args, 0);
-  TclObj name = ops->list.at(interp, args, 1);
-  TclObj opsArg = ops->list.at(interp, args, 2);
-  TclObj script = ops->list.at(interp, args, 3);
+  FeatherObj kind = ops->list.at(interp, args, 0);
+  FeatherObj name = ops->list.at(interp, args, 1);
+  FeatherObj opsArg = ops->list.at(interp, args, 2);
+  FeatherObj script = ops->list.at(interp, args, 3);
 
   // Validate kind
   size_t kindLen;
   const char *kindStr = ops->string.get(interp, kind, &kindLen);
   if (!str_eq(kindStr, kindLen, "variable") && !str_eq(kindStr, kindLen, "command")) {
-    TclObj msg = ops->string.intern(interp, "bad type \"", 10);
+    FeatherObj msg = ops->string.intern(interp, "bad type \"", 10);
     msg = ops->string.concat(interp, msg, kind);
     msg = ops->string.concat(interp, msg,
                               ops->string.intern(interp, "\": must be command or variable", 30));
@@ -51,7 +51,7 @@ static TclResult trace_add(const TclHostOps *ops, TclInterp interp,
   }
 
   // Validate ops - it should be a list of valid operations
-  TclObj opsList = ops->list.from(interp, opsArg);
+  FeatherObj opsList = ops->list.from(interp, opsArg);
   size_t opsCount = ops->list.length(interp, opsList);
   if (opsCount == 0) {
     ops->interp.set_result(
@@ -61,19 +61,19 @@ static TclResult trace_add(const TclHostOps *ops, TclInterp interp,
   }
 
   // Build space-separated ops string for storage
-  TclObj opsString = ops->list.at(interp, opsList, 0);
+  FeatherObj opsString = ops->list.at(interp, opsList, 0);
   for (size_t i = 1; i < opsCount; i++) {
     opsString = ops->string.concat(interp, opsString, ops->string.intern(interp, " ", 1));
     opsString = ops->string.concat(interp, opsString, ops->list.at(interp, opsList, i));
   }
 
   // For command traces, normalize the name to fully qualified form
-  TclObj traceName = name;
+  FeatherObj traceName = name;
   if (str_eq(kindStr, kindLen, "command")) {
     size_t nameLen;
     const char *nameStr = ops->string.get(interp, name, &nameLen);
     // If unqualified, prepend ::
-    if (!tcl_is_qualified(nameStr, nameLen)) {
+    if (!feather_is_qualified(nameStr, nameLen)) {
       traceName = ops->string.intern(interp, "::", 2);
       traceName = ops->string.concat(interp, traceName, name);
     }
@@ -92,8 +92,8 @@ static TclResult trace_add(const TclHostOps *ops, TclInterp interp,
  * trace remove variable name ops script
  * trace remove command name ops script
  */
-static TclResult trace_remove(const TclHostOps *ops, TclInterp interp,
-                              TclObj args) {
+static FeatherResult trace_remove(const FeatherHostOps *ops, FeatherInterp interp,
+                              FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc != 4) {
     ops->interp.set_result(
@@ -104,16 +104,16 @@ static TclResult trace_remove(const TclHostOps *ops, TclInterp interp,
     return TCL_ERROR;
   }
 
-  TclObj kind = ops->list.at(interp, args, 0);
-  TclObj name = ops->list.at(interp, args, 1);
-  TclObj opsArg = ops->list.at(interp, args, 2);
-  TclObj script = ops->list.at(interp, args, 3);
+  FeatherObj kind = ops->list.at(interp, args, 0);
+  FeatherObj name = ops->list.at(interp, args, 1);
+  FeatherObj opsArg = ops->list.at(interp, args, 2);
+  FeatherObj script = ops->list.at(interp, args, 3);
 
   // Validate kind
   size_t kindLen;
   const char *kindStr = ops->string.get(interp, kind, &kindLen);
   if (!str_eq(kindStr, kindLen, "variable") && !str_eq(kindStr, kindLen, "command")) {
-    TclObj msg = ops->string.intern(interp, "bad type \"", 10);
+    FeatherObj msg = ops->string.intern(interp, "bad type \"", 10);
     msg = ops->string.concat(interp, msg, kind);
     msg = ops->string.concat(interp, msg,
                               ops->string.intern(interp, "\": must be command or variable", 30));
@@ -122,9 +122,9 @@ static TclResult trace_remove(const TclHostOps *ops, TclInterp interp,
   }
 
   // Build space-separated ops string
-  TclObj opsList = ops->list.from(interp, opsArg);
+  FeatherObj opsList = ops->list.from(interp, opsArg);
   size_t opsCount = ops->list.length(interp, opsList);
-  TclObj opsString = ops->string.intern(interp, "", 0);
+  FeatherObj opsString = ops->string.intern(interp, "", 0);
   if (opsCount > 0) {
     opsString = ops->list.at(interp, opsList, 0);
     for (size_t i = 1; i < opsCount; i++) {
@@ -134,11 +134,11 @@ static TclResult trace_remove(const TclHostOps *ops, TclInterp interp,
   }
 
   // For command traces, normalize the name to fully qualified form
-  TclObj traceName = name;
+  FeatherObj traceName = name;
   if (str_eq(kindStr, kindLen, "command")) {
     size_t nameLen;
     const char *nameStr = ops->string.get(interp, name, &nameLen);
-    if (!tcl_is_qualified(nameStr, nameLen)) {
+    if (!feather_is_qualified(nameStr, nameLen)) {
       traceName = ops->string.intern(interp, "::", 2);
       traceName = ops->string.concat(interp, traceName, name);
     }
@@ -156,8 +156,8 @@ static TclResult trace_remove(const TclHostOps *ops, TclInterp interp,
  * trace info variable name
  * trace info command name
  */
-static TclResult trace_info(const TclHostOps *ops, TclInterp interp,
-                            TclObj args) {
+static FeatherResult trace_info(const FeatherHostOps *ops, FeatherInterp interp,
+                            FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc != 2) {
     ops->interp.set_result(
@@ -168,14 +168,14 @@ static TclResult trace_info(const TclHostOps *ops, TclInterp interp,
     return TCL_ERROR;
   }
 
-  TclObj kind = ops->list.at(interp, args, 0);
-  TclObj name = ops->list.at(interp, args, 1);
+  FeatherObj kind = ops->list.at(interp, args, 0);
+  FeatherObj name = ops->list.at(interp, args, 1);
 
   // Validate kind
   size_t kindLen;
   const char *kindStr = ops->string.get(interp, kind, &kindLen);
   if (!str_eq(kindStr, kindLen, "variable") && !str_eq(kindStr, kindLen, "command")) {
-    TclObj msg = ops->string.intern(interp, "bad type \"", 10);
+    FeatherObj msg = ops->string.intern(interp, "bad type \"", 10);
     msg = ops->string.concat(interp, msg, kind);
     msg = ops->string.concat(interp, msg,
                               ops->string.intern(interp, "\": must be command or variable", 30));
@@ -184,24 +184,24 @@ static TclResult trace_info(const TclHostOps *ops, TclInterp interp,
   }
 
   // For command traces, normalize the name to fully qualified form
-  TclObj traceName = name;
+  FeatherObj traceName = name;
   if (str_eq(kindStr, kindLen, "command")) {
     size_t nameLen;
     const char *nameStr = ops->string.get(interp, name, &nameLen);
-    if (!tcl_is_qualified(nameStr, nameLen)) {
+    if (!feather_is_qualified(nameStr, nameLen)) {
       traceName = ops->string.intern(interp, "::", 2);
       traceName = ops->string.concat(interp, traceName, name);
     }
   }
 
   // Get trace info
-  TclObj info = ops->trace.info(interp, kind, traceName);
+  FeatherObj info = ops->trace.info(interp, kind, traceName);
   ops->interp.set_result(interp, info);
   return TCL_OK;
 }
 
-TclResult tcl_builtin_trace(const TclHostOps *ops, TclInterp interp,
-                            TclObj cmd, TclObj args) {
+FeatherResult feather_builtin_trace(const FeatherHostOps *ops, FeatherInterp interp,
+                            FeatherObj cmd, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
 
   if (argc == 0) {
@@ -214,7 +214,7 @@ TclResult tcl_builtin_trace(const TclHostOps *ops, TclInterp interp,
   }
 
   // Get subcommand
-  TclObj subcmd = ops->list.shift(interp, args);
+  FeatherObj subcmd = ops->list.shift(interp, args);
   size_t subcmdLen;
   const char *subcmdStr = ops->string.get(interp, subcmd, &subcmdLen);
 
@@ -229,7 +229,7 @@ TclResult tcl_builtin_trace(const TclHostOps *ops, TclInterp interp,
   }
 
   // Unknown subcommand
-  TclObj msg = ops->string.intern(
+  FeatherObj msg = ops->string.intern(
       interp,
       "unknown or ambiguous subcommand \"", 33);
   msg = ops->string.concat(interp, msg, subcmd);

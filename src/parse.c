@@ -1,4 +1,4 @@
-#include "tclc.h"
+#include "feather.h"
 
 static int is_whitespace(char c) {
   return c == ' ' || c == '\t';
@@ -202,9 +202,9 @@ static size_t process_backslash(const char *pos, const char *end,
  * Append a string segment to the current word being built.
  * If word is nil, creates a new string. Otherwise concatenates.
  */
-static TclObj append_to_word(const TclHostOps *ops, TclInterp interp,
-                             TclObj word, const char *s, size_t len) {
-  TclObj segment = ops->string.intern(interp, s, len);
+static FeatherObj append_to_word(const FeatherHostOps *ops, FeatherInterp interp,
+                             FeatherObj word, const char *s, size_t len) {
+  FeatherObj segment = ops->string.intern(interp, s, len);
   if (ops->list.is_nil(interp, word)) {
     return segment;
   }
@@ -285,9 +285,9 @@ static const char *find_matching_bracket(const char *pos, const char *end) {
  * Appends the variable value to word via word_out.
  * Returns TCL_OK on success, TCL_ERROR if variable doesn't exist.
  */
-static TclResult substitute_variable(const TclHostOps *ops, TclInterp interp,
+static FeatherResult substitute_variable(const FeatherHostOps *ops, FeatherInterp interp,
                                      const char *pos, const char *end,
-                                     TclObj word, TclObj *word_out,
+                                     FeatherObj word, FeatherObj *word_out,
                                      size_t *consumed_out) {
   if (pos >= end) {
     // Just a $ at end - treat as literal
@@ -313,10 +313,10 @@ static TclResult substitute_variable(const TclHostOps *ops, TclInterp interp,
     size_t name_len = p - name_start;
 
     // Resolve the variable name (handles qualified names)
-    TclObj ns, localName;
-    tcl_resolve_variable(ops, interp, name_start, name_len, &ns, &localName);
+    FeatherObj ns, localName;
+    feather_resolve_variable(ops, interp, name_start, name_len, &ns, &localName);
 
-    TclObj value;
+    FeatherObj value;
     if (ops->list.is_nil(interp, ns)) {
       // Unqualified - frame-local lookup
       value = ops->var.get(interp, localName);
@@ -327,10 +327,10 @@ static TclResult substitute_variable(const TclHostOps *ops, TclInterp interp,
 
     if (ops->list.is_nil(interp, value)) {
       // Variable not found - raise error
-      TclObj msg1 = ops->string.intern(interp, "can't read \"", 12);
-      TclObj msg2 = ops->string.intern(interp, name_start, name_len);
-      TclObj msg3 = ops->string.intern(interp, "\": no such variable", 19);
-      TclObj msg = ops->string.concat(interp, msg1, msg2);
+      FeatherObj msg1 = ops->string.intern(interp, "can't read \"", 12);
+      FeatherObj msg2 = ops->string.intern(interp, name_start, name_len);
+      FeatherObj msg3 = ops->string.intern(interp, "\": no such variable", 19);
+      FeatherObj msg = ops->string.concat(interp, msg1, msg2);
       msg = ops->string.concat(interp, msg, msg3);
       ops->interp.set_result(interp, msg);
       return TCL_ERROR;
@@ -359,10 +359,10 @@ static TclResult substitute_variable(const TclHostOps *ops, TclInterp interp,
     size_t name_len = p - name_start;
 
     // Resolve the variable name (handles qualified names)
-    TclObj ns, localName;
-    tcl_resolve_variable(ops, interp, name_start, name_len, &ns, &localName);
+    FeatherObj ns, localName;
+    feather_resolve_variable(ops, interp, name_start, name_len, &ns, &localName);
 
-    TclObj value;
+    FeatherObj value;
     if (ops->list.is_nil(interp, ns)) {
       // Unqualified - frame-local lookup
       value = ops->var.get(interp, localName);
@@ -373,10 +373,10 @@ static TclResult substitute_variable(const TclHostOps *ops, TclInterp interp,
 
     if (ops->list.is_nil(interp, value)) {
       // Variable not found - raise error
-      TclObj msg1 = ops->string.intern(interp, "can't read \"", 12);
-      TclObj msg2 = ops->string.intern(interp, name_start, name_len);
-      TclObj msg3 = ops->string.intern(interp, "\": no such variable", 19);
-      TclObj msg = ops->string.concat(interp, msg1, msg2);
+      FeatherObj msg1 = ops->string.intern(interp, "can't read \"", 12);
+      FeatherObj msg2 = ops->string.intern(interp, name_start, name_len);
+      FeatherObj msg3 = ops->string.intern(interp, "\": no such variable", 19);
+      FeatherObj msg = ops->string.concat(interp, msg1, msg2);
       msg = ops->string.concat(interp, msg, msg3);
       ops->interp.set_result(interp, msg);
       return TCL_ERROR;
@@ -401,20 +401,20 @@ static TclResult substitute_variable(const TclHostOps *ops, TclInterp interp,
  * Appends the command result to word via word_out.
  * Returns -1 on error (sets status).
  */
-static int substitute_command(const TclHostOps *ops, TclInterp interp,
+static int substitute_command(const FeatherHostOps *ops, FeatherInterp interp,
                               const char *script, size_t script_len,
                               const char *pos, const char *end,
-                              TclObj word, TclObj *word_out,
-                              TclParseStatus *status) {
+                              FeatherObj word, FeatherObj *word_out,
+                              FeatherParseStatus *status) {
   const char *bracket_start = pos - 1; // points to '['
   const char *close = find_matching_bracket(pos, end);
 
   if (close == NULL) {
     // Unclosed bracket
-    TclObj result = ops->list.create(interp);
-    TclObj incomplete = ops->string.intern(interp, "INCOMPLETE", 10);
-    TclObj start_pos = ops->integer.create(interp, (int64_t)(bracket_start - script));
-    TclObj end_pos = ops->integer.create(interp, (int64_t)script_len);
+    FeatherObj result = ops->list.create(interp);
+    FeatherObj incomplete = ops->string.intern(interp, "INCOMPLETE", 10);
+    FeatherObj start_pos = ops->integer.create(interp, (int64_t)(bracket_start - script));
+    FeatherObj end_pos = ops->integer.create(interp, (int64_t)script_len);
     result = ops->list.push(interp, result, incomplete);
     result = ops->list.push(interp, result, start_pos);
     result = ops->list.push(interp, result, end_pos);
@@ -425,7 +425,7 @@ static int substitute_command(const TclHostOps *ops, TclInterp interp,
 
   // Extract and evaluate the script between brackets
   size_t cmd_len = close - pos;
-  TclResult eval_result = tcl_script_eval(ops, interp, pos, cmd_len, TCL_EVAL_LOCAL);
+  FeatherResult eval_result = feather_script_eval(ops, interp, pos, cmd_len, TCL_EVAL_LOCAL);
 
   if (eval_result != TCL_OK) {
     *status = TCL_PARSE_ERROR;
@@ -433,7 +433,7 @@ static int substitute_command(const TclHostOps *ops, TclInterp interp,
   }
 
   // Get the result and append to word
-  TclObj cmd_result = ops->interp.get_result(interp);
+  FeatherObj cmd_result = ops->interp.get_result(interp);
   if (!ops->list.is_nil(interp, cmd_result)) {
     size_t result_len;
     const char *result_str = ops->string.get(interp, cmd_result, &result_len);
@@ -445,7 +445,7 @@ static int substitute_command(const TclHostOps *ops, TclInterp interp,
   return (close - pos) + 1; // +1 for closing bracket
 }
 
-void tcl_parse_init(TclParseContext *ctx, const char *script, size_t len) {
+void feather_parse_init(FeatherParseContext *ctx, const char *script, size_t len) {
   ctx->script = script;
   ctx->len = len;
   ctx->pos = 0;
@@ -471,7 +471,7 @@ static size_t skip_list_whitespace(const char *s, size_t len, size_t pos) {
  * Returns the parsed element, or nil if at end.
  * Updates pos to point past the parsed element.
  */
-static TclObj parse_list_element(const TclHostOps *ops, TclInterp interp,
+static FeatherObj parse_list_element(const FeatherHostOps *ops, FeatherInterp interp,
                                   const char *s, size_t len, size_t *pos) {
   // Skip leading whitespace
   *pos = skip_list_whitespace(s, len, *pos);
@@ -482,7 +482,7 @@ static TclObj parse_list_element(const TclHostOps *ops, TclInterp interp,
 
   const char *p = s + *pos;
   const char *end = s + len;
-  TclObj word = 0;
+  FeatherObj word = 0;
 
   if (*p == '{') {
     // Braced element - content is literal, braces nest
@@ -548,13 +548,13 @@ static TclObj parse_list_element(const TclHostOps *ops, TclInterp interp,
 /**
  * Parse a string as a TCL list and return a list of elements.
  */
-static TclObj parse_as_list(const TclHostOps *ops, TclInterp interp,
+static FeatherObj parse_as_list(const FeatherHostOps *ops, FeatherInterp interp,
                             const char *s, size_t len) {
-  TclObj result = ops->list.create(interp);
+  FeatherObj result = ops->list.create(interp);
   size_t pos = 0;
 
   while (pos < len) {
-    TclObj elem = parse_list_element(ops, interp, s, len, &pos);
+    FeatherObj elem = parse_list_element(ops, interp, s, len, &pos);
     if (ops->list.is_nil(interp, elem)) {
       break;
     }
@@ -610,12 +610,12 @@ static size_t skip_whitespace_and_comments(const char *script, size_t len, size_
  * Updates pos to point past the parsed word.
  * Returns the parsed word, or sets error in interp and returns 0.
  */
-static TclObj parse_word(const TclHostOps *ops, TclInterp interp,
+static FeatherObj parse_word(const FeatherHostOps *ops, FeatherInterp interp,
                          const char *script, size_t len, size_t *pos,
-                         TclParseStatus *status) {
+                         FeatherParseStatus *status) {
   const char *p = script + *pos;
   const char *end = script + len;
-  TclObj word = 0;
+  FeatherObj word = 0;
   const char *word_start = p;
 
   while (p < end && !is_word_terminator(*p)) {
@@ -642,10 +642,10 @@ static TclObj parse_word(const TclHostOps *ops, TclInterp interp,
 
       if (depth > 0) {
         // Unclosed braces
-        TclObj result = ops->list.create(interp);
-        TclObj incomplete = ops->string.intern(interp, "INCOMPLETE", 10);
-        TclObj start_pos = ops->integer.create(interp, (int64_t)(brace_start - script));
-        TclObj end_pos = ops->integer.create(interp, (int64_t)len);
+        FeatherObj result = ops->list.create(interp);
+        FeatherObj incomplete = ops->string.intern(interp, "INCOMPLETE", 10);
+        FeatherObj start_pos = ops->integer.create(interp, (int64_t)(brace_start - script));
+        FeatherObj end_pos = ops->integer.create(interp, (int64_t)len);
         result = ops->list.push(interp, result, incomplete);
         result = ops->list.push(interp, result, start_pos);
         result = ops->list.push(interp, result, end_pos);
@@ -656,11 +656,11 @@ static TclObj parse_word(const TclHostOps *ops, TclInterp interp,
 
       // Check for extra characters after close brace
       if (p < end && !is_word_terminator(*p)) {
-        TclObj result = ops->list.create(interp);
-        TclObj error_tag = ops->string.intern(interp, "ERROR", 5);
-        TclObj start_pos = ops->integer.create(interp, (int64_t)(brace_start - script));
-        TclObj end_pos = ops->integer.create(interp, (int64_t)len);
-        TclObj msg = ops->string.intern(interp, "extra characters after close-brace", 34);
+        FeatherObj result = ops->list.create(interp);
+        FeatherObj error_tag = ops->string.intern(interp, "ERROR", 5);
+        FeatherObj start_pos = ops->integer.create(interp, (int64_t)(brace_start - script));
+        FeatherObj end_pos = ops->integer.create(interp, (int64_t)len);
+        FeatherObj msg = ops->string.intern(interp, "extra characters after close-brace", 34);
         result = ops->list.push(interp, result, error_tag);
         result = ops->list.push(interp, result, start_pos);
         result = ops->list.push(interp, result, end_pos);
@@ -725,10 +725,10 @@ static TclObj parse_word(const TclHostOps *ops, TclInterp interp,
 
       if (p >= end) {
         // Unclosed quotes
-        TclObj result = ops->list.create(interp);
-        TclObj incomplete = ops->string.intern(interp, "INCOMPLETE", 10);
-        TclObj start_pos = ops->integer.create(interp, (int64_t)(quote_start - script));
-        TclObj end_pos = ops->integer.create(interp, (int64_t)len);
+        FeatherObj result = ops->list.create(interp);
+        FeatherObj incomplete = ops->string.intern(interp, "INCOMPLETE", 10);
+        FeatherObj start_pos = ops->integer.create(interp, (int64_t)(quote_start - script));
+        FeatherObj end_pos = ops->integer.create(interp, (int64_t)len);
         result = ops->list.push(interp, result, incomplete);
         result = ops->list.push(interp, result, start_pos);
         result = ops->list.push(interp, result, end_pos);
@@ -745,11 +745,11 @@ static TclObj parse_word(const TclHostOps *ops, TclInterp interp,
 
       // Check for extra characters after close quote
       if (p < end && !is_word_terminator(*p)) {
-        TclObj result = ops->list.create(interp);
-        TclObj error_tag = ops->string.intern(interp, "ERROR", 5);
-        TclObj start_pos = ops->integer.create(interp, (int64_t)(quote_start - script));
-        TclObj end_pos = ops->integer.create(interp, (int64_t)len);
-        TclObj msg = ops->string.intern(interp, "extra characters after close-quote", 34);
+        FeatherObj result = ops->list.create(interp);
+        FeatherObj error_tag = ops->string.intern(interp, "ERROR", 5);
+        FeatherObj start_pos = ops->integer.create(interp, (int64_t)(quote_start - script));
+        FeatherObj end_pos = ops->integer.create(interp, (int64_t)len);
+        FeatherObj msg = ops->string.intern(interp, "extra characters after close-quote", 34);
         result = ops->list.push(interp, result, error_tag);
         result = ops->list.push(interp, result, start_pos);
         result = ops->list.push(interp, result, end_pos);
@@ -822,18 +822,18 @@ static TclObj parse_word(const TclHostOps *ops, TclInterp interp,
 }
 
 /**
- * tcl_subst performs substitutions on a string.
+ * feather_subst performs substitutions on a string.
  *
  * This is a standalone substitution function that can be used by:
  * - The expression parser for quoted strings
  * - The subst builtin command
  * - Any code needing TCL-style substitution
  */
-TclResult tcl_subst(const TclHostOps *ops, TclInterp interp,
+FeatherResult feather_subst(const FeatherHostOps *ops, FeatherInterp interp,
                     const char *str, size_t len, int flags) {
   const char *p = str;
   const char *end = str + len;
-  TclObj result = 0;  // nil initially
+  FeatherObj result = 0;  // nil initially
   const char *seg_start = p;
 
   while (p < end) {
@@ -876,20 +876,20 @@ TclResult tcl_subst(const TclHostOps *ops, TclInterp interp,
       const char *close = find_matching_bracket(p, end);
       if (close == NULL) {
         // Unclosed bracket - error
-        TclObj msg = ops->string.intern(interp, "missing close-bracket", 21);
+        FeatherObj msg = ops->string.intern(interp, "missing close-bracket", 21);
         ops->interp.set_result(interp, msg);
         return TCL_ERROR;
       }
 
       // Evaluate the command between brackets
       size_t cmd_len = close - p;
-      TclResult eval_result = tcl_script_eval(ops, interp, p, cmd_len, TCL_EVAL_LOCAL);
+      FeatherResult eval_result = feather_script_eval(ops, interp, p, cmd_len, TCL_EVAL_LOCAL);
       if (eval_result != TCL_OK) {
         return TCL_ERROR;
       }
 
       // Append command result
-      TclObj cmd_result = ops->interp.get_result(interp);
+      FeatherObj cmd_result = ops->interp.get_result(interp);
       if (!ops->list.is_nil(interp, cmd_result)) {
         size_t result_len;
         const char *result_str = ops->string.get(interp, cmd_result, &result_len);
@@ -918,8 +918,8 @@ TclResult tcl_subst(const TclHostOps *ops, TclInterp interp,
   return TCL_OK;
 }
 
-TclParseStatus tcl_parse_command(const TclHostOps *ops, TclInterp interp,
-                                  TclParseContext *ctx) {
+FeatherParseStatus feather_parse_command(const FeatherHostOps *ops, FeatherInterp interp,
+                                  FeatherParseContext *ctx) {
   const char *script = ctx->script;
   size_t len = ctx->len;
 
@@ -945,7 +945,7 @@ TclParseStatus tcl_parse_command(const TclHostOps *ops, TclInterp interp,
   }
 
   // Create a list to hold the words
-  TclObj words = ops->list.create(interp);
+  FeatherObj words = ops->list.create(interp);
 
   // Parse words until command terminator
   while (ctx->pos < len) {
@@ -993,8 +993,8 @@ TclParseStatus tcl_parse_command(const TclHostOps *ops, TclInterp interp,
     }
 
     // Parse a word
-    TclParseStatus status;
-    TclObj word = parse_word(ops, interp, script, len, &ctx->pos, &status);
+    FeatherParseStatus status;
+    FeatherObj word = parse_word(ops, interp, script, len, &ctx->pos, &status);
     if (status != TCL_PARSE_OK) {
       return status;
     }
@@ -1004,12 +1004,12 @@ TclParseStatus tcl_parse_command(const TclHostOps *ops, TclInterp interp,
         // Parse word as a list and add each element
         size_t word_len;
         const char *word_str = ops->string.get(interp, word, &word_len);
-        TclObj list = parse_as_list(ops, interp, word_str, word_len);
+        FeatherObj list = parse_as_list(ops, interp, word_str, word_len);
 
         // Add each list element to words
         size_t list_len = ops->list.length(interp, list);
         for (size_t i = 0; i < list_len; i++) {
-          TclObj elem = ops->list.shift(interp, list);
+          FeatherObj elem = ops->list.shift(interp, list);
           if (!ops->list.is_nil(interp, elem)) {
             words = ops->list.push(interp, words, elem);
           }

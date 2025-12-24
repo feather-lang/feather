@@ -8,7 +8,7 @@
 This repository holds a minimal, clean implementation of the TCL core language, suitable
 for embedding into modern applications.
 
-Omissions from Tcl 9:
+Omissions from Feather 9:
 
 - I/O functions,
 - an event loop,
@@ -121,7 +121,7 @@ After step 3, I deleted everything and started from scratch, DHH style:
 1. A long conversation with Opus 4.5 in the Claude Desktop app (see [./initial-consultation.md](./initial-consultation.md));
 2. Define the scope: from the slop phase I realized I don't want all
    of TCL, but a subset;
-3. TYPE OUT THE INTERFACE in [src/tclc.h](./src/tclc.h) -- this actually made me spot more holes in the design and keep a good mental model of the system;
+3. TYPE OUT THE INTERFACE in [src/feather.h](./src/tclc.h) -- this actually made me spot more holes in the design and keep a good mental model of the system;
 4. Building out a test harness;
 5. Defining a roadmap for features of increasing complexity, to tackle
    all of the challenges that have implications for the core interpreter.

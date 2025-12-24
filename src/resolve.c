@@ -1,6 +1,6 @@
-#include "tclc.h"
+#include "feather.h"
 
-int tcl_is_qualified(const char *name, size_t len) {
+int feather_is_qualified(const char *name, size_t len) {
   // Look for "::" anywhere in the name
   for (size_t i = 0; i + 1 < len; i++) {
     if (name[i] == ':' && name[i + 1] == ':') {
@@ -10,11 +10,11 @@ int tcl_is_qualified(const char *name, size_t len) {
   return 0;
 }
 
-TclResult tcl_resolve_variable(const TclHostOps *ops, TclInterp interp,
+FeatherResult feather_resolve_variable(const FeatherHostOps *ops, FeatherInterp interp,
                                const char *name, size_t len,
-                               TclObj *ns_out, TclObj *local_out) {
+                               FeatherObj *ns_out, FeatherObj *local_out) {
   // Find if name contains "::"
-  if (!tcl_is_qualified(name, len)) {
+  if (!feather_is_qualified(name, len)) {
     // Case 1: Unqualified - just a local variable
     *ns_out = 0; // nil
     *local_out = ops->string.intern(interp, name, len);
@@ -32,7 +32,7 @@ TclResult tcl_resolve_variable(const TclHostOps *ops, TclInterp interp,
   }
 
   if (!found) {
-    // Shouldn't happen since tcl_is_qualified returned true
+    // Shouldn't happen since feather_is_qualified returned true
     *ns_out = 0;
     *local_out = ops->string.intern(interp, name, len);
     return TCL_OK;
@@ -74,7 +74,7 @@ TclResult tcl_resolve_variable(const TclHostOps *ops, TclInterp interp,
   }
 
   // Case 3: Relative path - prepend current namespace
-  TclObj current_ns = ops->ns.current(interp);
+  FeatherObj current_ns = ops->ns.current(interp);
   size_t current_len;
   const char *current_str = ops->string.get(interp, current_ns, &current_len);
 
@@ -87,27 +87,27 @@ TclResult tcl_resolve_variable(const TclHostOps *ops, TclInterp interp,
 
   if (current_len == 2 && current_str[0] == ':' && current_str[1] == ':') {
     // Current is global, just prepend "::"
-    TclObj prefix = ops->string.intern(interp, "::", 2);
-    TclObj rel_part = ops->string.intern(interp, name, rel_ns_len);
+    FeatherObj prefix = ops->string.intern(interp, "::", 2);
+    FeatherObj rel_part = ops->string.intern(interp, name, rel_ns_len);
     *ns_out = ops->string.concat(interp, prefix, rel_part);
   } else {
     // Current is something like "::bar", append "::foo"
-    TclObj sep = ops->string.intern(interp, "::", 2);
-    TclObj rel_part = ops->string.intern(interp, name, rel_ns_len);
-    TclObj full = ops->string.concat(interp, current_ns, sep);
+    FeatherObj sep = ops->string.intern(interp, "::", 2);
+    FeatherObj rel_part = ops->string.intern(interp, name, rel_ns_len);
+    FeatherObj full = ops->string.concat(interp, current_ns, sep);
     *ns_out = ops->string.concat(interp, full, rel_part);
   }
 
   return TCL_OK;
 }
 
-TclResult tcl_split_command(const TclHostOps *ops, TclInterp interp,
-                            TclObj qualified, TclObj *ns_out, TclObj *name_out) {
+FeatherResult feather_split_command(const FeatherHostOps *ops, FeatherInterp interp,
+                            FeatherObj qualified, FeatherObj *ns_out, FeatherObj *name_out) {
   size_t len;
   const char *name = ops->string.get(interp, qualified, &len);
 
   // Find if name contains "::"
-  if (!tcl_is_qualified(name, len)) {
+  if (!feather_is_qualified(name, len)) {
     // Unqualified - just a command name, no namespace part
     *ns_out = 0; // nil
     *name_out = qualified;
@@ -165,7 +165,7 @@ TclResult tcl_split_command(const TclHostOps *ops, TclInterp interp,
   }
 
   // Relative path - prepend current namespace
-  TclObj current_ns = ops->ns.current(interp);
+  FeatherObj current_ns = ops->ns.current(interp);
   size_t current_len;
   const char *current_str = ops->string.get(interp, current_ns, &current_len);
 
@@ -174,14 +174,14 @@ TclResult tcl_split_command(const TclHostOps *ops, TclInterp interp,
 
   if (current_len == 2 && current_str[0] == ':' && current_str[1] == ':') {
     // Current is global, just prepend "::"
-    TclObj prefix = ops->string.intern(interp, "::", 2);
-    TclObj rel_part = ops->string.intern(interp, name, rel_ns_len);
+    FeatherObj prefix = ops->string.intern(interp, "::", 2);
+    FeatherObj rel_part = ops->string.intern(interp, name, rel_ns_len);
     *ns_out = ops->string.concat(interp, prefix, rel_part);
   } else {
     // Current is something like "::bar", append "::foo"
-    TclObj sep = ops->string.intern(interp, "::", 2);
-    TclObj rel_part = ops->string.intern(interp, name, rel_ns_len);
-    TclObj full = ops->string.concat(interp, current_ns, sep);
+    FeatherObj sep = ops->string.intern(interp, "::", 2);
+    FeatherObj rel_part = ops->string.intern(interp, name, rel_ns_len);
+    FeatherObj full = ops->string.concat(interp, current_ns, sep);
     *ns_out = ops->string.concat(interp, full, rel_part);
   }
 

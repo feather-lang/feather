@@ -1,38 +1,38 @@
-#include "tclc.h"
+#include "feather.h"
 #include "internal.h"
 
 // Helper macro
-#define S(lit) (lit), tcl_strlen(lit)
+#define S(lit) (lit), feather_strlen(lit)
 
-TclResult tcl_builtin_throw(const TclHostOps *ops, TclInterp interp,
-                             TclObj cmd, TclObj args) {
+FeatherResult feather_builtin_throw(const FeatherHostOps *ops, FeatherInterp interp,
+                             FeatherObj cmd, FeatherObj args) {
   (void)cmd;
 
   size_t argc = ops->list.length(interp, args);
 
   // throw type message
   if (argc != 2) {
-    TclObj msg = ops->string.intern(
+    FeatherObj msg = ops->string.intern(
         interp, S("wrong # args: should be \"throw type message\""));
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
   // Get the type (error code list) and message
-  TclObj type = ops->list.at(interp, args, 0);
-  TclObj message = ops->list.at(interp, args, 1);
+  FeatherObj type = ops->list.at(interp, args, 0);
+  FeatherObj message = ops->list.at(interp, args, 1);
 
   // Verify type is non-empty
-  TclObj typeList = ops->list.from(interp, type);
+  FeatherObj typeList = ops->list.from(interp, type);
   size_t typeLen = ops->list.length(interp, typeList);
   if (typeLen == 0) {
-    TclObj msg = ops->string.intern(interp, S("type must be non-empty"));
+    FeatherObj msg = ops->string.intern(interp, S("type must be non-empty"));
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
   // Build return options dictionary
-  TclObj options = ops->list.create(interp);
+  FeatherObj options = ops->list.create(interp);
   options = ops->list.push(interp, options,
                            ops->string.intern(interp, S("-code")));
   options = ops->list.push(interp, options, ops->integer.create(interp, 1));

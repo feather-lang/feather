@@ -1,18 +1,18 @@
-#include "tclc.h"
+#include "feather.h"
 #include "internal.h"
 
 // Helper macro
-#define S(lit) (lit), tcl_strlen(lit)
+#define S(lit) (lit), feather_strlen(lit)
 
-TclResult tcl_builtin_catch(const TclHostOps *ops, TclInterp interp,
-                             TclObj cmd, TclObj args) {
+FeatherResult feather_builtin_catch(const FeatherHostOps *ops, FeatherInterp interp,
+                             FeatherObj cmd, FeatherObj args) {
   (void)cmd;
 
   size_t argc = ops->list.length(interp, args);
 
   // catch script ?resultVar? ?optionsVar?
   if (argc < 1 || argc > 3) {
-    TclObj msg = ops->string.intern(
+    FeatherObj msg = ops->string.intern(
         interp,
         S("wrong # args: should be \"catch script ?resultVar? ?optionsVar?\""));
     ops->interp.set_result(interp, msg);
@@ -20,15 +20,15 @@ TclResult tcl_builtin_catch(const TclHostOps *ops, TclInterp interp,
   }
 
   // Get the script to evaluate
-  TclObj script = ops->list.at(interp, args, 0);
+  FeatherObj script = ops->list.at(interp, args, 0);
 
   // Evaluate the script object
-  TclResult code = tcl_script_eval_obj(ops, interp, script, TCL_EVAL_LOCAL);
+  FeatherResult code = feather_script_eval_obj(ops, interp, script, TCL_EVAL_LOCAL);
 
   // Handle TCL_RETURN specially - unwrap to get the actual code
   if (code == TCL_RETURN) {
     // Get the return options
-    TclObj opts = ops->interp.get_return_options(interp, code);
+    FeatherObj opts = ops->interp.get_return_options(interp, code);
 
     // Parse -code and -level from the options list
     // Options list format: {-code X -level Y}
@@ -36,11 +36,11 @@ TclResult tcl_builtin_catch(const TclHostOps *ops, TclInterp interp,
     int level = 1;
 
     size_t optsLen = ops->list.length(interp, opts);
-    TclObj optsCopy = ops->list.from(interp, opts);
+    FeatherObj optsCopy = ops->list.from(interp, opts);
 
     for (size_t i = 0; i + 1 < optsLen; i += 2) {
-      TclObj key = ops->list.shift(interp, optsCopy);
-      TclObj val = ops->list.shift(interp, optsCopy);
+      FeatherObj key = ops->list.shift(interp, optsCopy);
+      FeatherObj val = ops->list.shift(interp, optsCopy);
 
       size_t keyLen;
       const char *keyStr = ops->string.get(interp, key, &keyLen);
@@ -65,24 +65,24 @@ TclResult tcl_builtin_catch(const TclHostOps *ops, TclInterp interp,
     level--;
     if (level <= 0) {
       // Level reached 0, use the actual -code
-      code = (TclResult)returnCode;
+      code = (FeatherResult)returnCode;
     }
     // If level > 0, keep code as TCL_RETURN (2)
   }
 
   // Get the result (either normal result or error message)
-  TclObj result = ops->interp.get_result(interp);
+  FeatherObj result = ops->interp.get_result(interp);
 
   // If resultVar is provided, store the result in it
   if (argc >= 2) {
-    TclObj varName = ops->list.at(interp, args, 1);
+    FeatherObj varName = ops->list.at(interp, args, 1);
     ops->var.set(interp, varName, result);
   }
 
   // If optionsVar is provided, store the return options in it
   if (argc >= 3) {
-    TclObj optionsVar = ops->list.at(interp, args, 2);
-    TclObj options = ops->interp.get_return_options(interp, code);
+    FeatherObj optionsVar = ops->list.at(interp, args, 2);
+    FeatherObj options = ops->interp.get_return_options(interp, code);
 
     // If no return options were explicitly set, create default ones
     if (ops->list.is_nil(interp, options)) {
@@ -95,7 +95,7 @@ TclResult tcl_builtin_catch(const TclHostOps *ops, TclInterp interp,
   }
 
   // Return the code as an integer result
-  TclObj codeResult = ops->integer.create(interp, (int64_t)code);
+  FeatherObj codeResult = ops->integer.create(interp, (int64_t)code);
   ops->interp.set_result(interp, codeResult);
 
   return TCL_OK;

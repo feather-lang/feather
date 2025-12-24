@@ -1,12 +1,12 @@
-#include "tclc.h"
+#include "feather.h"
 
-TclResult tcl_builtin_continue(const TclHostOps *ops, TclInterp interp,
-                                TclObj cmd, TclObj args) {
+FeatherResult feather_builtin_continue(const FeatherHostOps *ops, FeatherInterp interp,
+                                FeatherObj cmd, FeatherObj args) {
   (void)cmd;
   size_t argc = ops->list.length(interp, args);
 
   if (argc != 0) {
-    TclObj msg = ops->string.intern(interp, "wrong # args: should be \"continue\"", 35);
+    FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"continue\"", 35);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }

@@ -1,12 +1,12 @@
 #include "internal.h"
-#include "tclc.h"
+#include "feather.h"
 
 /**
  * Helper to get the display name for a command.
  * Strips leading "::" for global namespace commands (e.g., "::set" -> "set")
  * but preserves the full path for nested namespaces (e.g., "::foo::bar" stays as-is).
  */
-static TclObj get_display_name(const TclHostOps *ops, TclInterp interp, TclObj name) {
+static FeatherObj get_display_name(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj name) {
   size_t len;
   const char *str = ops->string.get(interp, name, &len);
 
@@ -29,7 +29,7 @@ static TclObj get_display_name(const TclHostOps *ops, TclInterp interp, TclObj n
  * Helper to check if a string equals a literal.
  */
 static int str_eq(const char *s, size_t len, const char *lit) {
-  size_t lit_len = tcl_strlen(lit);
+  size_t lit_len = feather_strlen(lit);
   if (len != lit_len) {
     return 0;
   }
@@ -44,8 +44,8 @@ static int str_eq(const char *s, size_t len, const char *lit) {
 /**
  * info exists varName
  */
-static TclResult info_exists(const TclHostOps *ops, TclInterp interp,
-                             TclObj args) {
+static FeatherResult info_exists(const FeatherHostOps *ops, FeatherInterp interp,
+                             FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc != 1) {
     ops->interp.set_result(
@@ -54,13 +54,13 @@ static TclResult info_exists(const TclHostOps *ops, TclInterp interp,
     return TCL_ERROR;
   }
 
-  TclObj varName = ops->list.at(interp, args, 0);
+  FeatherObj varName = ops->list.at(interp, args, 0);
   size_t nameLen;
   const char *nameStr = ops->string.get(interp, varName, &nameLen);
 
   // Resolve the variable name (handles qualified names)
-  TclObj ns, localName;
-  tcl_resolve_variable(ops, interp, nameStr, nameLen, &ns, &localName);
+  FeatherObj ns, localName;
+  feather_resolve_variable(ops, interp, nameStr, nameLen, &ns, &localName);
 
   int exists;
   if (ops->list.is_nil(interp, ns)) {
@@ -78,8 +78,8 @@ static TclResult info_exists(const TclHostOps *ops, TclInterp interp,
 /**
  * info level ?number?
  */
-static TclResult info_level(const TclHostOps *ops, TclInterp interp,
-                            TclObj args) {
+static FeatherResult info_level(const FeatherHostOps *ops, FeatherInterp interp,
+                            FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
 
   if (argc == 0) {
@@ -97,13 +97,13 @@ static TclResult info_level(const TclHostOps *ops, TclInterp interp,
   }
 
   // Get level number
-  TclObj levelObj = ops->list.at(interp, args, 0);
+  FeatherObj levelObj = ops->list.at(interp, args, 0);
   int64_t levelNum;
   if (ops->integer.get(interp, levelObj, &levelNum) != TCL_OK) {
     size_t len;
     const char *s = ops->string.get(interp, levelObj, &len);
     // Build error message
-    TclObj msg = ops->string.intern(interp, "expected integer but got \"", 26);
+    FeatherObj msg = ops->string.intern(interp, "expected integer but got \"", 26);
     msg = ops->string.concat(interp, msg, levelObj);
     msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\"", 1));
     ops->interp.set_result(interp, msg);
@@ -138,7 +138,7 @@ static TclResult info_level(const TclHostOps *ops, TclInterp interp,
   }
 
   // Get frame info
-  TclObj cmd, frameArgs, frameNs;
+  FeatherObj cmd, frameArgs, frameNs;
   if (ops->frame.info(interp, targetLevel, &cmd, &frameArgs, &frameNs) != TCL_OK) {
     goto bad_level;
   }
@@ -146,14 +146,14 @@ static TclResult info_level(const TclHostOps *ops, TclInterp interp,
 
   // Build result list: {cmd arg1 arg2 ...}
   // Use display name for the command (strips :: for global namespace)
-  TclObj result = ops->list.create(interp);
-  TclObj displayCmd = get_display_name(ops, interp, cmd);
+  FeatherObj result = ops->list.create(interp);
+  FeatherObj displayCmd = get_display_name(ops, interp, cmd);
   result = ops->list.push(interp, result, displayCmd);
 
   // Append all arguments
   size_t argCount = ops->list.length(interp, frameArgs);
   for (size_t i = 0; i < argCount; i++) {
-    TclObj arg = ops->list.at(interp, frameArgs, i);
+    FeatherObj arg = ops->list.at(interp, frameArgs, i);
     result = ops->list.push(interp, result, arg);
   }
 
@@ -164,7 +164,7 @@ bad_level:
   {
     size_t len;
     const char *s = ops->string.get(interp, levelObj, &len);
-    TclObj msg = ops->string.intern(interp, "bad level \"", 11);
+    FeatherObj msg = ops->string.intern(interp, "bad level \"", 11);
     msg = ops->string.concat(interp, msg, levelObj);
     msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\"", 1));
     ops->interp.set_result(interp, msg);
@@ -175,8 +175,8 @@ bad_level:
 /**
  * info commands ?pattern?
  */
-static TclResult info_commands(const TclHostOps *ops, TclInterp interp,
-                               TclObj args) {
+static FeatherResult info_commands(const FeatherHostOps *ops, FeatherInterp interp,
+                               FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc > 1) {
     ops->interp.set_result(
@@ -187,8 +187,8 @@ static TclResult info_commands(const TclHostOps *ops, TclInterp interp,
 
   // Get all command names from global namespace
   // Names are already simple (no :: prefix)
-  TclObj globalNs = ops->string.intern(interp, "::", 2);
-  TclObj allNames = ops->ns.list_commands(interp, globalNs);
+  FeatherObj globalNs = ops->string.intern(interp, "::", 2);
+  FeatherObj allNames = ops->ns.list_commands(interp, globalNs);
   size_t count = ops->list.length(interp, allNames);
 
   if (argc == 0) {
@@ -198,17 +198,17 @@ static TclResult info_commands(const TclHostOps *ops, TclInterp interp,
   }
 
   // Filter by pattern
-  TclObj pattern = ops->list.at(interp, args, 0);
+  FeatherObj pattern = ops->list.at(interp, args, 0);
   size_t patLen;
   const char *patStr = ops->string.get(interp, pattern, &patLen);
 
-  TclObj result = ops->list.create(interp);
+  FeatherObj result = ops->list.create(interp);
   for (size_t i = 0; i < count; i++) {
-    TclObj name = ops->list.at(interp, allNames, i);
+    FeatherObj name = ops->list.at(interp, allNames, i);
     size_t nameLen;
     const char *nameStr = ops->string.get(interp, name, &nameLen);
 
-    if (tcl_glob_match(patStr, patLen, nameStr, nameLen)) {
+    if (feather_glob_match(patStr, patLen, nameStr, nameLen)) {
       result = ops->list.push(interp, result, name);
     }
   }
@@ -220,8 +220,8 @@ static TclResult info_commands(const TclHostOps *ops, TclInterp interp,
 /**
  * info procs ?pattern?
  */
-static TclResult info_procs(const TclHostOps *ops, TclInterp interp,
-                            TclObj args) {
+static FeatherResult info_procs(const FeatherHostOps *ops, FeatherInterp interp,
+                            FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc > 1) {
     ops->interp.set_result(
@@ -231,27 +231,27 @@ static TclResult info_procs(const TclHostOps *ops, TclInterp interp,
   }
 
   // Get all command names from global namespace
-  TclObj globalNs = ops->string.intern(interp, "::", 2);
-  TclObj allNames = ops->ns.list_commands(interp, globalNs);
+  FeatherObj globalNs = ops->string.intern(interp, "::", 2);
+  FeatherObj allNames = ops->ns.list_commands(interp, globalNs);
 
-  TclObj result = ops->list.create(interp);
+  FeatherObj result = ops->list.create(interp);
   size_t count = ops->list.length(interp, allNames);
 
   // Optional pattern
   const char *patStr = NULL;
   size_t patLen = 0;
   if (argc == 1) {
-    TclObj pattern = ops->list.at(interp, args, 0);
+    FeatherObj pattern = ops->list.at(interp, args, 0);
     patStr = ops->string.get(interp, pattern, &patLen);
   }
 
   for (size_t i = 0; i < count; i++) {
-    TclObj name = ops->list.at(interp, allNames, i);
+    FeatherObj name = ops->list.at(interp, allNames, i);
 
     // Check if it's a user-defined procedure (not a builtin)
     // Use ns.get_command to check the type
-    TclBuiltinCmd unusedFn = NULL;
-    TclCommandType cmdType = ops->ns.get_command(interp, globalNs, name, &unusedFn);
+    FeatherBuiltinCmd unusedFn = NULL;
+    FeatherCommandType cmdType = ops->ns.get_command(interp, globalNs, name, &unusedFn);
     if (cmdType != TCL_CMD_PROC) {
       continue;
     }
@@ -260,7 +260,7 @@ static TclResult info_procs(const TclHostOps *ops, TclInterp interp,
     if (patStr != NULL) {
       size_t nameLen;
       const char *nameStr = ops->string.get(interp, name, &nameLen);
-      if (!tcl_glob_match(patStr, patLen, nameStr, nameLen)) {
+      if (!feather_glob_match(patStr, patLen, nameStr, nameLen)) {
         continue;
       }
     }
@@ -277,15 +277,15 @@ static TclResult info_procs(const TclHostOps *ops, TclInterp interp,
  * Tries the name as-is, then with :: prefix.
  * Returns the resolved name if found, or the original name if not found.
  */
-static TclObj resolve_proc_name(const TclHostOps *ops, TclInterp interp,
-                                TclObj procName) {
+static FeatherObj resolve_proc_name(const FeatherHostOps *ops, FeatherInterp interp,
+                                FeatherObj procName) {
   // First try the name as-is
   if (ops->proc.exists(interp, procName)) {
     return procName;
   }
 
   // Try with :: prefix
-  TclObj qualified = ops->string.intern(interp, "::", 2);
+  FeatherObj qualified = ops->string.intern(interp, "::", 2);
   qualified = ops->string.concat(interp, qualified, procName);
   if (ops->proc.exists(interp, qualified)) {
     return qualified;
@@ -298,8 +298,8 @@ static TclObj resolve_proc_name(const TclHostOps *ops, TclInterp interp,
 /**
  * info body procname
  */
-static TclResult info_body(const TclHostOps *ops, TclInterp interp,
-                           TclObj args) {
+static FeatherResult info_body(const FeatherHostOps *ops, FeatherInterp interp,
+                           FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc != 1) {
     ops->interp.set_result(
@@ -308,12 +308,12 @@ static TclResult info_body(const TclHostOps *ops, TclInterp interp,
     return TCL_ERROR;
   }
 
-  TclObj procName = ops->list.at(interp, args, 0);
-  TclObj resolvedName = resolve_proc_name(ops, interp, procName);
+  FeatherObj procName = ops->list.at(interp, args, 0);
+  FeatherObj resolvedName = resolve_proc_name(ops, interp, procName);
 
   // Check if it's a user-defined procedure
   if (!ops->proc.exists(interp, resolvedName)) {
-    TclObj msg = ops->string.intern(interp, "\"", 1);
+    FeatherObj msg = ops->string.intern(interp, "\"", 1);
     msg = ops->string.concat(interp, msg, procName);
     msg = ops->string.concat(interp, msg,
                               ops->string.intern(interp, "\" isn't a procedure", 19));
@@ -321,9 +321,9 @@ static TclResult info_body(const TclHostOps *ops, TclInterp interp,
     return TCL_ERROR;
   }
 
-  TclObj body;
+  FeatherObj body;
   if (ops->proc.body(interp, resolvedName, &body) != TCL_OK) {
-    TclObj msg = ops->string.intern(interp, "\"", 1);
+    FeatherObj msg = ops->string.intern(interp, "\"", 1);
     msg = ops->string.concat(interp, msg, procName);
     msg = ops->string.concat(interp, msg,
                               ops->string.intern(interp, "\" isn't a procedure", 19));
@@ -338,8 +338,8 @@ static TclResult info_body(const TclHostOps *ops, TclInterp interp,
 /**
  * info args procname
  */
-static TclResult info_args(const TclHostOps *ops, TclInterp interp,
-                           TclObj args) {
+static FeatherResult info_args(const FeatherHostOps *ops, FeatherInterp interp,
+                           FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc != 1) {
     ops->interp.set_result(
@@ -348,12 +348,12 @@ static TclResult info_args(const TclHostOps *ops, TclInterp interp,
     return TCL_ERROR;
   }
 
-  TclObj procName = ops->list.at(interp, args, 0);
-  TclObj resolvedName = resolve_proc_name(ops, interp, procName);
+  FeatherObj procName = ops->list.at(interp, args, 0);
+  FeatherObj resolvedName = resolve_proc_name(ops, interp, procName);
 
   // Check if it's a user-defined procedure
   if (!ops->proc.exists(interp, resolvedName)) {
-    TclObj msg = ops->string.intern(interp, "\"", 1);
+    FeatherObj msg = ops->string.intern(interp, "\"", 1);
     msg = ops->string.concat(interp, msg, procName);
     msg = ops->string.concat(interp, msg,
                               ops->string.intern(interp, "\" isn't a procedure", 19));
@@ -361,9 +361,9 @@ static TclResult info_args(const TclHostOps *ops, TclInterp interp,
     return TCL_ERROR;
   }
 
-  TclObj params;
+  FeatherObj params;
   if (ops->proc.params(interp, resolvedName, &params) != TCL_OK) {
-    TclObj msg = ops->string.intern(interp, "\"", 1);
+    FeatherObj msg = ops->string.intern(interp, "\"", 1);
     msg = ops->string.concat(interp, msg, procName);
     msg = ops->string.concat(interp, msg,
                               ops->string.intern(interp, "\" isn't a procedure", 19));
@@ -386,8 +386,8 @@ static TclResult info_args(const TclHostOps *ops, TclInterp interp,
  *   level: the stack level
  *   namespace: the namespace context
  */
-static TclResult info_frame(const TclHostOps *ops, TclInterp interp,
-                            TclObj args) {
+static FeatherResult info_frame(const FeatherHostOps *ops, FeatherInterp interp,
+                            FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
 
   if (argc == 0) {
@@ -405,10 +405,10 @@ static TclResult info_frame(const TclHostOps *ops, TclInterp interp,
   }
 
   // Get level number
-  TclObj levelObj = ops->list.at(interp, args, 0);
+  FeatherObj levelObj = ops->list.at(interp, args, 0);
   int64_t levelNum;
   if (ops->integer.get(interp, levelObj, &levelNum) != TCL_OK) {
-    TclObj msg = ops->string.intern(interp, "expected integer but got \"", 26);
+    FeatherObj msg = ops->string.intern(interp, "expected integer but got \"", 26);
     msg = ops->string.concat(interp, msg, levelObj);
     msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\"", 1));
     ops->interp.set_result(interp, msg);
@@ -434,16 +434,16 @@ static TclResult info_frame(const TclHostOps *ops, TclInterp interp,
   }
 
   // Get frame info
-  TclObj cmd, frameArgs, frameNs;
+  FeatherObj cmd, frameArgs, frameNs;
   if (ops->frame.info(interp, targetLevel, &cmd, &frameArgs, &frameNs) != TCL_OK) {
     goto bad_level;
   }
 
   // Use display name for the command (strips :: for global namespace)
-  TclObj displayCmd = get_display_name(ops, interp, cmd);
+  FeatherObj displayCmd = get_display_name(ops, interp, cmd);
 
   // Build result dictionary as a list: {key value key value ...}
-  TclObj result = ops->list.create(interp);
+  FeatherObj result = ops->list.create(interp);
 
   // type call
   result = ops->list.push(interp, result, ops->string.intern(interp, "type", 4));
@@ -451,7 +451,7 @@ static TclResult info_frame(const TclHostOps *ops, TclInterp interp,
 
   // cmd {cmdname arg1 arg2 ...}
   result = ops->list.push(interp, result, ops->string.intern(interp, "cmd", 3));
-  TclObj cmdList = ops->list.create(interp);
+  FeatherObj cmdList = ops->list.create(interp);
   cmdList = ops->list.push(interp, cmdList, displayCmd);
   size_t argCount = ops->list.length(interp, frameArgs);
   for (size_t i = 0; i < argCount; i++) {
@@ -476,7 +476,7 @@ static TclResult info_frame(const TclHostOps *ops, TclInterp interp,
 
 bad_level:
   {
-    TclObj msg = ops->string.intern(interp, "bad level \"", 11);
+    FeatherObj msg = ops->string.intern(interp, "bad level \"", 11);
     msg = ops->string.concat(interp, msg, levelObj);
     msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\"", 1));
     ops->interp.set_result(interp, msg);
@@ -491,8 +491,8 @@ bad_level:
  * Returns 0 if the parameter has no default.
  * Errors if the proc doesn't exist or arg isn't a parameter.
  */
-static TclResult info_default(const TclHostOps *ops, TclInterp interp,
-                              TclObj args) {
+static FeatherResult info_default(const FeatherHostOps *ops, FeatherInterp interp,
+                              FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc != 3) {
     ops->interp.set_result(
@@ -501,15 +501,15 @@ static TclResult info_default(const TclHostOps *ops, TclInterp interp,
     return TCL_ERROR;
   }
 
-  TclObj procName = ops->list.at(interp, args, 0);
-  TclObj argName = ops->list.at(interp, args, 1);
-  TclObj varName = ops->list.at(interp, args, 2);
+  FeatherObj procName = ops->list.at(interp, args, 0);
+  FeatherObj argName = ops->list.at(interp, args, 1);
+  FeatherObj varName = ops->list.at(interp, args, 2);
 
-  TclObj resolvedName = resolve_proc_name(ops, interp, procName);
+  FeatherObj resolvedName = resolve_proc_name(ops, interp, procName);
 
   // Check if it's a user-defined procedure
   if (!ops->proc.exists(interp, resolvedName)) {
-    TclObj msg = ops->string.intern(interp, "\"", 1);
+    FeatherObj msg = ops->string.intern(interp, "\"", 1);
     msg = ops->string.concat(interp, msg, procName);
     msg = ops->string.concat(interp, msg,
                               ops->string.intern(interp, "\" isn't a procedure", 19));
@@ -517,9 +517,9 @@ static TclResult info_default(const TclHostOps *ops, TclInterp interp,
     return TCL_ERROR;
   }
 
-  TclObj params;
+  FeatherObj params;
   if (ops->proc.params(interp, resolvedName, &params) != TCL_OK) {
-    TclObj msg = ops->string.intern(interp, "\"", 1);
+    FeatherObj msg = ops->string.intern(interp, "\"", 1);
     msg = ops->string.concat(interp, msg, procName);
     msg = ops->string.concat(interp, msg,
                               ops->string.intern(interp, "\" isn't a procedure", 19));
@@ -533,12 +533,12 @@ static TclResult info_default(const TclHostOps *ops, TclInterp interp,
 
   size_t paramCount = ops->list.length(interp, params);
   for (size_t i = 0; i < paramCount; i++) {
-    TclObj param = ops->list.at(interp, params, i);
+    FeatherObj param = ops->list.at(interp, params, i);
     // Param can be a name or {name default}
-    TclObj paramList = ops->list.from(interp, param);
+    FeatherObj paramList = ops->list.from(interp, param);
     size_t paramLen = ops->list.length(interp, paramList);
 
-    TclObj paramName;
+    FeatherObj paramName;
     if (paramLen >= 1) {
       paramName = ops->list.at(interp, paramList, 0);
     } else {
@@ -560,7 +560,7 @@ static TclResult info_default(const TclHostOps *ops, TclInterp interp,
         // Found the parameter
         if (paramLen >= 2) {
           // Has default value
-          TclObj defaultVal = ops->list.at(interp, paramList, 1);
+          FeatherObj defaultVal = ops->list.at(interp, paramList, 1);
           ops->var.set(interp, varName, defaultVal);
           ops->interp.set_result(interp, ops->integer.create(interp, 1));
         } else {
@@ -574,7 +574,7 @@ static TclResult info_default(const TclHostOps *ops, TclInterp interp,
   }
 
   // Parameter not found
-  TclObj msg = ops->string.intern(interp, "procedure \"", 11);
+  FeatherObj msg = ops->string.intern(interp, "procedure \"", 11);
   msg = ops->string.concat(interp, msg, procName);
   msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\" doesn't have an argument \"", 28));
   msg = ops->string.concat(interp, msg, argName);
@@ -588,8 +588,8 @@ static TclResult info_default(const TclHostOps *ops, TclInterp interp,
  *
  * Returns a list of local variable names in the current frame.
  */
-static TclResult info_locals(const TclHostOps *ops, TclInterp interp,
-                             TclObj args) {
+static FeatherResult info_locals(const FeatherHostOps *ops, FeatherInterp interp,
+                             FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc > 1) {
     ops->interp.set_result(
@@ -599,7 +599,7 @@ static TclResult info_locals(const TclHostOps *ops, TclInterp interp,
   }
 
   // Get all local variable names (pass nil for current frame)
-  TclObj allNames = ops->var.names(interp, 0);
+  FeatherObj allNames = ops->var.names(interp, 0);
 
   if (argc == 0) {
     // No pattern - return all locals
@@ -608,18 +608,18 @@ static TclResult info_locals(const TclHostOps *ops, TclInterp interp,
   }
 
   // Filter by pattern
-  TclObj pattern = ops->list.at(interp, args, 0);
+  FeatherObj pattern = ops->list.at(interp, args, 0);
   size_t patLen;
   const char *patStr = ops->string.get(interp, pattern, &patLen);
 
-  TclObj result = ops->list.create(interp);
+  FeatherObj result = ops->list.create(interp);
   size_t count = ops->list.length(interp, allNames);
   for (size_t i = 0; i < count; i++) {
-    TclObj name = ops->list.at(interp, allNames, i);
+    FeatherObj name = ops->list.at(interp, allNames, i);
     size_t nameLen;
     const char *nameStr = ops->string.get(interp, name, &nameLen);
 
-    if (tcl_glob_match(patStr, patLen, nameStr, nameLen)) {
+    if (feather_glob_match(patStr, patLen, nameStr, nameLen)) {
       result = ops->list.push(interp, result, name);
     }
   }
@@ -633,8 +633,8 @@ static TclResult info_locals(const TclHostOps *ops, TclInterp interp,
  *
  * Returns a list of global variable names.
  */
-static TclResult info_globals(const TclHostOps *ops, TclInterp interp,
-                              TclObj args) {
+static FeatherResult info_globals(const FeatherHostOps *ops, FeatherInterp interp,
+                              FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc > 1) {
     ops->interp.set_result(
@@ -644,8 +644,8 @@ static TclResult info_globals(const TclHostOps *ops, TclInterp interp,
   }
 
   // Get all global variable names (pass "::" for global namespace)
-  TclObj globalNs = ops->string.intern(interp, "::", 2);
-  TclObj allNames = ops->var.names(interp, globalNs);
+  FeatherObj globalNs = ops->string.intern(interp, "::", 2);
+  FeatherObj allNames = ops->var.names(interp, globalNs);
 
   if (argc == 0) {
     // No pattern - return all globals
@@ -654,18 +654,18 @@ static TclResult info_globals(const TclHostOps *ops, TclInterp interp,
   }
 
   // Filter by pattern
-  TclObj pattern = ops->list.at(interp, args, 0);
+  FeatherObj pattern = ops->list.at(interp, args, 0);
   size_t patLen;
   const char *patStr = ops->string.get(interp, pattern, &patLen);
 
-  TclObj result = ops->list.create(interp);
+  FeatherObj result = ops->list.create(interp);
   size_t count = ops->list.length(interp, allNames);
   for (size_t i = 0; i < count; i++) {
-    TclObj name = ops->list.at(interp, allNames, i);
+    FeatherObj name = ops->list.at(interp, allNames, i);
     size_t nameLen;
     const char *nameStr = ops->string.get(interp, name, &nameLen);
 
-    if (tcl_glob_match(patStr, patLen, nameStr, nameLen)) {
+    if (feather_glob_match(patStr, patLen, nameStr, nameLen)) {
       result = ops->list.push(interp, result, name);
     }
   }
@@ -681,8 +681,8 @@ static TclResult info_globals(const TclHostOps *ops, TclInterp interp,
  * This is the same as info locals for now since we don't have a separate
  * mechanism to track which globals have been imported.
  */
-static TclResult info_vars(const TclHostOps *ops, TclInterp interp,
-                           TclObj args) {
+static FeatherResult info_vars(const FeatherHostOps *ops, FeatherInterp interp,
+                           FeatherObj args) {
   // For now, info vars behaves like info locals
   // In a full implementation, it would also include globals that have
   // been made visible via 'global' or 'upvar'
@@ -695,8 +695,8 @@ static TclResult info_vars(const TclHostOps *ops, TclInterp interp,
  * Returns the name of the script file currently being evaluated.
  * Returns empty string if not sourcing a file.
  */
-static TclResult info_script(const TclHostOps *ops, TclInterp interp,
-                             TclObj args) {
+static FeatherResult info_script(const FeatherHostOps *ops, FeatherInterp interp,
+                             FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc != 0) {
     ops->interp.set_result(
@@ -705,7 +705,7 @@ static TclResult info_script(const TclHostOps *ops, TclInterp interp,
     return TCL_ERROR;
   }
 
-  TclObj scriptPath = ops->interp.get_script(interp);
+  FeatherObj scriptPath = ops->interp.get_script(interp);
   ops->interp.set_result(interp, scriptPath);
   return TCL_OK;
 }
@@ -721,8 +721,8 @@ static TclResult info_script(const TclHostOps *ops, TclInterp interp,
  * - For doubles: "double"
  * - For strings: "string"
  */
-static TclResult info_type(const TclHostOps *ops, TclInterp interp,
-                           TclObj args) {
+static FeatherResult info_type(const FeatherHostOps *ops, FeatherInterp interp,
+                           FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc != 1) {
     ops->interp.set_result(
@@ -731,11 +731,11 @@ static TclResult info_type(const TclHostOps *ops, TclInterp interp,
     return TCL_ERROR;
   }
 
-  TclObj value = ops->list.at(interp, args, 0);
+  FeatherObj value = ops->list.at(interp, args, 0);
 
   // Check if it's a foreign object first
   if (ops->foreign.is_foreign(interp, value)) {
-    TclObj typeName = ops->foreign.type_name(interp, value);
+    FeatherObj typeName = ops->foreign.type_name(interp, value);
     if (!ops->list.is_nil(interp, typeName)) {
       ops->interp.set_result(interp, typeName);
       return TCL_OK;
@@ -772,7 +772,7 @@ static TclResult info_type(const TclHostOps *ops, TclInterp interp,
   }
 
   // Check if it's a list (more than one element, or looks like a list)
-  TclObj asList = ops->list.from(interp, value);
+  FeatherObj asList = ops->list.from(interp, value);
   size_t listLen = ops->list.length(interp, asList);
   if (listLen > 1) {
     ops->interp.set_result(interp, ops->string.intern(interp, "list", 4));
@@ -781,7 +781,7 @@ static TclResult info_type(const TclHostOps *ops, TclInterp interp,
 
   // Check if it looks like a dict (even number of elements >= 2)
   if (listLen >= 2 && (listLen % 2) == 0) {
-    TclObj asDict = ops->dict.from(interp, value);
+    FeatherObj asDict = ops->dict.from(interp, value);
     if (!ops->list.is_nil(interp, asDict)) {
       ops->interp.set_result(interp, ops->string.intern(interp, "dict", 4));
       return TCL_OK;
@@ -799,8 +799,8 @@ static TclResult info_type(const TclHostOps *ops, TclInterp interp,
  * Returns a list of method names available on a foreign object.
  * Returns empty list for non-foreign objects.
  */
-static TclResult info_methods(const TclHostOps *ops, TclInterp interp,
-                              TclObj args) {
+static FeatherResult info_methods(const FeatherHostOps *ops, FeatherInterp interp,
+                              FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc != 1) {
     ops->interp.set_result(
@@ -809,10 +809,10 @@ static TclResult info_methods(const TclHostOps *ops, TclInterp interp,
     return TCL_ERROR;
   }
 
-  TclObj value = ops->list.at(interp, args, 0);
+  FeatherObj value = ops->list.at(interp, args, 0);
 
   // Get methods from foreign ops (returns empty list for non-foreign)
-  TclObj methods = ops->foreign.methods(interp, value);
+  FeatherObj methods = ops->foreign.methods(interp, value);
   if (ops->list.is_nil(interp, methods)) {
     methods = ops->list.create(interp);
   }
@@ -821,8 +821,8 @@ static TclResult info_methods(const TclHostOps *ops, TclInterp interp,
   return TCL_OK;
 }
 
-TclResult tcl_builtin_info(const TclHostOps *ops, TclInterp interp,
-                           TclObj cmd, TclObj args) {
+FeatherResult feather_builtin_info(const FeatherHostOps *ops, FeatherInterp interp,
+                           FeatherObj cmd, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
 
   if (argc == 0) {
@@ -833,7 +833,7 @@ TclResult tcl_builtin_info(const TclHostOps *ops, TclInterp interp,
   }
 
   // Get subcommand
-  TclObj subcmd = ops->list.shift(interp, args);
+  FeatherObj subcmd = ops->list.shift(interp, args);
   size_t subcmdLen;
   const char *subcmdStr = ops->string.get(interp, subcmd, &subcmdLen);
 
@@ -881,7 +881,7 @@ TclResult tcl_builtin_info(const TclHostOps *ops, TclInterp interp,
   }
 
   // Unknown subcommand
-  TclObj msg = ops->string.intern(
+  FeatherObj msg = ops->string.intern(
       interp,
       "unknown or ambiguous subcommand \"", 33);
   msg = ops->string.concat(interp, msg, subcmd);

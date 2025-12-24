@@ -1,3 +1,3 @@
-module github.com/dhamidi/tclc
+module github.com/feather-lang/feather
 
-go 1.24.3
+go 1.25.5

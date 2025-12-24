@@ -1,7 +1,7 @@
-#include "tclc.h"
+#include "feather.h"
 
-TclResult tcl_builtin_list(const TclHostOps *ops, TclInterp interp,
-                            TclObj cmd, TclObj args) {
+FeatherResult feather_builtin_list(const FeatherHostOps *ops, FeatherInterp interp,
+                            FeatherObj cmd, FeatherObj args) {
   (void)cmd;
 
   // list command just returns its arguments as a proper list

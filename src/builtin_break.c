@@ -1,12 +1,12 @@
-#include "tclc.h"
+#include "feather.h"
 
-TclResult tcl_builtin_break(const TclHostOps *ops, TclInterp interp,
-                             TclObj cmd, TclObj args) {
+FeatherResult feather_builtin_break(const FeatherHostOps *ops, FeatherInterp interp,
+                             FeatherObj cmd, FeatherObj args) {
   (void)cmd;
   size_t argc = ops->list.length(interp, args);
 
   if (argc != 0) {
-    TclObj msg = ops->string.intern(interp, "wrong # args: should be \"break\"", 32);
+    FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"break\"", 32);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }

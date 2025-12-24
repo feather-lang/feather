@@ -1,4 +1,4 @@
-#include "tclc.h"
+#include "feather.h"
 #include "internal.h"
 
 /**
@@ -6,7 +6,7 @@
  * Strips leading "::" for global namespace commands (e.g., "::set" -> "set")
  * but preserves the full path for nested namespaces (e.g., "::foo::bar" stays as-is).
  */
-static TclObj get_display_name(const TclHostOps *ops, TclInterp interp, TclObj name) {
+static FeatherObj get_display_name(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj name) {
   size_t len;
   const char *str = ops->string.get(interp, name, &len);
 
@@ -25,30 +25,30 @@ static TclObj get_display_name(const TclHostOps *ops, TclInterp interp, TclObj n
   return name;
 }
 
-TclResult tcl_builtin_proc(const TclHostOps *ops, TclInterp interp,
-                           TclObj cmd, TclObj args) {
+FeatherResult feather_builtin_proc(const FeatherHostOps *ops, FeatherInterp interp,
+                           FeatherObj cmd, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
 
   // proc requires exactly 3 arguments: name args body
   if (argc != 3) {
-    TclObj msg = ops->string.intern(
+    FeatherObj msg = ops->string.intern(
         interp, "wrong # args: should be \"proc name args body\"", 45);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
   // Extract name, params, body
-  TclObj name = ops->list.shift(interp, args);
-  TclObj params = ops->list.shift(interp, args);
-  TclObj body = ops->list.shift(interp, args);
+  FeatherObj name = ops->list.shift(interp, args);
+  FeatherObj params = ops->list.shift(interp, args);
+  FeatherObj body = ops->list.shift(interp, args);
 
   // Get the proc name string
   size_t nameLen;
   const char *nameStr = ops->string.get(interp, name, &nameLen);
 
   // Determine the fully qualified proc name
-  TclObj qualifiedName;
-  if (tcl_is_qualified(nameStr, nameLen)) {
+  FeatherObj qualifiedName;
+  if (feather_is_qualified(nameStr, nameLen)) {
     // Name is already qualified (starts with :: or contains ::)
     // Use it as-is, but ensure the namespace exists
     // For "::foo::bar::baz", create namespaces ::foo and ::foo::bar
@@ -63,14 +63,14 @@ TclResult tcl_builtin_proc(const TclHostOps *ops, TclInterp interp,
 
     // Create namespace path if needed (everything before last ::)
     if (lastSep > 0) {
-      TclObj nsPath = ops->string.intern(interp, nameStr, lastSep);
+      FeatherObj nsPath = ops->string.intern(interp, nameStr, lastSep);
       ops->ns.create(interp, nsPath);
     }
 
     qualifiedName = name;
   } else {
     // Unqualified name - prepend current namespace
-    TclObj currentNs = ops->ns.current(interp);
+    FeatherObj currentNs = ops->ns.current(interp);
     size_t nsLen;
     const char *nsStr = ops->string.get(interp, currentNs, &nsLen);
 
@@ -93,7 +93,7 @@ TclResult tcl_builtin_proc(const TclHostOps *ops, TclInterp interp,
   ops->proc.define(interp, qualifiedName, params, body);
 
   // proc returns empty string
-  TclObj empty = ops->string.intern(interp, "", 0);
+  FeatherObj empty = ops->string.intern(interp, "", 0);
   ops->interp.set_result(interp, empty);
   return TCL_OK;
 }
@@ -103,11 +103,11 @@ static int is_args_param(const char *s, size_t len) {
   return len == 4 && s[0] == 'a' && s[1] == 'r' && s[2] == 'g' && s[3] == 's';
 }
 
-TclResult tcl_invoke_proc(const TclHostOps *ops, TclInterp interp,
-                          TclObj name, TclObj args) {
+FeatherResult feather_invoke_proc(const FeatherHostOps *ops, FeatherInterp interp,
+                          FeatherObj name, FeatherObj args) {
   // Get the procedure's parameter list and body
-  TclObj params;
-  TclObj body;
+  FeatherObj params;
+  FeatherObj body;
   if (ops->proc.params(interp, name, &params) != TCL_OK) {
     return TCL_ERROR;
   }
@@ -123,8 +123,8 @@ TclResult tcl_invoke_proc(const TclHostOps *ops, TclInterp interp,
   int is_variadic = 0;
   if (paramc > 0) {
     // Create a copy to iterate and check the last one
-    TclObj paramsCopy = ops->list.from(interp, params);
-    TclObj lastParam = 0;
+    FeatherObj paramsCopy = ops->list.from(interp, params);
+    FeatherObj lastParam = 0;
     for (size_t i = 0; i < paramc; i++) {
       lastParam = ops->list.shift(interp, paramsCopy);
     }
@@ -151,31 +151,31 @@ TclResult tcl_invoke_proc(const TclHostOps *ops, TclInterp interp,
   if (!args_ok) {
     // Build error message: wrong # args: should be "name param1 param2 ..."
     // Use display name to strip :: for global namespace commands
-    TclObj displayName = get_display_name(ops, interp, name);
+    FeatherObj displayName = get_display_name(ops, interp, name);
 
-    TclObj msg = ops->string.intern(interp, "wrong # args: should be \"", 25);
+    FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"", 25);
     msg = ops->string.concat(interp, msg, displayName);
 
     // Add parameters to error message
-    TclObj paramsCopy = ops->list.from(interp, params);
+    FeatherObj paramsCopy = ops->list.from(interp, params);
     for (size_t i = 0; i < paramc; i++) {
-      TclObj space = ops->string.intern(interp, " ", 1);
+      FeatherObj space = ops->string.intern(interp, " ", 1);
       msg = ops->string.concat(interp, msg, space);
-      TclObj param = ops->list.shift(interp, paramsCopy);
+      FeatherObj param = ops->list.shift(interp, paramsCopy);
       size_t paramLen;
       const char *paramStr = ops->string.get(interp, param, &paramLen);
 
       // For variadic, show "?arg ...?" instead of "args"
       if (is_variadic && i == paramc - 1) {
-        TclObj argsHint = ops->string.intern(interp, "?arg ...?", 9);
+        FeatherObj argsHint = ops->string.intern(interp, "?arg ...?", 9);
         msg = ops->string.concat(interp, msg, argsHint);
       } else {
-        TclObj paramPart = ops->string.intern(interp, paramStr, paramLen);
+        FeatherObj paramPart = ops->string.intern(interp, paramStr, paramLen);
         msg = ops->string.concat(interp, msg, paramPart);
       }
     }
 
-    TclObj end = ops->string.intern(interp, "\"", 1);
+    FeatherObj end = ops->string.intern(interp, "\"", 1);
     msg = ops->string.concat(interp, msg, end);
 
     ops->interp.set_result(interp, msg);
@@ -193,7 +193,7 @@ TclResult tcl_invoke_proc(const TclHostOps *ops, TclInterp interp,
   size_t nameLen;
   const char *nameStr = ops->string.get(interp, name, &nameLen);
 
-  if (tcl_is_qualified(nameStr, nameLen)) {
+  if (feather_is_qualified(nameStr, nameLen)) {
     // Find the last :: to extract the namespace part
     size_t lastSep = 0;
     int foundSep = 0;
@@ -205,38 +205,38 @@ TclResult tcl_invoke_proc(const TclHostOps *ops, TclInterp interp,
     }
     if (foundSep && lastSep > 0) {
       // Namespace is everything before the last ::
-      TclObj ns = ops->string.intern(interp, nameStr, lastSep);
+      FeatherObj ns = ops->string.intern(interp, nameStr, lastSep);
       ops->frame.set_namespace(interp, ns);
     } else if (foundSep && lastSep == 0) {
       // Starts with :: but has no more separators, e.g., "::incr"
       // Namespace is "::" (global)
-      TclObj globalNs = ops->string.intern(interp, "::", 2);
+      FeatherObj globalNs = ops->string.intern(interp, "::", 2);
       ops->frame.set_namespace(interp, globalNs);
     }
   }
   // For unqualified names, leave namespace as default (global)
 
   // Create copies of params and args for binding (since shift mutates)
-  TclObj paramsList = ops->list.from(interp, params);
-  TclObj argsList = ops->list.from(interp, args);
+  FeatherObj paramsList = ops->list.from(interp, params);
+  FeatherObj argsList = ops->list.from(interp, args);
 
   // Bind arguments to parameters
   if (is_variadic) {
     // Bind required parameters first
     for (size_t i = 0; i < required_params; i++) {
-      TclObj param = ops->list.shift(interp, paramsList);
-      TclObj arg = ops->list.shift(interp, argsList);
+      FeatherObj param = ops->list.shift(interp, paramsList);
+      FeatherObj arg = ops->list.shift(interp, argsList);
       ops->var.set(interp, param, arg);
     }
 
     // Get the "args" parameter name
-    TclObj argsParam = ops->list.shift(interp, paramsList);
+    FeatherObj argsParam = ops->list.shift(interp, paramsList);
 
     // Collect remaining arguments into a list
-    TclObj collectedArgs = ops->list.create(interp);
+    FeatherObj collectedArgs = ops->list.create(interp);
     size_t remaining = argc - required_params;
     for (size_t i = 0; i < remaining; i++) {
-      TclObj arg = ops->list.shift(interp, argsList);
+      FeatherObj arg = ops->list.shift(interp, argsList);
       collectedArgs = ops->list.push(interp, collectedArgs, arg);
     }
 
@@ -245,14 +245,14 @@ TclResult tcl_invoke_proc(const TclHostOps *ops, TclInterp interp,
   } else {
     // Non-variadic: bind all params normally
     for (size_t i = 0; i < paramc; i++) {
-      TclObj param = ops->list.shift(interp, paramsList);
-      TclObj arg = ops->list.shift(interp, argsList);
+      FeatherObj param = ops->list.shift(interp, paramsList);
+      FeatherObj arg = ops->list.shift(interp, argsList);
       ops->var.set(interp, param, arg);
     }
   }
 
   // Evaluate the body as a script
-  TclResult result = tcl_script_eval_obj(ops, interp, body, TCL_EVAL_LOCAL);
+  FeatherResult result = feather_script_eval_obj(ops, interp, body, TCL_EVAL_LOCAL);
 
   // Pop the call frame
   ops->frame.pop(interp);
@@ -260,7 +260,7 @@ TclResult tcl_invoke_proc(const TclHostOps *ops, TclInterp interp,
   // Handle TCL_RETURN specially
   if (result == TCL_RETURN) {
     // Get the return options
-    TclObj opts = ops->interp.get_return_options(interp, result);
+    FeatherObj opts = ops->interp.get_return_options(interp, result);
 
     // Parse -code and -level from the options list
     // Options list format: {-code X -level Y}
@@ -268,11 +268,11 @@ TclResult tcl_invoke_proc(const TclHostOps *ops, TclInterp interp,
     int level = 1;
 
     size_t optsLen = ops->list.length(interp, opts);
-    TclObj optsCopy = ops->list.from(interp, opts);
+    FeatherObj optsCopy = ops->list.from(interp, opts);
 
     for (size_t i = 0; i + 1 < optsLen; i += 2) {
-      TclObj key = ops->list.shift(interp, optsCopy);
-      TclObj val = ops->list.shift(interp, optsCopy);
+      FeatherObj key = ops->list.shift(interp, optsCopy);
+      FeatherObj val = ops->list.shift(interp, optsCopy);
 
       size_t keyLen;
       const char *keyStr = ops->string.get(interp, key, &keyLen);
@@ -298,10 +298,10 @@ TclResult tcl_invoke_proc(const TclHostOps *ops, TclInterp interp,
 
     if (level <= 0) {
       // Level reached 0, apply the -code
-      return (TclResult)code;
+      return (FeatherResult)code;
     } else {
       // Level > 0, update options and keep returning TCL_RETURN
-      TclObj newOpts = ops->list.create(interp);
+      FeatherObj newOpts = ops->list.create(interp);
       newOpts = ops->list.push(interp, newOpts,
                                ops->string.intern(interp, "-code", 5));
       newOpts = ops->list.push(interp, newOpts,

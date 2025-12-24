@@ -1,4 +1,4 @@
-#include "tclc.h"
+#include "feather.h"
 #include "internal.h"
 
 /**
@@ -9,26 +9,26 @@
  *
  * Usage: tcl::mathfunc::exp arg
  */
-TclResult tcl_builtin_mathfunc_exp(const TclHostOps *ops, TclInterp interp,
-                                    TclObj cmd, TclObj args) {
+FeatherResult feather_builtin_mathfunc_exp(const FeatherHostOps *ops, FeatherInterp interp,
+                                    FeatherObj cmd, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
 
   if (argc != 1) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
         "wrong # args: should be \"tcl::mathfunc::exp value\"", 50);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj arg = ops->list.at(interp, args, 0);
+  FeatherObj arg = ops->list.at(interp, args, 0);
   int64_t n;
   if (ops->integer.get(interp, arg, &n) != TCL_OK) {
     size_t len;
     const char *str = ops->string.get(interp, arg, &len);
-    TclObj part1 = ops->string.intern(interp, "expected integer but got \"", 26);
-    TclObj part2 = ops->string.intern(interp, str, len);
-    TclObj part3 = ops->string.intern(interp, "\"", 1);
-    TclObj msg = ops->string.concat(interp, part1, part2);
+    FeatherObj part1 = ops->string.intern(interp, "expected integer but got \"", 26);
+    FeatherObj part2 = ops->string.intern(interp, str, len);
+    FeatherObj part3 = ops->string.intern(interp, "\"", 1);
+    FeatherObj msg = ops->string.concat(interp, part1, part2);
     msg = ops->string.concat(interp, msg, part3);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
@@ -87,7 +87,7 @@ TclResult tcl_builtin_mathfunc_exp(const TclHostOps *ops, TclInterp interp,
     }
   }
 
-  TclObj result_obj = ops->integer.create(interp, result);
+  FeatherObj result_obj = ops->integer.create(interp, result);
   ops->interp.set_result(interp, result_obj);
   return TCL_OK;
 }

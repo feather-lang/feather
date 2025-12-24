@@ -707,7 +707,7 @@ Or let the interpreter enforce max call depth before pushing.
 ## Prompt:
 12/20/2025, 6:54:41 PM
 
-Okay, let's play through a simple scenario step by step; imagine the language is a subset of Tcl.
+Okay, let's play through a simple scenario step by step; imagine the language is a subset of Feather.
 
 set words [list hello world]
 console::log [join $words ", "]
@@ -722,7 +722,7 @@ console::log is a function defined in the host and registered with the interpret
 ````plaintext
 Thought process: Mapped execution flow through arena management and host function integration.
 
-The user wants to walk through a concrete execution scenario with a Tcl-like language. Let me trace through what happens step by step, focusing on the arena stack, handle management, and host interaction.
+The user wants to walk through a concrete execution scenario with a Feather-like language. Let me trace through what happens step by step, focusing on the arena stack, handle management, and host interaction.
 
 The code is:
 `​`​`tcl
@@ -1077,7 +1077,7 @@ Can you walk through the example again, but with everything being handles.
 ````plaintext
 Thought process: Architected handle-based design leveraging host data structures for cleaner integration.
 
-The user wants me to walk through the same Tcl example but with a handles-based design where all values are represented as handles into host-managed data structures. This is cleaner for GC integration and lets the host manage all the complex data types.
+The user wants me to walk through the same Feather example but with a handles-based design where all values are represented as handles into host-managed data structures. This is cleaner for GC integration and lets the host manage all the complex data types.
 
 Let me trace through:
 
@@ -1928,7 +1928,7 @@ For Java/Node, you might want a parallel UTF-16 API if string-heavy operations a
 ## Prompt:
 12/20/2025, 7:08:55 PM
 
-Here is my initial design - I am developing the core _and_ will be providing host libraries for every language.  Given this subset of Tcl, review: our memory allocation strategy (handles, arenas), communication between host and interpreter.
+Here is my initial design - I am developing the core _and_ will be providing host libraries for every language.  Given this subset of Feather, review: our memory allocation strategy (handles, arenas), communication between host and interpreter.
 
 Essentially the responsibility of the interpreter/core: parsing TCL, storing execution state, providing execution and introspection primitives.
 
@@ -2018,15 +2018,15 @@ Responsibility of the host: memory, I/O (through embedding commands, like in the
  * - 
  */
 
-typedef uint32_t TclObj;
-typedef uint32_t TclInterp;
+typedef uint32_t FeatherObj;
+typedef uint32_t FeatherInterp;
 typedef enum {
   TCL_OK = 0,
   TCL_ERROR = 1,
   TCL_RETURN = 2,
   TCL_BREAK = 3,
   TCL_CONTINUE = 4,
-} TclResult;
+} FeatherResult;
 
 
 ```
@@ -2046,9 +2046,9 @@ The user is showing me their initial design for a TCL interpreter that's meant t
 Let me analyze what they've shared and what's missing or could be improved.
 
 What I see:
-- `TclObj` is a uint32_t handle (good, matches our discussion)
-- `TclInterp` is also a uint32_t handle (interesting choice - makes the interpreter itself a handle)
-- `TclResult` enum for control flow
+- `FeatherObj` is a uint32_t handle (good, matches our discussion)
+- `FeatherInterp` is also a uint32_t handle (interesting choice - makes the interpreter itself a handle)
+- `FeatherResult` enum for control flow
 
 What's missing that I'd expect based on our discussion:
 1. The `EmbedderCallbacks` struct with function pointers
@@ -2065,11 +2065,11 @@ This is a solid foundation. The philosophy is clear and well-articulated. Let me
 
 ## What's Good
 
-**`TclObj` as `uint32_t`** — Clean. No pointer aliasing issues across FFI boundaries.
+**`FeatherObj` as `uint32_t`** — Clean. No pointer aliasing issues across FFI boundaries.
 
-**`TclInterp` as `uint32_t`** — Interesting choice to make the interpreter itself a handle. This means you could have multiple interpreters managed by the same host, and the host controls their lifetime uniformly. Nice.
+**`FeatherInterp` as `uint32_t`** — Interesting choice to make the interpreter itself a handle. This means you could have multiple interpreters managed by the same host, and the host controls their lifetime uniformly. Nice.
 
-**`TclResult` enum** — Correct set. These are the TCL return codes.
+**`FeatherResult` enum** — Correct set. These are the TCL return codes.
 
 ## What's Missing
 
@@ -2083,9 +2083,9 @@ The header doesn't show the host/interpreter interface. Based on our discussion,
  * All values are opaque handles. The host owns the underlying data.
  */
 
-typedef uint32_t TclObj;      /* Any value: string, list, dict, int, etc. */
-typedef uint32_t TclInterp;   /* Interpreter instance */
-typedef uint32_t TclCmd;      /* Registered command */
+typedef uint32_t FeatherObj;      /* Any value: string, list, dict, int, etc. */
+typedef uint32_t FeatherInterp;   /* Interpreter instance */
+typedef uint32_t FeatherCmd;      /* Registered command */
 
 typedef enum {
     TCL_OK = 0,
@@ -2093,7 +2093,7 @@ typedef enum {
     TCL_RETURN = 2,
     TCL_BREAK = 3,
     TCL_CONTINUE = 4,
-} TclResult;
+} FeatherResult;
 
 /**
  * ============================================================================
@@ -2102,7 +2102,7 @@ typedef enum {
  * The host provides these. The interpreter calls them.
  */
 
-typedef struct TclHostOps {
+typedef struct FeatherHostOps {
     void* userdata;
 
     /*
@@ -2126,9 +2126,9 @@ typedef struct TclHostOps {
      * get_string: Returns pointer valid until handle is released.
      *             Interpreter must not store this pointer across callbacks.
      */
-    TclObj (*intern)(void* ud, const char* s, size_t len);
-    TclObj (*create_string)(void* ud, const char* s, size_t len);
-    const char* (*get_string)(void* ud, TclObj obj, size_t* len);
+    FeatherObj (*intern)(void* ud, const char* s, size_t len);
+    FeatherObj (*create_string)(void* ud, const char* s, size_t len);
+    const char* (*get_string)(void* ud, FeatherObj obj, size_t* len);
 
     /*
      * Integer operations
@@ -2136,27 +2136,27 @@ typedef struct TclHostOps {
      * TCL traditionally uses string representation, but hosts may want
      * to optimize integer storage.
      */
-    TclObj (*create_int)(void* ud, int64_t val);
-    int (*get_int)(void* ud, TclObj obj, int64_t* out);  /* returns 0 on success */
+    FeatherObj (*create_int)(void* ud, int64_t val);
+    int (*get_int)(void* ud, FeatherObj obj, int64_t* out);  /* returns 0 on success */
 
     /*
      * List operations
      *
      * TCL lists are fundamental. Host manages the actual storage.
      */
-    TclObj (*create_list)(void* ud, const TclObj* items, size_t len);
-    size_t (*list_length)(void* ud, TclObj list);
-    TclObj (*list_index)(void* ud, TclObj list, size_t idx);
-    TclObj (*list_range)(void* ud, TclObj list, size_t start, size_t end);
-    TclObj (*list_append)(void* ud, TclObj list, TclObj item);  /* returns new list */
+    FeatherObj (*create_list)(void* ud, const FeatherObj* items, size_t len);
+    size_t (*list_length)(void* ud, FeatherObj list);
+    FeatherObj (*list_index)(void* ud, FeatherObj list, size_t idx);
+    FeatherObj (*list_range)(void* ud, FeatherObj list, size_t start, size_t end);
+    FeatherObj (*list_append)(void* ud, FeatherObj list, FeatherObj item);  /* returns new list */
 
     /*
      * Dict operations
      */
-    TclObj (*create_dict)(void* ud);
-    TclObj (*dict_get)(void* ud, TclObj dict, TclObj key);      /* returns nil handle if missing */
-    TclObj (*dict_set)(void* ud, TclObj dict, TclObj key, TclObj val);  /* returns new dict */
-    size_t (*dict_size)(void* ud, TclObj dict);
+    FeatherObj (*create_dict)(void* ud);
+    FeatherObj (*dict_get)(void* ud, FeatherObj dict, FeatherObj key);      /* returns nil handle if missing */
+    FeatherObj (*dict_set)(void* ud, FeatherObj dict, FeatherObj key, FeatherObj val);  /* returns new dict */
+    size_t (*dict_size)(void* ud, FeatherObj dict);
 
     /*
      * Type introspection
@@ -2169,9 +2169,9 @@ typedef struct TclHostOps {
         TCL_TYPE_DOUBLE,
         TCL_TYPE_NIL,
         TCL_TYPE_COMMAND,
-    } TclType;
+    } FeatherType;
     
-    TclType (*type_of)(void* ud, TclObj obj);
+    FeatherType (*type_of)(void* ud, FeatherObj obj);
 
     /*
      * String manipulation (host provides unicode/regex support)
@@ -2179,15 +2179,15 @@ typedef struct TclHostOps {
      * These are callbacks because the host likely has better implementations
      * and already has unicode tables loaded.
      */
-    TclObj (*string_length)(void* ud, TclObj str);              /* returns int handle */
-    TclObj (*string_index)(void* ud, TclObj str, size_t idx);   /* returns single-char string */
-    TclObj (*string_range)(void* ud, TclObj str, size_t start, size_t end);
-    int (*string_compare)(void* ud, TclObj a, TclObj b);        /* -1, 0, 1 */
-    TclObj (*string_match)(void* ud, TclObj pattern, TclObj str); /* glob match, returns bool */
+    FeatherObj (*string_length)(void* ud, FeatherObj str);              /* returns int handle */
+    FeatherObj (*string_index)(void* ud, FeatherObj str, size_t idx);   /* returns single-char string */
+    FeatherObj (*string_range)(void* ud, FeatherObj str, size_t start, size_t end);
+    int (*string_compare)(void* ud, FeatherObj a, FeatherObj b);        /* -1, 0, 1 */
+    FeatherObj (*string_match)(void* ud, FeatherObj pattern, FeatherObj str); /* glob match, returns bool */
     
     /* Regex: returns list of matches, or nil on no match */
-    TclObj (*regexp)(void* ud, TclObj pattern, TclObj str);
-    TclObj (*regsub)(void* ud, TclObj pattern, TclObj str, TclObj replacement);
+    FeatherObj (*regexp)(void* ud, FeatherObj pattern, FeatherObj str);
+    FeatherObj (*regsub)(void* ud, FeatherObj pattern, FeatherObj str, FeatherObj replacement);
 
     /*
      * Expression evaluation
@@ -2197,7 +2197,7 @@ typedef struct TclHostOps {
      *
      * The latter is simpler if host has an expression evaluator already.
      */
-    TclObj (*expr_eval)(void* ud, TclInterp interp, const char* expr, size_t len, TclResult* result);
+    FeatherObj (*expr_eval)(void* ud, FeatherInterp interp, const char* expr, size_t len, FeatherResult* result);
 
     /*
      * Command invocation
@@ -2205,8 +2205,8 @@ typedef struct TclHostOps {
      * When interpreter encounters a command it doesn't handle internally,
      * it calls this. Host dispatches to registered commands.
      */
-    TclObj (*invoke_command)(void* ud, TclInterp interp, TclObj cmd_name, 
-                             const TclObj* args, size_t argc, TclResult* result);
+    FeatherObj (*invoke_command)(void* ud, FeatherInterp interp, FeatherObj cmd_name, 
+                             const FeatherObj* args, size_t argc, FeatherResult* result);
 
     /*
      * Variable access
@@ -2214,27 +2214,27 @@ typedef struct TclHostOps {
      * Host manages variable storage. Enables host to implement traces,
      * link variables to native values, etc.
      */
-    TclObj (*var_get)(void* ud, TclInterp interp, TclObj name);
-    void (*var_set)(void* ud, TclInterp interp, TclObj name, TclObj value);
-    void (*var_unset)(void* ud, TclInterp interp, TclObj name);
-    int (*var_exists)(void* ud, TclInterp interp, TclObj name);
+    FeatherObj (*var_get)(void* ud, FeatherInterp interp, FeatherObj name);
+    void (*var_set)(void* ud, FeatherInterp interp, FeatherObj name, FeatherObj value);
+    void (*var_unset)(void* ud, FeatherInterp interp, FeatherObj name);
+    int (*var_exists)(void* ud, FeatherInterp interp, FeatherObj name);
 
     /*
      * Scope management (for upvar, uplevel, proc)
      */
-    void (*scope_push)(void* ud, TclInterp interp);
-    void (*scope_pop)(void* ud, TclInterp interp);
-    size_t (*scope_level)(void* ud, TclInterp interp);
+    void (*scope_push)(void* ud, FeatherInterp interp);
+    void (*scope_pop)(void* ud, FeatherInterp interp);
+    size_t (*scope_level)(void* ud, FeatherInterp interp);
 
     /*
      * Error handling
      */
-    void (*set_error)(void* ud, TclInterp interp, TclObj message);
-    TclObj (*get_error)(void* ud, TclInterp interp);
-    void (*set_errorinfo)(void* ud, TclInterp interp, TclObj info);
-    void (*set_errorcode)(void* ud, TclInterp interp, TclObj code);
+    void (*set_error)(void* ud, FeatherInterp interp, FeatherObj message);
+    FeatherObj (*get_error)(void* ud, FeatherInterp interp);
+    void (*set_errorinfo)(void* ud, FeatherInterp interp, FeatherObj info);
+    void (*set_errorcode)(void* ud, FeatherInterp interp, FeatherObj code);
 
-} TclHostOps;
+} FeatherHostOps;
 
 
 /**
@@ -2248,46 +2248,46 @@ typedef struct TclHostOps {
  * Create/destroy interpreter.
  * Returns handle that host should track.
  */
-TclInterp tcl_create(const TclHostOps* ops);
-void tcl_destroy(TclInterp interp);
+FeatherInterp feather_create(const FeatherHostOps* ops);
+void feather_destroy(FeatherInterp interp);
 
 /*
  * Evaluate TCL code.
  * Result value is returned via out_result (may be nil handle).
  */
-TclResult tcl_eval(TclInterp interp, const char* script, size_t len, TclObj* out_result);
+FeatherResult feather_eval(FeatherInterp interp, const char* script, size_t len, FeatherObj* out_result);
 
 /*
  * Evaluate a single command (already parsed).
  * Useful for host-initiated calls.
  */
-TclResult tcl_invoke(TclInterp interp, const TclObj* words, size_t count, TclObj* out_result);
+FeatherResult feather_invoke(FeatherInterp interp, const FeatherObj* words, size_t count, FeatherObj* out_result);
 
 /*
  * Register a builtin command implemented by the interpreter.
  * Host can override by registering same name via invoke_command dispatch.
  */
-typedef TclResult (*TclBuiltinProc)(TclInterp interp, const TclObj* args, size_t argc, TclObj* result);
-void tcl_register_builtin(TclInterp interp, const char* name, TclBuiltinProc proc);
+typedef FeatherResult (*FeatherBuiltinProc)(FeatherInterp interp, const FeatherObj* args, size_t argc, FeatherObj* result);
+void feather_register_builtin(FeatherInterp interp, const char* name, FeatherBuiltinProc proc);
 
 /*
  * Introspection: get current call frame info (for [info], error traces)
  */
-size_t tcl_call_depth(TclInterp interp);
-TclObj tcl_call_frame_cmd(TclInterp interp, size_t level);   /* command name at level */
-TclObj tcl_call_frame_args(TclInterp interp, size_t level);  /* args list at level */
+size_t feather_call_depth(FeatherInterp interp);
+FeatherObj feather_call_frame_cmd(FeatherInterp interp, size_t level);   /* command name at level */
+FeatherObj feather_call_frame_args(FeatherInterp interp, size_t level);  /* args list at level */
 ```
 
 ## Design Questions to Consider
 
-### 1. Who owns `TclHostOps`?
+### 1. Who owns `FeatherHostOps`?
 
 ```c
 /* Option A: Interpreter copies the struct */
-TclInterp tcl_create(const TclHostOps* ops);  /* copies internally */
+FeatherInterp feather_create(const FeatherHostOps* ops);  /* copies internally */
 
 /* Option B: Host guarantees lifetime */
-TclInterp tcl_create(const TclHostOps* ops);  /* must outlive interpreter */
+FeatherInterp feather_create(const FeatherHostOps* ops);  /* must outlive interpreter */
 ```
 
 Option B is simpler (no copy), but requires host discipline.
@@ -2304,10 +2304,10 @@ I'd lean toward interpreter handling parsing but calling back for operations:
 
 ```c
 /* Instead of expr_eval, provide primitives */
-TclObj (*math_add)(void* ud, TclObj a, TclObj b);
-TclObj (*math_mul)(void* ud, TclObj a, TclObj b);
+FeatherObj (*math_add)(void* ud, FeatherObj a, FeatherObj b);
+FeatherObj (*math_mul)(void* ud, FeatherObj a, FeatherObj b);
 /* ... */
-TclObj (*math_func)(void* ud, TclObj name, const TclObj* args, size_t argc);
+FeatherObj (*math_func)(void* ud, FeatherObj name, const FeatherObj* args, size_t argc);
 ```
 
 ### 3. How are host commands registered?
@@ -2318,7 +2318,7 @@ The host needs to tell the interpreter "console::log exists." Options:
 
 ```c
 /* In invoke_command callback, host checks its registry */
-TclObj invoke_command(void* ud, TclInterp interp, TclObj cmd_name, ...) {
+FeatherObj invoke_command(void* ud, FeatherInterp interp, FeatherObj cmd_name, ...) {
     HostCmd* cmd = lookup(cmd_name);
     if (!cmd) { /* set error: unknown command */ }
     return cmd->proc(...);
@@ -2328,7 +2328,7 @@ TclObj invoke_command(void* ud, TclInterp interp, TclObj cmd_name, ...) {
 **Option B: Explicit registration API**
 
 ```c
-void tcl_register_command(TclInterp interp, const char* name, TclCmd cmd_handle);
+void feather_register_command(FeatherInterp interp, const char* name, FeatherCmd cmd_handle);
 ```
 
 Option A is simpler. Interpreter never knows about host commands directly.
@@ -2338,16 +2338,16 @@ Option A is simpler. Interpreter never knows about host commands directly.
 You need a way to represent "no value" or "missing":
 
 ```c
-#define TCL_NIL ((TclObj)0)  /* or some sentinel */
+#define TCL_NIL ((FeatherObj)0)  /* or some sentinel */
 
 /* Or make it explicit */
-TclObj (*nil)(void* ud);
-int (*is_nil)(void* ud, TclObj obj);
+FeatherObj (*nil)(void* ud);
+int (*is_nil)(void* ud, FeatherObj obj);
 ```
 
 ### 5. Reentrancy
 
-Can host commands call back into `tcl_eval`? Almost certainly yes (think: `unknown` command, `apply`). Make sure:
+Can host commands call back into `feather_eval`? Almost certainly yes (think: `unknown` command, `apply`). Make sure:
 
 - Arena stack handles nested evals
 - Interpreter state is properly scoped
@@ -2358,7 +2358,7 @@ Can host commands call back into `tcl_eval`? Almost certainly yes (think: `unkno
 When user defines `proc foo {args} { body }`:
 
 ```c
-/* Body is a TclObj (string handle) - host stores it */
+/* Body is a FeatherObj (string handle) - host stores it */
 /* Interpreter just tracks: name -> body handle mapping */
 
 /* Or interpreter stores compiled representation in perm_alloc */
@@ -2371,7 +2371,7 @@ I'd suggest: body stays as a string handle (host-owned), interpreter re-parses o
 Start smaller, prove the design:
 
 ```c
-typedef struct TclHostOps {
+typedef struct FeatherHostOps {
     void* userdata;
 
     /* Arena */
@@ -2381,28 +2381,28 @@ typedef struct TclHostOps {
     void* (*perm_alloc)(void* ud, size_t size, size_t align);
 
     /* Strings */
-    TclObj (*intern)(void* ud, const char* s, size_t len);
-    TclObj (*create_string)(void* ud, const char* s, size_t len);
-    const char* (*get_string)(void* ud, TclObj obj, size_t* len);
+    FeatherObj (*intern)(void* ud, const char* s, size_t len);
+    FeatherObj (*create_string)(void* ud, const char* s, size_t len);
+    const char* (*get_string)(void* ud, FeatherObj obj, size_t* len);
 
     /* Lists */
-    TclObj (*create_list)(void* ud, const TclObj* items, size_t len);
-    size_t (*list_length)(void* ud, TclObj list);
-    TclObj (*list_index)(void* ud, TclObj list, size_t idx);
+    FeatherObj (*create_list)(void* ud, const FeatherObj* items, size_t len);
+    size_t (*list_length)(void* ud, FeatherObj list);
+    FeatherObj (*list_index)(void* ud, FeatherObj list, size_t idx);
 
     /* Variables */
-    TclObj (*var_get)(void* ud, TclInterp interp, TclObj name);
-    void (*var_set)(void* ud, TclInterp interp, TclObj name, TclObj value);
+    FeatherObj (*var_get)(void* ud, FeatherInterp interp, FeatherObj name);
+    void (*var_set)(void* ud, FeatherInterp interp, FeatherObj name, FeatherObj value);
 
     /* Commands */
-    TclObj (*invoke_command)(void* ud, TclInterp interp, TclObj cmd_name,
-                             const TclObj* args, size_t argc, TclResult* result);
+    FeatherObj (*invoke_command)(void* ud, FeatherInterp interp, FeatherObj cmd_name,
+                             const FeatherObj* args, size_t argc, FeatherResult* result);
 
-} TclHostOps;
+} FeatherHostOps;
 
-TclInterp tcl_create(const TclHostOps* ops);
-void tcl_destroy(TclInterp interp);
-TclResult tcl_eval(TclInterp interp, const char* script, size_t len, TclObj* out);
+FeatherInterp feather_create(const FeatherHostOps* ops);
+void feather_destroy(FeatherInterp interp);
+FeatherResult feather_eval(FeatherInterp interp, const char* script, size_t len, FeatherObj* out);
 ```
 
 That's ~15 callbacks. Enough to implement `set`, `list`, `puts`, control flow. Add dict, expr, regex later.
@@ -2469,11 +2469,11 @@ Host Commands: { "prompt" -> promptFn, "show" -> showFn }
 
 ---
 
-## Step 1: `tcl_eval()` called
+## Step 1: `feather_eval()` called
 
 ```c
-TclObj result;
-TclResult r = tcl_eval(interp, script, script_len, &result);
+FeatherObj result;
+FeatherResult r = feather_eval(interp, script, script_len, &result);
 ```
 
 Interpreter pushes eval arena:
@@ -2504,9 +2504,9 @@ Before `set` can execute, we evaluate the substitution.
 
 ```c
 // Interpreter calls host
-TclResult cmd_result;
-TclObj args[] = { h2 };  // h2 = "> "
-TclObj ret = ops->invoke_command(ud, interp, h1, args, 1, &cmd_result);
+FeatherResult cmd_result;
+FeatherObj args[] = { h2 };  // h2 = "> "
+FeatherObj ret = ops->invoke_command(ud, interp, h1, args, 1, &cmd_result);
                                           // h1 = "prompt"
 ```
 
@@ -2523,11 +2523,11 @@ Arguments for no:
 Let's say **yes, interpreter pushes before any host call**:
 
 ```c
-TclObj eval_command(TclInterp interp, TclObj cmd, TclObj* args, size_t argc) {
+FeatherObj eval_command(FeatherInterp interp, FeatherObj cmd, FeatherObj* args, size_t argc) {
     ops->arena_push(ud);
     
-    TclResult result;
-    TclObj ret = ops->invoke_command(ud, interp, cmd, args, argc, &result);
+    FeatherResult result;
+    FeatherObj ret = ops->invoke_command(ud, interp, cmd, args, argc, &result);
     
     // ret is a handle - safe to keep after pop
     ops->arena_pop(ud);
@@ -2547,7 +2547,7 @@ Arena Stack: [arena_0, arena_1]  // arena_1 for host call
 Host side (Go example):
 
 ```go
-func promptCmd(interp uint32, args []uint32, argc int) (uint32, TclResult) {
+func promptCmd(interp uint32, args []uint32, argc int) (uint32, FeatherResult) {
     // Get the prompt string from handle
     promptStr := getString(args[0])  // "> "
     
@@ -2621,7 +2621,7 @@ set first [lindex $input 0]
 First, resolve `$input`:
 
 ```c
-TclObj val = ops->var_get(ud, interp, h3);  // returns h8
+FeatherObj val = ops->var_get(ud, interp, h3);  // returns h8
 ```
 
 Now evaluate `[lindex h8 0]`.
@@ -2631,9 +2631,9 @@ Now evaluate `[lindex h8 0]`.
 You listed it as a core feature. Let's say it's a **builtin** — interpreter handles it directly, but calls host for list operations.
 
 ```c
-TclObj builtin_lindex(TclInterp interp, TclObj* args, size_t argc, TclResult* result) {
-    TclObj list = args[0];  // h8 - but wait, is this a list?
-    TclObj index_obj = args[1];
+FeatherObj builtin_lindex(FeatherInterp interp, FeatherObj* args, size_t argc, FeatherResult* result) {
+    FeatherObj list = args[0];  // h8 - but wait, is this a list?
+    FeatherObj index_obj = args[1];
     
     int64_t index;
     if (ops->get_int(ud, index_obj, &index) != 0) {
@@ -2658,7 +2658,7 @@ Options:
 **Option A: Host provides string-to-list conversion**
 
 ```c
-TclObj (*as_list)(void* ud, TclObj obj);  // Parse string as list, return list handle
+FeatherObj (*as_list)(void* ud, FeatherObj obj);  // Parse string as list, return list handle
 ```
 
 **Option B: Interpreter parses, calls host to create list**
@@ -2674,7 +2674,7 @@ TclObj (*as_list)(void* ud, TclObj obj);  // Parse string as list, return list h
 // Host's list_index checks type:
 // - If list: direct index
 // - If string: parse as list first (maybe cache)
-TclObj (*list_index)(void* ud, TclObj obj, size_t idx);
+FeatherObj (*list_index)(void* ud, FeatherObj obj, size_t idx);
 ```
 
 Option C keeps the interpreter simpler. Host decides how to handle the dual representation.
@@ -2682,13 +2682,13 @@ Option C keeps the interpreter simpler. Host decides how to handle the dual repr
 Let's go with **Option C**:
 
 ```c
-TclObj builtin_lindex(TclInterp interp, TclObj* args, size_t argc, TclResult* result) {
-    TclObj list = args[0];  // h8
+FeatherObj builtin_lindex(FeatherInterp interp, FeatherObj* args, size_t argc, FeatherResult* result) {
+    FeatherObj list = args[0];  // h8
     
     int64_t index;
     ops->get_int(ud, args[1], &index);
     
-    TclObj element = ops->list_index(ud, list, (size_t)index);
+    FeatherObj element = ops->list_index(ud, list, (size_t)index);
     
     *result = TCL_OK;
     return element;
@@ -2710,7 +2710,7 @@ func listIndex(obj uint32, idx int) uint32 {
         
     case String:
         // Parse string as list
-        words := parseTclList(v.s)  // ["hello", "world"]
+        words := parseFeatherList(v.s)  // ["hello", "world"]
         if idx >= len(words) {
             return nilHandle
         }
@@ -2750,7 +2750,7 @@ show $first
 Resolve `$first`:
 
 ```c
-TclObj val = ops->var_get(ud, interp, h5);  // returns h9
+FeatherObj val = ops->var_get(ud, interp, h5);  // returns h9
 ```
 
 Call `show`:
@@ -2758,9 +2758,9 @@ Call `show`:
 ```c
 ops->arena_push(ud);
 
-TclResult result;
-TclObj args[] = { h9 };
-TclObj ret = ops->invoke_command(ud, interp, h6, args, 1, &result);
+FeatherResult result;
+FeatherObj args[] = { h9 };
+FeatherObj ret = ops->invoke_command(ud, interp, h6, args, 1, &result);
                                           // h6 = "show"
 
 ops->arena_pop(ud);
@@ -2769,7 +2769,7 @@ ops->arena_pop(ud);
 Host side:
 
 ```go
-func showCmd(interp uint32, args []uint32, argc int) (uint32, TclResult) {
+func showCmd(interp uint32, args []uint32, argc int) (uint32, FeatherResult) {
     str := getString(args[0])  // "hello"
     fmt.Println(str)
     return nilHandle, TCL_OK
@@ -2824,17 +2824,17 @@ Handle Table: { h1-h9 still exist }
 TCL's "everything is a string" requires the host to handle conversions:
 
 ```c
-typedef struct TclHostOps {
+typedef struct FeatherHostOps {
     // ...
     
     // List operations work on any value (string parsed as list if needed)
-    size_t (*list_length)(void* ud, TclObj obj);
-    TclObj (*list_index)(void* ud, TclObj obj, size_t idx);
+    size_t (*list_length)(void* ud, FeatherObj obj);
+    FeatherObj (*list_index)(void* ud, FeatherObj obj, size_t idx);
     
     // Or explicit conversion
-    TclObj (*as_list)(void* ud, TclObj obj);  // returns list handle, may cache
+    FeatherObj (*as_list)(void* ud, FeatherObj obj);  // returns list handle, may cache
     // ...
-} TclHostOps;
+} FeatherHostOps;
 ```
 
 ### 2. Where Does `0` Come From?
@@ -2880,7 +2880,7 @@ func listIndex(obj uint32, idx int) uint32 {
 You probably want a well-known handle for empty string:
 
 ```c
-#define TCL_EMPTY ((TclObj)1)  // or host provides via callback
+#define TCL_EMPTY ((FeatherObj)1)  // or host provides via callback
 ```
 
 ### 4. Error Propagation
@@ -2888,7 +2888,7 @@ You probably want a well-known handle for empty string:
 What if `prompt` fails (e.g., EOF)?
 
 ```go
-func promptCmd(interp uint32, args []uint32, argc int) (uint32, TclResult) {
+func promptCmd(interp uint32, args []uint32, argc int) (uint32, FeatherResult) {
     // ...
     input, err := reader.ReadString('\n')
     if err == io.EOF {
@@ -2902,11 +2902,11 @@ func promptCmd(interp uint32, args []uint32, argc int) (uint32, TclResult) {
 Interpreter must check result code:
 
 ```c
-TclObj eval_command(...) {
+FeatherObj eval_command(...) {
     ops->arena_push(ud);
     
-    TclResult result;
-    TclObj ret = ops->invoke_command(ud, interp, cmd, args, argc, &result);
+    FeatherResult result;
+    FeatherObj ret = ops->invoke_command(ud, interp, cmd, args, argc, &result);
     
     ops->arena_pop(ud);
     
@@ -2925,7 +2925,7 @@ TclObj eval_command(...) {
 ## Refined Callback API After This Exercise
 
 ```c
-typedef struct TclHostOps {
+typedef struct FeatherHostOps {
     void* userdata;
 
     /* Arena */
@@ -2935,37 +2935,37 @@ typedef struct TclHostOps {
     void* (*perm_alloc)(void* ud, size_t size, size_t align);
 
     /* Strings */
-    TclObj (*intern)(void* ud, const char* s, size_t len);
-    TclObj (*create_string)(void* ud, const char* s, size_t len);
-    const char* (*get_string)(void* ud, TclObj obj, size_t* len);
+    FeatherObj (*intern)(void* ud, const char* s, size_t len);
+    FeatherObj (*create_string)(void* ud, const char* s, size_t len);
+    const char* (*get_string)(void* ud, FeatherObj obj, size_t* len);
     
     /* Integers */
-    TclObj (*create_int)(void* ud, int64_t val);
-    int (*get_int)(void* ud, TclObj obj, int64_t* out);  /* 0=success, -1=not an int */
+    FeatherObj (*create_int)(void* ud, int64_t val);
+    int (*get_int)(void* ud, FeatherObj obj, int64_t* out);  /* 0=success, -1=not an int */
 
     /* Lists (work on strings too - host handles duality) */
-    TclObj (*create_list)(void* ud, const TclObj* items, size_t len);
-    size_t (*list_length)(void* ud, TclObj obj);
-    TclObj (*list_index)(void* ud, TclObj obj, size_t idx);
+    FeatherObj (*create_list)(void* ud, const FeatherObj* items, size_t len);
+    size_t (*list_length)(void* ud, FeatherObj obj);
+    FeatherObj (*list_index)(void* ud, FeatherObj obj, size_t idx);
 
     /* Variables */
-    TclObj (*var_get)(void* ud, TclInterp interp, TclObj name);
-    void   (*var_set)(void* ud, TclInterp interp, TclObj name, TclObj value);
-    int    (*var_exists)(void* ud, TclInterp interp, TclObj name);
-    void   (*var_unset)(void* ud, TclInterp interp, TclObj name);
+    FeatherObj (*var_get)(void* ud, FeatherInterp interp, FeatherObj name);
+    void   (*var_set)(void* ud, FeatherInterp interp, FeatherObj name, FeatherObj value);
+    int    (*var_exists)(void* ud, FeatherInterp interp, FeatherObj name);
+    void   (*var_unset)(void* ud, FeatherInterp interp, FeatherObj name);
 
     /* Commands (all non-builtin commands go here) */
-    TclObj (*invoke_command)(void* ud, TclInterp interp, TclObj cmd,
-                             const TclObj* args, size_t argc, TclResult* result);
+    FeatherObj (*invoke_command)(void* ud, FeatherInterp interp, FeatherObj cmd,
+                             const FeatherObj* args, size_t argc, FeatherResult* result);
 
     /* Errors */
-    void   (*set_error)(void* ud, TclInterp interp, TclObj message);
-    TclObj (*get_error)(void* ud, TclInterp interp);
+    void   (*set_error)(void* ud, FeatherInterp interp, FeatherObj message);
+    FeatherObj (*get_error)(void* ud, FeatherInterp interp);
 
     /* Well-known values */
-    TclObj empty_string;  /* pre-initialized handle for "" */
+    FeatherObj empty_string;  /* pre-initialized handle for "" */
 
-} TclHostOps;
+} FeatherHostOps;
 ```
 
 Want to trace through what happens when `prompt` calls *back* into the interpreter (e.g., to evaluate a callback)?
@@ -3075,19 +3075,19 @@ With pure handles and no lifetime tracking, handles leak. Options:
 Interpreter explicitly retains/releases:
 
 ```c
-typedef struct TclHostOps {
+typedef struct FeatherHostOps {
     // ...
-    void (*handle_retain)(void* ud, TclObj h);
-    void (*handle_release)(void* ud, TclObj h);
+    void (*handle_retain)(void* ud, FeatherObj h);
+    void (*handle_release)(void* ud, FeatherObj h);
     // ...
-} TclHostOps;
+} FeatherHostOps;
 ```
 
 Interpreter usage:
 
 ```c
-void var_set_internal(TclInterp interp, TclObj name, TclObj new_value) {
-    TclObj old_value = ops->var_get(ud, interp, name);
+void var_set_internal(FeatherInterp interp, FeatherObj name, FeatherObj new_value) {
+    FeatherObj old_value = ops->var_get(ud, interp, name);
     
     if (old_value != TCL_NIL) {
         ops->handle_release(ud, old_value);  // release old
@@ -3107,11 +3107,11 @@ void var_set_internal(TclInterp interp, TclObj name, TclObj new_value) {
 Handles are tied to the arena they were created in. When arena pops, handles created in it are released (unless promoted).
 
 ```c
-typedef struct TclHostOps {
+typedef struct FeatherHostOps {
     // ...
-    void (*handle_promote)(void* ud, TclObj h);  // move to parent arena
+    void (*handle_promote)(void* ud, FeatherObj h);  // move to parent arena
     // ...
-} TclHostOps;
+} FeatherHostOps;
 ```
 
 Host tracks which handles belong to which arena:
@@ -3143,11 +3143,11 @@ func arenaPop(ud) {
 Interpreter usage:
 
 ```c
-TclObj eval_command(TclInterp interp, TclObj cmd, TclObj* args, size_t argc) {
+FeatherObj eval_command(FeatherInterp interp, FeatherObj cmd, FeatherObj* args, size_t argc) {
     ops->arena_push(ud);
     
-    TclResult result;
-    TclObj ret = ops->invoke_command(ud, interp, cmd, args, argc, &result);
+    FeatherResult result;
+    FeatherObj ret = ops->invoke_command(ud, interp, cmd, args, argc, &result);
     
     // Return value must survive the pop
     if (ret != TCL_NIL) {
@@ -3158,7 +3158,7 @@ TclObj eval_command(TclInterp interp, TclObj cmd, TclObj* args, size_t argc) {
     return ret;
 }
 
-void var_set_internal(TclInterp interp, TclObj name, TclObj value) {
+void var_set_internal(FeatherInterp interp, FeatherObj name, FeatherObj value) {
     // Storing in variable = promote to permanent
     ops->handle_promote(ud, value);
     ops->var_set(ud, interp, name, value);
@@ -3176,19 +3176,19 @@ void var_set_internal(TclInterp interp, TclObj name, TclObj value) {
 Host has a real GC. Interpreter reports its roots when asked.
 
 ```c
-typedef struct TclHostOps {
+typedef struct FeatherHostOps {
     // ...
     // Host calls this to register a callback for GC
-    void (*set_root_callback)(void* ud, TclInterp interp,
-                              void (*report_roots)(TclInterp, void (*mark)(TclObj)));
+    void (*set_root_callback)(void* ud, FeatherInterp interp,
+                              void (*report_roots)(FeatherInterp, void (*mark)(FeatherObj)));
     // ...
-} TclHostOps;
+} FeatherHostOps;
 ```
 
 Interpreter provides:
 
 ```c
-void tcl_report_roots(TclInterp interp, void (*mark)(TclObj)) {
+void feather_report_roots(FeatherInterp interp, void (*mark)(FeatherObj)) {
     // Mark all handles the interpreter is holding
     
     // 1. Variables (but wait, host owns these...)
@@ -3222,18 +3222,18 @@ Push all lifetime management to the host. Interpreter never holds handles longer
 // Interpreter NEVER stores handles in its own data structures
 // All storage goes through host callbacks
 
-typedef struct TclHostOps {
+typedef struct FeatherHostOps {
     // Variables (host-managed, host handles lifetime)
-    void   (*var_set)(void* ud, TclInterp interp, TclObj name, TclObj value);
-    TclObj (*var_get)(void* ud, TclInterp interp, TclObj name);
+    void   (*var_set)(void* ud, FeatherInterp interp, FeatherObj name, FeatherObj value);
+    FeatherObj (*var_get)(void* ud, FeatherInterp interp, FeatherObj name);
     
     // Call stack (host-managed!)
-    void   (*frame_push)(void* ud, TclInterp interp, TclObj cmd, const TclObj* args, size_t argc);
-    void   (*frame_pop)(void* ud, TclInterp interp);
-    TclObj (*frame_get_arg)(void* ud, TclInterp interp, size_t idx);
+    void   (*frame_push)(void* ud, FeatherInterp interp, FeatherObj cmd, const FeatherObj* args, size_t argc);
+    void   (*frame_pop)(void* ud, FeatherInterp interp);
+    FeatherObj (*frame_get_arg)(void* ud, FeatherInterp interp, size_t idx);
     
     // ...
-} TclHostOps;
+} FeatherHostOps;
 ```
 
 Now host knows about everything. GC is entirely host's problem.
@@ -3344,7 +3344,7 @@ Handles that are:
 ## Updated Host API
 
 ```c
-typedef struct TclHostOps {
+typedef struct FeatherHostOps {
     void* userdata;
 
     /* Arena (also manages handle lifetimes) */
@@ -3354,32 +3354,32 @@ typedef struct TclHostOps {
     void* (*perm_alloc)(void* ud, size_t size, size_t align);
 
     /* Value creation (handle starts with refcount=1, owned by current arena) */
-    TclObj (*intern)(void* ud, const char* s, size_t len);         /* permanent, not arena-scoped */
-    TclObj (*create_string)(void* ud, const char* s, size_t len);  /* arena-scoped */
-    TclObj (*create_int)(void* ud, int64_t val);
-    TclObj (*create_list)(void* ud, const TclObj* items, size_t len);
+    FeatherObj (*intern)(void* ud, const char* s, size_t len);         /* permanent, not arena-scoped */
+    FeatherObj (*create_string)(void* ud, const char* s, size_t len);  /* arena-scoped */
+    FeatherObj (*create_int)(void* ud, int64_t val);
+    FeatherObj (*create_list)(void* ud, const FeatherObj* items, size_t len);
 
     /* Value access */
-    const char* (*get_string)(void* ud, TclObj obj, size_t* len);
-    int (*get_int)(void* ud, TclObj obj, int64_t* out);
-    size_t (*list_length)(void* ud, TclObj obj);
-    TclObj (*list_index)(void* ud, TclObj obj, size_t idx);  /* returned handle is arena-scoped */
+    const char* (*get_string)(void* ud, FeatherObj obj, size_t* len);
+    int (*get_int)(void* ud, FeatherObj obj, int64_t* out);
+    size_t (*list_length)(void* ud, FeatherObj obj);
+    FeatherObj (*list_index)(void* ud, FeatherObj obj, size_t idx);  /* returned handle is arena-scoped */
 
     /* Variables (var_set retains, var_unset releases) */
-    TclObj (*var_get)(void* ud, TclInterp interp, TclObj name);
-    void   (*var_set)(void* ud, TclInterp interp, TclObj name, TclObj value);  /* retains value */
-    void   (*var_unset)(void* ud, TclInterp interp, TclObj name);              /* releases old */
-    int    (*var_exists)(void* ud, TclInterp interp, TclObj name);
+    FeatherObj (*var_get)(void* ud, FeatherInterp interp, FeatherObj name);
+    void   (*var_set)(void* ud, FeatherInterp interp, FeatherObj name, FeatherObj value);  /* retains value */
+    void   (*var_unset)(void* ud, FeatherInterp interp, FeatherObj name);              /* releases old */
+    int    (*var_exists)(void* ud, FeatherInterp interp, FeatherObj name);
 
     /* Commands */
-    TclObj (*invoke_command)(void* ud, TclInterp interp, TclObj cmd,
-                             const TclObj* args, size_t argc, TclResult* result);
+    FeatherObj (*invoke_command)(void* ud, FeatherInterp interp, FeatherObj cmd,
+                             const FeatherObj* args, size_t argc, FeatherResult* result);
 
     /* Errors */
-    void   (*set_error)(void* ud, TclInterp interp, TclObj message);  /* retains message */
-    TclObj (*get_error)(void* ud, TclInterp interp);
+    void   (*set_error)(void* ud, FeatherInterp interp, FeatherObj message);  /* retains message */
+    FeatherObj (*get_error)(void* ud, FeatherInterp interp);
 
-} TclHostOps;
+} FeatherHostOps;
 ```
 
 **Key property:** Interpreter doesn't manage refcounts. It just:
@@ -3507,9 +3507,9 @@ So the question becomes: does the interpreter need raw memory that outlives a si
 **But wait:** If proc bodies are handles, and the interpreter just stores `{ name_handle -> body_handle }`, that mapping could live in...the host!
 
 ```c
-void (*proc_define)(void* ud, TclInterp interp, TclObj name, TclObj args, TclObj body);
-TclObj (*proc_get_body)(void* ud, TclInterp interp, TclObj name);
-TclObj (*proc_get_args)(void* ud, TclInterp interp, TclObj name);
+void (*proc_define)(void* ud, FeatherInterp interp, FeatherObj name, FeatherObj args, FeatherObj body);
+FeatherObj (*proc_get_body)(void* ud, FeatherInterp interp, FeatherObj name);
+FeatherObj (*proc_get_args)(void* ud, FeatherInterp interp, FeatherObj name);
 ```
 
 Now the interpreter is truly stateless between evals. All persistent state lives in the host.
@@ -3517,7 +3517,7 @@ Now the interpreter is truly stateless between evals. All persistent state lives
 **Revised model:**
 
 ```c
-typedef struct TclHostOps {
+typedef struct FeatherHostOps {
     void* userdata;
 
     /* Arena stack - ALL interpreter memory comes from here */
@@ -3529,33 +3529,33 @@ typedef struct TclHostOps {
     /* All persistent state (procs, variables) is host-managed */
     
     // ...
-} TclHostOps;
+} FeatherHostOps;
 ```
 
-**One catch:** The `TclInterp` handle itself. Where does the interpreter's base state live?
+**One catch:** The `FeatherInterp` handle itself. Where does the interpreter's base state live?
 
 Option A: Host allocates it
 
 ```c
 // Host provides memory for interpreter state
-TclInterp tcl_create(const TclHostOps* ops, void* interp_memory, size_t size);
+FeatherInterp feather_create(const FeatherHostOps* ops, void* interp_memory, size_t size);
 ```
 
 Option B: First arena is permanent by convention
 
 ```c
-TclInterp tcl_create(const TclHostOps* ops) {
+FeatherInterp feather_create(const FeatherHostOps* ops) {
     // Push the "permanent" arena - never popped
     ops->arena_push(ops->userdata);
     
     // Allocate interpreter state here
-    TclInterpInternal* interp = ops->arena_alloc(ops->userdata, sizeof(TclInterpInternal), ...);
+    FeatherInterpInternal* interp = ops->arena_alloc(ops->userdata, sizeof(FeatherInterpInternal), ...);
     
     // All subsequent evals push/pop on top of this
     return interp->handle;
 }
 
-void tcl_destroy(TclInterp interp) {
+void feather_destroy(FeatherInterp interp) {
     // Pop the permanent arena
     ops->arena_pop(ops->userdata);
 }
@@ -3608,8 +3608,8 @@ The host needs to know about scopes. Two options:
 ### Option A: Explicit scope parameter
 
 ```c
-TclObj (*var_get)(void* ud, TclInterp interp, size_t scope_level, TclObj name);
-void   (*var_set)(void* ud, TclInterp interp, size_t scope_level, TclObj name, TclObj value);
+FeatherObj (*var_get)(void* ud, FeatherInterp interp, size_t scope_level, FeatherObj name);
+void   (*var_set)(void* ud, FeatherInterp interp, size_t scope_level, FeatherObj name, FeatherObj value);
 ```
 
 Interpreter tracks current level, passes it explicitly:
@@ -3625,14 +3625,14 @@ ops->var_set(ud, interp, interp->scope_level - 1, name, value);
 ### Option B: Separate scope callbacks
 
 ```c
-void (*scope_push)(void* ud, TclInterp interp);
-void (*scope_pop)(void* ud, TclInterp interp);
-TclObj (*var_get)(void* ud, TclInterp interp, TclObj name);  // operates on current scope
-void   (*var_set)(void* ud, TclInterp interp, TclObj name, TclObj value);
+void (*scope_push)(void* ud, FeatherInterp interp);
+void (*scope_pop)(void* ud, FeatherInterp interp);
+FeatherObj (*var_get)(void* ud, FeatherInterp interp, FeatherObj name);  // operates on current scope
+void   (*var_set)(void* ud, FeatherInterp interp, FeatherObj name, FeatherObj value);
 
 // For upvar/uplevel
-TclObj (*var_get_at)(void* ud, TclInterp interp, size_t level, TclObj name);
-void   (*var_set_at)(void* ud, TclInterp interp, size_t level, TclObj name, TclObj value);
+FeatherObj (*var_get_at)(void* ud, FeatherInterp interp, size_t level, FeatherObj name);
+void   (*var_set_at)(void* ud, FeatherInterp interp, size_t level, FeatherObj name, FeatherObj value);
 ```
 
 ### Are scopes and arenas the same thing?
@@ -3653,7 +3653,7 @@ Host calls: arena push (for temp memory) but no scope change.
 So they're related but distinct. Let's keep them separate:
 
 ```c
-typedef struct TclHostOps {
+typedef struct FeatherHostOps {
     void* userdata;
 
     /* Arenas - memory lifetime */
@@ -3662,21 +3662,21 @@ typedef struct TclHostOps {
     void* (*arena_alloc)(void* ud, size_t size, size_t align);
 
     /* Scopes - variable visibility */
-    void (*scope_push)(void* ud, TclInterp interp);
-    void (*scope_pop)(void* ud, TclInterp interp);
-    size_t (*scope_level)(void* ud, TclInterp interp);  // for uplevel/upvar
+    void (*scope_push)(void* ud, FeatherInterp interp);
+    void (*scope_pop)(void* ud, FeatherInterp interp);
+    size_t (*scope_level)(void* ud, FeatherInterp interp);  // for uplevel/upvar
 
     /* Variables - operate on current scope by default */
-    TclObj (*var_get)(void* ud, TclInterp interp, TclObj name);
-    void   (*var_set)(void* ud, TclInterp interp, TclObj name, TclObj value);
-    void   (*var_unset)(void* ud, TclInterp interp, TclObj name);
+    FeatherObj (*var_get)(void* ud, FeatherInterp interp, FeatherObj name);
+    void   (*var_set)(void* ud, FeatherInterp interp, FeatherObj name, FeatherObj value);
+    void   (*var_unset)(void* ud, FeatherInterp interp, FeatherObj name);
     
     /* Cross-scope access (for upvar, uplevel) */
-    TclObj (*var_get_at)(void* ud, TclInterp interp, size_t level, TclObj name);
-    void   (*var_set_at)(void* ud, TclInterp interp, size_t level, TclObj name, TclObj value);
+    FeatherObj (*var_get_at)(void* ud, FeatherInterp interp, size_t level, FeatherObj name);
+    void   (*var_set_at)(void* ud, FeatherInterp interp, size_t level, FeatherObj name, FeatherObj value);
     
     // ...
-} TclHostOps;
+} FeatherHostOps;
 ```
 
 ### Trace through `upvar` example
@@ -3714,9 +3714,9 @@ Options:
 **Option A: Host handles aliasing**
 
 ```c
-void (*var_link)(void* ud, TclInterp interp, 
-                 size_t target_level, TclObj target_name,
-                 TclObj local_name);
+void (*var_link)(void* ud, FeatherInterp interp, 
+                 size_t target_level, FeatherObj target_name,
+                 FeatherObj local_name);
 ```
 
 Host stores: `{ level=1, "local_x" } -> { level=0, "x" }`. When interpreter does `var_get(interp, "local_x")`, host follows the link.
@@ -3726,7 +3726,7 @@ Host stores: `{ level=1, "local_x" } -> { level=0, "x" }`. When interpreter does
 Interpreter maintains its own upvar table in arena memory. On `var_get`, checks for alias first:
 
 ```c
-TclObj interp_var_get(TclInterp interp, TclObj name) {
+FeatherObj interp_var_get(FeatherInterp interp, FeatherObj name) {
     Alias* alias = lookup_alias(interp, name);
     if (alias) {
         return ops->var_get_at(ud, interp, alias->level, alias->target);
@@ -3742,7 +3742,7 @@ Option B keeps the host simpler. The alias table lives in the current arena and 
 ## Refined Model
 
 ```c
-typedef struct TclHostOps {
+typedef struct FeatherHostOps {
     void* userdata;
 
     /* Arenas - raw memory, scoped lifetime */
@@ -3751,47 +3751,47 @@ typedef struct TclHostOps {
     void* (*arena_alloc)(void* ud, size_t size, size_t align);
 
     /* Scopes - variable namespaces */
-    void   (*scope_push)(void* ud, TclInterp interp);
-    void   (*scope_pop)(void* ud, TclInterp interp);
-    size_t (*scope_level)(void* ud, TclInterp interp);
+    void   (*scope_push)(void* ud, FeatherInterp interp);
+    void   (*scope_pop)(void* ud, FeatherInterp interp);
+    size_t (*scope_level)(void* ud, FeatherInterp interp);
 
     /* Variables */
-    TclObj (*var_get)(void* ud, TclInterp interp, TclObj name);
-    void   (*var_set)(void* ud, TclInterp interp, TclObj name, TclObj value);
-    void   (*var_unset)(void* ud, TclInterp interp, TclObj name);
-    int    (*var_exists)(void* ud, TclInterp interp, TclObj name);
+    FeatherObj (*var_get)(void* ud, FeatherInterp interp, FeatherObj name);
+    void   (*var_set)(void* ud, FeatherInterp interp, FeatherObj name, FeatherObj value);
+    void   (*var_unset)(void* ud, FeatherInterp interp, FeatherObj name);
+    int    (*var_exists)(void* ud, FeatherInterp interp, FeatherObj name);
     
     /* Cross-scope (interpreter uses these to implement upvar/uplevel) */
-    TclObj (*var_get_at)(void* ud, TclInterp interp, size_t level, TclObj name);
-    void   (*var_set_at)(void* ud, TclInterp interp, size_t level, TclObj name, TclObj value);
+    FeatherObj (*var_get_at)(void* ud, FeatherInterp interp, size_t level, FeatherObj name);
+    void   (*var_set_at)(void* ud, FeatherInterp interp, size_t level, FeatherObj name, FeatherObj value);
 
     /* Value creation (arena-scoped refcount) */
-    TclObj (*intern)(void* ud, const char* s, size_t len);
-    TclObj (*create_string)(void* ud, const char* s, size_t len);
-    TclObj (*create_int)(void* ud, int64_t val);
-    TclObj (*create_list)(void* ud, const TclObj* items, size_t len);
+    FeatherObj (*intern)(void* ud, const char* s, size_t len);
+    FeatherObj (*create_string)(void* ud, const char* s, size_t len);
+    FeatherObj (*create_int)(void* ud, int64_t val);
+    FeatherObj (*create_list)(void* ud, const FeatherObj* items, size_t len);
 
     /* Value access */
-    const char* (*get_string)(void* ud, TclObj obj, size_t* len);
-    int    (*get_int)(void* ud, TclObj obj, int64_t* out);
-    size_t (*list_length)(void* ud, TclObj obj);
-    TclObj (*list_index)(void* ud, TclObj obj, size_t idx);
+    const char* (*get_string)(void* ud, FeatherObj obj, size_t* len);
+    int    (*get_int)(void* ud, FeatherObj obj, int64_t* out);
+    size_t (*list_length)(void* ud, FeatherObj obj);
+    FeatherObj (*list_index)(void* ud, FeatherObj obj, size_t idx);
 
     /* Commands */
-    TclObj (*invoke_command)(void* ud, TclInterp interp, TclObj cmd,
-                             const TclObj* args, size_t argc, TclResult* result);
+    FeatherObj (*invoke_command)(void* ud, FeatherInterp interp, FeatherObj cmd,
+                             const FeatherObj* args, size_t argc, FeatherResult* result);
 
     /* Procs (host stores definitions) */
-    void   (*proc_define)(void* ud, TclInterp interp, TclObj name, TclObj params, TclObj body);
-    int    (*proc_exists)(void* ud, TclInterp interp, TclObj name);
-    TclObj (*proc_params)(void* ud, TclInterp interp, TclObj name);
-    TclObj (*proc_body)(void* ud, TclInterp interp, TclObj name);
+    void   (*proc_define)(void* ud, FeatherInterp interp, FeatherObj name, FeatherObj params, FeatherObj body);
+    int    (*proc_exists)(void* ud, FeatherInterp interp, FeatherObj name);
+    FeatherObj (*proc_params)(void* ud, FeatherInterp interp, FeatherObj name);
+    FeatherObj (*proc_body)(void* ud, FeatherInterp interp, FeatherObj name);
 
     /* Errors */
-    void   (*set_error)(void* ud, TclInterp interp, TclObj message);
-    TclObj (*get_error)(void* ud, TclInterp interp);
+    void   (*set_error)(void* ud, FeatherInterp interp, FeatherObj message);
+    FeatherObj (*get_error)(void* ud, FeatherInterp interp);
 
-} TclHostOps;
+} FeatherHostOps;
 ```
 
 **Interpreter responsibilities:**
@@ -3843,7 +3843,7 @@ If parsing produces a tree of nodes, those nodes need to live somewhere. But... 
 Option A: AST is raw structs in arena
 `​`​`c
 typedef struct AstCommand {
-    TclObj name;
+    FeatherObj name;
     size_t argc;
     struct AstNode** argv;  // raw pointer into arena
 } AstCommand;
@@ -3852,8 +3852,8 @@ typedef struct AstCommand {
 Option B: AST is handles
 `​`​`c
 // Host provides:
-TclObj (*create_ast_command)(void* ud, TclObj name, TclObj* args, size_t argc);
-TclObj (*ast_command_name)(void* ud, TclObj node);
+FeatherObj (*create_ast_command)(void* ud, FeatherObj name, FeatherObj* args, size_t argc);
+FeatherObj (*ast_command_name)(void* ud, FeatherObj node);
 // etc.
 `​`​`
 
@@ -3916,7 +3916,7 @@ The core insight involves transforming parsing from a static, memory-intensive p
 
 By defining a structured callback interface, the system can track nested commands and substitutions using the interpreter's execution context, potentially eliminating the need for extensive pre-allocated memory structures.
 
-This approach allows granular, on-the-fly processing of Tcl scripts, with each language construct triggering specific interpreter actions as it's encountered.
+This approach allows granular, on-the-fly processing of Feather scripts, with each language construct triggering specific interpreter actions as it's encountered.
 ````
 
 Interesting question. Let's enumerate what the interpreter actually uses raw memory for:
@@ -3926,7 +3926,7 @@ Interesting question. Let's enumerate what the interpreter actually uses raw mem
 | Use | Example |
 |-----|---------|
 | AST nodes | `AstCommand`, `AstLiteral`, `AstSubst` |
-| Argument arrays | `TclObj args[argc]` before `invoke_command` |
+| Argument arrays | `FeatherObj args[argc]` before `invoke_command` |
 | String building | Concatenating `"Hello $name"` |
 | Parser scratch | Token buffers, nesting stack |
 | Upvar alias table | `{ local_name -> (level, target_name) }` |
@@ -3948,10 +3948,10 @@ Instead of: parse → AST → walk AST → evaluate
 We could: parse and evaluate in one pass
 
 ```c
-TclObj eval_script(TclInterp interp, const char* script, size_t len) {
+FeatherObj eval_script(FeatherInterp interp, const char* script, size_t len) {
     const char* p = script;
     const char* end = script + len;
-    TclObj result = TCL_EMPTY;
+    FeatherObj result = TCL_EMPTY;
     
     while (p < end) {
         result = eval_one_command(interp, &p, end);
@@ -3974,7 +3974,7 @@ Current:
 
 ```c
 // Need to collect args somewhere before calling
-TclObj args[argc];
+FeatherObj args[argc];
 for (int i = 0; i < argc; i++) {
     args[i] = eval_word(interp, ...);
 }
@@ -3986,8 +3986,8 @@ That `args` array needs memory. Options:
 **Option A: Fixed-size inline buffer**
 
 ```c
-TclObj eval_command(TclInterp interp, ...) {
-    TclObj inline_args[16];  // on C stack
+FeatherObj eval_command(FeatherInterp interp, ...) {
+    FeatherObj inline_args[16];  // on C stack
     // Error if argc > 16? Or call host for overflow?
 }
 ```
@@ -3997,22 +3997,22 @@ Simple, but arbitrary limit.
 **Option B: Host-managed list builder**
 
 ```c
-typedef struct TclHostOps {
+typedef struct FeatherHostOps {
     // ...
-    TclObj (*list_new)(void* ud);
-    TclObj (*list_push)(void* ud, TclObj list, TclObj item);  // returns new list
+    FeatherObj (*list_new)(void* ud);
+    FeatherObj (*list_push)(void* ud, FeatherObj list, FeatherObj item);  // returns new list
     // ...
-} TclHostOps;
+} FeatherHostOps;
 ```
 
 Interpreter:
 
 ```c
-TclObj eval_command(TclInterp interp, ...) {
-    TclObj args = ops->list_new(ops->ud);
+FeatherObj eval_command(FeatherInterp interp, ...) {
+    FeatherObj args = ops->list_new(ops->ud);
     
     while (has_more_words()) {
-        TclObj word = eval_word(interp, ...);
+        FeatherObj word = eval_word(interp, ...);
         args = ops->list_push(ops->ud, args, word);
     }
     
@@ -4023,8 +4023,8 @@ TclObj eval_command(TclInterp interp, ...) {
 Now `invoke_command` takes a list handle instead of array:
 
 ```c
-TclObj (*invoke_command)(void* ud, TclInterp interp, TclObj cmd,
-                         TclObj args, TclResult* result);
+FeatherObj (*invoke_command)(void* ud, FeatherInterp interp, FeatherObj cmd,
+                         FeatherObj args, FeatherResult* result);
 ```
 
 **Tradeoff:** Creates intermediate list handles. But host can optimize (reuse builder, pool small lists).
@@ -4046,13 +4046,13 @@ Need to concatenate: `"Hello "` + value of `$name` + `", balance: "` + result of
 **Option A: Binary concat, fold**
 
 ```c
-TclObj (*string_concat)(void* ud, TclObj a, TclObj b);
+FeatherObj (*string_concat)(void* ud, FeatherObj a, FeatherObj b);
 ```
 
 Interpreter:
 
 ```c
-TclObj result = ops->intern(ops->ud, "Hello ", 6);
+FeatherObj result = ops->intern(ops->ud, "Hello ", 6);
 result = ops->string_concat(ops->ud, result, name_value);
 result = ops->string_concat(ops->ud, result, ops->intern(ops->ud, ", balance: ", 11));
 result = ops->string_concat(ops->ud, result, balance_value);
@@ -4063,10 +4063,10 @@ Creates intermediate handles, but works.
 **Option B: String builder**
 
 ```c
-TclObj (*builder_new)(void* ud);
-void   (*builder_append_bytes)(void* ud, TclObj b, const char* s, size_t len);
-void   (*builder_append_handle)(void* ud, TclObj b, TclObj s);
-TclObj (*builder_finish)(void* ud, TclObj b);
+FeatherObj (*builder_new)(void* ud);
+void   (*builder_append_bytes)(void* ud, FeatherObj b, const char* s, size_t len);
+void   (*builder_append_handle)(void* ud, FeatherObj b, FeatherObj s);
+FeatherObj (*builder_finish)(void* ud, FeatherObj b);
 ```
 
 More efficient for many pieces, but more API surface.
@@ -4074,11 +4074,11 @@ More efficient for many pieces, but more API surface.
 **Option C: Build list of parts, join at end**
 
 ```c
-TclObj parts = ops->list_new(ops->ud);
+FeatherObj parts = ops->list_new(ops->ud);
 parts = ops->list_push(ops->ud, parts, ops->intern(ops->ud, "Hello ", 6));
 parts = ops->list_push(ops->ud, parts, name_value);
 // ...
-TclObj result = ops->string_join(ops->ud, parts, ops->intern(ops->ud, "", 0));
+FeatherObj result = ops->string_join(ops->ud, parts, ops->intern(ops->ud, "", 0));
 ```
 
 Reuses list builder. One join at the end.
@@ -4098,18 +4098,18 @@ What state does the parser need?
 Example recursive descent:
 
 ```c
-TclObj parse_word(TclInterp interp, const char** p, const char* end) {
+FeatherObj parse_word(FeatherInterp interp, const char** p, const char* end) {
     if (**p == '[') {
         // Substitution - recurse
         (*p)++;  // skip '['
-        TclObj result = eval_command_until(interp, p, end, ']');
+        FeatherObj result = eval_command_until(interp, p, end, ']');
         (*p)++;  // skip ']'
         return result;
     }
     else if (**p == '$') {
         // Variable
         (*p)++;
-        TclObj name = parse_varname(interp, p, end);
+        FeatherObj name = parse_varname(interp, p, end);
         return ops->var_get(ops->ud, interp, name);
     }
     else if (**p == '"') {
@@ -4131,8 +4131,8 @@ Parser state is entirely on the C stack.
 Instead of interpreter storing aliases:
 
 ```c
-void (*var_link)(void* ud, TclInterp interp, TclObj local_name, 
-                 size_t target_level, TclObj target_name);
+void (*var_link)(void* ud, FeatherInterp interp, FeatherObj local_name, 
+                 size_t target_level, FeatherObj target_name);
 ```
 
 Host stores the link. When interpreter calls `var_get`, host follows links automatically.
@@ -4146,10 +4146,10 @@ Host stores the link. When interpreter calls `var_get`, host follows links autom
 Currently implicit in C recursion, but for `info frame` and error traces:
 
 ```c
-void (*frame_push)(void* ud, TclInterp interp, TclObj cmd, TclObj args);
-void (*frame_pop)(void* ud, TclInterp interp);
-size_t (*frame_level)(void* ud, TclInterp interp);
-TclObj (*frame_info)(void* ud, TclInterp interp, size_t level);  // for introspection
+void (*frame_push)(void* ud, FeatherInterp interp, FeatherObj cmd, FeatherObj args);
+void (*frame_pop)(void* ud, FeatherInterp interp);
+size_t (*frame_level)(void* ud, FeatherInterp interp);
+FeatherObj (*frame_info)(void* ud, FeatherInterp interp, size_t level);  // for introspection
 ```
 
 Host tracks the call stack.
@@ -4163,31 +4163,31 @@ Host tracks the call stack.
 After pushing everything to host:
 
 **Interpreter state:**
-- Pointer to `TclHostOps`
-- Result code (`TclResult`)
+- Pointer to `FeatherHostOps`
+- Result code (`FeatherResult`)
 - That's it?
 
 Actually, we need the interpreter handle to pass to callbacks. Where does *that* live?
 
 ```c
-typedef struct TclInterpInternal {
-    const TclHostOps* ops;
-    TclResult result_code;
+typedef struct FeatherInterpInternal {
+    const FeatherHostOps* ops;
+    FeatherResult result_code;
     // Anything else?
-} TclInterpInternal;
+} FeatherInterpInternal;
 ```
 
 This could be:
-- Host-allocated: `tcl_create` receives memory from host
-- Static/pooled: `tcl_create` returns index into fixed array
-- On C stack: interpreter exists only during `tcl_eval`
+- Host-allocated: `feather_create` receives memory from host
+- Static/pooled: `feather_create` returns index into fixed array
+- On C stack: interpreter exists only during `feather_eval`
 
 **Option: Interpreter-on-stack**
 
 ```c
-TclResult tcl_eval(const TclHostOps* ops, const char* script, size_t len, TclObj* result) {
+FeatherResult feather_eval(const FeatherHostOps* ops, const char* script, size_t len, FeatherObj* result) {
     // "Interpreter" is just local variables
-    TclResult code = TCL_OK;
+    FeatherResult code = TCL_OK;
     
     ops->scope_push(ops->userdata);
     
@@ -4200,13 +4200,13 @@ TclResult tcl_eval(const TclHostOps* ops, const char* script, size_t len, TclObj
 }
 ```
 
-No persistent interpreter state at all! Each `tcl_eval` is independent. Host maintains all continuity (variables, procs).
+No persistent interpreter state at all! Each `feather_eval` is independent. Host maintains all continuity (variables, procs).
 
 But wait, we need to pass something to callbacks so host can identify which "interpreter" this is (for multi-interpreter scenarios). Solution:
 
 ```c
-TclResult tcl_eval(const TclHostOps* ops, uint32_t interp_id, 
-                   const char* script, size_t len, TclObj* result) {
+FeatherResult feather_eval(const FeatherHostOps* ops, uint32_t interp_id, 
+                   const char* script, size_t len, FeatherObj* result) {
     // Host created interp_id, host knows what it means
     ops->scope_push(ops->userdata, interp_id);
     // ...
@@ -4220,8 +4220,8 @@ The interpreter doesn't allocate or store anything. It's a pure function: `(ops,
 ## Revised API: No Raw Memory
 
 ```c
-typedef uint32_t TclObj;
-typedef uint32_t TclInterp;  // opaque ID, host-managed
+typedef uint32_t FeatherObj;
+typedef uint32_t FeatherInterp;  // opaque ID, host-managed
 
 typedef enum {
     TCL_OK = 0,
@@ -4229,66 +4229,66 @@ typedef enum {
     TCL_RETURN = 2,
     TCL_BREAK = 3,
     TCL_CONTINUE = 4,
-} TclResult;
+} FeatherResult;
 
-typedef struct TclHostOps {
+typedef struct FeatherHostOps {
     void* userdata;
 
     /* Interpreter lifecycle (host allocates all state) */
-    TclInterp (*interp_create)(void* ud);
-    void (*interp_destroy)(void* ud, TclInterp interp);
+    FeatherInterp (*interp_create)(void* ud);
+    void (*interp_destroy)(void* ud, FeatherInterp interp);
 
     /* Call frames (for error traces, uplevel, info frame) */
-    void   (*frame_push)(void* ud, TclInterp interp, TclObj cmd, TclObj args);
-    void   (*frame_pop)(void* ud, TclInterp interp);
-    size_t (*frame_level)(void* ud, TclInterp interp);
+    void   (*frame_push)(void* ud, FeatherInterp interp, FeatherObj cmd, FeatherObj args);
+    void   (*frame_pop)(void* ud, FeatherInterp interp);
+    size_t (*frame_level)(void* ud, FeatherInterp interp);
 
     /* Scopes (for variable visibility) */
-    void (*scope_push)(void* ud, TclInterp interp);
-    void (*scope_pop)(void* ud, TclInterp interp);
+    void (*scope_push)(void* ud, FeatherInterp interp);
+    void (*scope_pop)(void* ud, FeatherInterp interp);
 
     /* Variables */
-    TclObj (*var_get)(void* ud, TclInterp interp, TclObj name);
-    void   (*var_set)(void* ud, TclInterp interp, TclObj name, TclObj value);
-    void   (*var_unset)(void* ud, TclInterp interp, TclObj name);
-    int    (*var_exists)(void* ud, TclInterp interp, TclObj name);
-    void   (*var_link)(void* ud, TclInterp interp, TclObj local, size_t level, TclObj target);
+    FeatherObj (*var_get)(void* ud, FeatherInterp interp, FeatherObj name);
+    void   (*var_set)(void* ud, FeatherInterp interp, FeatherObj name, FeatherObj value);
+    void   (*var_unset)(void* ud, FeatherInterp interp, FeatherObj name);
+    int    (*var_exists)(void* ud, FeatherInterp interp, FeatherObj name);
+    void   (*var_link)(void* ud, FeatherInterp interp, FeatherObj local, size_t level, FeatherObj target);
 
     /* Strings */
-    TclObj (*intern)(void* ud, const char* s, size_t len);
-    const char* (*get_string)(void* ud, TclObj obj, size_t* len);
-    TclObj (*string_concat)(void* ud, TclObj a, TclObj b);
+    FeatherObj (*intern)(void* ud, const char* s, size_t len);
+    const char* (*get_string)(void* ud, FeatherObj obj, size_t* len);
+    FeatherObj (*string_concat)(void* ud, FeatherObj a, FeatherObj b);
 
     /* Integers */
-    TclObj (*create_int)(void* ud, int64_t val);
-    int (*get_int)(void* ud, TclObj obj, int64_t* out);
+    FeatherObj (*create_int)(void* ud, int64_t val);
+    int (*get_int)(void* ud, FeatherObj obj, int64_t* out);
 
     /* Lists (also used for argument building) */
-    TclObj (*list_new)(void* ud);
-    TclObj (*list_push)(void* ud, TclObj list, TclObj item);
-    size_t (*list_length)(void* ud, TclObj list);
-    TclObj (*list_index)(void* ud, TclObj list, size_t idx);
+    FeatherObj (*list_new)(void* ud);
+    FeatherObj (*list_push)(void* ud, FeatherObj list, FeatherObj item);
+    size_t (*list_length)(void* ud, FeatherObj list);
+    FeatherObj (*list_index)(void* ud, FeatherObj list, size_t idx);
 
     /* Commands */
-    TclObj (*invoke)(void* ud, TclInterp interp, TclObj cmd, TclObj args, TclResult* result);
+    FeatherObj (*invoke)(void* ud, FeatherInterp interp, FeatherObj cmd, FeatherObj args, FeatherResult* result);
 
     /* Procs */
-    void   (*proc_define)(void* ud, TclInterp interp, TclObj name, TclObj params, TclObj body);
-    int    (*proc_exists)(void* ud, TclInterp interp, TclObj name);
-    TclObj (*proc_params)(void* ud, TclInterp interp, TclObj name);
-    TclObj (*proc_body)(void* ud, TclInterp interp, TclObj name);
+    void   (*proc_define)(void* ud, FeatherInterp interp, FeatherObj name, FeatherObj params, FeatherObj body);
+    int    (*proc_exists)(void* ud, FeatherInterp interp, FeatherObj name);
+    FeatherObj (*proc_params)(void* ud, FeatherInterp interp, FeatherObj name);
+    FeatherObj (*proc_body)(void* ud, FeatherInterp interp, FeatherObj name);
 
     /* Errors */
-    void   (*set_error)(void* ud, TclInterp interp, TclObj message);
-    TclObj (*get_error)(void* ud, TclInterp interp);
+    void   (*set_error)(void* ud, FeatherInterp interp, FeatherObj message);
+    FeatherObj (*get_error)(void* ud, FeatherInterp interp);
 
-} TclHostOps;
+} FeatherHostOps;
 
 /* 
  * Core API - interpreter is pure computation, no memory allocation
  */
-TclResult tcl_eval(const TclHostOps* ops, TclInterp interp,
-                   const char* script, size_t len, TclObj* result);
+FeatherResult feather_eval(const FeatherHostOps* ops, FeatherInterp interp,
+                   const char* script, size_t len, FeatherObj* result);
 ```
 
 ---
@@ -4326,7 +4326,7 @@ Does this pure-handle model appeal to you? Or do you want a small fixed scratch 
 ## Prompt:
 12/20/2025, 7:34:46 PM
 
-One revision - the TclInterp mentioned above is intended to be a persistent object in the host and just another kind of handle, like TclObj
+One revision - the FeatherInterp mentioned above is intended to be a persistent object in the host and just another kind of handle, like FeatherObj
 
 
 
@@ -4336,34 +4336,34 @@ One revision - the TclInterp mentioned above is intended to be a persistent obje
 ````plaintext
 Thought process: Reconsidered interpreter architecture, eliminating unnecessary operations.
 
-The user is clarifying that TclInterp should just be another handle type, like TclObj. This makes sense - the host manages everything, including the interpreter state itself. The interpreter is just a handle that the host uses to track which interpreter context we're operating in.
+The user is clarifying that FeatherInterp should just be another handle type, like FeatherObj. This makes sense - the host manages everything, including the interpreter state itself. The interpreter is just a handle that the host uses to track which interpreter context we're operating in.
 
 This simplifies things further:
-- TclInterp is just a uint32_t handle
+- FeatherInterp is just a uint32_t handle
 - Host creates/destroys interpreters
-- All interpreter state (variables, procs, frames, scopes) is host-managed and keyed by the TclInterp handle
+- All interpreter state (variables, procs, frames, scopes) is host-managed and keyed by the FeatherInterp handle
 - The C code is truly stateless - it's just a set of functions that take handles and ops
 
 Let me think through the implications:
 
 1. No `interp_create`/`interp_destroy` in the ops - the host does this outside the callback interface
-2. The interpreter handle is passed to tcl_eval and to all callbacks that need interpreter context
+2. The interpreter handle is passed to feather_eval and to all callbacks that need interpreter context
 3. The host can have multiple interpreters, each with their own state
 
-Actually, wait - if the host creates interpreters, how does that work? The user said TclInterp is "intended to be a persistent object in the host and just another kind of handle". So:
+Actually, wait - if the host creates interpreters, how does that work? The user said FeatherInterp is "intended to be a persistent object in the host and just another kind of handle". So:
 
 - Host creates an interpreter somehow (maybe just allocates internal state and assigns a handle)
-- Host passes that handle to tcl_eval
-- tcl_eval uses that handle in all callbacks
+- Host passes that handle to feather_eval
+- feather_eval uses that handle in all callbacks
 - Host uses the handle to look up the right state (variables, procs, etc.)
 
 So the API would be:
 
 `​`​`c
-// Host creates interp before calling tcl_eval
-// tcl_eval doesn't create anything, just uses the handle
-TclResult tcl_eval(const TclHostOps* ops, TclInterp interp,
-                   const char* script, size_t len, TclObj* result);
+// Host creates interp before calling feather_eval
+// feather_eval doesn't create anything, just uses the handle
+FeatherResult feather_eval(const FeatherHostOps* ops, FeatherInterp interp,
+                   const char* script, size_t len, FeatherObj* result);
 `​`​`
 
 The host might have:
@@ -4387,13 +4387,13 @@ The persistent nature of the interpreter handle means the host can maintain long
 
 Ah, that's cleaner. So:
 
-- `TclInterp` is a handle like `TclObj`
-- Host creates/destroys interpreters outside of `TclHostOps`
+- `FeatherInterp` is a handle like `FeatherObj`
+- Host creates/destroys interpreters outside of `FeatherHostOps`
 - The interpreter handle is just passed through to callbacks so host knows which context to use
 
 ```c
-typedef uint32_t TclObj;
-typedef uint32_t TclInterp;  // just another handle
+typedef uint32_t FeatherObj;
+typedef uint32_t FeatherInterp;  // just another handle
 
 typedef enum {
     TCL_OK = 0,
@@ -4401,68 +4401,68 @@ typedef enum {
     TCL_RETURN = 2,
     TCL_BREAK = 3,
     TCL_CONTINUE = 4,
-} TclResult;
+} FeatherResult;
 
-typedef struct TclHostOps {
+typedef struct FeatherHostOps {
     void* userdata;
 
     /* Frames */
-    void   (*frame_push)(void* ud, TclInterp interp, TclObj cmd, TclObj args);
-    void   (*frame_pop)(void* ud, TclInterp interp);
-    size_t (*frame_level)(void* ud, TclInterp interp);
+    void   (*frame_push)(void* ud, FeatherInterp interp, FeatherObj cmd, FeatherObj args);
+    void   (*frame_pop)(void* ud, FeatherInterp interp);
+    size_t (*frame_level)(void* ud, FeatherInterp interp);
 
     /* Scopes */
-    void (*scope_push)(void* ud, TclInterp interp);
-    void (*scope_pop)(void* ud, TclInterp interp);
+    void (*scope_push)(void* ud, FeatherInterp interp);
+    void (*scope_pop)(void* ud, FeatherInterp interp);
 
     /* Variables */
-    TclObj (*var_get)(void* ud, TclInterp interp, TclObj name);
-    void   (*var_set)(void* ud, TclInterp interp, TclObj name, TclObj value);
-    void   (*var_unset)(void* ud, TclInterp interp, TclObj name);
-    int    (*var_exists)(void* ud, TclInterp interp, TclObj name);
-    void   (*var_link)(void* ud, TclInterp interp, TclObj local, size_t level, TclObj target);
+    FeatherObj (*var_get)(void* ud, FeatherInterp interp, FeatherObj name);
+    void   (*var_set)(void* ud, FeatherInterp interp, FeatherObj name, FeatherObj value);
+    void   (*var_unset)(void* ud, FeatherInterp interp, FeatherObj name);
+    int    (*var_exists)(void* ud, FeatherInterp interp, FeatherObj name);
+    void   (*var_link)(void* ud, FeatherInterp interp, FeatherObj local, size_t level, FeatherObj target);
 
     /* Strings */
-    TclObj (*intern)(void* ud, const char* s, size_t len);
-    const char* (*get_string)(void* ud, TclObj obj, size_t* len);
-    TclObj (*string_concat)(void* ud, TclObj a, TclObj b);
+    FeatherObj (*intern)(void* ud, const char* s, size_t len);
+    const char* (*get_string)(void* ud, FeatherObj obj, size_t* len);
+    FeatherObj (*string_concat)(void* ud, FeatherObj a, FeatherObj b);
 
     /* Integers */
-    TclObj (*create_int)(void* ud, int64_t val);
-    int    (*get_int)(void* ud, TclObj obj, int64_t* out);
+    FeatherObj (*create_int)(void* ud, int64_t val);
+    int    (*get_int)(void* ud, FeatherObj obj, int64_t* out);
 
     /* Lists */
-    TclObj (*list_new)(void* ud);
-    TclObj (*list_push)(void* ud, TclObj list, TclObj item);
-    size_t (*list_length)(void* ud, TclObj list);
-    TclObj (*list_index)(void* ud, TclObj list, size_t idx);
+    FeatherObj (*list_new)(void* ud);
+    FeatherObj (*list_push)(void* ud, FeatherObj list, FeatherObj item);
+    size_t (*list_length)(void* ud, FeatherObj list);
+    FeatherObj (*list_index)(void* ud, FeatherObj list, size_t idx);
 
     /* Commands */
-    TclObj (*invoke)(void* ud, TclInterp interp, TclObj cmd, TclObj args, TclResult* result);
+    FeatherObj (*invoke)(void* ud, FeatherInterp interp, FeatherObj cmd, FeatherObj args, FeatherResult* result);
 
     /* Procs */
-    void   (*proc_define)(void* ud, TclInterp interp, TclObj name, TclObj params, TclObj body);
-    int    (*proc_exists)(void* ud, TclInterp interp, TclObj name);
-    TclObj (*proc_params)(void* ud, TclInterp interp, TclObj name);
-    TclObj (*proc_body)(void* ud, TclInterp interp, TclObj name);
+    void   (*proc_define)(void* ud, FeatherInterp interp, FeatherObj name, FeatherObj params, FeatherObj body);
+    int    (*proc_exists)(void* ud, FeatherInterp interp, FeatherObj name);
+    FeatherObj (*proc_params)(void* ud, FeatherInterp interp, FeatherObj name);
+    FeatherObj (*proc_body)(void* ud, FeatherInterp interp, FeatherObj name);
 
     /* Errors */
-    void   (*set_error)(void* ud, TclInterp interp, TclObj message);
-    TclObj (*get_error)(void* ud, TclInterp interp);
+    void   (*set_error)(void* ud, FeatherInterp interp, FeatherObj message);
+    FeatherObj (*get_error)(void* ud, FeatherInterp interp);
 
-} TclHostOps;
+} FeatherHostOps;
 
 /*
  * Pure evaluation - no allocation, no state
  */
-TclResult tcl_eval(const TclHostOps* ops, TclInterp interp,
-                   const char* script, size_t len, TclObj* result);
+FeatherResult feather_eval(const FeatherHostOps* ops, FeatherInterp interp,
+                   const char* script, size_t len, FeatherObj* result);
 ```
 
 Host side (Go):
 
 ```go
-// Host's own API, not part of TclHostOps
+// Host's own API, not part of FeatherHostOps
 func NewInterpreter() uint32 {
     h := allocHandle()
     handleTable[h] = &InterpState{
@@ -4491,23 +4491,23 @@ No allocation. No state. Just parsing and orchestrating callbacks.
 
 ---
 
-## One Refinement: Should `TclObj` and `TclInterp` Be the Same Type?
+## One Refinement: Should `FeatherObj` and `FeatherInterp` Be the Same Type?
 
 Since both are `uint32_t` handles into the same host handle table:
 
 ```c
-typedef uint32_t TclHandle;
-typedef TclHandle TclObj;
-typedef TclHandle TclInterp;
+typedef uint32_t FeatherHandle;
+typedef FeatherHandle FeatherObj;
+typedef FeatherHandle FeatherInterp;
 ```
 
 Or even simpler, just use one type everywhere:
 
 ```c
-typedef uint32_t TclHandle;
+typedef uint32_t FeatherHandle;
 
-TclResult tcl_eval(const TclHostOps* ops, TclHandle interp,
-                   const char* script, size_t len, TclHandle* result);
+FeatherResult feather_eval(const FeatherHostOps* ops, FeatherHandle interp,
+                   const char* script, size_t len, FeatherHandle* result);
 ```
 
 The distinction is documentation only. Host can check handle types at runtime if needed.
@@ -4523,9 +4523,9 @@ This is a good idea:
 
 
 ```
-typedef uint32_t TclHandle;
-typedef TclHandle TclObj;
-typedef TclHandle TclInterp;
+typedef uint32_t FeatherHandle;
+typedef FeatherHandle FeatherObj;
+typedef FeatherHandle FeatherInterp;
 ```
 
 
@@ -4688,24 +4688,24 @@ Let's trace `uplevel` with the current API:
 
 ```c
 // Inside builtin_uplevel implementation
-TclObj builtin_uplevel(const TclHostOps* ops, TclInterp interp, TclObj args) {
+FeatherObj builtin_uplevel(const FeatherHostOps* ops, FeatherInterp interp, FeatherObj args) {
     size_t current = ops->frame_level(ops->ud, interp);
     size_t target_level = current - 1;  // "uplevel 1"
     
-    TclObj body = ops->list_index(ops->ud, args, 1);
+    FeatherObj body = ops->list_index(ops->ud, args, 1);
     
     // Execute body, but variables resolve at target_level
     // How?
 }
 ```
 
-The problem: `tcl_eval` doesn't know which scope to use. It always uses "current."
+The problem: `feather_eval` doesn't know which scope to use. It always uses "current."
 
 ### Option A: Explicit Scope Parameter in `var_*`
 
 ```c
-TclObj (*var_get)(void* ud, TclInterp interp, size_t scope, TclObj name);
-void   (*var_set)(void* ud, TclInterp interp, size_t scope, TclObj name, TclObj value);
+FeatherObj (*var_get)(void* ud, FeatherInterp interp, size_t scope, FeatherObj name);
+void   (*var_set)(void* ud, FeatherInterp interp, size_t scope, FeatherObj name, FeatherObj value);
 ```
 
 Interpreter tracks "current scope level" internally and passes it. For `uplevel`, temporarily change the tracked level.
@@ -4715,21 +4715,21 @@ But wait — we said no interpreter state. So this doesn't work.
 ### Option B: Host Tracks "Active Scope"
 
 ```c
-void (*scope_activate)(void* ud, TclInterp interp, size_t level);
+void (*scope_activate)(void* ud, FeatherInterp interp, size_t level);
 ```
 
 ```c
-TclObj builtin_uplevel(const TclHostOps* ops, TclInterp interp, TclObj args) {
+FeatherObj builtin_uplevel(const FeatherHostOps* ops, FeatherInterp interp, FeatherObj args) {
     size_t current = ops->scope_level(ops->ud, interp);
     
     ops->scope_activate(ops->ud, interp, current - 1);  // switch to parent
     
-    TclObj body = ops->list_index(ops->ud, args, 1);
+    FeatherObj body = ops->list_index(ops->ud, args, 1);
     size_t len;
     const char* script = ops->get_string(ops->ud, body, &len);
     
-    TclObj result;
-    TclResult r = tcl_eval(ops, interp, script, len, &result);
+    FeatherObj result;
+    FeatherResult r = feather_eval(ops, interp, script, len, &result);
     
     ops->scope_activate(ops->ud, interp, current);  // restore
     
@@ -4765,7 +4765,7 @@ So frames are specifically for tracking what *code* is executing, independent of
 ### Revised Model
 
 ```c
-typedef struct TclHostOps {
+typedef struct FeatherHostOps {
     void* userdata;
 
     /*
@@ -4773,30 +4773,30 @@ typedef struct TclHostOps {
      * Push when entering any command worth tracing (procs, maybe host commands)
      * Used for: error traces, info frame
      */
-    void   (*frame_push)(void* ud, TclInterp interp, TclObj cmd, TclObj args);
-    void   (*frame_pop)(void* ud, TclInterp interp);
+    void   (*frame_push)(void* ud, FeatherInterp interp, FeatherObj cmd, FeatherObj args);
+    void   (*frame_pop)(void* ud, FeatherInterp interp);
 
     /*
      * Scopes: variable namespaces
      * Push when entering a proc (new local variables)
      * Used for: variable lookup, upvar, uplevel
      */
-    void   (*scope_push)(void* ud, TclInterp interp);
-    void   (*scope_pop)(void* ud, TclInterp interp);
-    size_t (*scope_level)(void* ud, TclInterp interp);
-    void   (*scope_activate)(void* ud, TclInterp interp, size_t level);
+    void   (*scope_push)(void* ud, FeatherInterp interp);
+    void   (*scope_pop)(void* ud, FeatherInterp interp);
+    size_t (*scope_level)(void* ud, FeatherInterp interp);
+    void   (*scope_activate)(void* ud, FeatherInterp interp, size_t level);
 
     /*
      * Variables: operate on the ACTIVE scope (not necessarily top of stack)
      */
-    TclObj (*var_get)(void* ud, TclInterp interp, TclObj name);
-    void   (*var_set)(void* ud, TclInterp interp, TclObj name, TclObj value);
-    void   (*var_unset)(void* ud, TclInterp interp, TclObj name);
-    int    (*var_exists)(void* ud, TclInterp interp, TclObj name);
-    void   (*var_link)(void* ud, TclInterp interp, TclObj local, size_t target_level, TclObj target_name);
+    FeatherObj (*var_get)(void* ud, FeatherInterp interp, FeatherObj name);
+    void   (*var_set)(void* ud, FeatherInterp interp, FeatherObj name, FeatherObj value);
+    void   (*var_unset)(void* ud, FeatherInterp interp, FeatherObj name);
+    int    (*var_exists)(void* ud, FeatherInterp interp, FeatherObj name);
+    void   (*var_link)(void* ud, FeatherInterp interp, FeatherObj local, size_t target_level, FeatherObj target_name);
 
     // ... rest unchanged
-} TclHostOps;
+} FeatherHostOps;
 ```
 
 ## Usage Pattern
@@ -4804,7 +4804,7 @@ typedef struct TclHostOps {
 Normal proc call:
 
 ```c
-TclObj call_proc(const TclHostOps* ops, TclInterp interp, TclObj name, TclObj args) {
+FeatherObj call_proc(const FeatherHostOps* ops, FeatherInterp interp, FeatherObj name, FeatherObj args) {
     ops->frame_push(ops->ud, interp, name, args);
     ops->scope_push(ops->ud, interp);
     
@@ -4820,7 +4820,7 @@ TclObj call_proc(const TclHostOps* ops, TclInterp interp, TclObj name, TclObj ar
 `uplevel`:
 
 ```c
-TclObj builtin_uplevel(const TclHostOps* ops, TclInterp interp, TclObj args) {
+FeatherObj builtin_uplevel(const FeatherHostOps* ops, FeatherInterp interp, FeatherObj args) {
     size_t current = ops->scope_level(ops->ud, interp);
     size_t target = current - 1;
     
@@ -4860,8 +4860,8 @@ Also: the interpreter IS stateful, it is just that the state is managed by the h
 
 I expect this to mean two things in practice for hosts:
 
-* TclObj handles are backed by a "class / object"
-* Tclinterp handles are backed by a "class / object"
+* FeatherObj handles are backed by a "class / object"
+* Featherinterp handles are backed by a "class / object"
 
 
 
@@ -4876,7 +4876,7 @@ Ah, the user is clarifying the model. Let me understand:
 1. Frames have scopes attached to them (not separate concepts)
 2. For uplevel, we look at the parent frame's scope
 3. The interpreter IS stateful, but state is host-managed
-4. TclObj and TclInterp are both backed by host objects/classes
+4. FeatherObj and FeatherInterp are both backed by host objects/classes
 
 This is cleaner. So:
 
@@ -4888,23 +4888,23 @@ This is cleaner. So:
 Let me think about the API:
 
 `​`​`c
-void (*frame_push)(void* ud, TclInterp interp, TclObj cmd, TclObj args);
-void (*frame_pop)(void* ud, TclInterp interp);
-size_t (*frame_level)(void* ud, TclInterp interp);
+void (*frame_push)(void* ud, FeatherInterp interp, FeatherObj cmd, FeatherObj args);
+void (*frame_pop)(void* ud, FeatherInterp interp);
+size_t (*frame_level)(void* ud, FeatherInterp interp);
 
 // Variables operate on current frame by default
-TclObj (*var_get)(void* ud, TclInterp interp, TclObj name);
-void (*var_set)(void* ud, TclInterp interp, TclObj name, TclObj value);
+FeatherObj (*var_get)(void* ud, FeatherInterp interp, FeatherObj name);
+void (*var_set)(void* ud, FeatherInterp interp, FeatherObj name, FeatherObj value);
 
 // For uplevel - operate at specific frame level
-TclObj (*var_get_at)(void* ud, TclInterp interp, size_t level, TclObj name);
-void (*var_set_at)(void* ud, TclInterp interp, size_t level, TclObj name, TclObj value);
+FeatherObj (*var_get_at)(void* ud, FeatherInterp interp, size_t level, FeatherObj name);
+void (*var_set_at)(void* ud, FeatherInterp interp, size_t level, FeatherObj name, FeatherObj value);
 `​`​`
 
 Or even simpler - just have a way to temporarily set which frame is "active":
 
 `​`​`c
-void (*frame_activate)(void* ud, TclInterp interp, size_t level);
+void (*frame_activate)(void* ud, FeatherInterp interp, size_t level);
 `​`​`
 
 Then var_get/var_set always operate on the "active" frame.
@@ -4922,7 +4922,7 @@ You're right, that's cleaner. Let me revise:
 ## Model: Frames Own Scopes
 
 ```
-TclInterp {
+FeatherInterp {
     frames: [
         Frame 0 (global) { vars: {x: h1, y: h2} },
         Frame 1 (outer)  { vars: {a: h3} },
@@ -4948,16 +4948,16 @@ type InterpState struct {
     activeFrame int           // which frame var_get/var_set operate on
 }
 
-// Handle table holds both TclObj values and TclInterp states
+// Handle table holds both FeatherObj values and FeatherInterp states
 var handleTable = map[uint32]any{}
 ```
 
 ## Simplified API
 
 ```c
-typedef uint32_t TclHandle;
-typedef TclHandle TclObj;
-typedef TclHandle TclInterp;
+typedef uint32_t FeatherHandle;
+typedef FeatherHandle FeatherObj;
+typedef FeatherHandle FeatherInterp;
 
 typedef enum {
     TCL_OK = 0,
@@ -4965,80 +4965,80 @@ typedef enum {
     TCL_RETURN = 2,
     TCL_BREAK = 3,
     TCL_CONTINUE = 4,
-} TclResult;
+} FeatherResult;
 
-typedef struct TclHostOps {
+typedef struct FeatherHostOps {
     void* userdata;
 
     /* Frames (each frame has its own scope) */
-    void   (*frame_push)(void* ud, TclInterp interp, TclObj cmd, TclObj args);
-    void   (*frame_pop)(void* ud, TclInterp interp);
-    size_t (*frame_level)(void* ud, TclInterp interp);
-    void   (*frame_set_active)(void* ud, TclInterp interp, size_t level);
+    void   (*frame_push)(void* ud, FeatherInterp interp, FeatherObj cmd, FeatherObj args);
+    void   (*frame_pop)(void* ud, FeatherInterp interp);
+    size_t (*frame_level)(void* ud, FeatherInterp interp);
+    void   (*frame_set_active)(void* ud, FeatherInterp interp, size_t level);
 
     /* Variables (operate on active frame's scope) */
-    TclObj (*var_get)(void* ud, TclInterp interp, TclObj name);
-    void   (*var_set)(void* ud, TclInterp interp, TclObj name, TclObj value);
-    void   (*var_unset)(void* ud, TclInterp interp, TclObj name);
-    int    (*var_exists)(void* ud, TclInterp interp, TclObj name);
-    void   (*var_link)(void* ud, TclInterp interp, TclObj local, 
-                       size_t target_level, TclObj target_name);
+    FeatherObj (*var_get)(void* ud, FeatherInterp interp, FeatherObj name);
+    void   (*var_set)(void* ud, FeatherInterp interp, FeatherObj name, FeatherObj value);
+    void   (*var_unset)(void* ud, FeatherInterp interp, FeatherObj name);
+    int    (*var_exists)(void* ud, FeatherInterp interp, FeatherObj name);
+    void   (*var_link)(void* ud, FeatherInterp interp, FeatherObj local, 
+                       size_t target_level, FeatherObj target_name);
 
     /* Strings */
-    TclObj (*intern)(void* ud, const char* s, size_t len);
-    const char* (*get_string)(void* ud, TclObj obj, size_t* len);
-    TclObj (*string_concat)(void* ud, TclObj a, TclObj b);
+    FeatherObj (*intern)(void* ud, const char* s, size_t len);
+    const char* (*get_string)(void* ud, FeatherObj obj, size_t* len);
+    FeatherObj (*string_concat)(void* ud, FeatherObj a, FeatherObj b);
 
     /* Integers */
-    TclObj (*create_int)(void* ud, int64_t val);
-    int    (*get_int)(void* ud, TclObj obj, int64_t* out);
+    FeatherObj (*create_int)(void* ud, int64_t val);
+    int    (*get_int)(void* ud, FeatherObj obj, int64_t* out);
 
     /* Lists */
-    TclObj (*list_new)(void* ud);
-    TclObj (*list_push)(void* ud, TclObj list, TclObj item);
-    size_t (*list_length)(void* ud, TclObj list);
-    TclObj (*list_index)(void* ud, TclObj list, size_t idx);
+    FeatherObj (*list_new)(void* ud);
+    FeatherObj (*list_push)(void* ud, FeatherObj list, FeatherObj item);
+    size_t (*list_length)(void* ud, FeatherObj list);
+    FeatherObj (*list_index)(void* ud, FeatherObj list, size_t idx);
 
     /* Commands */
-    TclObj (*invoke)(void* ud, TclInterp interp, TclObj cmd, TclObj args, TclResult* result);
+    FeatherObj (*invoke)(void* ud, FeatherInterp interp, FeatherObj cmd, FeatherObj args, FeatherResult* result);
 
     /* Procs */
-    void   (*proc_define)(void* ud, TclInterp interp, TclObj name, TclObj params, TclObj body);
-    int    (*proc_exists)(void* ud, TclInterp interp, TclObj name);
-    TclObj (*proc_params)(void* ud, TclInterp interp, TclObj name);
-    TclObj (*proc_body)(void* ud, TclInterp interp, TclObj name);
+    void   (*proc_define)(void* ud, FeatherInterp interp, FeatherObj name, FeatherObj params, FeatherObj body);
+    int    (*proc_exists)(void* ud, FeatherInterp interp, FeatherObj name);
+    FeatherObj (*proc_params)(void* ud, FeatherInterp interp, FeatherObj name);
+    FeatherObj (*proc_body)(void* ud, FeatherInterp interp, FeatherObj name);
 
     /* Errors */
-    void   (*set_error)(void* ud, TclInterp interp, TclObj message);
-    TclObj (*get_error)(void* ud, TclInterp interp);
+    void   (*set_error)(void* ud, FeatherInterp interp, FeatherObj message);
+    FeatherObj (*get_error)(void* ud, FeatherInterp interp);
 
-} TclHostOps;
+} FeatherHostOps;
 
-TclResult tcl_eval(const TclHostOps* ops, TclInterp interp,
-                   const char* script, size_t len, TclObj* result);
+FeatherResult feather_eval(const FeatherHostOps* ops, FeatherInterp interp,
+                   const char* script, size_t len, FeatherObj* result);
 ```
 
 ## Usage: Normal Proc Call
 
 ```c
-TclObj call_proc(const TclHostOps* ops, TclInterp interp, TclObj name, TclObj args) {
+FeatherObj call_proc(const FeatherHostOps* ops, FeatherInterp interp, FeatherObj name, FeatherObj args) {
     ops->frame_push(ops->ud, interp, name, args);
     
     // Bind arguments to local variables in this new frame's scope
-    TclObj params = ops->proc_params(ops->ud, interp, name);
+    FeatherObj params = ops->proc_params(ops->ud, interp, name);
     size_t argc = ops->list_length(ops->ud, args);
     for (size_t i = 0; i < argc; i++) {
-        TclObj param_name = ops->list_index(ops->ud, params, i);
-        TclObj arg_value = ops->list_index(ops->ud, args, i);
+        FeatherObj param_name = ops->list_index(ops->ud, params, i);
+        FeatherObj arg_value = ops->list_index(ops->ud, args, i);
         ops->var_set(ops->ud, interp, param_name, arg_value);
     }
     
     // Evaluate body
-    TclObj body = ops->proc_body(ops->ud, interp, name);
+    FeatherObj body = ops->proc_body(ops->ud, interp, name);
     size_t len;
     const char* script = ops->get_string(ops->ud, body, &len);
-    TclObj result;
-    TclResult r = tcl_eval(ops, interp, script, len, &result);
+    FeatherObj result;
+    FeatherResult r = feather_eval(ops, interp, script, len, &result);
     
     ops->frame_pop(ops->ud, interp);
     return result;
@@ -5048,18 +5048,18 @@ TclObj call_proc(const TclHostOps* ops, TclInterp interp, TclObj name, TclObj ar
 ## Usage: `uplevel`
 
 ```c
-TclObj builtin_uplevel(const TclHostOps* ops, TclInterp interp, TclObj args) {
+FeatherObj builtin_uplevel(const FeatherHostOps* ops, FeatherInterp interp, FeatherObj args) {
     // uplevel 1 { script }
     size_t current = ops->frame_level(ops->ud, interp);
     size_t target = current - 1;
     
     ops->frame_set_active(ops->ud, interp, target);
     
-    TclObj body = ops->list_index(ops->ud, args, 1);
+    FeatherObj body = ops->list_index(ops->ud, args, 1);
     size_t len;
     const char* script = ops->get_string(ops->ud, body, &len);
-    TclObj result;
-    TclResult r = tcl_eval(ops, interp, script, len, &result);
+    FeatherObj result;
+    FeatherResult r = feather_eval(ops, interp, script, len, &result);
     
     ops->frame_set_active(ops->ud, interp, current);
     
@@ -5070,13 +5070,13 @@ TclObj builtin_uplevel(const TclHostOps* ops, TclInterp interp, TclObj args) {
 ## Usage: `upvar`
 
 ```c
-TclObj builtin_upvar(const TclHostOps* ops, TclInterp interp, TclObj args) {
+FeatherObj builtin_upvar(const FeatherHostOps* ops, FeatherInterp interp, FeatherObj args) {
     // upvar 1 x local_x
     size_t current = ops->frame_level(ops->ud, interp);
     size_t target = current - 1;
     
-    TclObj target_name = ops->list_index(ops->ud, args, 1);  // "x"
-    TclObj local_name = ops->list_index(ops->ud, args, 2);   // "local_x"
+    FeatherObj target_name = ops->list_index(ops->ud, args, 1);  // "x"
+    FeatherObj local_name = ops->list_index(ops->ud, args, 2);   // "local_x"
     
     ops->var_link(ops->ud, interp, local_name, target, target_name);
     
@@ -5114,9 +5114,9 @@ func varGet(ud unsafe.Pointer, interp, name uint32) uint32 {
 Frame 0 is the global frame. For `global` command:
 
 ```c
-TclObj builtin_global(const TclHostOps* ops, TclInterp interp, TclObj args) {
+FeatherObj builtin_global(const FeatherHostOps* ops, FeatherInterp interp, FeatherObj args) {
     // global x  →  link local "x" to frame 0's "x"
-    TclObj name = ops->list_index(ops->ud, args, 0);
+    FeatherObj name = ops->list_index(ops->ud, args, 0);
     ops->var_link(ops->ud, interp, name, 0, name);
     return ops->intern(ops->ud, "", 0);
 }
@@ -5144,8 +5144,8 @@ Thought process: Synthesized design architecture and readied next steps.
 The user is confirming this model works. Let me summarize what we've arrived at and see if they want to continue refining or move to implementation.
 
 We have:
-1. TclHandle as the unified handle type
-2. TclInterp as interpreter state, host-managed
+1. FeatherHandle as the unified handle type
+2. FeatherInterp as interpreter state, host-managed
 3. Frames with their own scopes
 4. No raw memory allocation in the interpreter
 5. All state managed by host through callbacks
@@ -5156,9 +5156,9 @@ The API is pretty clean now. I should summarize the final design and ask what's 
 Good. Here's where we landed:
 
 ```c
-typedef uint32_t TclHandle;
-typedef TclHandle TclObj;
-typedef TclHandle TclInterp;
+typedef uint32_t FeatherHandle;
+typedef FeatherHandle FeatherObj;
+typedef FeatherHandle FeatherInterp;
 
 typedef enum {
     TCL_OK = 0,
@@ -5166,57 +5166,57 @@ typedef enum {
     TCL_RETURN = 2,
     TCL_BREAK = 3,
     TCL_CONTINUE = 4,
-} TclResult;
+} FeatherResult;
 
-typedef struct TclHostOps {
+typedef struct FeatherHostOps {
     void* userdata;
 
     /* Frames */
-    void   (*frame_push)(void* ud, TclInterp interp, TclObj cmd, TclObj args);
-    void   (*frame_pop)(void* ud, TclInterp interp);
-    size_t (*frame_level)(void* ud, TclInterp interp);
-    void   (*frame_set_active)(void* ud, TclInterp interp, size_t level);
+    void   (*frame_push)(void* ud, FeatherInterp interp, FeatherObj cmd, FeatherObj args);
+    void   (*frame_pop)(void* ud, FeatherInterp interp);
+    size_t (*frame_level)(void* ud, FeatherInterp interp);
+    void   (*frame_set_active)(void* ud, FeatherInterp interp, size_t level);
 
     /* Variables */
-    TclObj (*var_get)(void* ud, TclInterp interp, TclObj name);
-    void   (*var_set)(void* ud, TclInterp interp, TclObj name, TclObj value);
-    void   (*var_unset)(void* ud, TclInterp interp, TclObj name);
-    int    (*var_exists)(void* ud, TclInterp interp, TclObj name);
-    void   (*var_link)(void* ud, TclInterp interp, TclObj local,
-                       size_t target_level, TclObj target_name);
+    FeatherObj (*var_get)(void* ud, FeatherInterp interp, FeatherObj name);
+    void   (*var_set)(void* ud, FeatherInterp interp, FeatherObj name, FeatherObj value);
+    void   (*var_unset)(void* ud, FeatherInterp interp, FeatherObj name);
+    int    (*var_exists)(void* ud, FeatherInterp interp, FeatherObj name);
+    void   (*var_link)(void* ud, FeatherInterp interp, FeatherObj local,
+                       size_t target_level, FeatherObj target_name);
 
     /* Strings */
-    TclObj      (*intern)(void* ud, const char* s, size_t len);
-    const char* (*get_string)(void* ud, TclObj obj, size_t* len);
-    TclObj      (*string_concat)(void* ud, TclObj a, TclObj b);
+    FeatherObj      (*intern)(void* ud, const char* s, size_t len);
+    const char* (*get_string)(void* ud, FeatherObj obj, size_t* len);
+    FeatherObj      (*string_concat)(void* ud, FeatherObj a, FeatherObj b);
 
     /* Integers */
-    TclObj (*create_int)(void* ud, int64_t val);
-    int    (*get_int)(void* ud, TclObj obj, int64_t* out);
+    FeatherObj (*create_int)(void* ud, int64_t val);
+    int    (*get_int)(void* ud, FeatherObj obj, int64_t* out);
 
     /* Lists */
-    TclObj (*list_new)(void* ud);
-    TclObj (*list_push)(void* ud, TclObj list, TclObj item);
-    size_t (*list_length)(void* ud, TclObj list);
-    TclObj (*list_index)(void* ud, TclObj list, size_t idx);
+    FeatherObj (*list_new)(void* ud);
+    FeatherObj (*list_push)(void* ud, FeatherObj list, FeatherObj item);
+    size_t (*list_length)(void* ud, FeatherObj list);
+    FeatherObj (*list_index)(void* ud, FeatherObj list, size_t idx);
 
     /* Commands */
-    TclObj (*invoke)(void* ud, TclInterp interp, TclObj cmd, TclObj args, TclResult* result);
+    FeatherObj (*invoke)(void* ud, FeatherInterp interp, FeatherObj cmd, FeatherObj args, FeatherResult* result);
 
     /* Procs */
-    void   (*proc_define)(void* ud, TclInterp interp, TclObj name, TclObj params, TclObj body);
-    int    (*proc_exists)(void* ud, TclInterp interp, TclObj name);
-    TclObj (*proc_params)(void* ud, TclInterp interp, TclObj name);
-    TclObj (*proc_body)(void* ud, TclInterp interp, TclObj name);
+    void   (*proc_define)(void* ud, FeatherInterp interp, FeatherObj name, FeatherObj params, FeatherObj body);
+    int    (*proc_exists)(void* ud, FeatherInterp interp, FeatherObj name);
+    FeatherObj (*proc_params)(void* ud, FeatherInterp interp, FeatherObj name);
+    FeatherObj (*proc_body)(void* ud, FeatherInterp interp, FeatherObj name);
 
     /* Errors */
-    void   (*set_error)(void* ud, TclInterp interp, TclObj message);
-    TclObj (*get_error)(void* ud, TclInterp interp);
+    void   (*set_error)(void* ud, FeatherInterp interp, FeatherObj message);
+    FeatherObj (*get_error)(void* ud, FeatherInterp interp);
 
-} TclHostOps;
+} FeatherHostOps;
 
-TclResult tcl_eval(const TclHostOps* ops, TclInterp interp,
-                   const char* script, size_t len, TclObj* result);
+FeatherResult feather_eval(const FeatherHostOps* ops, FeatherInterp interp,
+                   const char* script, size_t len, FeatherObj* result);
 ```
 
 ## Key Properties
@@ -5225,7 +5225,7 @@ TclResult tcl_eval(const TclHostOps* ops, TclInterp interp,
 |--------|--------|
 | Memory | Zero allocation in interpreter |
 | State | All host-managed via handles |
-| Handles | `TclObj` and `TclInterp` are the same underlying type |
+| Handles | `FeatherObj` and `FeatherInterp` are the same underlying type |
 | Frames | Own their scope (variables) |
 | Lifetimes | Host refcounts, tied to frame lifecycle |
 | Strings | Intern for literals, concat for computed |
@@ -5264,15 +5264,15 @@ Let me think through these.
 
 Currently we have:
 `​`​`c
-typedef struct TclHostOps {
+typedef struct FeatherHostOps {
     void* userdata;
     // callbacks that receive userdata as first param
-    TclObj (*intern)(void* ud, const char* s, size_t len);
+    FeatherObj (*intern)(void* ud, const char* s, size_t len);
     // ...
 }
 `​`​`
 
-The userdata is passed to every callback. But we already have `TclInterp` which is a handle that the host can use to look up state.
+The userdata is passed to every callback. But we already have `FeatherInterp` which is a handle that the host can use to look up state.
 
 When would you need userdata that isn't per-interpreter? 
 
@@ -5280,10 +5280,10 @@ When would you need userdata that isn't per-interpreter?
 - Allocator state
 - Logger or debug context
 
-But all of these could be global singletons in the host, or the host could store a pointer to them inside the TclInterp state.
+But all of these could be global singletons in the host, or the host could store a pointer to them inside the FeatherInterp state.
 
 Actually, the pattern is:
-- `TclInterp` gives you per-interpreter state
+- `FeatherInterp` gives you per-interpreter state
 - `userdata` gives you... what? Global host context?
 
 If the host has one global context, `userdata` is that.
@@ -5291,9 +5291,9 @@ If the host has multiple contexts (unlikely), `userdata` distinguishes them.
 
 But actually, if everything is handles, and the handle table is global, then `userdata` becomes redundant. The host can just use globals or thread-locals.
 
-However, `userdata` is a classic C pattern that makes the API more flexible without globals. Some callbacks don't take `TclInterp` (like `intern`, `list_new`). Those would need some way to find the handle table.
+However, `userdata` is a classic C pattern that makes the API more flexible without globals. Some callbacks don't take `FeatherInterp` (like `intern`, `list_new`). Those would need some way to find the handle table.
 
-Hmm, but actually looking at the current API, most things DO take TclInterp. Let me check which don't:
+Hmm, but actually looking at the current API, most things DO take FeatherInterp. Let me check which don't:
 - `intern(ud, s, len)` - no interp
 - `get_string(ud, obj, len)` - no interp
 
@@ -5329,19 +5329,19 @@ Good questions. Let me think through both.
 
 ## Question 1: Do we need `userdata` if we have handles?
 
-The handles need to live somewhere. Which callbacks don't take `TclInterp`?
+The handles need to live somewhere. Which callbacks don't take `FeatherInterp`?
 
 ```c
 // Value operations - no interpreter needed
-TclObj      (*intern)(void* ud, const char* s, size_t len);
-const char* (*get_string)(void* ud, TclObj obj, size_t* len);
-TclObj      (*string_concat)(void* ud, TclObj a, TclObj b);
-TclObj      (*create_int)(void* ud, int64_t val);
-int         (*get_int)(void* ud, TclObj obj, int64_t* out);
-TclObj      (*list_new)(void* ud);
-TclObj      (*list_push)(void* ud, TclObj list, TclObj item);
-size_t      (*list_length)(void* ud, TclObj list);
-TclObj      (*list_index)(void* ud, TclObj list, size_t idx);
+FeatherObj      (*intern)(void* ud, const char* s, size_t len);
+const char* (*get_string)(void* ud, FeatherObj obj, size_t* len);
+FeatherObj      (*string_concat)(void* ud, FeatherObj a, FeatherObj b);
+FeatherObj      (*create_int)(void* ud, int64_t val);
+int         (*get_int)(void* ud, FeatherObj obj, int64_t* out);
+FeatherObj      (*list_new)(void* ud);
+FeatherObj      (*list_push)(void* ud, FeatherObj list, FeatherObj item);
+size_t      (*list_length)(void* ud, FeatherObj list);
+FeatherObj      (*list_index)(void* ud, FeatherObj list, size_t idx);
 ```
 
 These need access to the handle table, but not to any specific interpreter.
@@ -5352,10 +5352,10 @@ Options:
 
 `userdata` points to host context containing handle table. Multiple interpreters can share one host context.
 
-**Option B: Pass `TclInterp` to everything**
+**Option B: Pass `FeatherInterp` to everything**
 
 ```c
-TclObj (*list_new)(void* ud, TclInterp interp);
+FeatherObj (*list_new)(void* ud, FeatherInterp interp);
 ```
 
 Conceptually odd — why does creating a list need an interpreter?
@@ -5365,7 +5365,7 @@ Conceptually odd — why does creating a list need an interpreter?
 No `userdata`. Host stores handle table in global/thread-local.
 
 ```c
-TclObj (*intern)(const char* s, size_t len);
+FeatherObj (*intern)(const char* s, size_t len);
 ```
 
 Simpler API, but less flexible (can't have isolated handle tables).
@@ -5373,10 +5373,10 @@ Simpler API, but less flexible (can't have isolated handle tables).
 **My take:** Keep `userdata`. It's one pointer, and it keeps the API flexible. Call it `ctx` if that reads better:
 
 ```c
-typedef struct TclHostOps {
+typedef struct FeatherHostOps {
     void* ctx;
     // ...
-} TclHostOps;
+} FeatherHostOps;
 ```
 
 ---
@@ -5386,93 +5386,93 @@ typedef struct TclHostOps {
 You're right that we'll have many methods. Current flat structure:
 
 ```c
-typedef struct TclHostOps {
+typedef struct FeatherHostOps {
     void* ctx;
     
     // Frames
-    void   (*frame_push)(void* ctx, TclInterp interp, TclObj cmd, TclObj args);
-    void   (*frame_pop)(void* ctx, TclInterp interp);
-    size_t (*frame_level)(void* ctx, TclInterp interp);
-    void   (*frame_set_active)(void* ctx, TclInterp interp, size_t level);
+    void   (*frame_push)(void* ctx, FeatherInterp interp, FeatherObj cmd, FeatherObj args);
+    void   (*frame_pop)(void* ctx, FeatherInterp interp);
+    size_t (*frame_level)(void* ctx, FeatherInterp interp);
+    void   (*frame_set_active)(void* ctx, FeatherInterp interp, size_t level);
     
     // Variables
-    TclObj (*var_get)(void* ctx, TclInterp interp, TclObj name);
-    void   (*var_set)(void* ctx, TclInterp interp, TclObj name, TclObj value);
+    FeatherObj (*var_get)(void* ctx, FeatherInterp interp, FeatherObj name);
+    void   (*var_set)(void* ctx, FeatherInterp interp, FeatherObj name, FeatherObj value);
     // ... 30+ more
-} TclHostOps;
+} FeatherHostOps;
 ```
 
 Nested alternative:
 
 ```c
-typedef struct TclFrameOps {
-    void   (*push)(void* ctx, TclInterp interp, TclObj cmd, TclObj args);
-    void   (*pop)(void* ctx, TclInterp interp);
-    size_t (*level)(void* ctx, TclInterp interp);
-    void   (*set_active)(void* ctx, TclInterp interp, size_t level);
-} TclFrameOps;
+typedef struct FeatherFrameOps {
+    void   (*push)(void* ctx, FeatherInterp interp, FeatherObj cmd, FeatherObj args);
+    void   (*pop)(void* ctx, FeatherInterp interp);
+    size_t (*level)(void* ctx, FeatherInterp interp);
+    void   (*set_active)(void* ctx, FeatherInterp interp, size_t level);
+} FeatherFrameOps;
 
-typedef struct TclVarOps {
-    TclObj (*get)(void* ctx, TclInterp interp, TclObj name);
-    void   (*set)(void* ctx, TclInterp interp, TclObj name, TclObj value);
-    void   (*unset)(void* ctx, TclInterp interp, TclObj name);
-    int    (*exists)(void* ctx, TclInterp interp, TclObj name);
-    void   (*link)(void* ctx, TclInterp interp, TclObj local,
-                   size_t target_level, TclObj target_name);
-} TclVarOps;
+typedef struct FeatherVarOps {
+    FeatherObj (*get)(void* ctx, FeatherInterp interp, FeatherObj name);
+    void   (*set)(void* ctx, FeatherInterp interp, FeatherObj name, FeatherObj value);
+    void   (*unset)(void* ctx, FeatherInterp interp, FeatherObj name);
+    int    (*exists)(void* ctx, FeatherInterp interp, FeatherObj name);
+    void   (*link)(void* ctx, FeatherInterp interp, FeatherObj local,
+                   size_t target_level, FeatherObj target_name);
+} FeatherVarOps;
 
-typedef struct TclStringOps {
-    TclObj      (*intern)(void* ctx, const char* s, size_t len);
-    const char* (*get)(void* ctx, TclObj obj, size_t* len);
-    TclObj      (*concat)(void* ctx, TclObj a, TclObj b);
-    size_t      (*length)(void* ctx, TclObj obj);
-    int         (*compare)(void* ctx, TclObj a, TclObj b);
+typedef struct FeatherStringOps {
+    FeatherObj      (*intern)(void* ctx, const char* s, size_t len);
+    const char* (*get)(void* ctx, FeatherObj obj, size_t* len);
+    FeatherObj      (*concat)(void* ctx, FeatherObj a, FeatherObj b);
+    size_t      (*length)(void* ctx, FeatherObj obj);
+    int         (*compare)(void* ctx, FeatherObj a, FeatherObj b);
     // ... more coming: index, range, match, etc.
-} TclStringOps;
+} FeatherStringOps;
 
-typedef struct TclListOps {
-    TclObj (*new)(void* ctx);
-    TclObj (*push)(void* ctx, TclObj list, TclObj item);
-    size_t (*length)(void* ctx, TclObj list);
-    TclObj (*index)(void* ctx, TclObj list, size_t idx);
-    TclObj (*range)(void* ctx, TclObj list, size_t start, size_t end);
+typedef struct FeatherListOps {
+    FeatherObj (*new)(void* ctx);
+    FeatherObj (*push)(void* ctx, FeatherObj list, FeatherObj item);
+    size_t (*length)(void* ctx, FeatherObj list);
+    FeatherObj (*index)(void* ctx, FeatherObj list, size_t idx);
+    FeatherObj (*range)(void* ctx, FeatherObj list, size_t start, size_t end);
     // ... more coming: concat, search, sort, etc.
-} TclListOps;
+} FeatherListOps;
 
-typedef struct TclIntOps {
-    TclObj (*create)(void* ctx, int64_t val);
-    int    (*get)(void* ctx, TclObj obj, int64_t* out);
-} TclIntOps;
+typedef struct FeatherIntOps {
+    FeatherObj (*create)(void* ctx, int64_t val);
+    int    (*get)(void* ctx, FeatherObj obj, int64_t* out);
+} FeatherIntOps;
 
-typedef struct TclProcOps {
-    void   (*define)(void* ctx, TclInterp interp, TclObj name, TclObj params, TclObj body);
-    int    (*exists)(void* ctx, TclInterp interp, TclObj name);
-    TclObj (*params)(void* ctx, TclInterp interp, TclObj name);
-    TclObj (*body)(void* ctx, TclInterp interp, TclObj name);
-} TclProcOps;
+typedef struct FeatherProcOps {
+    void   (*define)(void* ctx, FeatherInterp interp, FeatherObj name, FeatherObj params, FeatherObj body);
+    int    (*exists)(void* ctx, FeatherInterp interp, FeatherObj name);
+    FeatherObj (*params)(void* ctx, FeatherInterp interp, FeatherObj name);
+    FeatherObj (*body)(void* ctx, FeatherInterp interp, FeatherObj name);
+} FeatherProcOps;
 
-typedef struct TclErrorOps {
-    void   (*set)(void* ctx, TclInterp interp, TclObj message);
-    TclObj (*get)(void* ctx, TclInterp interp);
-    void   (*set_code)(void* ctx, TclInterp interp, TclObj code);
-    void   (*set_info)(void* ctx, TclInterp interp, TclObj info);
-} TclErrorOps;
+typedef struct FeatherErrorOps {
+    void   (*set)(void* ctx, FeatherInterp interp, FeatherObj message);
+    FeatherObj (*get)(void* ctx, FeatherInterp interp);
+    void   (*set_code)(void* ctx, FeatherInterp interp, FeatherObj code);
+    void   (*set_info)(void* ctx, FeatherInterp interp, FeatherObj info);
+} FeatherErrorOps;
 
-typedef struct TclHostOps {
+typedef struct FeatherHostOps {
     void* ctx;
     
-    TclFrameOps  frame;
-    TclVarOps    var;
-    TclStringOps string;
-    TclListOps   list;
-    TclIntOps    integer;
-    TclProcOps   proc;
-    TclErrorOps  error;
+    FeatherFrameOps  frame;
+    FeatherVarOps    var;
+    FeatherStringOps string;
+    FeatherListOps   list;
+    FeatherIntOps    integer;
+    FeatherProcOps   proc;
+    FeatherErrorOps  error;
     
     /* Command dispatch (doesn't fit neatly elsewhere) */
-    TclObj (*invoke)(void* ctx, TclInterp interp, TclObj cmd, TclObj args, TclResult* result);
+    FeatherObj (*invoke)(void* ctx, FeatherInterp interp, FeatherObj cmd, FeatherObj args, FeatherResult* result);
     
-} TclHostOps;
+} FeatherHostOps;
 ```
 
 Interpreter usage:
@@ -5491,38 +5491,38 @@ ops->frame.push(ops->ctx, interp, cmd, args);
 
 **Go - Flat:**
 ```go
-var ops = C.TclHostOps{
+var ops = C.FeatherHostOps{
     ctx:           unsafe.Pointer(&hostCtx),
-    frame_push:    C.TclFramePushFn(C.framePush),
-    frame_pop:     C.TclFramePopFn(C.framePop),
-    var_get:       C.TclVarGetFn(C.varGet),
-    var_set:       C.TclVarSetFn(C.varSet),
-    string_intern: C.TclStringInternFn(C.stringIntern),
+    frame_push:    C.FeatherFramePushFn(C.framePush),
+    frame_pop:     C.FeatherFramePopFn(C.framePop),
+    var_get:       C.FeatherVarGetFn(C.varGet),
+    var_set:       C.FeatherVarSetFn(C.varSet),
+    string_intern: C.FeatherStringInternFn(C.stringIntern),
     // ... 30 more lines
 }
 ```
 
 **Go - Nested:**
 ```go
-var ops = C.TclHostOps{
+var ops = C.FeatherHostOps{
     ctx: unsafe.Pointer(&hostCtx),
-    frame: C.TclFrameOps{
-        push:       C.TclFramePushFn(C.framePush),
-        pop:        C.TclFramePopFn(C.framePop),
-        level:      C.TclFrameLevelFn(C.frameLevel),
-        set_active: C.TclFrameSetActiveFn(C.frameSetActive),
+    frame: C.FeatherFrameOps{
+        push:       C.FeatherFramePushFn(C.framePush),
+        pop:        C.FeatherFramePopFn(C.framePop),
+        level:      C.FeatherFrameLevelFn(C.frameLevel),
+        set_active: C.FeatherFrameSetActiveFn(C.frameSetActive),
     },
-    var: C.TclVarOps{
-        get:    C.TclVarGetFn(C.varGet),
-        set:    C.TclVarSetFn(C.varSet),
-        unset:  C.TclVarUnsetFn(C.varUnset),
-        exists: C.TclVarExistsFn(C.varExists),
-        link:   C.TclVarLinkFn(C.varLink),
+    var: C.FeatherVarOps{
+        get:    C.FeatherVarGetFn(C.varGet),
+        set:    C.FeatherVarSetFn(C.varSet),
+        unset:  C.FeatherVarUnsetFn(C.varUnset),
+        exists: C.FeatherVarExistsFn(C.varExists),
+        link:   C.FeatherVarLinkFn(C.varLink),
     },
-    string: C.TclStringOps{
-        intern: C.TclStringInternFn(C.stringIntern),
-        get:    C.TclStringGetFn(C.stringGet),
-        concat: C.TclStringConcatFn(C.stringConcat),
+    string: C.FeatherStringOps{
+        intern: C.FeatherStringInternFn(C.stringIntern),
+        get:    C.FeatherStringGetFn(C.stringGet),
+        concat: C.FeatherStringConcatFn(C.stringConcat),
     },
     // ...
 }
@@ -5567,13 +5567,13 @@ I'm just thinking that the host's interpreter object is the owner of all the res
 12/20/2025, 7:58:00 PM
 
 ````plaintext
-Thought process: Validated that TclInterp could entirely supplant userdata pointers.
+Thought process: Validated that FeatherInterp could entirely supplant userdata pointers.
 
-The user is asking: can we eliminate `userdata` entirely and just use `TclInterp` as the context for everything?
+The user is asking: can we eliminate `userdata` entirely and just use `FeatherInterp` as the context for everything?
 
-Let me think about what `userdata` provides that `TclInterp` doesn't:
+Let me think about what `userdata` provides that `FeatherInterp` doesn't:
 
-1. Handle table - where TclObj handles are stored
+1. Handle table - where FeatherObj handles are stored
 2. Interned strings table
 3. Any host-specific context
 
@@ -5588,7 +5588,7 @@ Let's think about what belongs where:
 - Error state
 
 **Potentially shared state:**
-- Handle table (TclObj values)
+- Handle table (FeatherObj values)
 - Interned strings
 
 Wait, if two interpreters both intern "hello", do they get the same handle or different handles?
@@ -5601,7 +5601,7 @@ If handles are global (shared handle table):
 If handles are per-interpreter:
 - `intern("hello")` from interp1 returns h5 in interp1's table
 - `intern("hello")` from interp2 returns h5 in interp2's table (could be same number, different table)
-- Don't need userdata, TclInterp is enough
+- Don't need userdata, FeatherInterp is enough
 
 Actually, the second model makes more sense! If handles are just indices into an interpreter's handle table, then:
 
@@ -5615,17 +5615,17 @@ type InterpState struct {
 }
 `​`​`
 
-Every TclObj is local to an interpreter. You can't pass a TclObj from one interpreter to another (which is probably the right semantic anyway).
+Every FeatherObj is local to an interpreter. You can't pass a FeatherObj from one interpreter to another (which is probably the right semantic anyway).
 
 BUT wait - what about host commands? The user mentioned "exposing commands to the interpreter."
 
 Host commands are registered with the interpreter. 
 
-I see how host commands can work within a single interpreter's context. When a host command is invoked, it receives TclObj handles specific to that interpreter. The command can access these handles through the interpreter's own handle table, ensuring that each interpreter maintains its isolated state. This approach allows for clean, localized command implementations without needing a global userdata structure.
+I see how host commands can work within a single interpreter's context. When a host command is invoked, it receives FeatherObj handles specific to that interpreter. The command can access these handles through the interpreter's own handle table, ensuring that each interpreter maintains its isolated state. This approach allows for clean, localized command implementations without needing a global userdata structure.
 
 The key insight is that handles are interpreter-specific, meaning each interpreter manages its own objects and references independently. This design provides a clean separation of concerns and prevents unintended interactions between different interpreter instances.
 
-Considering callbacks that previously used generic context, they can now directly receive the TclInterp. This modification ensures that every value creation is explicitly tied to a specific interpreter's context, which simplifies the API and makes the lifetime and ownership semantics more straightforward.
+Considering callbacks that previously used generic context, they can now directly receive the FeatherInterp. This modification ensures that every value creation is explicitly tied to a specific interpreter's context, which simplifies the API and makes the lifetime and ownership semantics more straightforward.
 ````
 
 You're right. Let me think through what `ctx`/`userdata` was providing:
@@ -5638,7 +5638,7 @@ If handles are per-interpreter (not globally shared), then the interpreter owns 
 
 ```go
 type InterpState struct {
-    handles    map[uint32]any       // all TclObj values
+    handles    map[uint32]any       // all FeatherObj values
     interns    map[string]uint32    // deduplication table
     frames     []*Frame
     procs      map[uint32]Proc
@@ -5646,14 +5646,14 @@ type InterpState struct {
 }
 ```
 
-Every callback gets `TclInterp`, which is enough to find everything.
+Every callback gets `FeatherInterp`, which is enough to find everything.
 
 ## Revised API
 
 ```c
-typedef uint32_t TclHandle;
-typedef TclHandle TclObj;
-typedef TclHandle TclInterp;
+typedef uint32_t FeatherHandle;
+typedef FeatherHandle FeatherObj;
+typedef FeatherHandle FeatherInterp;
 
 typedef enum {
     TCL_OK = 0,
@@ -5661,72 +5661,72 @@ typedef enum {
     TCL_RETURN = 2,
     TCL_BREAK = 3,
     TCL_CONTINUE = 4,
-} TclResult;
+} FeatherResult;
 
-typedef struct TclFrameOps {
-    void   (*push)(TclInterp interp, TclObj cmd, TclObj args);
-    void   (*pop)(TclInterp interp);
-    size_t (*level)(TclInterp interp);
-    void   (*set_active)(TclInterp interp, size_t level);
-} TclFrameOps;
+typedef struct FeatherFrameOps {
+    void   (*push)(FeatherInterp interp, FeatherObj cmd, FeatherObj args);
+    void   (*pop)(FeatherInterp interp);
+    size_t (*level)(FeatherInterp interp);
+    void   (*set_active)(FeatherInterp interp, size_t level);
+} FeatherFrameOps;
 
-typedef struct TclVarOps {
-    TclObj (*get)(TclInterp interp, TclObj name);
-    void   (*set)(TclInterp interp, TclObj name, TclObj value);
-    void   (*unset)(TclInterp interp, TclObj name);
-    int    (*exists)(TclInterp interp, TclObj name);
-    void   (*link)(TclInterp interp, TclObj local, size_t target_level, TclObj target_name);
-} TclVarOps;
+typedef struct FeatherVarOps {
+    FeatherObj (*get)(FeatherInterp interp, FeatherObj name);
+    void   (*set)(FeatherInterp interp, FeatherObj name, FeatherObj value);
+    void   (*unset)(FeatherInterp interp, FeatherObj name);
+    int    (*exists)(FeatherInterp interp, FeatherObj name);
+    void   (*link)(FeatherInterp interp, FeatherObj local, size_t target_level, FeatherObj target_name);
+} FeatherVarOps;
 
-typedef struct TclStringOps {
-    TclObj      (*intern)(TclInterp interp, const char* s, size_t len);
-    const char* (*get)(TclInterp interp, TclObj obj, size_t* len);
-    TclObj      (*concat)(TclInterp interp, TclObj a, TclObj b);
-} TclStringOps;
+typedef struct FeatherStringOps {
+    FeatherObj      (*intern)(FeatherInterp interp, const char* s, size_t len);
+    const char* (*get)(FeatherInterp interp, FeatherObj obj, size_t* len);
+    FeatherObj      (*concat)(FeatherInterp interp, FeatherObj a, FeatherObj b);
+} FeatherStringOps;
 
-typedef struct TclListOps {
-    TclObj (*create)(TclInterp interp);
-    TclObj (*push)(TclInterp interp, TclObj list, TclObj item);
-    size_t (*length)(TclInterp interp, TclObj list);
-    TclObj (*index)(TclInterp interp, TclObj list, size_t idx);
-} TclListOps;
+typedef struct FeatherListOps {
+    FeatherObj (*create)(FeatherInterp interp);
+    FeatherObj (*push)(FeatherInterp interp, FeatherObj list, FeatherObj item);
+    size_t (*length)(FeatherInterp interp, FeatherObj list);
+    FeatherObj (*index)(FeatherInterp interp, FeatherObj list, size_t idx);
+} FeatherListOps;
 
-typedef struct TclIntOps {
-    TclObj (*create)(TclInterp interp, int64_t val);
-    int    (*get)(TclInterp interp, TclObj obj, int64_t* out);
-} TclIntOps;
+typedef struct FeatherIntOps {
+    FeatherObj (*create)(FeatherInterp interp, int64_t val);
+    int    (*get)(FeatherInterp interp, FeatherObj obj, int64_t* out);
+} FeatherIntOps;
 
-typedef struct TclProcOps {
-    void   (*define)(TclInterp interp, TclObj name, TclObj params, TclObj body);
-    int    (*exists)(TclInterp interp, TclObj name);
-    TclObj (*params)(TclInterp interp, TclObj name);
-    TclObj (*body)(TclInterp interp, TclObj name);
-} TclProcOps;
+typedef struct FeatherProcOps {
+    void   (*define)(FeatherInterp interp, FeatherObj name, FeatherObj params, FeatherObj body);
+    int    (*exists)(FeatherInterp interp, FeatherObj name);
+    FeatherObj (*params)(FeatherInterp interp, FeatherObj name);
+    FeatherObj (*body)(FeatherInterp interp, FeatherObj name);
+} FeatherProcOps;
 
-typedef struct TclErrorOps {
-    void   (*set)(TclInterp interp, TclObj message);
-    TclObj (*get)(TclInterp interp);
-} TclErrorOps;
+typedef struct FeatherErrorOps {
+    void   (*set)(FeatherInterp interp, FeatherObj message);
+    FeatherObj (*get)(FeatherInterp interp);
+} FeatherErrorOps;
 
-typedef struct TclHostOps {
-    TclFrameOps  frame;
-    TclVarOps    var;
-    TclStringOps string;
-    TclListOps   list;
-    TclIntOps    integer;
-    TclProcOps   proc;
-    TclErrorOps  error;
+typedef struct FeatherHostOps {
+    FeatherFrameOps  frame;
+    FeatherVarOps    var;
+    FeatherStringOps string;
+    FeatherListOps   list;
+    FeatherIntOps    integer;
+    FeatherProcOps   proc;
+    FeatherErrorOps  error;
     
-    TclObj (*invoke)(TclInterp interp, TclObj cmd, TclObj args, TclResult* result);
-} TclHostOps;
+    FeatherObj (*invoke)(FeatherInterp interp, FeatherObj cmd, FeatherObj args, FeatherResult* result);
+} FeatherHostOps;
 
-TclResult tcl_eval(const TclHostOps* ops, TclInterp interp,
-                   const char* script, size_t len, TclObj* result);
+FeatherResult feather_eval(const FeatherHostOps* ops, FeatherInterp interp,
+                   const char* script, size_t len, FeatherObj* result);
 ```
 
 ## Host Command Registration
 
-Host commands are registered on the interpreter, not passed through `TclHostOps`:
+Host commands are registered on the interpreter, not passed through `FeatherHostOps`:
 
 ```go
 // Host's own API
@@ -5736,7 +5736,7 @@ func (interp *InterpState) RegisterCommand(name string, fn HostCommandFn) {
 }
 
 // invoke callback looks up in interpreter
-func invoke(interp uint32, cmd uint32, args uint32, result *C.TclResult) uint32 {
+func invoke(interp uint32, cmd uint32, args uint32, result *C.FeatherResult) uint32 {
     state := interpreters[interp]
     
     if fn, ok := state.commands[cmd]; ok {
@@ -5754,7 +5754,7 @@ func invoke(interp uint32, cmd uint32, args uint32, result *C.TclResult) uint32 
 
 | Property | Consequence |
 |----------|-------------|
-| Handles are per-interpreter | Can't share TclObj between interpreters |
+| Handles are per-interpreter | Can't share FeatherObj between interpreters |
 | No userdata | Simpler API, one less parameter everywhere |
 | Commands on interpreter | Natural ownership, cleaned up with interpreter |
 
@@ -5806,13 +5806,13 @@ typedef enum {
     TCL_TOKEN_COMMAND,      // [...]
     TCL_TOKEN_QUOTED,       // "..." (may contain substitutions)
     TCL_TOKEN_BRACED,       // {...} (no substitutions)
-} TclTokenType;
+} FeatherTokenType;
 
 typedef struct {
-    TclTokenType type;
+    FeatherTokenType type;
     size_t start;
     size_t end;
-} TclToken;
+} FeatherToken;
 `​`​`
 
 For simple cases like `set x 1`:
@@ -5857,13 +5857,13 @@ typedef enum {
     TCL_TOKEN_COMMAND,     // substitution: [...]
     TCL_TOKEN_QUOTED,      // quoted: "..."
     TCL_TOKEN_BRACED,      // braced: {...}
-} TclTokenType;
+} FeatherTokenType;
 
 typedef struct {
-    TclTokenType type;
+    FeatherTokenType type;
     size_t start;
     size_t end;
-} TclToken;
+} FeatherToken;
 ```
 
 For `set x [expr $y]`:
@@ -5925,7 +5925,7 @@ typedef struct {
     int escape_next;      // saw backslash
     size_t command_start; // where current command began in logical stream
     size_t pos;           // current position in logical stream
-} TclParseState;
+} FeatherParseState;
 ```
 
 This is 32-40 bytes. Trivially fits on stack or can be stored in host's interpreter state.
@@ -5937,17 +5937,17 @@ typedef enum {
     TCL_PARSE_OK,          // found complete command(s)
     TCL_PARSE_INCOMPLETE,  // need more input
     TCL_PARSE_ERROR,       // syntax error
-} TclParseStatus;
+} FeatherParseStatus;
 
 typedef struct {
     size_t start;          // command start (offset into accumulated input)
     size_t end;            // command end
-} TclCommand;
+} FeatherCommand;
 
 /*
  * Feed a chunk of input to the parser.
  *
- * state: parser state (caller-owned, initialize with tcl_parse_init)
+ * state: parser state (caller-owned, initialize with feather_parse_init)
  * input: new chunk of data
  * len:   length of chunk
  * cmds:  output array for complete commands found
@@ -5959,24 +5959,24 @@ typedef struct {
  *   TCL_PARSE_INCOMPLETE - no complete command yet, feed more
  *   TCL_PARSE_ERROR - syntax error (unbalanced brackets, etc.)
  */
-TclParseStatus tcl_parse_feed(
-    TclParseState* state,
+FeatherParseStatus feather_parse_feed(
+    FeatherParseState* state,
     const char* input,
     size_t len,
-    TclCommand* cmds,
+    FeatherCommand* cmds,
     size_t max_cmds,
     size_t* num_cmds
 );
 
-void tcl_parse_init(TclParseState* state);
-void tcl_parse_reset(TclParseState* state);  // after error or to start fresh
+void feather_parse_init(FeatherParseState* state);
+void feather_parse_reset(FeatherParseState* state);  // after error or to start fresh
 ```
 
 ### Usage: Streaming from network
 
 ```c
-TclParseState parse_state;
-tcl_parse_init(&parse_state);
+FeatherParseState parse_state;
+feather_parse_init(&parse_state);
 
 char buffer[4096];
 char accumulated[65536];  // or host-managed dynamic buffer
@@ -5987,10 +5987,10 @@ while ((n = read(fd, buffer, sizeof(buffer))) > 0) {
     memcpy(accumulated + acc_len, buffer, n);
     acc_len += n;
     
-    TclCommand cmds[16];
+    FeatherCommand cmds[16];
     size_t num_cmds;
     
-    TclParseStatus status = tcl_parse_feed(
+    FeatherParseStatus status = feather_parse_feed(
         &parse_state,
         buffer, n,
         cmds, 16, &num_cmds
@@ -6003,8 +6003,8 @@ while ((n = read(fd, buffer, sizeof(buffer))) > 0) {
     
     // Execute complete commands
     for (size_t i = 0; i < num_cmds; i++) {
-        TclObj result;
-        tcl_eval(ops, interp,
+        FeatherObj result;
+        feather_eval(ops, interp,
                  accumulated + cmds[i].start,
                  cmds[i].end - cmds[i].start,
                  &result);
@@ -6025,17 +6025,17 @@ If you typically execute commands one at a time:
 
 ```c
 typedef struct {
-    TclParseStatus status;
+    FeatherParseStatus status;
     size_t consumed;       // bytes consumed from input
     size_t command_start;  // start of command (relative to input)
     size_t command_end;    // end of command
-} TclParseResult;
+} FeatherParseResult;
 
 /*
  * Try to parse one complete command from input.
  */
-TclParseResult tcl_parse_one(
-    TclParseState* state,
+FeatherParseResult feather_parse_one(
+    FeatherParseState* state,
     const char* input,
     size_t len
 );
@@ -6044,11 +6044,11 @@ TclParseResult tcl_parse_one(
 Usage:
 
 ```c
-TclParseState state;
-tcl_parse_init(&state);
+FeatherParseState state;
+feather_parse_init(&state);
 
 while (have_data) {
-    TclParseResult r = tcl_parse_one(&state, buffer, buffer_len);
+    FeatherParseResult r = feather_parse_one(&state, buffer, buffer_len);
     
     if (r.status == TCL_PARSE_INCOMPLETE) {
         // Read more data, append to buffer
@@ -6061,7 +6061,7 @@ while (have_data) {
     }
     
     // Execute the command
-    tcl_eval(ops, interp,
+    feather_eval(ops, interp,
              buffer + r.command_start,
              r.command_end - r.command_start,
              &result);
@@ -6083,45 +6083,45 @@ The parser has two phases:
 
 ```c
 /* Phase 1: Find complete commands in stream */
-void tcl_parse_init(TclParseState* state);
+void feather_parse_init(FeatherParseState* state);
 
-TclParseResult tcl_parse_one(
-    TclParseState* state,
+FeatherParseResult feather_parse_one(
+    FeatherParseState* state,
     const char* input,
     size_t len
 );
 
 /* Phase 2: Tokenize a complete command */
 typedef struct {
-    TclToken* tokens;    // caller-provided array
+    FeatherToken* tokens;    // caller-provided array
     size_t capacity;
     size_t count;        // output: number of tokens
-} TclTokenBuffer;
+} FeatherTokenBuffer;
 
-TclParseStatus tcl_tokenize(
+FeatherParseStatus feather_tokenize(
     const char* command,
     size_t len,
-    TclTokenBuffer* tokens
+    FeatherTokenBuffer* tokens
 );
 ```
 
 Interpreter uses both:
 
 ```c
-TclResult tcl_eval(const TclHostOps* ops, TclInterp interp,
-                   const char* script, size_t len, TclObj* result) {
-    TclParseState state;
-    tcl_parse_init(&state);
+FeatherResult feather_eval(const FeatherHostOps* ops, FeatherInterp interp,
+                   const char* script, size_t len, FeatherObj* result) {
+    FeatherParseState state;
+    feather_parse_init(&state);
     
-    TclToken token_buf[64];  // on C stack
-    TclTokenBuffer tokens = { token_buf, 64, 0 };
+    FeatherToken token_buf[64];  // on C stack
+    FeatherTokenBuffer tokens = { token_buf, 64, 0 };
     
     const char* p = script;
     size_t remaining = len;
-    TclObj last_result = 0;  // or empty handle
+    FeatherObj last_result = 0;  // or empty handle
     
     while (remaining > 0) {
-        TclParseResult r = tcl_parse_one(&state, p, remaining);
+        FeatherParseResult r = feather_parse_one(&state, p, remaining);
         
         if (r.status == TCL_PARSE_INCOMPLETE) {
             // Unexpected end of input
@@ -6136,10 +6136,10 @@ TclResult tcl_eval(const TclHostOps* ops, TclInterp interp,
         
         // Tokenize the command
         tokens.count = 0;
-        tcl_tokenize(p + r.command_start, r.command_end - r.command_start, &tokens);
+        feather_tokenize(p + r.command_start, r.command_end - r.command_start, &tokens);
         
         // Execute
-        TclResult res = eval_tokens(ops, interp, p, &tokens, &last_result);
+        FeatherResult res = eval_tokens(ops, interp, p, &tokens, &last_result);
         if (res != TCL_OK) {
             return res;
         }
@@ -6199,22 +6199,22 @@ The cleanest approach would be for the parser to call the host to record each to
 
 So instead of:
 `​`​`c
-TclParseStatus tcl_tokenize(
+FeatherParseStatus feather_tokenize(
     const char* command,
     size_t len,
-    TclTokenBuffer* tokens
+    FeatherTokenBuffer* tokens
 );
 `​`​`
 
 We could have the parser call a callback for each token:
 `​`​`c
 // Host provides this
-void (*token_add)(TclInterp interp, TclTokenType type, size_t start, size_t end);
+void (*token_add)(FeatherInterp interp, FeatherTokenType type, size_t start, size_t end);
 `​`​`
 
 Or return handles:
 `​`​`c
-TclObj (*span_create)(TclInterp interp, TclTokenType type, size_t start, size_t end);
+FeatherObj (*span_create)(FeatherInterp interp, FeatherTokenType type, size_t start, size_t end);
 `​`​`
 
 But wait - we also want the tokenization to be resumable/streamable. And the tokens are temporary - they're only needed during evaluation of one command.
@@ -6230,9 +6230,9 @@ During `eval_tokens`, the interpreter needs to know:
 The interpreter could call the host to build a list of spans:
 
 `​`​`c
-typedef struct TclParseOps {
-    TclObj (*span_create)(TclInterp interp, TclTokenType type, size_t start, size_t end);
-} TclParseOps;
+typedef struct FeatherParseOps {
+    FeatherObj (*span_create)(FeatherInterp interp, FeatherTokenType type, size_t start, size_t end);
+} FeatherParseOps;
 `​`​`
 
 I see a flexible approach emerging. By using a list-based mechanism, we can dynamically collect token spans without fixed buffer constraints. The host manages memory allocation, and the parser simply creates spans as it discovers them. This design allows for dynamic token collection while keeping the parser's internal state compact and efficient.
@@ -6251,27 +6251,27 @@ The host callback approach allows flexible span creation, with the parser delega
 Right. The parser state is internal, but token storage goes through the host. A span handle makes sense:
 
 ```c
-typedef struct TclSpanOps {
-    TclObj (*create)(TclInterp interp, uint32_t tag, size_t start, size_t end);
-    uint32_t (*tag)(TclInterp interp, TclObj span);
-    size_t (*start)(TclInterp interp, TclObj span);
-    size_t (*end)(TclInterp interp, TclObj span);
-} TclSpanOps;
+typedef struct FeatherSpanOps {
+    FeatherObj (*create)(FeatherInterp interp, uint32_t tag, size_t start, size_t end);
+    uint32_t (*tag)(FeatherInterp interp, FeatherObj span);
+    size_t (*start)(FeatherInterp interp, FeatherObj span);
+    size_t (*end)(FeatherInterp interp, FeatherObj span);
+} FeatherSpanOps;
 ```
 
 Parser creates spans, collects them via list operations:
 
 ```c
 // Inside tokenizer
-TclObj tokens = ops->list.create(interp);
+FeatherObj tokens = ops->list.create(interp);
 
 while (has_more_words(p, end)) {
-    TclTokenType type;
+    FeatherTokenType type;
     size_t start, end;
     
     parse_word(&p, &type, &start, &end);
     
-    TclObj span = ops->span.create(interp, type, start, end);
+    FeatherObj span = ops->span.create(interp, type, start, end);
     tokens = ops->list.push(interp, tokens, span);
 }
 
@@ -6285,9 +6285,9 @@ No fixed buffer. Host decides how to store spans internally.
 Could reuse existing types — a span is just `[tag, start, end]`:
 
 ```c
-TclObj make_span(const TclHostOps* ops, TclInterp interp,
-                 TclTokenType type, size_t start, size_t end) {
-    TclObj span = ops->list.create(interp);
+FeatherObj make_span(const FeatherHostOps* ops, FeatherInterp interp,
+                 FeatherTokenType type, size_t start, size_t end) {
+    FeatherObj span = ops->list.create(interp);
     span = ops->list.push(interp, span, ops->integer.create(interp, (int64_t)type));
     span = ops->list.push(interp, span, ops->integer.create(interp, (int64_t)start));
     span = ops->list.push(interp, span, ops->integer.create(interp, (int64_t)end));
@@ -6301,17 +6301,17 @@ More verbose, more callback overhead, but no new handle type. Host could recogni
 
 | Approach | Pros | Cons |
 |----------|------|------|
-| Dedicated `TclSpanOps` | Clean, efficient, explicit | Another handle type |
+| Dedicated `FeatherSpanOps` | Clean, efficient, explicit | Another handle type |
 | Span as list | Reuses existing ops | Verbose, more callbacks |
 
-I'd lean toward dedicated `TclSpanOps`. Spans are fundamental to parsing; making them explicit is clearer than encoding in lists.
+I'd lean toward dedicated `FeatherSpanOps`. Spans are fundamental to parsing; making them explicit is clearer than encoding in lists.
 
 ## Revised Full API
 
 ```c
-typedef uint32_t TclHandle;
-typedef TclHandle TclObj;
-typedef TclHandle TclInterp;
+typedef uint32_t FeatherHandle;
+typedef FeatherHandle FeatherObj;
+typedef FeatherHandle FeatherInterp;
 
 typedef enum {
     TCL_OK = 0,
@@ -6319,7 +6319,7 @@ typedef enum {
     TCL_RETURN = 2,
     TCL_BREAK = 3,
     TCL_CONTINUE = 4,
-} TclResult;
+} FeatherResult;
 
 typedef enum {
     TCL_TOKEN_LITERAL,
@@ -6328,94 +6328,94 @@ typedef enum {
     TCL_TOKEN_COMMAND,
     TCL_TOKEN_QUOTED,
     TCL_TOKEN_BRACED,
-} TclTokenType;
+} FeatherTokenType;
 
-typedef struct TclFrameOps {
-    void   (*push)(TclInterp interp, TclObj cmd, TclObj args);
-    void   (*pop)(TclInterp interp);
-    size_t (*level)(TclInterp interp);
-    void   (*set_active)(TclInterp interp, size_t level);
-} TclFrameOps;
+typedef struct FeatherFrameOps {
+    void   (*push)(FeatherInterp interp, FeatherObj cmd, FeatherObj args);
+    void   (*pop)(FeatherInterp interp);
+    size_t (*level)(FeatherInterp interp);
+    void   (*set_active)(FeatherInterp interp, size_t level);
+} FeatherFrameOps;
 
-typedef struct TclVarOps {
-    TclObj (*get)(TclInterp interp, TclObj name);
-    void   (*set)(TclInterp interp, TclObj name, TclObj value);
-    void   (*unset)(TclInterp interp, TclObj name);
-    int    (*exists)(TclInterp interp, TclObj name);
-    void   (*link)(TclInterp interp, TclObj local, size_t target_level, TclObj target_name);
-} TclVarOps;
+typedef struct FeatherVarOps {
+    FeatherObj (*get)(FeatherInterp interp, FeatherObj name);
+    void   (*set)(FeatherInterp interp, FeatherObj name, FeatherObj value);
+    void   (*unset)(FeatherInterp interp, FeatherObj name);
+    int    (*exists)(FeatherInterp interp, FeatherObj name);
+    void   (*link)(FeatherInterp interp, FeatherObj local, size_t target_level, FeatherObj target_name);
+} FeatherVarOps;
 
-typedef struct TclStringOps {
-    TclObj      (*intern)(TclInterp interp, const char* s, size_t len);
-    const char* (*get)(TclInterp interp, TclObj obj, size_t* len);
-    TclObj      (*concat)(TclInterp interp, TclObj a, TclObj b);
-} TclStringOps;
+typedef struct FeatherStringOps {
+    FeatherObj      (*intern)(FeatherInterp interp, const char* s, size_t len);
+    const char* (*get)(FeatherInterp interp, FeatherObj obj, size_t* len);
+    FeatherObj      (*concat)(FeatherInterp interp, FeatherObj a, FeatherObj b);
+} FeatherStringOps;
 
-typedef struct TclListOps {
-    TclObj (*create)(TclInterp interp);
-    TclObj (*push)(TclInterp interp, TclObj list, TclObj item);
-    size_t (*length)(TclInterp interp, TclObj list);
-    TclObj (*index)(TclInterp interp, TclObj list, size_t idx);
-} TclListOps;
+typedef struct FeatherListOps {
+    FeatherObj (*create)(FeatherInterp interp);
+    FeatherObj (*push)(FeatherInterp interp, FeatherObj list, FeatherObj item);
+    size_t (*length)(FeatherInterp interp, FeatherObj list);
+    FeatherObj (*index)(FeatherInterp interp, FeatherObj list, size_t idx);
+} FeatherListOps;
 
-typedef struct TclIntOps {
-    TclObj (*create)(TclInterp interp, int64_t val);
-    int    (*get)(TclInterp interp, TclObj obj, int64_t* out);
-} TclIntOps;
+typedef struct FeatherIntOps {
+    FeatherObj (*create)(FeatherInterp interp, int64_t val);
+    int    (*get)(FeatherInterp interp, FeatherObj obj, int64_t* out);
+} FeatherIntOps;
 
-typedef struct TclSpanOps {
-    TclObj   (*create)(TclInterp interp, uint32_t tag, size_t start, size_t end);
-    uint32_t (*tag)(TclInterp interp, TclObj span);
-    size_t   (*start)(TclInterp interp, TclObj span);
-    size_t   (*end)(TclInterp interp, TclObj span);
-} TclSpanOps;
+typedef struct FeatherSpanOps {
+    FeatherObj   (*create)(FeatherInterp interp, uint32_t tag, size_t start, size_t end);
+    uint32_t (*tag)(FeatherInterp interp, FeatherObj span);
+    size_t   (*start)(FeatherInterp interp, FeatherObj span);
+    size_t   (*end)(FeatherInterp interp, FeatherObj span);
+} FeatherSpanOps;
 
-typedef struct TclProcOps {
-    void   (*define)(TclInterp interp, TclObj name, TclObj params, TclObj body);
-    int    (*exists)(TclInterp interp, TclObj name);
-    TclObj (*params)(TclInterp interp, TclObj name);
-    TclObj (*body)(TclInterp interp, TclObj name);
-} TclProcOps;
+typedef struct FeatherProcOps {
+    void   (*define)(FeatherInterp interp, FeatherObj name, FeatherObj params, FeatherObj body);
+    int    (*exists)(FeatherInterp interp, FeatherObj name);
+    FeatherObj (*params)(FeatherInterp interp, FeatherObj name);
+    FeatherObj (*body)(FeatherInterp interp, FeatherObj name);
+} FeatherProcOps;
 
-typedef struct TclErrorOps {
-    void   (*set)(TclInterp interp, TclObj message);
-    TclObj (*get)(TclInterp interp);
-} TclErrorOps;
+typedef struct FeatherErrorOps {
+    void   (*set)(FeatherInterp interp, FeatherObj message);
+    FeatherObj (*get)(FeatherInterp interp);
+} FeatherErrorOps;
 
-typedef struct TclHostOps {
-    TclFrameOps  frame;
-    TclVarOps    var;
-    TclStringOps string;
-    TclListOps   list;
-    TclIntOps    integer;
-    TclSpanOps   span;
-    TclProcOps   proc;
-    TclErrorOps  error;
+typedef struct FeatherHostOps {
+    FeatherFrameOps  frame;
+    FeatherVarOps    var;
+    FeatherStringOps string;
+    FeatherListOps   list;
+    FeatherIntOps    integer;
+    FeatherSpanOps   span;
+    FeatherProcOps   proc;
+    FeatherErrorOps  error;
     
-    TclObj (*invoke)(TclInterp interp, TclObj cmd, TclObj args, TclResult* result);
-} TclHostOps;
+    FeatherObj (*invoke)(FeatherInterp interp, FeatherObj cmd, FeatherObj args, FeatherResult* result);
+} FeatherHostOps;
 
 /*
  * Parser state - opaque, internal to C
  */
-typedef struct TclParseState TclParseState;
+typedef struct FeatherParseState FeatherParseState;
 
-size_t tcl_parse_state_size(void);
-void   tcl_parse_init(TclParseState* state);
-void   tcl_parse_reset(TclParseState* state);
+size_t feather_parse_state_size(void);
+void   feather_parse_init(FeatherParseState* state);
+void   feather_parse_reset(FeatherParseState* state);
 
 typedef enum {
     TCL_PARSE_OK,
     TCL_PARSE_INCOMPLETE,
     TCL_PARSE_ERROR,
-} TclParseStatus;
+} FeatherParseStatus;
 
 /*
  * Feed input, get command boundaries.
  * Returns start/end offsets into the accumulated stream.
  */
-TclParseStatus tcl_parse_command(
-    TclParseState* state,
+FeatherParseStatus feather_parse_command(
+    FeatherParseState* state,
     const char* input,
     size_t len,
     size_t* cmd_start,
@@ -6427,9 +6427,9 @@ TclParseStatus tcl_parse_command(
  * Tokenize a complete command into spans.
  * Returns a list of span handles.
  */
-TclObj tcl_tokenize(
-    const TclHostOps* ops,
-    TclInterp interp,
+FeatherObj feather_tokenize(
+    const FeatherHostOps* ops,
+    FeatherInterp interp,
     const char* cmd,
     size_t len
 );
@@ -6437,21 +6437,21 @@ TclObj tcl_tokenize(
 /*
  * Evaluate a script.
  */
-TclResult tcl_eval(
-    const TclHostOps* ops,
-    TclInterp interp,
+FeatherResult feather_eval(
+    const FeatherHostOps* ops,
+    FeatherInterp interp,
     const char* script,
     size_t len,
-    TclObj* result
+    FeatherObj* result
 );
 ```
 
 ## Host Usage: Streaming
 
 ```c
-// Host allocates parse state (size known via tcl_parse_state_size)
-TclParseState* state = host_alloc(tcl_parse_state_size());
-tcl_parse_init(state);
+// Host allocates parse state (size known via feather_parse_state_size)
+FeatherParseState* state = host_alloc(feather_parse_state_size());
+feather_parse_init(state);
 
 // Host manages input buffer
 DynamicBuffer input = buffer_create();
@@ -6461,33 +6461,33 @@ while (read_chunk(fd, chunk, &chunk_len)) {
     
     size_t cmd_start, cmd_end, consumed;
     
-    while (tcl_parse_command(state, input.data, input.len,
+    while (feather_parse_command(state, input.data, input.len,
                              &cmd_start, &cmd_end, &consumed) == TCL_PARSE_OK) {
         
-        TclObj result;
-        tcl_eval(ops, interp, input.data + cmd_start, cmd_end - cmd_start, &result);
+        FeatherObj result;
+        feather_eval(ops, interp, input.data + cmd_start, cmd_end - cmd_start, &result);
         
         buffer_consume(&input, consumed);
     }
 }
 ```
 
-## Inside `tcl_eval`
+## Inside `feather_eval`
 
 ```c
-TclResult tcl_eval(const TclHostOps* ops, TclInterp interp,
-                   const char* script, size_t len, TclObj* result) {
+FeatherResult feather_eval(const FeatherHostOps* ops, FeatherInterp interp,
+                   const char* script, size_t len, FeatherObj* result) {
     
-    TclParseState state;
-    tcl_parse_init(&state);
+    FeatherParseState state;
+    feather_parse_init(&state);
     
     const char* p = script;
     size_t remaining = len;
-    TclObj last_result = ops->string.intern(interp, "", 0);
+    FeatherObj last_result = ops->string.intern(interp, "", 0);
     
     while (remaining > 0) {
         size_t cmd_start, cmd_end, consumed;
-        TclParseStatus status = tcl_parse_command(&state, p, remaining,
+        FeatherParseStatus status = feather_parse_command(&state, p, remaining,
                                                    &cmd_start, &cmd_end, &consumed);
         
         if (status == TCL_PARSE_INCOMPLETE) {
@@ -6501,10 +6501,10 @@ TclResult tcl_eval(const TclHostOps* ops, TclInterp interp,
         }
         
         // Tokenize -> list of spans (host-allocated)
-        TclObj tokens = tcl_tokenize(ops, interp, p + cmd_start, cmd_end - cmd_start);
+        FeatherObj tokens = feather_tokenize(ops, interp, p + cmd_start, cmd_end - cmd_start);
         
         // Evaluate
-        TclResult r = eval_tokens(ops, interp, p + cmd_start, tokens, &last_result);
+        FeatherResult r = eval_tokens(ops, interp, p + cmd_start, tokens, &last_result);
         if (r != TCL_OK) return r;
         
         p += consumed;
@@ -6516,13 +6516,13 @@ TclResult tcl_eval(const TclHostOps* ops, TclInterp interp,
 }
 ```
 
-## Inside `tcl_tokenize`
+## Inside `feather_tokenize`
 
 ```c
-TclObj tcl_tokenize(const TclHostOps* ops, TclInterp interp,
+FeatherObj feather_tokenize(const FeatherHostOps* ops, FeatherInterp interp,
                     const char* cmd, size_t len) {
     
-    TclObj tokens = ops->list.create(interp);
+    FeatherObj tokens = ops->list.create(interp);
     
     const char* p = cmd;
     const char* end = cmd + len;
@@ -6531,13 +6531,13 @@ TclObj tcl_tokenize(const TclHostOps* ops, TclInterp interp,
         skip_whitespace(&p, end);
         if (p >= end) break;
         
-        TclTokenType type;
+        FeatherTokenType type;
         size_t start = p - cmd;
         size_t word_end;
         
         parse_word(&p, end, &type, &word_end);
         
-        TclObj span = ops->span.create(interp, type, start, word_end);
+        FeatherObj span = ops->span.create(interp, type, start, word_end);
         tokens = ops->list.push(interp, tokens, span);
     }
     
@@ -6564,15 +6564,15 @@ Thought process: Reconsidered API design to embrace list-based span representati
 
 The user prefers representing spans as lists `[tag, start, end]` rather than a dedicated span type. This is more TCL-like (everything is a list/string) and makes introspection natural - you can use standard list commands to inspect parse results.
 
-Let me revise the API to remove TclSpanOps and just use lists.
+Let me revise the API to remove FeatherSpanOps and just use lists.
 ````
 
 Agreed. It's more TCL-like — you can inspect parse results with standard `lindex`, `llength`. No special span commands needed.
 
 ```c
-typedef uint32_t TclHandle;
-typedef TclHandle TclObj;
-typedef TclHandle TclInterp;
+typedef uint32_t FeatherHandle;
+typedef FeatherHandle FeatherObj;
+typedef FeatherHandle FeatherInterp;
 
 typedef enum {
     TCL_OK = 0,
@@ -6580,7 +6580,7 @@ typedef enum {
     TCL_RETURN = 2,
     TCL_BREAK = 3,
     TCL_CONTINUE = 4,
-} TclResult;
+} FeatherResult;
 
 typedef enum {
     TCL_TOKEN_LITERAL = 0,
@@ -6589,82 +6589,82 @@ typedef enum {
     TCL_TOKEN_COMMAND = 3,
     TCL_TOKEN_QUOTED = 4,
     TCL_TOKEN_BRACED = 5,
-} TclTokenType;
+} FeatherTokenType;
 
-typedef struct TclFrameOps {
-    void   (*push)(TclInterp interp, TclObj cmd, TclObj args);
-    void   (*pop)(TclInterp interp);
-    size_t (*level)(TclInterp interp);
-    void   (*set_active)(TclInterp interp, size_t level);
-} TclFrameOps;
+typedef struct FeatherFrameOps {
+    void   (*push)(FeatherInterp interp, FeatherObj cmd, FeatherObj args);
+    void   (*pop)(FeatherInterp interp);
+    size_t (*level)(FeatherInterp interp);
+    void   (*set_active)(FeatherInterp interp, size_t level);
+} FeatherFrameOps;
 
-typedef struct TclVarOps {
-    TclObj (*get)(TclInterp interp, TclObj name);
-    void   (*set)(TclInterp interp, TclObj name, TclObj value);
-    void   (*unset)(TclInterp interp, TclObj name);
-    int    (*exists)(TclInterp interp, TclObj name);
-    void   (*link)(TclInterp interp, TclObj local, size_t target_level, TclObj target_name);
-} TclVarOps;
+typedef struct FeatherVarOps {
+    FeatherObj (*get)(FeatherInterp interp, FeatherObj name);
+    void   (*set)(FeatherInterp interp, FeatherObj name, FeatherObj value);
+    void   (*unset)(FeatherInterp interp, FeatherObj name);
+    int    (*exists)(FeatherInterp interp, FeatherObj name);
+    void   (*link)(FeatherInterp interp, FeatherObj local, size_t target_level, FeatherObj target_name);
+} FeatherVarOps;
 
-typedef struct TclStringOps {
-    TclObj      (*intern)(TclInterp interp, const char* s, size_t len);
-    const char* (*get)(TclInterp interp, TclObj obj, size_t* len);
-    TclObj      (*concat)(TclInterp interp, TclObj a, TclObj b);
-} TclStringOps;
+typedef struct FeatherStringOps {
+    FeatherObj      (*intern)(FeatherInterp interp, const char* s, size_t len);
+    const char* (*get)(FeatherInterp interp, FeatherObj obj, size_t* len);
+    FeatherObj      (*concat)(FeatherInterp interp, FeatherObj a, FeatherObj b);
+} FeatherStringOps;
 
-typedef struct TclListOps {
-    TclObj (*create)(TclInterp interp);
-    TclObj (*push)(TclInterp interp, TclObj list, TclObj item);
-    size_t (*length)(TclInterp interp, TclObj list);
-    TclObj (*index)(TclInterp interp, TclObj list, size_t idx);
-} TclListOps;
+typedef struct FeatherListOps {
+    FeatherObj (*create)(FeatherInterp interp);
+    FeatherObj (*push)(FeatherInterp interp, FeatherObj list, FeatherObj item);
+    size_t (*length)(FeatherInterp interp, FeatherObj list);
+    FeatherObj (*index)(FeatherInterp interp, FeatherObj list, size_t idx);
+} FeatherListOps;
 
-typedef struct TclIntOps {
-    TclObj (*create)(TclInterp interp, int64_t val);
-    int    (*get)(TclInterp interp, TclObj obj, int64_t* out);
-} TclIntOps;
+typedef struct FeatherIntOps {
+    FeatherObj (*create)(FeatherInterp interp, int64_t val);
+    int    (*get)(FeatherInterp interp, FeatherObj obj, int64_t* out);
+} FeatherIntOps;
 
-typedef struct TclProcOps {
-    void   (*define)(TclInterp interp, TclObj name, TclObj params, TclObj body);
-    int    (*exists)(TclInterp interp, TclObj name);
-    TclObj (*params)(TclInterp interp, TclObj name);
-    TclObj (*body)(TclInterp interp, TclObj name);
-} TclProcOps;
+typedef struct FeatherProcOps {
+    void   (*define)(FeatherInterp interp, FeatherObj name, FeatherObj params, FeatherObj body);
+    int    (*exists)(FeatherInterp interp, FeatherObj name);
+    FeatherObj (*params)(FeatherInterp interp, FeatherObj name);
+    FeatherObj (*body)(FeatherInterp interp, FeatherObj name);
+} FeatherProcOps;
 
-typedef struct TclErrorOps {
-    void   (*set)(TclInterp interp, TclObj message);
-    TclObj (*get)(TclInterp interp);
-} TclErrorOps;
+typedef struct FeatherErrorOps {
+    void   (*set)(FeatherInterp interp, FeatherObj message);
+    FeatherObj (*get)(FeatherInterp interp);
+} FeatherErrorOps;
 
-typedef struct TclHostOps {
-    TclFrameOps  frame;
-    TclVarOps    var;
-    TclStringOps string;
-    TclListOps   list;
-    TclIntOps    integer;
-    TclProcOps   proc;
-    TclErrorOps  error;
+typedef struct FeatherHostOps {
+    FeatherFrameOps  frame;
+    FeatherVarOps    var;
+    FeatherStringOps string;
+    FeatherListOps   list;
+    FeatherIntOps    integer;
+    FeatherProcOps   proc;
+    FeatherErrorOps  error;
     
-    TclObj (*invoke)(TclInterp interp, TclObj cmd, TclObj args, TclResult* result);
-} TclHostOps;
+    FeatherObj (*invoke)(FeatherInterp interp, FeatherObj cmd, FeatherObj args, FeatherResult* result);
+} FeatherHostOps;
 
 /*
  * Parser
  */
-typedef struct TclParseState TclParseState;
+typedef struct FeatherParseState FeatherParseState;
 
-size_t tcl_parse_state_size(void);
-void   tcl_parse_init(TclParseState* state);
-void   tcl_parse_reset(TclParseState* state);
+size_t feather_parse_state_size(void);
+void   feather_parse_init(FeatherParseState* state);
+void   feather_parse_reset(FeatherParseState* state);
 
 typedef enum {
     TCL_PARSE_OK,
     TCL_PARSE_INCOMPLETE,
     TCL_PARSE_ERROR,
-} TclParseStatus;
+} FeatherParseStatus;
 
-TclParseStatus tcl_parse_command(
-    TclParseState* state,
+FeatherParseStatus feather_parse_command(
+    FeatherParseState* state,
     const char* input,
     size_t len,
     size_t* cmd_start,
@@ -6676,9 +6676,9 @@ TclParseStatus tcl_parse_command(
  * Tokenize a complete command.
  * Returns: [[type, start, end], [type, start, end], ...]
  */
-TclObj tcl_tokenize(
-    const TclHostOps* ops,
-    TclInterp interp,
+FeatherObj feather_tokenize(
+    const FeatherHostOps* ops,
+    FeatherInterp interp,
     const char* cmd,
     size_t len
 );
@@ -6686,30 +6686,30 @@ TclObj tcl_tokenize(
 /*
  * Evaluate
  */
-TclResult tcl_eval(
-    const TclHostOps* ops,
-    TclInterp interp,
+FeatherResult feather_eval(
+    const FeatherHostOps* ops,
+    FeatherInterp interp,
     const char* script,
     size_t len,
-    TclObj* result
+    FeatherObj* result
 );
 ```
 
 ## Tokenizer Implementation
 
 ```c
-static TclObj make_token(const TclHostOps* ops, TclInterp interp,
-                         TclTokenType type, size_t start, size_t end) {
-    TclObj token = ops->list.create(interp);
+static FeatherObj make_token(const FeatherHostOps* ops, FeatherInterp interp,
+                         FeatherTokenType type, size_t start, size_t end) {
+    FeatherObj token = ops->list.create(interp);
     token = ops->list.push(interp, token, ops->integer.create(interp, (int64_t)type));
     token = ops->list.push(interp, token, ops->integer.create(interp, (int64_t)start));
     token = ops->list.push(interp, token, ops->integer.create(interp, (int64_t)end));
     return token;
 }
 
-TclObj tcl_tokenize(const TclHostOps* ops, TclInterp interp,
+FeatherObj feather_tokenize(const FeatherHostOps* ops, FeatherInterp interp,
                     const char* cmd, size_t len) {
-    TclObj tokens = ops->list.create(interp);
+    FeatherObj tokens = ops->list.create(interp);
     
     const char* p = cmd;
     const char* end = cmd + len;
@@ -6718,13 +6718,13 @@ TclObj tcl_tokenize(const TclHostOps* ops, TclInterp interp,
         skip_whitespace(&p, end);
         if (p >= end) break;
         
-        TclTokenType type;
+        FeatherTokenType type;
         size_t start = p - cmd;
         size_t word_end;
         
         parse_word(&p, end, &type, &word_end);
         
-        TclObj token = make_token(ops, interp, type, start, word_end);
+        FeatherObj token = make_token(ops, interp, type, start, word_end);
         tokens = ops->list.push(interp, tokens, token);
     }
     
@@ -6734,7 +6734,7 @@ TclObj tcl_tokenize(const TclHostOps* ops, TclInterp interp,
 
 ## Introspection from TCL
 
-If you expose `tcl_tokenize` as a command:
+If you expose `feather_tokenize` as a command:
 
 ```tcl
 set tokens [parse "set x [expr 1]"]
@@ -6791,7 +6791,7 @@ typedef struct {
     int escape_next;      // saw backslash
     size_t command_start; // where current command began
     size_t pos;           // current position
-} TclParseState;
+} FeatherParseState;
 `​`​`
 
 This is just a few integers. Could we represent this as a list?
@@ -6803,7 +6803,7 @@ This is just a few integers. Could we represent this as a list?
 Or as a dict/map if the host has that.
 
 The parser would then need to:
-1. Receive the state as a TclObj (list)
+1. Receive the state as a FeatherObj (list)
 2. Extract integers from it
 3. Do its work
 4. Return a new state (list)
@@ -6814,19 +6814,19 @@ The API would become something like:
 
 `​`​`c
 typedef struct {
-    TclParseStatus status;
-    TclObj new_state;      // updated parser state
+    FeatherParseStatus status;
+    FeatherObj new_state;      // updated parser state
     size_t cmd_start;
     size_t cmd_end;
     size_t consumed;
-} TclParseResult;
+} FeatherParseResult;
 
-TclObj tcl_parse_state_new(const TclHostOps* ops, TclInterp interp);
+FeatherObj feather_parse_state_new(const FeatherHostOps* ops, FeatherInterp interp);
 
-TclParseResult tcl_parse_command(
-    const TclHostOps* ops,
-    TclInterp interp,
-    TclObj state,
+FeatherParseResult feather_parse_command(
+    const FeatherHostOps* ops,
+    FeatherInterp interp,
+    FeatherObj state,
     const char* input,
     size_t len
 );
@@ -6855,7 +6855,7 @@ typedef struct {
     int escape_next;
     size_t command_start;
     size_t pos;
-} TclParseState;
+} FeatherParseState;
 ```
 
 As a list: `[bracket_depth, brace_depth, in_quotes, escape_next, command_start, pos]`
@@ -6866,15 +6866,15 @@ As a list: `[bracket_depth, brace_depth, in_quotes, escape_next, command_start, 
 /*
  * Create initial parse state: [0, 0, 0, 0, 0, 0]
  */
-TclObj tcl_parse_init(const TclHostOps* ops, TclInterp interp);
+FeatherObj feather_parse_init(const FeatherHostOps* ops, FeatherInterp interp);
 
 /*
  * Feed input, returns: [status, new_state, cmd_start, cmd_end, consumed]
  */
-TclObj tcl_parse_command(
-    const TclHostOps* ops,
-    TclInterp interp,
-    TclObj state,
+FeatherObj feather_parse_command(
+    const FeatherHostOps* ops,
+    FeatherInterp interp,
+    FeatherObj state,
     const char* input,
     size_t len
 );
@@ -6882,9 +6882,9 @@ TclObj tcl_parse_command(
 /*
  * Tokenize complete command, returns: [[type, start, end], ...]
  */
-TclObj tcl_tokenize(
-    const TclHostOps* ops,
-    TclInterp interp,
+FeatherObj feather_tokenize(
+    const FeatherHostOps* ops,
+    FeatherInterp interp,
     const char* cmd,
     size_t len
 );
@@ -6893,8 +6893,8 @@ TclObj tcl_tokenize(
 ## Implementation
 
 ```c
-TclObj tcl_parse_init(const TclHostOps* ops, TclInterp interp) {
-    TclObj state = ops->list.create(interp);
+FeatherObj feather_parse_init(const FeatherHostOps* ops, FeatherInterp interp) {
+    FeatherObj state = ops->list.create(interp);
     state = ops->list.push(interp, state, ops->integer.create(interp, 0)); // bracket_depth
     state = ops->list.push(interp, state, ops->integer.create(interp, 0)); // brace_depth
     state = ops->list.push(interp, state, ops->integer.create(interp, 0)); // in_quotes
@@ -6904,10 +6904,10 @@ TclObj tcl_parse_init(const TclHostOps* ops, TclInterp interp) {
     return state;
 }
 
-TclObj tcl_parse_command(
-    const TclHostOps* ops,
-    TclInterp interp,
-    TclObj state,
+FeatherObj feather_parse_command(
+    const FeatherHostOps* ops,
+    FeatherInterp interp,
+    FeatherObj state,
     const char* input,
     size_t len
 ) {
@@ -6923,13 +6923,13 @@ TclObj tcl_parse_command(
     ops->integer.get(interp, ops->list.index(interp, state, 5), &pos);
     
     // Parse...
-    TclParseStatus status = TCL_PARSE_INCOMPLETE;
+    FeatherParseStatus status = TCL_PARSE_INCOMPLETE;
     size_t cmd_start = 0, cmd_end = 0, consumed = 0;
     
     // ... parsing logic updates locals ...
     
     // Build result: [status, new_state, cmd_start, cmd_end, consumed]
-    TclObj new_state = ops->list.create(interp);
+    FeatherObj new_state = ops->list.create(interp);
     new_state = ops->list.push(interp, new_state, ops->integer.create(interp, bracket_depth));
     new_state = ops->list.push(interp, new_state, ops->integer.create(interp, brace_depth));
     new_state = ops->list.push(interp, new_state, ops->integer.create(interp, in_quotes));
@@ -6937,7 +6937,7 @@ TclObj tcl_parse_command(
     new_state = ops->list.push(interp, new_state, ops->integer.create(interp, (int64_t)command_start));
     new_state = ops->list.push(interp, new_state, ops->integer.create(interp, (int64_t)pos));
     
-    TclObj result = ops->list.create(interp);
+    FeatherObj result = ops->list.create(interp);
     result = ops->list.push(interp, result, ops->integer.create(interp, (int64_t)status));
     result = ops->list.push(interp, result, new_state);
     result = ops->list.push(interp, result, ops->integer.create(interp, (int64_t)cmd_start));
@@ -6951,10 +6951,10 @@ TclObj tcl_parse_command(
 ## Usage from Host
 
 ```c
-TclObj state = tcl_parse_init(ops, interp);
+FeatherObj state = feather_parse_init(ops, interp);
 
 while (have_data) {
-    TclObj result = tcl_parse_command(ops, interp, state, buffer, buffer_len);
+    FeatherObj result = feather_parse_command(ops, interp, state, buffer, buffer_len);
     
     int64_t status;
     ops->integer.get(interp, ops->list.index(interp, result, 0), &status);
@@ -6967,7 +6967,7 @@ while (have_data) {
         ops->integer.get(interp, ops->list.index(interp, result, 3), &cmd_end);
         ops->integer.get(interp, ops->list.index(interp, result, 4), &consumed);
         
-        tcl_eval(ops, interp, buffer + cmd_start, cmd_end - cmd_start, &eval_result);
+        feather_eval(ops, interp, buffer + cmd_start, cmd_end - cmd_start, &eval_result);
         
         buffer += consumed;
         buffer_len -= consumed;
@@ -7010,9 +7010,9 @@ More callbacks per parse call. But parsing is already I/O bound in the streaming
 ## Complete Final API
 
 ```c
-typedef uint32_t TclHandle;
-typedef TclHandle TclObj;
-typedef TclHandle TclInterp;
+typedef uint32_t FeatherHandle;
+typedef FeatherHandle FeatherObj;
+typedef FeatherHandle FeatherInterp;
 
 typedef enum {
     TCL_OK = 0,
@@ -7020,64 +7020,64 @@ typedef enum {
     TCL_RETURN = 2,
     TCL_BREAK = 3,
     TCL_CONTINUE = 4,
-} TclResult;
+} FeatherResult;
 
-typedef struct TclFrameOps {
-    void   (*push)(TclInterp interp, TclObj cmd, TclObj args);
-    void   (*pop)(TclInterp interp);
-    size_t (*level)(TclInterp interp);
-    void   (*set_active)(TclInterp interp, size_t level);
-} TclFrameOps;
+typedef struct FeatherFrameOps {
+    void   (*push)(FeatherInterp interp, FeatherObj cmd, FeatherObj args);
+    void   (*pop)(FeatherInterp interp);
+    size_t (*level)(FeatherInterp interp);
+    void   (*set_active)(FeatherInterp interp, size_t level);
+} FeatherFrameOps;
 
-typedef struct TclVarOps {
-    TclObj (*get)(TclInterp interp, TclObj name);
-    void   (*set)(TclInterp interp, TclObj name, TclObj value);
-    void   (*unset)(TclInterp interp, TclObj name);
-    int    (*exists)(TclInterp interp, TclObj name);
-    void   (*link)(TclInterp interp, TclObj local, size_t target_level, TclObj target_name);
-} TclVarOps;
+typedef struct FeatherVarOps {
+    FeatherObj (*get)(FeatherInterp interp, FeatherObj name);
+    void   (*set)(FeatherInterp interp, FeatherObj name, FeatherObj value);
+    void   (*unset)(FeatherInterp interp, FeatherObj name);
+    int    (*exists)(FeatherInterp interp, FeatherObj name);
+    void   (*link)(FeatherInterp interp, FeatherObj local, size_t target_level, FeatherObj target_name);
+} FeatherVarOps;
 
-typedef struct TclStringOps {
-    TclObj      (*intern)(TclInterp interp, const char* s, size_t len);
-    const char* (*get)(TclInterp interp, TclObj obj, size_t* len);
-    TclObj      (*concat)(TclInterp interp, TclObj a, TclObj b);
-} TclStringOps;
+typedef struct FeatherStringOps {
+    FeatherObj      (*intern)(FeatherInterp interp, const char* s, size_t len);
+    const char* (*get)(FeatherInterp interp, FeatherObj obj, size_t* len);
+    FeatherObj      (*concat)(FeatherInterp interp, FeatherObj a, FeatherObj b);
+} FeatherStringOps;
 
-typedef struct TclListOps {
-    TclObj (*create)(TclInterp interp);
-    TclObj (*push)(TclInterp interp, TclObj list, TclObj item);
-    size_t (*length)(TclInterp interp, TclObj list);
-    TclObj (*index)(TclInterp interp, TclObj list, size_t idx);
-} TclListOps;
+typedef struct FeatherListOps {
+    FeatherObj (*create)(FeatherInterp interp);
+    FeatherObj (*push)(FeatherInterp interp, FeatherObj list, FeatherObj item);
+    size_t (*length)(FeatherInterp interp, FeatherObj list);
+    FeatherObj (*index)(FeatherInterp interp, FeatherObj list, size_t idx);
+} FeatherListOps;
 
-typedef struct TclIntOps {
-    TclObj (*create)(TclInterp interp, int64_t val);
-    int    (*get)(TclInterp interp, TclObj obj, int64_t* out);
-} TclIntOps;
+typedef struct FeatherIntOps {
+    FeatherObj (*create)(FeatherInterp interp, int64_t val);
+    int    (*get)(FeatherInterp interp, FeatherObj obj, int64_t* out);
+} FeatherIntOps;
 
-typedef struct TclProcOps {
-    void   (*define)(TclInterp interp, TclObj name, TclObj params, TclObj body);
-    int    (*exists)(TclInterp interp, TclObj name);
-    TclObj (*params)(TclInterp interp, TclObj name);
-    TclObj (*body)(TclInterp interp, TclObj name);
-} TclProcOps;
+typedef struct FeatherProcOps {
+    void   (*define)(FeatherInterp interp, FeatherObj name, FeatherObj params, FeatherObj body);
+    int    (*exists)(FeatherInterp interp, FeatherObj name);
+    FeatherObj (*params)(FeatherInterp interp, FeatherObj name);
+    FeatherObj (*body)(FeatherInterp interp, FeatherObj name);
+} FeatherProcOps;
 
-typedef struct TclErrorOps {
-    void   (*set)(TclInterp interp, TclObj message);
-    TclObj (*get)(TclInterp interp);
-} TclErrorOps;
+typedef struct FeatherErrorOps {
+    void   (*set)(FeatherInterp interp, FeatherObj message);
+    FeatherObj (*get)(FeatherInterp interp);
+} FeatherErrorOps;
 
-typedef struct TclHostOps {
-    TclFrameOps  frame;
-    TclVarOps    var;
-    TclStringOps string;
-    TclListOps   list;
-    TclIntOps    integer;
-    TclProcOps   proc;
-    TclErrorOps  error;
+typedef struct FeatherHostOps {
+    FeatherFrameOps  frame;
+    FeatherVarOps    var;
+    FeatherStringOps string;
+    FeatherListOps   list;
+    FeatherIntOps    integer;
+    FeatherProcOps   proc;
+    FeatherErrorOps  error;
     
-    TclObj (*invoke)(TclInterp interp, TclObj cmd, TclObj args, TclResult* result);
-} TclHostOps;
+    FeatherObj (*invoke)(FeatherInterp interp, FeatherObj cmd, FeatherObj args, FeatherResult* result);
+} FeatherHostOps;
 
 /*
  * Parser - fully stateless, all state in host types
@@ -7086,19 +7086,19 @@ typedef struct TclHostOps {
  * Result: [status, new_state, cmd_start, cmd_end, consumed]
  * Tokens: [[type, start, end], ...]
  */
-TclObj tcl_parse_init(const TclHostOps* ops, TclInterp interp);
+FeatherObj feather_parse_init(const FeatherHostOps* ops, FeatherInterp interp);
 
-TclObj tcl_parse_command(
-    const TclHostOps* ops,
-    TclInterp interp,
-    TclObj state,
+FeatherObj feather_parse_command(
+    const FeatherHostOps* ops,
+    FeatherInterp interp,
+    FeatherObj state,
     const char* input,
     size_t len
 );
 
-TclObj tcl_tokenize(
-    const TclHostOps* ops,
-    TclInterp interp,
+FeatherObj feather_tokenize(
+    const FeatherHostOps* ops,
+    FeatherInterp interp,
     const char* cmd,
     size_t len
 );
@@ -7106,12 +7106,12 @@ TclObj tcl_tokenize(
 /*
  * Evaluator
  */
-TclResult tcl_eval(
-    const TclHostOps* ops,
-    TclInterp interp,
+FeatherResult feather_eval(
+    const FeatherHostOps* ops,
+    FeatherInterp interp,
     const char* script,
     size_t len,
-    TclObj* result
+    FeatherObj* result
 );
 ```
 
@@ -7144,7 +7144,7 @@ When would you use parse without tokenize?
 When would you use tokenize without parse?
 - Already have a complete command (e.g., from a single line REPL)
 
-But wait — tcl_eval already needs to do both internally. If you call tcl_eval, it:
+But wait — feather_eval already needs to do both internally. If you call feather_eval, it:
 1. Finds command boundaries (parse)
 2. Tokenizes each command
 3. Evaluates
@@ -7159,19 +7159,19 @@ Use cases for exposing parse separately:
 Use cases for exposing tokenize separately:
 - Same as above, but at word level
 
-Actually, for streaming, you could just call tcl_eval repeatedly on chunks and let it handle parsing. But that doesn't work because tcl_eval expects complete scripts.
+Actually, for streaming, you could just call feather_eval repeatedly on chunks and let it handle parsing. But that doesn't work because feather_eval expects complete scripts.
 
 Hmm, actually there's a design choice here:
 
-**Option A: tcl_eval handles incomplete input**
+**Option A: feather_eval handles incomplete input**
 `​`​`c
-TclResult tcl_eval(
-    const TclHostOps* ops,
-    TclInterp interp,
+FeatherResult feather_eval(
+    const FeatherHostOps* ops,
+    FeatherInterp interp,
     const char* script,
     size_t len,
-    TclObj parse_state,     // in/out: for streaming
-    TclObj* result,
+    FeatherObj parse_state,     // in/out: for streaming
+    FeatherObj* result,
     size_t* consumed        // how much was consumed
 );
 `​`​`
@@ -7206,10 +7206,10 @@ Good catch. Let me think about what each provides:
 
 | Function | Purpose |
 |----------|---------|
-| `tcl_parse_command` | Find command boundaries in stream |
-| `tcl_tokenize` | Break command into words |
+| `feather_parse_command` | Find command boundaries in stream |
+| `feather_tokenize` | Break command into words |
 
-But `tcl_eval` already does both internally. The question is: does the host need them separately?
+But `feather_eval` already does both internally. The question is: does the host need them separately?
 
 ## Use Cases
 
@@ -7220,18 +7220,18 @@ Need to find where commands end before evaluating. That's `parse`.
 Need to see tokens. That's `tokenize`.
 
 **Normal evaluation:**
-Just call `tcl_eval`. Parse and tokenize happen inside.
+Just call `feather_eval`. Parse and tokenize happen inside.
 
 ## Option A: Merge parse into eval
 
 ```c
-TclObj tcl_eval(
-    const TclHostOps* ops,
-    TclInterp interp,
-    TclObj parse_state,      // from tcl_parse_init, or NULL for complete scripts
+FeatherObj feather_eval(
+    const FeatherHostOps* ops,
+    FeatherInterp interp,
+    FeatherObj parse_state,      // from feather_parse_init, or NULL for complete scripts
     const char* script,
     size_t len,
-    TclObj* result
+    FeatherObj* result
 );
 // Returns: [status, new_parse_state, consumed]
 // status: TCL_OK, TCL_ERROR, TCL_PARSE_INCOMPLETE
@@ -7242,22 +7242,22 @@ Single function handles both complete scripts and streaming.
 ## Option B: Keep parse, drop tokenize
 
 ```c
-TclObj tcl_parse_init(const TclHostOps* ops, TclInterp interp);
+FeatherObj feather_parse_init(const FeatherHostOps* ops, FeatherInterp interp);
 
-TclObj tcl_parse_command(
-    const TclHostOps* ops,
-    TclInterp interp,
-    TclObj state,
+FeatherObj feather_parse_command(
+    const FeatherHostOps* ops,
+    FeatherInterp interp,
+    FeatherObj state,
     const char* input,
     size_t len
 );
 
-TclResult tcl_eval(
-    const TclHostOps* ops,
-    TclInterp interp,
+FeatherResult feather_eval(
+    const FeatherHostOps* ops,
+    FeatherInterp interp,
     const char* script,
     size_t len,
-    TclObj* result
+    FeatherObj* result
 );
 ```
 
@@ -7266,12 +7266,12 @@ Parse finds boundaries. Eval takes complete commands. Tokenize is internal.
 ## Option C: Minimal — just eval with streaming support
 
 ```c
-TclObj tcl_parse_state_new(const TclHostOps* ops, TclInterp interp);
+FeatherObj feather_parse_state_new(const FeatherHostOps* ops, FeatherInterp interp);
 
-TclObj tcl_eval(
-    const TclHostOps* ops,
-    TclInterp interp,
-    TclObj parse_state,
+FeatherObj feather_eval(
+    const FeatherHostOps* ops,
+    FeatherInterp interp,
+    FeatherObj parse_state,
     const char* script,
     size_t len
 );
@@ -7282,18 +7282,18 @@ Usage:
 
 ```c
 // Complete script
-TclObj r = tcl_eval(ops, interp, NULL, "set x 1", 7);
+FeatherObj r = feather_eval(ops, interp, NULL, "set x 1", 7);
 
 // Streaming
-TclObj state = tcl_parse_state_new(ops, interp);
+FeatherObj state = feather_parse_state_new(ops, interp);
 while (read_chunk(&buf, &len)) {
-    TclObj r = tcl_eval(ops, interp, state, buf, len);
+    FeatherObj r = feather_eval(ops, interp, state, buf, len);
     
     int64_t code;
     ops->integer.get(interp, ops->list.index(interp, r, 0), &code);
     
     if (code == TCL_OK) {
-        TclObj value = ops->list.index(interp, r, 1);
+        FeatherObj value = ops->list.index(interp, r, 1);
         // use value...
     }
     
@@ -7310,7 +7310,7 @@ while (read_chunk(&buf, &len)) {
 
 Option C is cleanest. One function that handles everything. Tokenize is internal.
 
-If you want introspection later, add `tcl_tokenize` as a separate command exposed to TCL scripts, not a C API.
+If you want introspection later, add `feather_tokenize` as a separate command exposed to TCL scripts, not a C API.
 
 ```tcl
 # Exposed as a TCL command, not C function
@@ -7320,12 +7320,12 @@ set tokens [info parse "set x [expr 1]"]
 Minimal C API:
 
 ```c
-TclObj tcl_parse_state_new(const TclHostOps* ops, TclInterp interp);
+FeatherObj feather_parse_state_new(const FeatherHostOps* ops, FeatherInterp interp);
 
-TclObj tcl_eval(
-    const TclHostOps* ops,
-    TclInterp interp,
-    TclObj parse_state,      // NULL for complete script
+FeatherObj feather_eval(
+    const FeatherHostOps* ops,
+    FeatherInterp interp,
+    FeatherObj parse_state,      // NULL for complete script
     const char* script,
     size_t len
 );

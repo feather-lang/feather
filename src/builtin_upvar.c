@@ -1,4 +1,4 @@
-#include "tclc.h"
+#include "feather.h"
 #include "internal.h"
 
 // Parse a level specification and compute the absolute frame level
@@ -6,8 +6,8 @@
 //   N     - relative level (N levels up from current)
 //   #N    - absolute frame level
 // Returns TCL_OK on success and sets *absLevel, TCL_ERROR on failure
-static TclResult parse_level(const TclHostOps *ops, TclInterp interp,
-                              TclObj levelObj, size_t currentLevel,
+static FeatherResult parse_level(const FeatherHostOps *ops, FeatherInterp interp,
+                              FeatherObj levelObj, size_t currentLevel,
                               size_t stackSize, size_t *absLevel) {
   size_t len;
   const char *str = ops->string.get(interp, levelObj, &len);
@@ -46,32 +46,32 @@ static TclResult parse_level(const TclHostOps *ops, TclInterp interp,
 
 bad_level:
   {
-    TclObj msg1 = ops->string.intern(interp, "bad level \"", 11);
-    TclObj msg2 = ops->string.intern(interp, str, len);
-    TclObj msg3 = ops->string.intern(interp, "\"", 1);
-    TclObj msg = ops->string.concat(interp, msg1, msg2);
+    FeatherObj msg1 = ops->string.intern(interp, "bad level \"", 11);
+    FeatherObj msg2 = ops->string.intern(interp, str, len);
+    FeatherObj msg3 = ops->string.intern(interp, "\"", 1);
+    FeatherObj msg = ops->string.concat(interp, msg1, msg2);
     msg = ops->string.concat(interp, msg, msg3);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 }
 
-TclResult tcl_builtin_upvar(const TclHostOps *ops, TclInterp interp,
-                             TclObj cmd, TclObj args) {
+FeatherResult feather_builtin_upvar(const FeatherHostOps *ops, FeatherInterp interp,
+                             FeatherObj cmd, FeatherObj args) {
   (void)cmd;
 
   size_t argc = ops->list.length(interp, args);
 
   // upvar requires at least 2 args: otherVar localVar
   if (argc < 2) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"upvar ?level? otherVar localVar ?otherVar localVar ...?\"", 81);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
   // Make a copy for shifting
-  TclObj argsCopy = ops->list.from(interp, args);
+  FeatherObj argsCopy = ops->list.from(interp, args);
 
   // Get current and stack info
   size_t currentLevel = ops->frame.level(interp);
@@ -81,7 +81,7 @@ TclResult tcl_builtin_upvar(const TclHostOps *ops, TclInterp interp,
   size_t targetLevel = (currentLevel > 0) ? currentLevel - 1 : 0;
 
   // Check if first arg looks like a level
-  TclObj first = ops->list.at(interp, argsCopy, 0);
+  FeatherObj first = ops->list.at(interp, argsCopy, 0);
   size_t firstLen;
   const char *firstStr = ops->string.get(interp, first, &firstLen);
 
@@ -126,7 +126,7 @@ TclResult tcl_builtin_upvar(const TclHostOps *ops, TclInterp interp,
 
   // Now we need pairs of otherVar localVar
   if (argc < 2 || (argc % 2) != 0) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"upvar ?level? otherVar localVar ?otherVar localVar ...?\"", 81);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
@@ -134,8 +134,8 @@ TclResult tcl_builtin_upvar(const TclHostOps *ops, TclInterp interp,
 
   // Process each pair
   while (argc >= 2) {
-    TclObj otherVar = ops->list.shift(interp, argsCopy);
-    TclObj localVar = ops->list.shift(interp, argsCopy);
+    FeatherObj otherVar = ops->list.shift(interp, argsCopy);
+    FeatherObj localVar = ops->list.shift(interp, argsCopy);
     argc -= 2;
 
     // Create the link
@@ -143,7 +143,7 @@ TclResult tcl_builtin_upvar(const TclHostOps *ops, TclInterp interp,
   }
 
   // Return empty string on success
-  TclObj empty = ops->string.intern(interp, "", 0);
+  FeatherObj empty = ops->string.intern(interp, "", 0);
   ops->interp.set_result(interp, empty);
   return TCL_OK;
 }

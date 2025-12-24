@@ -1,4 +1,4 @@
-#include "tclc.h"
+#include "feather.h"
 #include "internal.h"
 
 // Parse a level specification and compute the absolute frame level
@@ -6,8 +6,8 @@
 //   N     - relative level (N levels up from current)
 //   #N    - absolute frame level
 // Returns TCL_OK on success and sets *absLevel, TCL_ERROR on failure
-static TclResult parse_level(const TclHostOps *ops, TclInterp interp,
-                              TclObj levelObj, size_t currentLevel,
+static FeatherResult parse_level(const FeatherHostOps *ops, FeatherInterp interp,
+                              FeatherObj levelObj, size_t currentLevel,
                               size_t stackSize, size_t *absLevel) {
   size_t len;
   const char *str = ops->string.get(interp, levelObj, &len);
@@ -46,32 +46,32 @@ static TclResult parse_level(const TclHostOps *ops, TclInterp interp,
 
 bad_level:
   {
-    TclObj msg1 = ops->string.intern(interp, "bad level \"", 11);
-    TclObj msg2 = ops->string.intern(interp, str, len);
-    TclObj msg3 = ops->string.intern(interp, "\"", 1);
-    TclObj msg = ops->string.concat(interp, msg1, msg2);
+    FeatherObj msg1 = ops->string.intern(interp, "bad level \"", 11);
+    FeatherObj msg2 = ops->string.intern(interp, str, len);
+    FeatherObj msg3 = ops->string.intern(interp, "\"", 1);
+    FeatherObj msg = ops->string.concat(interp, msg1, msg2);
     msg = ops->string.concat(interp, msg, msg3);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 }
 
-TclResult tcl_builtin_uplevel(const TclHostOps *ops, TclInterp interp,
-                               TclObj cmd, TclObj args) {
+FeatherResult feather_builtin_uplevel(const FeatherHostOps *ops, FeatherInterp interp,
+                               FeatherObj cmd, FeatherObj args) {
   (void)cmd;
 
   size_t argc = ops->list.length(interp, args);
 
   // uplevel requires at least 1 arg: script
   if (argc < 1) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"uplevel ?level? command ?arg ...?\"", 59);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
   // Make a copy for shifting
-  TclObj argsCopy = ops->list.from(interp, args);
+  FeatherObj argsCopy = ops->list.from(interp, args);
 
   // Get current level info
   size_t currentLevel = ops->frame.level(interp);
@@ -82,7 +82,7 @@ TclResult tcl_builtin_uplevel(const TclHostOps *ops, TclInterp interp,
 
   // Check if first arg looks like a level (only if we have > 1 arg)
   if (argc > 1) {
-    TclObj first = ops->list.at(interp, argsCopy, 0);
+    FeatherObj first = ops->list.at(interp, argsCopy, 0);
     size_t firstLen;
     const char *firstStr = ops->string.get(interp, first, &firstLen);
 
@@ -118,14 +118,14 @@ TclResult tcl_builtin_uplevel(const TclHostOps *ops, TclInterp interp,
 
   // We need at least one script arg
   if (argc < 1) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"uplevel ?level? command ?arg ...?\"", 59);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
   // Build the script - if multiple args, concatenate with spaces
-  TclObj script;
+  FeatherObj script;
   if (argc == 1) {
     script = ops->list.at(interp, argsCopy, 0);
   } else {
@@ -133,8 +133,8 @@ TclResult tcl_builtin_uplevel(const TclHostOps *ops, TclInterp interp,
     script = ops->list.shift(interp, argsCopy);
     argc--;
     while (argc > 0) {
-      TclObj space = ops->string.intern(interp, " ", 1);
-      TclObj next = ops->list.shift(interp, argsCopy);
+      FeatherObj space = ops->string.intern(interp, " ", 1);
+      FeatherObj next = ops->list.shift(interp, argsCopy);
       script = ops->string.concat(interp, script, space);
       script = ops->string.concat(interp, script, next);
       argc--;
@@ -146,13 +146,13 @@ TclResult tcl_builtin_uplevel(const TclHostOps *ops, TclInterp interp,
 
   // Set active frame to target
   if (ops->frame.set_active(interp, targetLevel) != TCL_OK) {
-    TclObj msg = ops->string.intern(interp, "failed to set active frame", 26);
+    FeatherObj msg = ops->string.intern(interp, "failed to set active frame", 26);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
   // Evaluate the script in the target frame's context
-  TclResult result = tcl_script_eval_obj(ops, interp, script, TCL_EVAL_LOCAL);
+  FeatherResult result = feather_script_eval_obj(ops, interp, script, TCL_EVAL_LOCAL);
 
   // Restore active frame
   ops->frame.set_active(interp, savedLevel);

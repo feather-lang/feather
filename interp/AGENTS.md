@@ -16,9 +16,9 @@ TCL objects can have multiple representations (string, int, list, etc.).
 
 | Method | Conversion |
 |--------|------------|
-| `GetString(h TclObj)` | int/list → string |
-| `GetInt(h TclObj)` | string → int |
-| `GetList(h TclObj)` | string → list |
+| `GetString(h FeatherObj)` | int/list → string |
+| `GetInt(h FeatherObj)` | string → int |
+| `GetList(h FeatherObj)` | string → list |
 
 **Rules:**
 

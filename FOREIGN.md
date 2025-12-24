@@ -12,7 +12,7 @@
 
 The libraries we ship (Go, Node.js, Java, Swift) handle:
 - Type registration and method dispatch
-- Argument conversion (TclObj ↔ native types)
+- Argument conversion (FeatherObj ↔ native types)
 - Object-as-command registration
 - Lifecycle management
 
@@ -76,14 +76,14 @@ tclc.defineType('Server', {
 
 ```java
 // Java: Annotation or builder
-@TclType("Connection")
+@FeatherType("Connection")
 public class ConnectionWrapper {
-    @TclConstructor
+    @FeatherConstructor
     public static Connection create(String url) {
         return DriverManager.getConnection(url);
     }
 
-    @TclMethod
+    @FeatherMethod
     public ResultSet query(Connection conn, String sql) {
         return conn.createStatement().executeQuery(sql);
     }
@@ -92,12 +92,12 @@ public class ConnectionWrapper {
 
 ```swift
 // Swift: Protocol-based
-extension URLSession: TclExposable {
+extension URLSession: FeatherExposable {
     static var tclTypeName = "URLSession"
 
     static func tclNew() -> URLSession { .shared }
 
-    var tclMethods: [String: TclMethod] {
+    var tclMethods: [String: FeatherMethod] {
         ["fetch": { url in self.data(from: URL(string: url)!) }]
     }
 }
@@ -110,30 +110,30 @@ extension URLSession: TclExposable {
 tclc provides the primitives. The host libraries build ergonomics on top.
 
 ```c
-typedef struct TclForeignOps {
+typedef struct FeatherForeignOps {
     // Check if an object is a foreign object
-    int (*is_foreign)(TclInterp interp, TclObj obj);
+    int (*is_foreign)(FeatherInterp interp, FeatherObj obj);
 
     // Get the type name (e.g., "Mux", "Connection")
-    TclObj (*type_name)(TclInterp interp, TclObj obj);
+    FeatherObj (*type_name)(FeatherInterp interp, FeatherObj obj);
 
     // Get string representation (for shimmering/display)
-    TclObj (*string_rep)(TclInterp interp, TclObj obj);
+    FeatherObj (*string_rep)(FeatherInterp interp, FeatherObj obj);
 
     // List method names (for introspection)
-    TclObj (*methods)(TclInterp interp, TclObj obj);
+    FeatherObj (*methods)(FeatherInterp interp, FeatherObj obj);
 
     // Invoke a method: obj.method(args)
-    TclResult (*invoke)(TclInterp interp, TclObj obj,
-                        TclObj method, TclObj args);
+    FeatherResult (*invoke)(FeatherInterp interp, FeatherObj obj,
+                        FeatherObj method, FeatherObj args);
 
     // Destructor callback (called when object is destroyed)
-    void (*destroy)(TclInterp interp, TclObj obj);
-} TclForeignOps;
+    void (*destroy)(FeatherInterp interp, FeatherObj obj);
+} FeatherForeignOps;
 ```
 
 **tclc changes:**
-1. Add `TclForeignOps` to `TclHostOps`
+1. Add `FeatherForeignOps` to `FeatherHostOps`
 2. `info type $obj` - returns type name for any value
 3. `info methods $obj` - returns method list (empty for non-foreign)
 4. String shimmering calls `foreign.string_rep()` for foreign objects
@@ -165,21 +165,21 @@ When `DefineType("Mux", ...)` is called:
 
 **C. Argument Conversion**
 
-The library automatically converts TclObj ↔ native types:
-- `string` ↔ TclObj (string rep)
-- `int`, `int64` ↔ TclObj (integer rep)
-- `float64` ↔ TclObj (double rep)
-- `[]T` ↔ TclObj (list rep)
-- `map[string]T` ↔ TclObj (dict rep)
-- `*ForeignType` ↔ TclObj (foreign rep)
-- `tclc.Proc` ↔ TclObj (callable script/proc name)
+The library automatically converts FeatherObj ↔ native types:
+- `string` ↔ FeatherObj (string rep)
+- `int`, `int64` ↔ FeatherObj (integer rep)
+- `float64` ↔ FeatherObj (double rep)
+- `[]T` ↔ FeatherObj (list rep)
+- `map[string]T` ↔ FeatherObj (dict rep)
+- `*ForeignType` ↔ FeatherObj (foreign rep)
+- `tclc.Proc` ↔ FeatherObj (callable script/proc name)
 - `error` → TCL_ERROR with message
 
 **D. Object-as-Command Pattern**
 
 When a foreign object is created:
 ```go
-func (lib *Library) CreateForeign(typeName string, value any) TclObj {
+func (lib *Library) CreateForeign(typeName string, value any) FeatherObj {
     // 1. Create the foreign object
     obj := lib.interp.NewForeign(typeName, value)
 
@@ -187,7 +187,7 @@ func (lib *Library) CreateForeign(typeName string, value any) TclObj {
     handle := lib.nextHandle(typeName)  // "mux1", "mux2", ...
 
     // 3. Register handle as command that dispatches to object
-    lib.interp.RegisterCommand(handle, func(cmd, args TclObj) TclResult {
+    lib.interp.RegisterCommand(handle, func(cmd, args FeatherObj) FeatherResult {
         method := lib.interp.ListShift(args)
         return lib.foreign.invoke(obj, method, args)
     })
@@ -207,12 +207,12 @@ func (lib *Library) CreateForeign(typeName string, value any) TclObj {
 ### Phase 1: tclc Core Changes
 
 **Files:**
-- `src/tclc.h` - Add `TclForeignOps` to `TclHostOps`
+- `src/feather.h` - Add `FeatherForeignOps` to `FeatherHostOps`
 - `src/builtins.c` - Add `info type`, `info methods` subcommands
 
 **Scope:**
-1. Define `TclForeignOps` struct with 6 callbacks
-2. Add `foreign` field to `TclHostOps`
+1. Define `FeatherForeignOps` struct with 6 callbacks
+2. Add `foreign` field to `FeatherHostOps`
 3. Extend `info` command:
    - `info type $obj` → type name (or "string"/"list"/"dict"/"int" for builtins)
    - `info methods $obj` → method list (calls `foreign.methods`)
@@ -232,8 +232,8 @@ func (lib *Library) CreateForeign(typeName string, value any) TclObj {
    foreignType  string
    foreignValue any
    ```
-2. Implement `TclForeignOps` callbacks
-3. Add `NewForeign(typeName string, value any) TclObj` method
+2. Implement `FeatherForeignOps` callbacks
+3. Add `NewForeign(typeName string, value any) FeatherObj` method
 4. Add type registry: `map[string]*ForeignTypeDef`
 
 ### Phase 3: Go Library - High-Level API
@@ -259,7 +259,7 @@ func (lib *Library) CreateForeign(typeName string, value any) TclObj {
 
 | File | Changes |
 |------|---------|
-| `src/tclc.h` | Add `TclForeignOps` struct, add to `TclHostOps` |
+| `src/feather.h` | Add `FeatherForeignOps` struct, add to `FeatherHostOps` |
 | `src/builtins.c` | `info type`, `info methods` subcommands |
 | `interp/tclc.go` | Foreign fields in Object, type registry, NewForeign |
 | `interp/callbacks.go` | Implement 6 foreign ops callbacks |
@@ -276,9 +276,9 @@ type Object struct {
     isInt     bool
     dblVal    float64
     isDouble  bool
-    listItems []TclObj
+    listItems []FeatherObj
     isList    bool
-    dictItems map[string]TclObj
+    dictItems map[string]FeatherObj
     isDict    bool
 
     // New: Foreign object support

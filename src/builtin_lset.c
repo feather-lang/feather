@@ -1,9 +1,9 @@
-#include "tclc.h"
+#include "feather.h"
 #include "internal.h"
 
 // Parse an index like "end", "end-N", or integer
-static TclResult parse_index(const TclHostOps *ops, TclInterp interp,
-                             TclObj indexObj, size_t listLen, int64_t *out) {
+static FeatherResult parse_index(const FeatherHostOps *ops, FeatherInterp interp,
+                             FeatherObj indexObj, size_t listLen, int64_t *out) {
   size_t len;
   const char *str = ops->string.get(interp, indexObj, &len);
 
@@ -18,9 +18,9 @@ static TclResult parse_index(const TclHostOps *ops, TclInterp interp,
     int64_t offset = 0;
     for (size_t i = 4; i < len; i++) {
       if (str[i] < '0' || str[i] > '9') {
-        TclObj msg = ops->string.intern(interp, "bad index \"", 11);
+        FeatherObj msg = ops->string.intern(interp, "bad index \"", 11);
         msg = ops->string.concat(interp, msg, indexObj);
-        TclObj suffix = ops->string.intern(interp, "\"", 1);
+        FeatherObj suffix = ops->string.intern(interp, "\"", 1);
         msg = ops->string.concat(interp, msg, suffix);
         ops->interp.set_result(interp, msg);
         return TCL_ERROR;
@@ -33,9 +33,9 @@ static TclResult parse_index(const TclHostOps *ops, TclInterp interp,
 
   // Try integer
   if (ops->integer.get(interp, indexObj, out) != TCL_OK) {
-    TclObj msg = ops->string.intern(interp, "bad index \"", 11);
+    FeatherObj msg = ops->string.intern(interp, "bad index \"", 11);
     msg = ops->string.concat(interp, msg, indexObj);
-    TclObj suffix = ops->string.intern(interp, "\"", 1);
+    FeatherObj suffix = ops->string.intern(interp, "\"", 1);
     msg = ops->string.concat(interp, msg, suffix);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
@@ -44,29 +44,29 @@ static TclResult parse_index(const TclHostOps *ops, TclInterp interp,
   return TCL_OK;
 }
 
-TclResult tcl_builtin_lset(const TclHostOps *ops, TclInterp interp,
-                            TclObj cmd, TclObj args) {
+FeatherResult feather_builtin_lset(const FeatherHostOps *ops, FeatherInterp interp,
+                            FeatherObj cmd, FeatherObj args) {
   (void)cmd;
   size_t argc = ops->list.length(interp, args);
 
   if (argc < 3) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"lset varName index ?index ...? value\"", 62);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
   // Use at() for positional access to avoid mutation issues
-  TclObj varName = ops->list.at(interp, args, 0);
-  TclObj indexObj = ops->list.at(interp, args, 1);
-  TclObj newValue = ops->list.at(interp, args, argc - 1);
+  FeatherObj varName = ops->list.at(interp, args, 0);
+  FeatherObj indexObj = ops->list.at(interp, args, 1);
+  FeatherObj newValue = ops->list.at(interp, args, argc - 1);
 
   // Get current value - error if variable doesn't exist
-  TclObj current = ops->var.get(interp, varName);
+  FeatherObj current = ops->var.get(interp, varName);
   if (ops->list.is_nil(interp, current)) {
-    TclObj msg = ops->string.intern(interp, "can't read \"", 12);
+    FeatherObj msg = ops->string.intern(interp, "can't read \"", 12);
     msg = ops->string.concat(interp, msg, varName);
-    TclObj suffix = ops->string.intern(interp, "\": no such variable", 19);
+    FeatherObj suffix = ops->string.intern(interp, "\": no such variable", 19);
     msg = ops->string.concat(interp, msg, suffix);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
@@ -75,7 +75,7 @@ TclResult tcl_builtin_lset(const TclHostOps *ops, TclInterp interp,
   // For now, support single index only (not nested)
 
   // Convert to list
-  TclObj list = ops->list.from(interp, current);
+  FeatherObj list = ops->list.from(interp, current);
   size_t listLen = ops->list.length(interp, list);
 
   // Parse index
@@ -86,14 +86,14 @@ TclResult tcl_builtin_lset(const TclHostOps *ops, TclInterp interp,
 
   // Check bounds
   if (index < 0 || (size_t)index >= listLen) {
-    TclObj msg = ops->string.intern(interp, "list index out of range", 23);
+    FeatherObj msg = ops->string.intern(interp, "list index out of range", 23);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
   // Use set_at for O(1) in-place modification
   if (ops->list.set_at(interp, list, (size_t)index, newValue) != TCL_OK) {
-    TclObj msg = ops->string.intern(interp, "list index out of range", 23);
+    FeatherObj msg = ops->string.intern(interp, "list index out of range", 23);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }

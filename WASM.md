@@ -1,6 +1,6 @@
 # WASM Design
 
-This document describes how to build tclc as a WebAssembly module that can be embedded in any WASM runtime. The design preserves the existing `TclHostOps` interface unchanged, using WASM's function table mechanism for indirect calls.
+This document describes how to build tclc as a WebAssembly module that can be embedded in any WASM runtime. The design preserves the existing `FeatherHostOps` interface unchanged, using WASM's function table mechanism for indirect calls.
 
 ## Architecture Overview
 
@@ -17,20 +17,20 @@ This document describes how to build tclc as a WebAssembly module that can be em
 │  tclc.wasm        │                    │  Host             │
 │  (C → WASM)       │                    │  (JS or Python)   │
 │                   │                    │                   │
-│  TclHostOps*  ────│──── points to ────→│  Function table   │
+│  FeatherHostOps*  ────│──── points to ────→│  Function table   │
 │  (unchanged)      │                    │  indices          │
 │                   │                    │                   │
 │  call_indirect ───│──── dispatches ───→│  Host functions   │
 │                   │                    │                   │
-│  tcl_script_eval  │←─── called by ─────│  Host code        │
+│  feather_script_eval  │←─── called by ─────│  Host code        │
 └───────────────────┘                    └───────────────────┘
 ```
 
 ## Key Design Decisions
 
-### 1. TclHostOps Struct Remains Unchanged
+### 1. FeatherHostOps Struct Remains Unchanged
 
-The C code continues to use `TclHostOps*` with function pointers. When compiled to WASM:
+The C code continues to use `FeatherHostOps*` with function pointers. When compiled to WASM:
 
 - Function pointers become indices into the WASM function table
 - `call_indirect` dispatches through these indices
@@ -49,10 +49,10 @@ result = ops->string.intern(interp, s, len);
 
 ### 2. Objects Live in the Host
 
-`TclObj` handles are opaque integers. The C code never dereferences them—it passes them to host functions. All object storage and garbage collection happens in the host:
+`FeatherObj` handles are opaque integers. The C code never dereferences them—it passes them to host functions. All object storage and garbage collection happens in the host:
 
 ```
-C code sees:     TclObj handle = 42
+C code sees:     FeatherObj handle = 42
 Host has:        objects[42] = { type: "string", value: "hello" }
 ```
 
@@ -65,11 +65,11 @@ This means:
 
 The host must:
 1. Load the WASM module
-2. Create functions matching `TclHostOps` signatures
+2. Create functions matching `FeatherHostOps` signatures
 3. Add those functions to the WASM function table
-4. Allocate `TclHostOps` struct in WASM linear memory
+4. Allocate `FeatherHostOps` struct in WASM linear memory
 5. Write function table indices into the struct
-6. Pass the struct pointer to `tcl_interp_init`
+6. Pass the struct pointer to `feather_interp_init`
 
 ### 4. Why Function Tables, Not Component Model
 
@@ -103,21 +103,21 @@ The compiled `tclc.wasm` exports:
 |--------|-----------|-------------|
 | `memory` | Memory | Linear memory (64KB pages) |
 | `__indirect_function_table` | Table | Function table for `call_indirect` |
-| `tcl_interp_init` | `(ops: i32, interp: i32) → void` | Initialize with host ops |
-| `tcl_script_eval` | `(ops: i32, interp: i32, src: i32, len: i32, flags: i32) → i32` | Evaluate script |
-| `tcl_script_eval_obj` | `(ops: i32, interp: i32, script: i32, flags: i32) → i32` | Evaluate script object |
-| `tcl_command_exec` | `(ops: i32, interp: i32, cmd: i32, flags: i32) → i32` | Execute parsed command |
+| `feather_interp_init` | `(ops: i32, interp: i32) → void` | Initialize with host ops |
+| `feather_script_eval` | `(ops: i32, interp: i32, src: i32, len: i32, flags: i32) → i32` | Evaluate script |
+| `feather_script_eval_obj` | `(ops: i32, interp: i32, script: i32, flags: i32) → i32` | Evaluate script object |
+| `feather_command_exec` | `(ops: i32, interp: i32, cmd: i32, flags: i32) → i32` | Execute parsed command |
 | `alloc` | `(size: i32) → i32` | Allocate WASM memory |
 | `free` | `(ptr: i32) → void` | Free WASM memory |
 
-## TclHostOps Memory Layout
+## FeatherHostOps Memory Layout
 
 The host must lay out the struct in WASM memory exactly as C expects. Each function pointer is a 4-byte table index (i32).
 
 ```
 Offset  Field                          Type
 ──────  ─────                          ────
-Frame operations (TclFrameOps):
+Frame operations (FeatherFrameOps):
 0x000   frame.push                     i32 (table index)
 0x004   frame.pop                      i32
 0x008   frame.level                    i32
@@ -127,7 +127,7 @@ Frame operations (TclFrameOps):
 0x018   frame.set_namespace            i32
 0x01C   frame.get_namespace            i32
 
-Variable operations (TclVarOps):
+Variable operations (FeatherVarOps):
 0x020   var.get                        i32
 0x024   var.set                        i32
 0x028   var.unset                      i32
@@ -136,7 +136,7 @@ Variable operations (TclVarOps):
 0x034   var.link_ns                    i32
 0x038   var.names                      i32
 
-Proc operations (TclProcOps):
+Proc operations (FeatherProcOps):
 0x03C   proc.define                    i32
 0x040   proc.exists                    i32
 0x044   proc.params                    i32
@@ -147,7 +147,7 @@ Proc operations (TclProcOps):
 0x058   proc.lookup                    i32
 0x05C   proc.rename                    i32
 
-Namespace operations (TclNamespaceOps):
+Namespace operations (FeatherNamespaceOps):
 0x060   ns.create                      i32
 0x064   ns.delete                      i32
 0x068   ns.exists                      i32
@@ -159,13 +159,13 @@ Namespace operations (TclNamespaceOps):
 0x080   ns.var_exists                  i32
 0x084   ns.unset_var                   i32
 
-String operations (TclStringOps):
+String operations (FeatherStringOps):
 0x088   string.intern                  i32
 0x08C   string.get                     i32
 0x090   string.concat                  i32
 0x094   string.compare                 i32
 
-List operations (TclListOps):
+List operations (FeatherListOps):
 0x098   list.is_nil                    i32
 0x09C   list.create                    i32
 0x0A0   list.from                      i32
@@ -176,15 +176,15 @@ List operations (TclListOps):
 0x0B4   list.length                    i32
 0x0B8   list.at                        i32
 
-Integer operations (TclIntOps):
+Integer operations (FeatherIntOps):
 0x0BC   integer.create                 i32
 0x0C0   integer.get                    i32
 
-Double operations (TclDoubleOps):
+Double operations (FeatherDoubleOps):
 0x0C4   dbl.create                     i32
 0x0C8   dbl.get                        i32
 
-Interpreter operations (TclInterpOps):
+Interpreter operations (FeatherInterpOps):
 0x0CC   interp.set_result              i32
 0x0D0   interp.get_result              i32
 0x0D4   interp.reset_result            i32
@@ -193,10 +193,10 @@ Interpreter operations (TclInterpOps):
 0x0E0   interp.get_script              i32
 0x0E4   interp.set_script              i32
 
-Bind operations (TclBindOps):
+Bind operations (FeatherBindOps):
 0x0E8   bind.unknown                   i32
 
-Trace operations (TclTraceOps):
+Trace operations (FeatherTraceOps):
 0x0EC   trace.add                      i32
 0x0F0   trace.remove                   i32
 0x0F4   trace.info                     i32
@@ -317,7 +317,7 @@ Each host function must match the expected WASM signature for `call_indirect` ty
 ```javascript
 import { readFileSync } from 'fs';
 
-class TclInterp {
+class FeatherInterp {
   constructor(id) {
     this.id = id;
     this.objects = new Map();
@@ -360,7 +360,7 @@ class TclInterp {
   }
 }
 
-async function createTclc(wasmPath) {
+async function createFeatherc(wasmPath) {
   const interpreters = new Map();
   let nextInterpId = 1;
   let wasmMemory;
@@ -870,40 +870,40 @@ async function createTclc(wasmPath) {
   wasmMemory = wasmInstance.exports.memory || wasmMemory;
   wasmTable = wasmInstance.exports.__indirect_function_table || wasmTable;
 
-  // Build TclHostOps struct and populate table
+  // Build FeatherHostOps struct and populate table
   const buildHostOps = () => {
     const STRUCT_SIZE = 0x0F8; // 248 bytes
     const opsPtr = wasmInstance.exports.alloc(STRUCT_SIZE);
 
-    // Order must match TclHostOps struct layout
+    // Order must match FeatherHostOps struct layout
     const fields = [
-      // TclFrameOps
+      // FeatherFrameOps
       'frame_push', 'frame_pop', 'frame_level', 'frame_set_active',
       'frame_size', 'frame_info', 'frame_set_namespace', 'frame_get_namespace',
-      // TclVarOps
+      // FeatherVarOps
       'var_get', 'var_set', 'var_unset', 'var_exists', 'var_link', 'var_link_ns', 'var_names',
-      // TclProcOps
+      // FeatherProcOps
       'proc_define', 'proc_exists', 'proc_params', 'proc_body', 'proc_names',
       'proc_resolve_namespace', 'proc_register_builtin', 'proc_lookup', 'proc_rename',
-      // TclNamespaceOps
+      // FeatherNamespaceOps
       'ns_create', 'ns_delete', 'ns_exists', 'ns_current', 'ns_parent', 'ns_children',
       'ns_get_var', 'ns_set_var', 'ns_var_exists', 'ns_unset_var',
-      // TclStringOps
+      // FeatherStringOps
       'string_intern', 'string_get', 'string_concat', 'string_compare',
-      // TclListOps
+      // FeatherListOps
       'list_is_nil', 'list_create', 'list_from', 'list_push', 'list_pop',
       'list_unshift', 'list_shift', 'list_length', 'list_at',
-      // TclIntOps
+      // FeatherIntOps
       'int_create', 'int_get',
-      // TclDoubleOps
+      // FeatherDoubleOps
       'dbl_create', 'dbl_get',
-      // TclInterpOps
+      // FeatherInterpOps
       'interp_set_result', 'interp_get_result', 'interp_reset_result',
       'interp_set_return_options', 'interp_get_return_options',
       'interp_get_script', 'interp_set_script',
-      // TclBindOps
+      // FeatherBindOps
       'bind_unknown',
-      // TclTraceOps
+      // FeatherTraceOps
       'trace_add', 'trace_remove', 'trace_info',
     ];
 
@@ -924,8 +924,8 @@ async function createTclc(wasmPath) {
   return {
     create() {
       const id = nextInterpId++;
-      interpreters.set(id, new TclInterp(id));
-      wasmInstance.exports.tcl_interp_init(opsPtr, id);
+      interpreters.set(id, new FeatherInterp(id));
+      wasmInstance.exports.feather_interp_init(opsPtr, id);
       return id;
     },
 
@@ -935,7 +935,7 @@ async function createTclc(wasmPath) {
 
     eval(interpId, script) {
       const [ptr, len] = writeString(script);
-      const result = wasmInstance.exports.tcl_script_eval(opsPtr, interpId, ptr, len, 0);
+      const result = wasmInstance.exports.feather_script_eval(opsPtr, interpId, ptr, len, 0);
       wasmInstance.exports.free(ptr);
 
       const interp = interpreters.get(interpId);
@@ -958,7 +958,7 @@ async function createTclc(wasmPath) {
 
 // Usage example
 async function main() {
-  const tclc = await createTclc('./tclc.wasm');
+  const tclc = await createFeatherc('./tclc.wasm');
   const interp = tclc.create();
 
   // Register host commands
@@ -975,7 +975,7 @@ async function main() {
   tclc.destroy(interp);
 }
 
-export { createTclc };
+export { createFeatherc };
 ```
 
 ## Host Implementation: Python
@@ -995,7 +995,7 @@ from wasmer import engine, wasi
 import struct
 
 
-class TclInterp:
+class FeatherInterp:
     """Per-interpreter state."""
 
     def __init__(self, interp_id):
@@ -1047,7 +1047,7 @@ class TclInterp:
         return [x for x in s.split() if x]
 
 
-class TclcHost:
+class FeathercHost:
     """WASM host for tclc interpreter."""
 
     def __init__(self, wasm_path):
@@ -1124,7 +1124,7 @@ class TclcHost:
         return index
 
     def _build_host_ops(self):
-        """Build TclHostOps struct in WASM memory."""
+        """Build FeatherHostOps struct in WASM memory."""
         STRUCT_SIZE = 0x0F8  # 248 bytes
         ops_ptr = self.instance.exports.alloc(STRUCT_SIZE)
 
@@ -1512,7 +1512,7 @@ class TclcHost:
 
         # Return ordered dict matching struct layout
         return {
-            # TclFrameOps
+            # FeatherFrameOps
             'frame_push': (frame_push, [I32, I32, I32], [I32]),
             'frame_pop': (frame_pop, [I32], [I32]),
             'frame_level': (frame_level, [I32], [I32]),
@@ -1521,7 +1521,7 @@ class TclcHost:
             'frame_info': (frame_info, [I32, I32, I32, I32, I32], [I32]),
             'frame_set_namespace': (frame_set_namespace, [I32, I32], [I32]),
             'frame_get_namespace': (frame_get_namespace, [I32], [I32]),
-            # TclVarOps
+            # FeatherVarOps
             'var_get': (var_get, [I32, I32], [I32]),
             'var_set': (var_set, [I32, I32, I32], []),
             'var_unset': (var_unset, [I32, I32], []),
@@ -1529,7 +1529,7 @@ class TclcHost:
             'var_link': (var_link, [I32, I32, I32, I32], []),
             'var_link_ns': (var_link_ns, [I32, I32, I32, I32], []),
             'var_names': (var_names, [I32, I32], [I32]),
-            # TclProcOps
+            # FeatherProcOps
             'proc_define': (proc_define, [I32, I32, I32, I32], []),
             'proc_exists': (proc_exists, [I32, I32], [I32]),
             'proc_params': (proc_params, [I32, I32, I32], [I32]),
@@ -1539,7 +1539,7 @@ class TclcHost:
             'proc_register_builtin': (proc_register_builtin, [I32, I32, I32], []),
             'proc_lookup': (proc_lookup, [I32, I32, I32], [I32]),
             'proc_rename': (proc_rename, [I32, I32, I32], [I32]),
-            # TclNamespaceOps
+            # FeatherNamespaceOps
             'ns_create': (ns_create, [I32, I32], [I32]),
             'ns_delete': (ns_delete, [I32, I32], [I32]),
             'ns_exists': (ns_exists, [I32, I32], [I32]),
@@ -1550,12 +1550,12 @@ class TclcHost:
             'ns_set_var': (ns_set_var, [I32, I32, I32, I32], []),
             'ns_var_exists': (ns_var_exists, [I32, I32, I32], [I32]),
             'ns_unset_var': (ns_unset_var, [I32, I32, I32], []),
-            # TclStringOps
+            # FeatherStringOps
             'string_intern': (string_intern, [I32, I32, I32], [I32]),
             'string_get': (string_get, [I32, I32, I32], [I32]),
             'string_concat': (string_concat, [I32, I32, I32], [I32]),
             'string_compare': (string_compare, [I32, I32, I32], [I32]),
-            # TclListOps
+            # FeatherListOps
             'list_is_nil': (list_is_nil, [I32, I32], [I32]),
             'list_create': (list_create, [I32], [I32]),
             'list_from': (list_from, [I32, I32], [I32]),
@@ -1565,13 +1565,13 @@ class TclcHost:
             'list_shift': (list_shift, [I32, I32], [I32]),
             'list_length': (list_length, [I32, I32], [I32]),
             'list_at': (list_at, [I32, I32, I32], [I32]),
-            # TclIntOps
+            # FeatherIntOps
             'int_create': (int_create, [I32, I64], [I32]),
             'int_get': (int_get, [I32, I32, I32], [I32]),
-            # TclDoubleOps
+            # FeatherDoubleOps
             'dbl_create': (dbl_create, [I32, F64], [I32]),
             'dbl_get': (dbl_get, [I32, I32, I32], [I32]),
-            # TclInterpOps
+            # FeatherInterpOps
             'interp_set_result': (interp_set_result, [I32, I32], [I32]),
             'interp_get_result': (interp_get_result, [I32], [I32]),
             'interp_reset_result': (interp_reset_result, [I32, I32], [I32]),
@@ -1579,9 +1579,9 @@ class TclcHost:
             'interp_get_return_options': (interp_get_return_options, [I32, I32], [I32]),
             'interp_get_script': (interp_get_script, [I32], [I32]),
             'interp_set_script': (interp_set_script, [I32, I32], []),
-            # TclBindOps
+            # FeatherBindOps
             'bind_unknown': (bind_unknown, [I32, I32, I32, I32], [I32]),
-            # TclTraceOps
+            # FeatherTraceOps
             'trace_add': (trace_add, [I32, I32, I32, I32, I32], [I32]),
             'trace_remove': (trace_remove, [I32, I32, I32, I32, I32], [I32]),
             'trace_info': (trace_info, [I32, I32, I32], [I32]),
@@ -1591,8 +1591,8 @@ class TclcHost:
         """Create a new interpreter instance."""
         interp_id = self.next_interp_id
         self.next_interp_id += 1
-        self.interpreters[interp_id] = TclInterp(interp_id)
-        self.instance.exports.tcl_interp_init(self.ops_ptr, interp_id)
+        self.interpreters[interp_id] = FeatherInterp(interp_id)
+        self.instance.exports.feather_interp_init(self.ops_ptr, interp_id)
         return interp_id
 
     def register(self, interp_id, name, fn):
@@ -1602,7 +1602,7 @@ class TclcHost:
     def eval(self, interp_id, script):
         """Evaluate a TCL script."""
         ptr, length = self._write_string(script)
-        result = self.instance.exports.tcl_script_eval(
+        result = self.instance.exports.feather_script_eval(
             self.ops_ptr, interp_id, ptr, length, 0
         )
         self.instance.exports.free(ptr)
@@ -1624,7 +1624,7 @@ class TclcHost:
 
 # Usage example
 if __name__ == '__main__':
-    tclc = TclcHost('./tclc.wasm')
+    tclc = FeathercHost('./tclc.wasm')
     interp = tclc.create()
 
     # Register Python functions as TCL commands
@@ -1668,7 +1668,7 @@ The key requirements for the build:
 # Using Emscripten (recommended)
 emcc \
   -O2 \
-  -s EXPORTED_FUNCTIONS='["_tcl_interp_init","_tcl_script_eval","_tcl_script_eval_obj","_tcl_command_exec","_alloc","_free"]' \
+  -s EXPORTED_FUNCTIONS='["_feather_interp_init","_feather_script_eval","_feather_script_eval_obj","_feather_command_exec","_alloc","_free"]' \
   -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap"]' \
   -s ALLOW_TABLE_GROWTH=1 \
   -s EXPORT_ALL=1 \
@@ -1723,7 +1723,7 @@ void free(void* ptr) {
 | Aspect | WASM Imports | Function Table | Component Model |
 |--------|--------------|----------------|-----------------|
 | C code changes | Heavy (`#ifdef`) | Minimal (allocator) | Heavy (WIT bindings) |
-| TclHostOps | Replaced | **Preserved** | Replaced with WIT |
+| FeatherHostOps | Replaced | **Preserved** | Replaced with WIT |
 | Browser support | Yes | **Yes** | No |
 | Node.js support | Yes | **Yes** | No |
 | Wasmtime support | Yes | **Yes** | Yes |
@@ -1735,6 +1735,6 @@ void free(void* ptr) {
 
 1. **Universal compatibility** — works in browsers, Node.js, Python, and server runtimes
 2. **No C code bifurcation** — same source builds for native and WASM
-3. **Matches existing architecture** — hosts already implement TclHostOps
+3. **Matches existing architecture** — hosts already implement FeatherHostOps
 4. **Runtime extensibility** — can add/modify functions after module load
 5. **Future-proof** — Component Model support can be added later without breaking existing hosts

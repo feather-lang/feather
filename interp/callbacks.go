@@ -3,19 +3,19 @@ package interp
 /*
 #cgo CFLAGS: -I${SRCDIR}/../src
 #cgo LDFLAGS: -L${SRCDIR}/../build -ltclc -Wl,-rpath,${SRCDIR}/../build
-#include "tclc.h"
+#include "feather.h"
 #include <stdlib.h>
 
 // Implemented in callbacks.c
-extern TclResult call_tcl_eval_obj(TclInterp interp, TclObj script, TclEvalFlags flags);
-extern TclParseStatus call_tcl_parse(TclInterp interp, TclObj script);
-extern void call_tcl_interp_init(TclInterp interp);
+extern FeatherResult call_feather_eval_obj(FeatherInterp interp, FeatherObj script, FeatherEvalFlags flags);
+extern FeatherParseStatus call_feather_parse(FeatherInterp interp, FeatherObj script);
+extern void call_feather_interp_init(FeatherInterp interp);
 
 // Type for the list comparison callback
-typedef int (*ListCmpFunc)(TclInterp interp, TclObj a, TclObj b, void *ctx);
+typedef int (*ListCmpFunc)(FeatherInterp interp, FeatherObj a, FeatherObj b, void *ctx);
 
 // Helper to call the comparison function
-static inline int call_list_compare(TclInterp interp, TclObj a, TclObj b, void *fn, void *ctx) {
+static inline int call_list_compare(FeatherInterp interp, FeatherObj a, FeatherObj b, void *fn, void *ctx) {
     ListCmpFunc cmp = (ListCmpFunc)fn;
     return cmp(interp, a, b, ctx);
 }
@@ -34,59 +34,59 @@ import (
 // Go callback implementations - these are called from C via the wrappers in callbacks.c
 
 //export goBindUnknown
-func goBindUnknown(interp C.TclInterp, cmd C.TclObj, args C.TclObj, value *C.TclObj) C.TclResult {
+func goBindUnknown(interp C.FeatherInterp, cmd C.FeatherObj, args C.FeatherObj, value *C.FeatherObj) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
 
 	if i.UnknownHandler != nil {
-		// Convert args TclObj (list) to []TclObj slice
-		var argSlice []TclObj
+		// Convert args FeatherObj (list) to []FeatherObj slice
+		var argSlice []FeatherObj
 		if args != 0 {
-			o := i.getObject(TclObj(args))
+			o := i.getObject(FeatherObj(args))
 			if o != nil && o.isList {
-				argSlice = make([]TclObj, len(o.listItems))
+				argSlice = make([]FeatherObj, len(o.listItems))
 				copy(argSlice, o.listItems)
 			}
 		}
-		result := i.UnknownHandler(i, TclObj(cmd), argSlice)
-		*value = C.TclObj(i.result)
-		return C.TclResult(result)
+		result := i.UnknownHandler(i, FeatherObj(cmd), argSlice)
+		*value = C.FeatherObj(i.result)
+		return C.FeatherResult(result)
 	}
 
 	return C.TCL_ERROR
 }
 
 //export goStringIntern
-func goStringIntern(interp C.TclInterp, s *C.char, length C.size_t) C.TclObj {
+func goStringIntern(interp C.FeatherInterp, s *C.char, length C.size_t) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
 	goStr := C.GoStringN(s, C.int(length))
-	return C.TclObj(i.internString(goStr))
+	return C.FeatherObj(i.internString(goStr))
 }
 
 //export goStringGet
-func goStringGet(interp C.TclInterp, obj C.TclObj, length *C.size_t) *C.char {
+func goStringGet(interp C.FeatherInterp, obj C.FeatherObj, length *C.size_t) *C.char {
 	i := getInterp(interp)
 	if i == nil {
 		*length = 0
 		return nil
 	}
 	// Use GetString for shimmering (int/list → string)
-	str := i.GetString(TclObj(obj))
+	str := i.GetString(FeatherObj(obj))
 	if str == "" {
 		// Check if object exists but has empty string
-		o := i.getObject(TclObj(obj))
+		o := i.getObject(FeatherObj(obj))
 		if o == nil {
 			*length = 0
 			return nil
 		}
 	}
 	// Cache the C string in the object to avoid memory issues
-	o := i.getObject(TclObj(obj))
+	o := i.getObject(FeatherObj(obj))
 	if o.cstr == nil {
 		o.cstr = C.CString(str)
 	}
@@ -95,26 +95,26 @@ func goStringGet(interp C.TclInterp, obj C.TclObj, length *C.size_t) *C.char {
 }
 
 //export goStringConcat
-func goStringConcat(interp C.TclInterp, a C.TclObj, b C.TclObj) C.TclObj {
+func goStringConcat(interp C.FeatherInterp, a C.FeatherObj, b C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
 	// Use GetString for shimmering (int/list → string)
-	strA := i.GetString(TclObj(a))
-	strB := i.GetString(TclObj(b))
-	return C.TclObj(i.internString(strA + strB))
+	strA := i.GetString(FeatherObj(a))
+	strB := i.GetString(FeatherObj(b))
+	return C.FeatherObj(i.internString(strA + strB))
 }
 
 //export goStringCompare
-func goStringCompare(interp C.TclInterp, a C.TclObj, b C.TclObj) C.int {
+func goStringCompare(interp C.FeatherInterp, a C.FeatherObj, b C.FeatherObj) C.int {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
 	// Use GetString for shimmering (int/list → string)
-	strA := i.GetString(TclObj(a))
-	strB := i.GetString(TclObj(b))
+	strA := i.GetString(FeatherObj(a))
+	strB := i.GetString(FeatherObj(b))
 	// Go's string comparison is already Unicode-aware (UTF-8)
 	if strA < strB {
 		return -1
@@ -126,13 +126,13 @@ func goStringCompare(interp C.TclInterp, a C.TclObj, b C.TclObj) C.int {
 }
 
 //export goStringRegexMatch
-func goStringRegexMatch(interp C.TclInterp, pattern C.TclObj, str C.TclObj, result *C.int) C.TclResult {
+func goStringRegexMatch(interp C.FeatherInterp, pattern C.FeatherObj, str C.FeatherObj, result *C.int) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	patternStr := i.GetString(TclObj(pattern))
-	strStr := i.GetString(TclObj(str))
+	patternStr := i.GetString(FeatherObj(pattern))
+	strStr := i.GetString(FeatherObj(str))
 
 	re, err := regexp.Compile(patternStr)
 	if err != nil {
@@ -152,37 +152,37 @@ func goStringRegexMatch(interp C.TclInterp, pattern C.TclObj, str C.TclObj, resu
 // Rune operations (Unicode-aware)
 
 //export goRuneLength
-func goRuneLength(interp C.TclInterp, str C.TclObj) C.size_t {
+func goRuneLength(interp C.FeatherInterp, str C.FeatherObj) C.size_t {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	s := i.GetString(TclObj(str))
+	s := i.GetString(FeatherObj(str))
 	return C.size_t(utf8.RuneCountInString(s))
 }
 
 //export goRuneAt
-func goRuneAt(interp C.TclInterp, str C.TclObj, index C.size_t) C.TclObj {
+func goRuneAt(interp C.FeatherInterp, str C.FeatherObj, index C.size_t) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	s := i.GetString(TclObj(str))
+	s := i.GetString(FeatherObj(str))
 	runes := []rune(s)
 	idx := int(index)
 	if idx < 0 || idx >= len(runes) {
-		return C.TclObj(i.internString(""))
+		return C.FeatherObj(i.internString(""))
 	}
-	return C.TclObj(i.internString(string(runes[idx])))
+	return C.FeatherObj(i.internString(string(runes[idx])))
 }
 
 //export goRuneRange
-func goRuneRange(interp C.TclInterp, str C.TclObj, first C.int64_t, last C.int64_t) C.TclObj {
+func goRuneRange(interp C.FeatherInterp, str C.FeatherObj, first C.int64_t, last C.int64_t) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	s := i.GetString(TclObj(str))
+	s := i.GetString(FeatherObj(str))
 	runes := []rune(s)
 	length := len(runes)
 
@@ -196,39 +196,39 @@ func goRuneRange(interp C.TclInterp, str C.TclObj, first C.int64_t, last C.int64
 		l = length - 1
 	}
 	if f > l || length == 0 {
-		return C.TclObj(i.internString(""))
+		return C.FeatherObj(i.internString(""))
 	}
 
-	return C.TclObj(i.internString(string(runes[f : l+1])))
+	return C.FeatherObj(i.internString(string(runes[f : l+1])))
 }
 
 //export goRuneToUpper
-func goRuneToUpper(interp C.TclInterp, str C.TclObj) C.TclObj {
+func goRuneToUpper(interp C.FeatherInterp, str C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	s := i.GetString(TclObj(str))
-	return C.TclObj(i.internString(strings.ToUpper(s)))
+	s := i.GetString(FeatherObj(str))
+	return C.FeatherObj(i.internString(strings.ToUpper(s)))
 }
 
 //export goRuneToLower
-func goRuneToLower(interp C.TclInterp, str C.TclObj) C.TclObj {
+func goRuneToLower(interp C.FeatherInterp, str C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	s := i.GetString(TclObj(str))
-	return C.TclObj(i.internString(strings.ToLower(s)))
+	s := i.GetString(FeatherObj(str))
+	return C.FeatherObj(i.internString(strings.ToLower(s)))
 }
 
 //export goRuneFold
-func goRuneFold(interp C.TclInterp, str C.TclObj) C.TclObj {
+func goRuneFold(interp C.FeatherInterp, str C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	s := i.GetString(TclObj(str))
+	s := i.GetString(FeatherObj(str))
 	// Case folding: convert each rune to its folded form
 	// This handles cases like ß -> ss properly for comparison
 	var result strings.Builder
@@ -243,30 +243,30 @@ func goRuneFold(interp C.TclInterp, str C.TclObj) C.TclObj {
 			result.WriteRune(folded)
 		}
 	}
-	return C.TclObj(i.internString(result.String()))
+	return C.FeatherObj(i.internString(result.String()))
 }
 
 //export goInterpSetResult
-func goInterpSetResult(interp C.TclInterp, result C.TclObj) C.TclResult {
+func goInterpSetResult(interp C.FeatherInterp, result C.FeatherObj) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	i.result = TclObj(result)
+	i.result = FeatherObj(result)
 	return C.TCL_OK
 }
 
 //export goInterpGetResult
-func goInterpGetResult(interp C.TclInterp) C.TclObj {
+func goInterpGetResult(interp C.FeatherInterp) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	return C.TclObj(i.result)
+	return C.FeatherObj(i.result)
 }
 
 //export goInterpResetResult
-func goInterpResetResult(interp C.TclInterp, result C.TclObj) C.TclResult {
+func goInterpResetResult(interp C.FeatherInterp, result C.FeatherObj) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
@@ -276,38 +276,38 @@ func goInterpResetResult(interp C.TclInterp, result C.TclObj) C.TclResult {
 }
 
 //export goInterpSetReturnOptions
-func goInterpSetReturnOptions(interp C.TclInterp, options C.TclObj) C.TclResult {
+func goInterpSetReturnOptions(interp C.FeatherInterp, options C.FeatherObj) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	i.returnOptions = TclObj(options)
+	i.returnOptions = FeatherObj(options)
 	return C.TCL_OK
 }
 
 //export goInterpGetReturnOptions
-func goInterpGetReturnOptions(interp C.TclInterp, code C.TclResult) C.TclObj {
+func goInterpGetReturnOptions(interp C.FeatherInterp, code C.FeatherResult) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	return C.TclObj(i.returnOptions)
+	return C.FeatherObj(i.returnOptions)
 }
 
 //export goListCreate
-func goListCreate(interp C.TclInterp) C.TclObj {
+func goListCreate(interp C.FeatherInterp) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
 	id := i.nextID
 	i.nextID++
-	i.objects[id] = &Object{isList: true, listItems: []TclObj{}}
-	return C.TclObj(id)
+	i.objects[id] = &Object{isList: true, listItems: []FeatherObj{}}
+	return C.FeatherObj(id)
 }
 
 //export goListIsNil
-func goListIsNil(interp C.TclInterp, obj C.TclObj) C.int {
+func goListIsNil(interp C.FeatherInterp, obj C.FeatherObj) C.int {
 	if obj == 0 {
 		return 1
 	}
@@ -315,13 +315,13 @@ func goListIsNil(interp C.TclInterp, obj C.TclObj) C.int {
 }
 
 //export goListFrom
-func goListFrom(interp C.TclInterp, obj C.TclObj) C.TclObj {
+func goListFrom(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
 	// Get the list items (with shimmering)
-	items, err := i.GetList(TclObj(obj))
+	items, err := i.GetList(FeatherObj(obj))
 	if err != nil {
 		return 0
 	}
@@ -329,28 +329,28 @@ func goListFrom(interp C.TclInterp, obj C.TclObj) C.TclObj {
 	id := i.nextID
 	i.nextID++
 	// Make a copy of the items slice
-	copiedItems := make([]TclObj, len(items))
+	copiedItems := make([]FeatherObj, len(items))
 	copy(copiedItems, items)
 	i.objects[id] = &Object{isList: true, listItems: copiedItems}
-	return C.TclObj(id)
+	return C.FeatherObj(id)
 }
 
 //export goListPush
-func goListPush(interp C.TclInterp, list C.TclObj, item C.TclObj) C.TclObj {
+func goListPush(interp C.FeatherInterp, list C.FeatherObj, item C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return list
 	}
 	// Use GetList for shimmering (string → list)
-	_, err := i.GetList(TclObj(list))
+	_, err := i.GetList(FeatherObj(list))
 	if err != nil {
 		return list
 	}
-	o := i.getObject(TclObj(list))
+	o := i.getObject(FeatherObj(list))
 	if o == nil {
 		return list
 	}
-	o.listItems = append(o.listItems, TclObj(item))
+	o.listItems = append(o.listItems, FeatherObj(item))
 	// Invalidate string and dict representations (list is now authoritative)
 	o.stringVal = ""
 	o.isDict = false
@@ -364,17 +364,17 @@ func goListPush(interp C.TclInterp, list C.TclObj, item C.TclObj) C.TclObj {
 }
 
 //export goListPop
-func goListPop(interp C.TclInterp, list C.TclObj) C.TclObj {
+func goListPop(interp C.FeatherInterp, list C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
 	// Use GetList for shimmering (string → list)
-	items, err := i.GetList(TclObj(list))
+	items, err := i.GetList(FeatherObj(list))
 	if err != nil || len(items) == 0 {
 		return 0
 	}
-	o := i.getObject(TclObj(list))
+	o := i.getObject(FeatherObj(list))
 	if o == nil {
 		return 0
 	}
@@ -389,26 +389,26 @@ func goListPop(interp C.TclInterp, list C.TclObj) C.TclObj {
 		C.free(unsafe.Pointer(o.cstr))
 		o.cstr = nil
 	}
-	return C.TclObj(last)
+	return C.FeatherObj(last)
 }
 
 //export goListUnshift
-func goListUnshift(interp C.TclInterp, list C.TclObj, item C.TclObj) C.TclObj {
+func goListUnshift(interp C.FeatherInterp, list C.FeatherObj, item C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return list
 	}
 	// Use GetList for shimmering (string → list)
-	_, err := i.GetList(TclObj(list))
+	_, err := i.GetList(FeatherObj(list))
 	if err != nil {
 		return list
 	}
-	o := i.getObject(TclObj(list))
+	o := i.getObject(FeatherObj(list))
 	if o == nil {
 		return list
 	}
 	// Prepend item to the list
-	o.listItems = append([]TclObj{TclObj(item)}, o.listItems...)
+	o.listItems = append([]FeatherObj{FeatherObj(item)}, o.listItems...)
 	// Invalidate string and dict representations (list is now authoritative)
 	o.stringVal = ""
 	o.isDict = false
@@ -422,17 +422,17 @@ func goListUnshift(interp C.TclInterp, list C.TclObj, item C.TclObj) C.TclObj {
 }
 
 //export goListShift
-func goListShift(interp C.TclInterp, list C.TclObj) C.TclObj {
+func goListShift(interp C.FeatherInterp, list C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
 	// Use GetList for shimmering (string → list)
-	items, err := i.GetList(TclObj(list))
+	items, err := i.GetList(FeatherObj(list))
 	if err != nil || len(items) == 0 {
 		return 0
 	}
-	o := i.getObject(TclObj(list))
+	o := i.getObject(FeatherObj(list))
 	if o == nil {
 		return 0
 	}
@@ -447,17 +447,17 @@ func goListShift(interp C.TclInterp, list C.TclObj) C.TclObj {
 		C.free(unsafe.Pointer(o.cstr))
 		o.cstr = nil
 	}
-	return C.TclObj(first)
+	return C.FeatherObj(first)
 }
 
 //export goListLength
-func goListLength(interp C.TclInterp, list C.TclObj) C.size_t {
+func goListLength(interp C.FeatherInterp, list C.FeatherObj) C.size_t {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
 	// Use GetList for shimmering (string → list)
-	items, err := i.GetList(TclObj(list))
+	items, err := i.GetList(FeatherObj(list))
 	if err != nil {
 		return 0
 	}
@@ -465,12 +465,12 @@ func goListLength(interp C.TclInterp, list C.TclObj) C.size_t {
 }
 
 //export goListAt
-func goListAt(interp C.TclInterp, list C.TclObj, index C.size_t) C.TclObj {
+func goListAt(interp C.FeatherInterp, list C.FeatherObj, index C.size_t) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	items, err := i.GetList(TclObj(list))
+	items, err := i.GetList(FeatherObj(list))
 	if err != nil {
 		return 0
 	}
@@ -478,16 +478,16 @@ func goListAt(interp C.TclInterp, list C.TclObj, index C.size_t) C.TclObj {
 	if idx < 0 || idx >= len(items) {
 		return 0
 	}
-	return C.TclObj(items[idx])
+	return C.FeatherObj(items[idx])
 }
 
 //export goListSlice
-func goListSlice(interp C.TclInterp, list C.TclObj, first C.size_t, last C.size_t) C.TclObj {
+func goListSlice(interp C.FeatherInterp, list C.FeatherObj, first C.size_t, last C.size_t) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	items, err := i.GetList(TclObj(list))
+	items, err := i.GetList(FeatherObj(list))
 	if err != nil {
 		return 0
 	}
@@ -508,29 +508,29 @@ func goListSlice(interp C.TclInterp, list C.TclObj, first C.size_t, last C.size_
 	if f > l || length == 0 {
 		id := i.nextID
 		i.nextID++
-		i.objects[id] = &Object{isList: true, listItems: []TclObj{}}
-		return C.TclObj(id)
+		i.objects[id] = &Object{isList: true, listItems: []FeatherObj{}}
+		return C.FeatherObj(id)
 	}
 
 	// Create new list with sliced items
-	slicedItems := make([]TclObj, l-f+1)
+	slicedItems := make([]FeatherObj, l-f+1)
 	copy(slicedItems, items[f:l+1])
 
 	id := i.nextID
 	i.nextID++
 	i.objects[id] = &Object{isList: true, listItems: slicedItems}
-	return C.TclObj(id)
+	return C.FeatherObj(id)
 }
 
 //export goListSetAt
-func goListSetAt(interp C.TclInterp, list C.TclObj, index C.size_t, value C.TclObj) C.TclResult {
+func goListSetAt(interp C.FeatherInterp, list C.FeatherObj, index C.size_t, value C.FeatherObj) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
 
 	// Use GetList for shimmering (string → list)
-	items, err := i.GetList(TclObj(list))
+	items, err := i.GetList(FeatherObj(list))
 	if err != nil {
 		return C.TCL_ERROR
 	}
@@ -540,13 +540,13 @@ func goListSetAt(interp C.TclInterp, list C.TclObj, index C.size_t, value C.TclO
 		return C.TCL_ERROR
 	}
 
-	o := i.getObject(TclObj(list))
+	o := i.getObject(FeatherObj(list))
 	if o == nil {
 		return C.TCL_ERROR
 	}
 
 	// Mutate in place
-	o.listItems[idx] = TclObj(value)
+	o.listItems[idx] = FeatherObj(value)
 
 	// Invalidate string and dict representations (list is now authoritative)
 	o.stringVal = ""
@@ -562,13 +562,13 @@ func goListSetAt(interp C.TclInterp, list C.TclObj, index C.size_t, value C.TclO
 }
 
 //export goListSplice
-func goListSplice(interp C.TclInterp, list C.TclObj, first C.size_t, deleteCount C.size_t, insertions C.TclObj) C.TclObj {
+func goListSplice(interp C.FeatherInterp, list C.FeatherObj, first C.size_t, deleteCount C.size_t, insertions C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
 
-	items, err := i.GetList(TclObj(list))
+	items, err := i.GetList(FeatherObj(list))
 	if err != nil {
 		return 0
 	}
@@ -578,11 +578,11 @@ func goListSplice(interp C.TclInterp, list C.TclObj, first C.size_t, deleteCount
 	length := len(items)
 
 	// Get insertion items
-	var insertItems []TclObj
+	var insertItems []FeatherObj
 	if insertions != 0 {
-		insertItems, err = i.GetList(TclObj(insertions))
+		insertItems, err = i.GetList(FeatherObj(insertions))
 		if err != nil {
-			insertItems = []TclObj{}
+			insertItems = []FeatherObj{}
 		}
 	}
 
@@ -601,7 +601,7 @@ func goListSplice(interp C.TclInterp, list C.TclObj, first C.size_t, deleteCount
 
 	// Build new list: [0:first] + insertItems + [first+deleteCount:]
 	newLen := length - dc + len(insertItems)
-	newItems := make([]TclObj, 0, newLen)
+	newItems := make([]FeatherObj, 0, newLen)
 	newItems = append(newItems, items[:f]...)
 	newItems = append(newItems, insertItems...)
 	if f+dc < length {
@@ -611,12 +611,12 @@ func goListSplice(interp C.TclInterp, list C.TclObj, first C.size_t, deleteCount
 	id := i.nextID
 	i.nextID++
 	i.objects[id] = &Object{isList: true, listItems: newItems}
-	return C.TclObj(id)
+	return C.FeatherObj(id)
 }
 
 // ListSortContext holds context for list sorting
 type ListSortContext struct {
-	interp  C.TclInterp
+	interp  C.FeatherInterp
 	cmpFunc unsafe.Pointer
 	ctx     unsafe.Pointer
 }
@@ -625,14 +625,14 @@ type ListSortContext struct {
 var currentSortCtx *ListSortContext
 
 //export goListSort
-func goListSort(interp C.TclInterp, list C.TclObj, cmpFunc unsafe.Pointer, ctx unsafe.Pointer) C.TclResult {
+func goListSort(interp C.FeatherInterp, list C.FeatherObj, cmpFunc unsafe.Pointer, ctx unsafe.Pointer) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
 
 	// Use GetList for shimmering (string → list)
-	items, err := i.GetList(TclObj(list))
+	items, err := i.GetList(FeatherObj(list))
 	if err != nil {
 		return C.TCL_ERROR
 	}
@@ -641,7 +641,7 @@ func goListSort(interp C.TclInterp, list C.TclObj, cmpFunc unsafe.Pointer, ctx u
 		return C.TCL_OK // Already sorted
 	}
 
-	o := i.getObject(TclObj(list))
+	o := i.getObject(FeatherObj(list))
 	if o == nil {
 		return C.TCL_ERROR
 	}
@@ -655,7 +655,7 @@ func goListSort(interp C.TclInterp, list C.TclObj, cmpFunc unsafe.Pointer, ctx u
 
 	// Sort using Go's sort with the C comparison function
 	sort.Slice(o.listItems, func(a, b int) bool {
-		result := C.call_list_compare(currentSortCtx.interp, C.TclObj(o.listItems[a]), C.TclObj(o.listItems[b]),
+		result := C.call_list_compare(currentSortCtx.interp, C.FeatherObj(o.listItems[a]), C.FeatherObj(o.listItems[b]),
 			currentSortCtx.cmpFunc, currentSortCtx.ctx)
 		return result < 0
 	})
@@ -678,7 +678,7 @@ func goListSort(interp C.TclInterp, list C.TclObj, cmpFunc unsafe.Pointer, ctx u
 // Dict operations
 
 //export goDictCreate
-func goDictCreate(interp C.TclInterp) C.TclObj {
+func goDictCreate(interp C.FeatherInterp) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
@@ -687,27 +687,27 @@ func goDictCreate(interp C.TclInterp) C.TclObj {
 	i.nextID++
 	i.objects[id] = &Object{
 		isDict:    true,
-		dictItems: make(map[string]TclObj),
+		dictItems: make(map[string]FeatherObj),
 		dictOrder: []string{},
 	}
-	return C.TclObj(id)
+	return C.FeatherObj(id)
 }
 
 //export goDictFrom
-func goDictFrom(interp C.TclInterp, obj C.TclObj) C.TclObj {
+func goDictFrom(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
 	// Try to convert to dict
-	dictItems, dictOrder, err := i.GetDict(TclObj(obj))
+	dictItems, dictOrder, err := i.GetDict(FeatherObj(obj))
 	if err != nil {
 		return 0 // Return nil on error
 	}
 	// Create new dict object with copied data
 	id := i.nextID
 	i.nextID++
-	newItems := make(map[string]TclObj, len(dictItems))
+	newItems := make(map[string]FeatherObj, len(dictItems))
 	for k, v := range dictItems {
 		newItems[k] = v
 	}
@@ -718,49 +718,49 @@ func goDictFrom(interp C.TclInterp, obj C.TclObj) C.TclObj {
 		dictItems: newItems,
 		dictOrder: newOrder,
 	}
-	return C.TclObj(id)
+	return C.FeatherObj(id)
 }
 
 //export goDictGet
-func goDictGet(interp C.TclInterp, dict C.TclObj, key C.TclObj) C.TclObj {
+func goDictGet(interp C.FeatherInterp, dict C.FeatherObj, key C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	dictItems, _, err := i.GetDict(TclObj(dict))
+	dictItems, _, err := i.GetDict(FeatherObj(dict))
 	if err != nil {
 		return 0
 	}
-	keyStr := i.GetString(TclObj(key))
+	keyStr := i.GetString(FeatherObj(key))
 	if val, ok := dictItems[keyStr]; ok {
-		return C.TclObj(val)
+		return C.FeatherObj(val)
 	}
 	return 0 // Key not found
 }
 
 //export goDictSet
-func goDictSet(interp C.TclInterp, dict C.TclObj, key C.TclObj, value C.TclObj) C.TclObj {
+func goDictSet(interp C.FeatherInterp, dict C.FeatherObj, key C.FeatherObj, value C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	o := i.getObject(TclObj(dict))
+	o := i.getObject(FeatherObj(dict))
 	if o == nil {
 		return 0
 	}
 	// Ensure it's a dict (shimmer if needed)
 	if !o.isDict {
-		_, _, err := i.GetDict(TclObj(dict))
+		_, _, err := i.GetDict(FeatherObj(dict))
 		if err != nil {
 			return 0
 		}
 	}
-	keyStr := i.GetString(TclObj(key))
+	keyStr := i.GetString(FeatherObj(key))
 	// Add to order if new key
 	if _, exists := o.dictItems[keyStr]; !exists {
 		o.dictOrder = append(o.dictOrder, keyStr)
 	}
-	o.dictItems[keyStr] = TclObj(value)
+	o.dictItems[keyStr] = FeatherObj(value)
 	// Invalidate string and list caches (dict is now authoritative)
 	o.stringVal = ""
 	o.isList = false
@@ -773,16 +773,16 @@ func goDictSet(interp C.TclInterp, dict C.TclObj, key C.TclObj, value C.TclObj) 
 }
 
 //export goDictExists
-func goDictExists(interp C.TclInterp, dict C.TclObj, key C.TclObj) C.int {
+func goDictExists(interp C.FeatherInterp, dict C.FeatherObj, key C.FeatherObj) C.int {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	dictItems, _, err := i.GetDict(TclObj(dict))
+	dictItems, _, err := i.GetDict(FeatherObj(dict))
 	if err != nil {
 		return 0
 	}
-	keyStr := i.GetString(TclObj(key))
+	keyStr := i.GetString(FeatherObj(key))
 	if _, ok := dictItems[keyStr]; ok {
 		return 1
 	}
@@ -790,23 +790,23 @@ func goDictExists(interp C.TclInterp, dict C.TclObj, key C.TclObj) C.int {
 }
 
 //export goDictRemove
-func goDictRemove(interp C.TclInterp, dict C.TclObj, key C.TclObj) C.TclObj {
+func goDictRemove(interp C.FeatherInterp, dict C.FeatherObj, key C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	o := i.getObject(TclObj(dict))
+	o := i.getObject(FeatherObj(dict))
 	if o == nil {
 		return 0
 	}
 	// Ensure it's a dict
 	if !o.isDict {
-		_, _, err := i.GetDict(TclObj(dict))
+		_, _, err := i.GetDict(FeatherObj(dict))
 		if err != nil {
 			return 0
 		}
 	}
-	keyStr := i.GetString(TclObj(key))
+	keyStr := i.GetString(FeatherObj(key))
 	// Remove from map
 	delete(o.dictItems, keyStr)
 	// Remove from order
@@ -828,12 +828,12 @@ func goDictRemove(interp C.TclInterp, dict C.TclObj, key C.TclObj) C.TclObj {
 }
 
 //export goDictSize
-func goDictSize(interp C.TclInterp, dict C.TclObj) C.size_t {
+func goDictSize(interp C.FeatherInterp, dict C.FeatherObj) C.size_t {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	dictItems, _, err := i.GetDict(TclObj(dict))
+	dictItems, _, err := i.GetDict(FeatherObj(dict))
 	if err != nil {
 		return 0
 	}
@@ -841,49 +841,49 @@ func goDictSize(interp C.TclInterp, dict C.TclObj) C.size_t {
 }
 
 //export goDictKeys
-func goDictKeys(interp C.TclInterp, dict C.TclObj) C.TclObj {
+func goDictKeys(interp C.FeatherInterp, dict C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	_, dictOrder, err := i.GetDict(TclObj(dict))
+	_, dictOrder, err := i.GetDict(FeatherObj(dict))
 	if err != nil {
 		return 0
 	}
 	// Create list of keys
 	id := i.nextID
 	i.nextID++
-	items := make([]TclObj, len(dictOrder))
+	items := make([]FeatherObj, len(dictOrder))
 	for idx, key := range dictOrder {
 		items[idx] = i.internString(key)
 	}
 	i.objects[id] = &Object{isList: true, listItems: items}
-	return C.TclObj(id)
+	return C.FeatherObj(id)
 }
 
 //export goDictValues
-func goDictValues(interp C.TclInterp, dict C.TclObj) C.TclObj {
+func goDictValues(interp C.FeatherInterp, dict C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	dictItems, dictOrder, err := i.GetDict(TclObj(dict))
+	dictItems, dictOrder, err := i.GetDict(FeatherObj(dict))
 	if err != nil {
 		return 0
 	}
 	// Create list of values in key order
 	id := i.nextID
 	i.nextID++
-	items := make([]TclObj, len(dictOrder))
+	items := make([]FeatherObj, len(dictOrder))
 	for idx, key := range dictOrder {
 		items[idx] = dictItems[key]
 	}
 	i.objects[id] = &Object{isList: true, listItems: items}
-	return C.TclObj(id)
+	return C.FeatherObj(id)
 }
 
 //export goIntCreate
-func goIntCreate(interp C.TclInterp, val C.int64_t) C.TclObj {
+func goIntCreate(interp C.FeatherInterp, val C.int64_t) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
@@ -891,16 +891,16 @@ func goIntCreate(interp C.TclInterp, val C.int64_t) C.TclObj {
 	id := i.nextID
 	i.nextID++
 	i.objects[id] = &Object{intVal: int64(val), isInt: true}
-	return C.TclObj(id)
+	return C.FeatherObj(id)
 }
 
 //export goIntGet
-func goIntGet(interp C.TclInterp, obj C.TclObj, out *C.int64_t) C.TclResult {
+func goIntGet(interp C.FeatherInterp, obj C.FeatherObj, out *C.int64_t) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	val, err := i.GetInt(TclObj(obj))
+	val, err := i.GetInt(FeatherObj(obj))
 	if err != nil {
 		return C.TCL_ERROR
 	}
@@ -909,7 +909,7 @@ func goIntGet(interp C.TclInterp, obj C.TclObj, out *C.int64_t) C.TclResult {
 }
 
 //export goDoubleCreate
-func goDoubleCreate(interp C.TclInterp, val C.double) C.TclObj {
+func goDoubleCreate(interp C.FeatherInterp, val C.double) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
@@ -917,16 +917,16 @@ func goDoubleCreate(interp C.TclInterp, val C.double) C.TclObj {
 	id := i.nextID
 	i.nextID++
 	i.objects[id] = &Object{dblVal: float64(val), isDouble: true}
-	return C.TclObj(id)
+	return C.FeatherObj(id)
 }
 
 //export goDoubleGet
-func goDoubleGet(interp C.TclInterp, obj C.TclObj, out *C.double) C.TclResult {
+func goDoubleGet(interp C.FeatherInterp, obj C.FeatherObj, out *C.double) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	val, err := i.GetDouble(TclObj(obj))
+	val, err := i.GetDouble(FeatherObj(obj))
 	if err != nil {
 		return C.TCL_ERROR
 	}
@@ -935,7 +935,7 @@ func goDoubleGet(interp C.TclInterp, obj C.TclObj, out *C.double) C.TclResult {
 }
 
 //export goFramePush
-func goFramePush(interp C.TclInterp, cmd C.TclObj, args C.TclObj) C.TclResult {
+func goFramePush(interp C.FeatherInterp, cmd C.FeatherObj, args C.FeatherObj) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
@@ -961,9 +961,9 @@ func goFramePush(interp C.TclInterp, cmd C.TclObj, args C.TclObj) C.TclResult {
 		currentNS = i.frames[i.active].ns
 	}
 	frame := &CallFrame{
-		cmd:   TclObj(cmd),
-		args:  TclObj(args),
-		vars:  make(map[string]TclObj),
+		cmd:   FeatherObj(cmd),
+		args:  FeatherObj(args),
+		vars:  make(map[string]FeatherObj),
 		links: make(map[string]varLink),
 		level: newLevel,
 		ns:    currentNS,
@@ -974,7 +974,7 @@ func goFramePush(interp C.TclInterp, cmd C.TclObj, args C.TclObj) C.TclResult {
 }
 
 //export goFramePop
-func goFramePop(interp C.TclInterp) C.TclResult {
+func goFramePop(interp C.FeatherInterp) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
@@ -989,7 +989,7 @@ func goFramePop(interp C.TclInterp) C.TclResult {
 }
 
 //export goFrameLevel
-func goFrameLevel(interp C.TclInterp) C.size_t {
+func goFrameLevel(interp C.FeatherInterp) C.size_t {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
@@ -998,7 +998,7 @@ func goFrameLevel(interp C.TclInterp) C.size_t {
 }
 
 //export goFrameSetActive
-func goFrameSetActive(interp C.TclInterp, level C.size_t) C.TclResult {
+func goFrameSetActive(interp C.FeatherInterp, level C.size_t) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
@@ -1012,7 +1012,7 @@ func goFrameSetActive(interp C.TclInterp, level C.size_t) C.TclResult {
 }
 
 //export goFrameSize
-func goFrameSize(interp C.TclInterp) C.size_t {
+func goFrameSize(interp C.FeatherInterp) C.size_t {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
@@ -1021,7 +1021,7 @@ func goFrameSize(interp C.TclInterp) C.size_t {
 }
 
 //export goFrameInfo
-func goFrameInfo(interp C.TclInterp, level C.size_t, cmd *C.TclObj, args *C.TclObj, ns *C.TclObj) C.TclResult {
+func goFrameInfo(interp C.FeatherInterp, level C.size_t, cmd *C.FeatherObj, args *C.FeatherObj, ns *C.FeatherObj) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
@@ -1031,24 +1031,24 @@ func goFrameInfo(interp C.TclInterp, level C.size_t, cmd *C.TclObj, args *C.TclO
 		return C.TCL_ERROR
 	}
 	frame := i.frames[lvl]
-	*cmd = C.TclObj(frame.cmd)
-	*args = C.TclObj(frame.args)
+	*cmd = C.FeatherObj(frame.cmd)
+	*args = C.FeatherObj(frame.args)
 	// Return the frame's namespace
 	if frame.ns != nil {
-		*ns = C.TclObj(i.internString(frame.ns.fullPath))
+		*ns = C.FeatherObj(i.internString(frame.ns.fullPath))
 	} else {
-		*ns = C.TclObj(i.internString("::"))
+		*ns = C.FeatherObj(i.internString("::"))
 	}
 	return C.TCL_OK
 }
 
 //export goVarGet
-func goVarGet(interp C.TclInterp, name C.TclObj) C.TclObj {
+func goVarGet(interp C.FeatherInterp, name C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	nameObj := i.getObject(TclObj(name))
+	nameObj := i.getObject(FeatherObj(name))
 	if nameObj == nil {
 		return 0
 	}
@@ -1069,7 +1069,7 @@ func goVarGet(interp C.TclInterp, name C.TclObj) C.TclObj {
 						if len(traces) > 0 {
 							fireVarTraces(i, originalVarName, "read", traces)
 						}
-						return C.TclObj(val)
+						return C.FeatherObj(val)
 					}
 				}
 				return 0
@@ -1083,9 +1083,9 @@ func goVarGet(interp C.TclInterp, name C.TclObj) C.TclObj {
 			break
 		}
 	}
-	var result C.TclObj
+	var result C.FeatherObj
 	if val, ok := frame.vars[varName]; ok {
-		result = C.TclObj(val)
+		result = C.FeatherObj(val)
 	}
 	// Copy traces before unlocking
 	traces := make([]TraceEntry, len(i.varTraces[originalVarName]))
@@ -1098,12 +1098,12 @@ func goVarGet(interp C.TclInterp, name C.TclObj) C.TclObj {
 }
 
 //export goVarSet
-func goVarSet(interp C.TclInterp, name C.TclObj, value C.TclObj) {
+func goVarSet(interp C.FeatherInterp, name C.FeatherObj, value C.FeatherObj) {
 	i := getInterp(interp)
 	if i == nil {
 		return
 	}
-	nameObj := i.getObject(TclObj(name))
+	nameObj := i.getObject(FeatherObj(name))
 	if nameObj == nil {
 		return
 	}
@@ -1116,7 +1116,7 @@ func goVarSet(interp C.TclInterp, name C.TclObj, value C.TclObj) {
 			if link.targetLevel == -1 {
 				// Namespace variable link
 				if ns, ok := i.namespaces[link.nsPath]; ok {
-					ns.vars[link.nsName] = TclObj(value)
+					ns.vars[link.nsName] = FeatherObj(value)
 				}
 				// Copy traces before unlocking
 				traces := make([]TraceEntry, len(i.varTraces[originalVarName]))
@@ -1136,7 +1136,7 @@ func goVarSet(interp C.TclInterp, name C.TclObj, value C.TclObj) {
 			break
 		}
 	}
-	frame.vars[varName] = TclObj(value)
+	frame.vars[varName] = FeatherObj(value)
 	// Copy traces before unlocking
 	traces := make([]TraceEntry, len(i.varTraces[originalVarName]))
 	copy(traces, i.varTraces[originalVarName])
@@ -1147,12 +1147,12 @@ func goVarSet(interp C.TclInterp, name C.TclObj, value C.TclObj) {
 }
 
 //export goVarUnset
-func goVarUnset(interp C.TclInterp, name C.TclObj) {
+func goVarUnset(interp C.FeatherInterp, name C.FeatherObj) {
 	i := getInterp(interp)
 	if i == nil {
 		return
 	}
-	nameObj := i.getObject(TclObj(name))
+	nameObj := i.getObject(FeatherObj(name))
 	if nameObj == nil {
 		return
 	}
@@ -1196,12 +1196,12 @@ func goVarUnset(interp C.TclInterp, name C.TclObj) {
 }
 
 //export goVarExists
-func goVarExists(interp C.TclInterp, name C.TclObj) C.TclResult {
+func goVarExists(interp C.FeatherInterp, name C.FeatherObj) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	nameObj := i.getObject(TclObj(name))
+	nameObj := i.getObject(FeatherObj(name))
 	if nameObj == nil {
 		return C.TCL_ERROR
 	}
@@ -1235,13 +1235,13 @@ func goVarExists(interp C.TclInterp, name C.TclObj) C.TclResult {
 }
 
 //export goVarLink
-func goVarLink(interp C.TclInterp, local C.TclObj, target_level C.size_t, target C.TclObj) {
+func goVarLink(interp C.FeatherInterp, local C.FeatherObj, target_level C.size_t, target C.FeatherObj) {
 	i := getInterp(interp)
 	if i == nil {
 		return
 	}
-	localObj := i.getObject(TclObj(local))
-	targetObj := i.getObject(TclObj(target))
+	localObj := i.getObject(FeatherObj(local))
+	targetObj := i.getObject(FeatherObj(target))
 	if localObj == nil || targetObj == nil {
 		return
 	}
@@ -1253,16 +1253,16 @@ func goVarLink(interp C.TclInterp, local C.TclObj, target_level C.size_t, target
 }
 
 //export goProcDefine
-func goProcDefine(interp C.TclInterp, name C.TclObj, params C.TclObj, body C.TclObj) {
+func goProcDefine(interp C.FeatherInterp, name C.FeatherObj, params C.FeatherObj, body C.FeatherObj) {
 	i := getInterp(interp)
 	if i == nil {
 		return
 	}
-	nameStr := i.GetString(TclObj(name))
+	nameStr := i.GetString(FeatherObj(name))
 	proc := &Procedure{
-		name:   TclObj(name),
-		params: TclObj(params),
-		body:   TclObj(body),
+		name:   FeatherObj(name),
+		params: FeatherObj(params),
+		body:   FeatherObj(body),
 	}
 	cmd := &Command{
 		cmdType: CmdProc,
@@ -1320,12 +1320,12 @@ func (i *Interp) lookupCommandByQualified(nameStr string) (*Command, bool) {
 }
 
 //export goProcExists
-func goProcExists(interp C.TclInterp, name C.TclObj) C.int {
+func goProcExists(interp C.FeatherInterp, name C.FeatherObj) C.int {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	nameStr := i.GetString(TclObj(name))
+	nameStr := i.GetString(FeatherObj(name))
 	cmd, ok := i.lookupCommandByQualified(nameStr)
 	if ok && cmd.cmdType == CmdProc {
 		return 1
@@ -1334,38 +1334,38 @@ func goProcExists(interp C.TclInterp, name C.TclObj) C.int {
 }
 
 //export goProcParams
-func goProcParams(interp C.TclInterp, name C.TclObj, result *C.TclObj) C.TclResult {
+func goProcParams(interp C.FeatherInterp, name C.FeatherObj, result *C.FeatherObj) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	nameStr := i.GetString(TclObj(name))
+	nameStr := i.GetString(FeatherObj(name))
 	cmd, ok := i.lookupCommandByQualified(nameStr)
 	if !ok || cmd.cmdType != CmdProc || cmd.proc == nil {
 		return C.TCL_ERROR
 	}
-	*result = C.TclObj(cmd.proc.params)
+	*result = C.FeatherObj(cmd.proc.params)
 	return C.TCL_OK
 }
 
 //export goProcBody
-func goProcBody(interp C.TclInterp, name C.TclObj, result *C.TclObj) C.TclResult {
+func goProcBody(interp C.FeatherInterp, name C.FeatherObj, result *C.FeatherObj) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	nameStr := i.GetString(TclObj(name))
+	nameStr := i.GetString(FeatherObj(name))
 	cmd, ok := i.lookupCommandByQualified(nameStr)
 	if !ok || cmd.cmdType != CmdProc || cmd.proc == nil {
 		return C.TCL_ERROR
 	}
-	*result = C.TclObj(cmd.proc.body)
+	*result = C.FeatherObj(cmd.proc.body)
 	return C.TCL_OK
 }
 
 // callCEval invokes the C interpreter
-func callCEval(interpHandle TclInterp, scriptHandle TclObj) C.TclResult {
-	return C.call_tcl_eval_obj(C.TclInterp(interpHandle), C.TclObj(scriptHandle), C.TCL_EVAL_LOCAL)
+func callCEval(interpHandle FeatherInterp, scriptHandle FeatherObj) C.FeatherResult {
+	return C.call_feather_eval_obj(C.FeatherInterp(interpHandle), C.FeatherObj(scriptHandle), C.TCL_EVAL_LOCAL)
 }
 
 // fireVarTraces fires variable traces for the given operation.
@@ -1442,17 +1442,17 @@ func fireCmdTraces(i *Interp, oldName string, newName string, op string, traces 
 }
 
 // callCParse invokes the C parser
-func callCParse(interpHandle TclInterp, scriptHandle TclObj) C.TclParseStatus {
-	return C.call_tcl_parse(C.TclInterp(interpHandle), C.TclObj(scriptHandle))
+func callCParse(interpHandle FeatherInterp, scriptHandle FeatherObj) C.FeatherParseStatus {
+	return C.call_feather_parse(C.FeatherInterp(interpHandle), C.FeatherObj(scriptHandle))
 }
 
 // callCInterpInit invokes the C interpreter initialization
-func callCInterpInit(interpHandle TclInterp) {
-	C.call_tcl_interp_init(C.TclInterp(interpHandle))
+func callCInterpInit(interpHandle FeatherInterp) {
+	C.call_feather_interp_init(C.FeatherInterp(interpHandle))
 }
 
 //export goProcNames
-func goProcNames(interp C.TclInterp, namespace C.TclObj) C.TclObj {
+func goProcNames(interp C.FeatherInterp, namespace C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
@@ -1461,7 +1461,7 @@ func goProcNames(interp C.TclInterp, namespace C.TclObj) C.TclObj {
 	// Determine which namespace to list (default to global)
 	nsPath := "::"
 	if namespace != 0 {
-		nsPath = i.GetString(TclObj(namespace))
+		nsPath = i.GetString(FeatherObj(namespace))
 	}
 	if nsPath == "" {
 		nsPath = "::"
@@ -1472,8 +1472,8 @@ func goProcNames(interp C.TclInterp, namespace C.TclObj) C.TclObj {
 		// Return empty list
 		id := i.nextID
 		i.nextID++
-		i.objects[id] = &Object{isList: true, listItems: []TclObj{}}
-		return C.TclObj(id)
+		i.objects[id] = &Object{isList: true, listItems: []FeatherObj{}}
+		return C.FeatherObj(id)
 	}
 
 	// Collect command names and build fully-qualified names
@@ -1493,18 +1493,18 @@ func goProcNames(interp C.TclInterp, namespace C.TclObj) C.TclObj {
 	sort.Strings(names)
 
 	// Create a list object with all names
-	items := make([]TclObj, len(names))
+	items := make([]FeatherObj, len(names))
 	for idx, name := range names {
 		items[idx] = i.internString(name)
 	}
 	id := i.nextID
 	i.nextID++
 	i.objects[id] = &Object{isList: true, listItems: items}
-	return C.TclObj(id)
+	return C.FeatherObj(id)
 }
 
 //export goProcResolveNamespace
-func goProcResolveNamespace(interp C.TclInterp, path C.TclObj, result *C.TclObj) C.TclResult {
+func goProcResolveNamespace(interp C.FeatherInterp, path C.FeatherObj, result *C.FeatherObj) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
@@ -1512,12 +1512,12 @@ func goProcResolveNamespace(interp C.TclInterp, path C.TclObj, result *C.TclObj)
 	// For now, only the global namespace "::" exists
 	// If path is nil, empty, or "::", return global namespace
 	if path == 0 {
-		*result = C.TclObj(i.globalNS)
+		*result = C.FeatherObj(i.globalNS)
 		return C.TCL_OK
 	}
-	pathStr := i.GetString(TclObj(path))
+	pathStr := i.GetString(FeatherObj(path))
 	if pathStr == "" || pathStr == "::" {
-		*result = C.TclObj(i.globalNS)
+		*result = C.FeatherObj(i.globalNS)
 		return C.TCL_OK
 	}
 	// Any other namespace doesn't exist yet
@@ -1526,12 +1526,12 @@ func goProcResolveNamespace(interp C.TclInterp, path C.TclObj, result *C.TclObj)
 }
 
 //export goProcRegisterBuiltin
-func goProcRegisterBuiltin(interp C.TclInterp, name C.TclObj, fn C.TclBuiltinCmd) {
+func goProcRegisterBuiltin(interp C.FeatherInterp, name C.FeatherObj, fn C.FeatherBuiltinCmd) {
 	i := getInterp(interp)
 	if i == nil {
 		return
 	}
-	nameStr := i.GetString(TclObj(name))
+	nameStr := i.GetString(FeatherObj(name))
 
 	// Split the qualified name and store in namespace
 	var nsPath, simpleName string
@@ -1558,13 +1558,13 @@ func goProcRegisterBuiltin(interp C.TclInterp, name C.TclObj, fn C.TclBuiltinCmd
 }
 
 //export goProcLookup
-func goProcLookup(interp C.TclInterp, name C.TclObj, fn *C.TclBuiltinCmd) C.TclCommandType {
+func goProcLookup(interp C.FeatherInterp, name C.FeatherObj, fn *C.FeatherBuiltinCmd) C.FeatherCommandType {
 	i := getInterp(interp)
 	if i == nil {
 		*fn = nil
 		return C.TCL_CMD_NONE
 	}
-	nameStr := i.GetString(TclObj(name))
+	nameStr := i.GetString(FeatherObj(name))
 	cmd, ok := i.lookupCommandByQualified(nameStr)
 	if !ok {
 		*fn = nil
@@ -1584,13 +1584,13 @@ func goProcLookup(interp C.TclInterp, name C.TclObj, fn *C.TclBuiltinCmd) C.TclC
 }
 
 //export goProcRename
-func goProcRename(interp C.TclInterp, oldName C.TclObj, newName C.TclObj) C.TclResult {
+func goProcRename(interp C.FeatherInterp, oldName C.FeatherObj, newName C.FeatherObj) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	oldNameStr := i.GetString(TclObj(oldName))
-	newNameStr := i.GetString(TclObj(newName))
+	oldNameStr := i.GetString(FeatherObj(oldName))
+	newNameStr := i.GetString(FeatherObj(newName))
 
 	// Helper to split qualified name into namespace and simple name
 	splitQualified := func(name string) (nsPath, simple string) {
@@ -1696,7 +1696,7 @@ func (i *Interp) ensureNamespace(path string) *Namespace {
 				fullPath: childPath,
 				parent:   current,
 				children: make(map[string]*Namespace),
-				vars:     make(map[string]TclObj),
+				vars:     make(map[string]FeatherObj),
 				commands: make(map[string]*Command),
 			}
 			current.children[part] = child
@@ -1709,23 +1709,23 @@ func (i *Interp) ensureNamespace(path string) *Namespace {
 }
 
 //export goNsCreate
-func goNsCreate(interp C.TclInterp, path C.TclObj) C.TclResult {
+func goNsCreate(interp C.FeatherInterp, path C.FeatherObj) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	pathStr := i.GetString(TclObj(path))
+	pathStr := i.GetString(FeatherObj(path))
 	i.ensureNamespace(pathStr)
 	return C.TCL_OK
 }
 
 //export goNsDelete
-func goNsDelete(interp C.TclInterp, path C.TclObj) C.TclResult {
+func goNsDelete(interp C.FeatherInterp, path C.FeatherObj) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	pathStr := i.GetString(TclObj(path))
+	pathStr := i.GetString(FeatherObj(path))
 
 	// Cannot delete global namespace
 	if pathStr == "::" {
@@ -1761,12 +1761,12 @@ func goNsDelete(interp C.TclInterp, path C.TclObj) C.TclResult {
 }
 
 //export goNsExists
-func goNsExists(interp C.TclInterp, path C.TclObj) C.int {
+func goNsExists(interp C.FeatherInterp, path C.FeatherObj) C.int {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	pathStr := i.GetString(TclObj(path))
+	pathStr := i.GetString(FeatherObj(path))
 	if _, ok := i.namespaces[pathStr]; ok {
 		return 1
 	}
@@ -1774,25 +1774,25 @@ func goNsExists(interp C.TclInterp, path C.TclObj) C.int {
 }
 
 //export goNsCurrent
-func goNsCurrent(interp C.TclInterp) C.TclObj {
+func goNsCurrent(interp C.FeatherInterp) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
 	frame := i.frames[i.active]
 	if frame.ns != nil {
-		return C.TclObj(i.internString(frame.ns.fullPath))
+		return C.FeatherObj(i.internString(frame.ns.fullPath))
 	}
-	return C.TclObj(i.internString("::"))
+	return C.FeatherObj(i.internString("::"))
 }
 
 //export goNsParent
-func goNsParent(interp C.TclInterp, nsPath C.TclObj, result *C.TclObj) C.TclResult {
+func goNsParent(interp C.FeatherInterp, nsPath C.FeatherObj, result *C.FeatherObj) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	pathStr := i.GetString(TclObj(nsPath))
+	pathStr := i.GetString(FeatherObj(nsPath))
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
@@ -1801,28 +1801,28 @@ func goNsParent(interp C.TclInterp, nsPath C.TclObj, result *C.TclObj) C.TclResu
 
 	if ns.parent == nil {
 		// Global namespace has no parent - return empty string
-		*result = C.TclObj(i.internString(""))
+		*result = C.FeatherObj(i.internString(""))
 	} else {
-		*result = C.TclObj(i.internString(ns.parent.fullPath))
+		*result = C.FeatherObj(i.internString(ns.parent.fullPath))
 	}
 	return C.TCL_OK
 }
 
 //export goNsChildren
-func goNsChildren(interp C.TclInterp, nsPath C.TclObj) C.TclObj {
+func goNsChildren(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	pathStr := i.GetString(TclObj(nsPath))
+	pathStr := i.GetString(FeatherObj(nsPath))
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
 		// Return empty list
 		id := i.nextID
 		i.nextID++
-		i.objects[id] = &Object{isList: true, listItems: []TclObj{}}
-		return C.TclObj(id)
+		i.objects[id] = &Object{isList: true, listItems: []FeatherObj{}}
+		return C.FeatherObj(id)
 	}
 
 	// Collect and sort child names for consistent ordering
@@ -1833,7 +1833,7 @@ func goNsChildren(interp C.TclInterp, nsPath C.TclObj) C.TclObj {
 	sort.Strings(names)
 
 	// Build list of full paths
-	items := make([]TclObj, len(names))
+	items := make([]FeatherObj, len(names))
 	for idx, name := range names {
 		child := ns.children[name]
 		items[idx] = i.internString(child.fullPath)
@@ -1842,50 +1842,50 @@ func goNsChildren(interp C.TclInterp, nsPath C.TclObj) C.TclObj {
 	id := i.nextID
 	i.nextID++
 	i.objects[id] = &Object{isList: true, listItems: items}
-	return C.TclObj(id)
+	return C.FeatherObj(id)
 }
 
 //export goNsGetVar
-func goNsGetVar(interp C.TclInterp, nsPath C.TclObj, name C.TclObj) C.TclObj {
+func goNsGetVar(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	pathStr := i.GetString(TclObj(nsPath))
-	nameStr := i.GetString(TclObj(name))
+	pathStr := i.GetString(FeatherObj(nsPath))
+	nameStr := i.GetString(FeatherObj(name))
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
 		return 0
 	}
 	if val, ok := ns.vars[nameStr]; ok {
-		return C.TclObj(val)
+		return C.FeatherObj(val)
 	}
 	return 0
 }
 
 //export goNsSetVar
-func goNsSetVar(interp C.TclInterp, nsPath C.TclObj, name C.TclObj, value C.TclObj) {
+func goNsSetVar(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj, value C.FeatherObj) {
 	i := getInterp(interp)
 	if i == nil {
 		return
 	}
-	pathStr := i.GetString(TclObj(nsPath))
-	nameStr := i.GetString(TclObj(name))
+	pathStr := i.GetString(FeatherObj(nsPath))
+	nameStr := i.GetString(FeatherObj(name))
 
 	// Create namespace if needed
 	ns := i.ensureNamespace(pathStr)
-	ns.vars[nameStr] = TclObj(value)
+	ns.vars[nameStr] = FeatherObj(value)
 }
 
 //export goNsVarExists
-func goNsVarExists(interp C.TclInterp, nsPath C.TclObj, name C.TclObj) C.int {
+func goNsVarExists(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj) C.int {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	pathStr := i.GetString(TclObj(nsPath))
-	nameStr := i.GetString(TclObj(name))
+	pathStr := i.GetString(FeatherObj(nsPath))
+	nameStr := i.GetString(FeatherObj(name))
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
@@ -1898,13 +1898,13 @@ func goNsVarExists(interp C.TclInterp, nsPath C.TclObj, name C.TclObj) C.int {
 }
 
 //export goNsUnsetVar
-func goNsUnsetVar(interp C.TclInterp, nsPath C.TclObj, name C.TclObj) {
+func goNsUnsetVar(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj) {
 	i := getInterp(interp)
 	if i == nil {
 		return
 	}
-	pathStr := i.GetString(TclObj(nsPath))
-	nameStr := i.GetString(TclObj(name))
+	pathStr := i.GetString(FeatherObj(nsPath))
+	nameStr := i.GetString(FeatherObj(name))
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
@@ -1914,14 +1914,14 @@ func goNsUnsetVar(interp C.TclInterp, nsPath C.TclObj, name C.TclObj) {
 }
 
 //export goNsGetCommand
-func goNsGetCommand(interp C.TclInterp, nsPath C.TclObj, name C.TclObj, fn *C.TclBuiltinCmd) C.TclCommandType {
+func goNsGetCommand(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj, fn *C.FeatherBuiltinCmd) C.FeatherCommandType {
 	i := getInterp(interp)
 	if i == nil {
 		*fn = nil
 		return C.TCL_CMD_NONE
 	}
-	pathStr := i.GetString(TclObj(nsPath))
-	nameStr := i.GetString(TclObj(name))
+	pathStr := i.GetString(FeatherObj(nsPath))
+	nameStr := i.GetString(FeatherObj(name))
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
@@ -1949,15 +1949,15 @@ func goNsGetCommand(interp C.TclInterp, nsPath C.TclObj, name C.TclObj, fn *C.Tc
 }
 
 //export goNsSetCommand
-func goNsSetCommand(interp C.TclInterp, nsPath C.TclObj, name C.TclObj,
-	kind C.TclCommandType, fn C.TclBuiltinCmd,
-	params C.TclObj, body C.TclObj) {
+func goNsSetCommand(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj,
+	kind C.FeatherCommandType, fn C.FeatherBuiltinCmd,
+	params C.FeatherObj, body C.FeatherObj) {
 	i := getInterp(interp)
 	if i == nil {
 		return
 	}
-	pathStr := i.GetString(TclObj(nsPath))
-	nameStr := i.GetString(TclObj(name))
+	pathStr := i.GetString(FeatherObj(nsPath))
+	nameStr := i.GetString(FeatherObj(name))
 
 	// Ensure namespace exists
 	ns := i.ensureNamespace(pathStr)
@@ -1969,22 +1969,22 @@ func goNsSetCommand(interp C.TclInterp, nsPath C.TclObj, name C.TclObj,
 		cmd.builtin = fn
 	} else if kind == C.TCL_CMD_PROC {
 		cmd.proc = &Procedure{
-			name:   TclObj(name),
-			params: TclObj(params),
-			body:   TclObj(body),
+			name:   FeatherObj(name),
+			params: FeatherObj(params),
+			body:   FeatherObj(body),
 		}
 	}
 	ns.commands[nameStr] = cmd
 }
 
 //export goNsDeleteCommand
-func goNsDeleteCommand(interp C.TclInterp, nsPath C.TclObj, name C.TclObj) C.TclResult {
+func goNsDeleteCommand(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	pathStr := i.GetString(TclObj(nsPath))
-	nameStr := i.GetString(TclObj(name))
+	pathStr := i.GetString(FeatherObj(nsPath))
+	nameStr := i.GetString(FeatherObj(name))
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
@@ -2000,20 +2000,20 @@ func goNsDeleteCommand(interp C.TclInterp, nsPath C.TclObj, name C.TclObj) C.Tcl
 }
 
 //export goNsListCommands
-func goNsListCommands(interp C.TclInterp, nsPath C.TclObj) C.TclObj {
+func goNsListCommands(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	pathStr := i.GetString(TclObj(nsPath))
+	pathStr := i.GetString(FeatherObj(nsPath))
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
 		// Return empty list
 		id := i.nextID
 		i.nextID++
-		i.objects[id] = &Object{isList: true, listItems: []TclObj{}}
-		return C.TclObj(id)
+		i.objects[id] = &Object{isList: true, listItems: []FeatherObj{}}
+		return C.FeatherObj(id)
 	}
 
 	names := make([]string, 0, len(ns.commands))
@@ -2022,7 +2022,7 @@ func goNsListCommands(interp C.TclInterp, nsPath C.TclObj) C.TclObj {
 	}
 	sort.Strings(names)
 
-	items := make([]TclObj, len(names))
+	items := make([]FeatherObj, len(names))
 	for idx, name := range names {
 		items[idx] = i.internString(name)
 	}
@@ -2030,16 +2030,16 @@ func goNsListCommands(interp C.TclInterp, nsPath C.TclObj) C.TclObj {
 	id := i.nextID
 	i.nextID++
 	i.objects[id] = &Object{isList: true, listItems: items}
-	return C.TclObj(id)
+	return C.FeatherObj(id)
 }
 
 //export goFrameSetNamespace
-func goFrameSetNamespace(interp C.TclInterp, nsPath C.TclObj) C.TclResult {
+func goFrameSetNamespace(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	pathStr := i.GetString(TclObj(nsPath))
+	pathStr := i.GetString(FeatherObj(nsPath))
 
 	// Create namespace if needed
 	ns := i.ensureNamespace(pathStr)
@@ -2048,27 +2048,27 @@ func goFrameSetNamespace(interp C.TclInterp, nsPath C.TclObj) C.TclResult {
 }
 
 //export goFrameGetNamespace
-func goFrameGetNamespace(interp C.TclInterp) C.TclObj {
+func goFrameGetNamespace(interp C.FeatherInterp) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
 	frame := i.frames[i.active]
 	if frame.ns != nil {
-		return C.TclObj(i.internString(frame.ns.fullPath))
+		return C.FeatherObj(i.internString(frame.ns.fullPath))
 	}
-	return C.TclObj(i.internString("::"))
+	return C.FeatherObj(i.internString("::"))
 }
 
 //export goVarLinkNs
-func goVarLinkNs(interp C.TclInterp, local C.TclObj, nsPath C.TclObj, name C.TclObj) {
+func goVarLinkNs(interp C.FeatherInterp, local C.FeatherObj, nsPath C.FeatherObj, name C.FeatherObj) {
 	i := getInterp(interp)
 	if i == nil {
 		return
 	}
-	localStr := i.GetString(TclObj(local))
-	pathStr := i.GetString(TclObj(nsPath))
-	nameStr := i.GetString(TclObj(name))
+	localStr := i.GetString(FeatherObj(local))
+	pathStr := i.GetString(FeatherObj(nsPath))
+	nameStr := i.GetString(FeatherObj(name))
 
 	frame := i.frames[i.active]
 	frame.links[localStr] = varLink{
@@ -2079,29 +2079,29 @@ func goVarLinkNs(interp C.TclInterp, local C.TclObj, nsPath C.TclObj, name C.Tcl
 }
 
 //export goInterpGetScript
-func goInterpGetScript(interp C.TclInterp) C.TclObj {
+func goInterpGetScript(interp C.FeatherInterp) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
 	if i.scriptPath == 0 {
 		// Return empty string if no script path set
-		return C.TclObj(i.internString(""))
+		return C.FeatherObj(i.internString(""))
 	}
-	return C.TclObj(i.scriptPath)
+	return C.FeatherObj(i.scriptPath)
 }
 
 //export goInterpSetScript
-func goInterpSetScript(interp C.TclInterp, path C.TclObj) {
+func goInterpSetScript(interp C.FeatherInterp, path C.FeatherObj) {
 	i := getInterp(interp)
 	if i == nil {
 		return
 	}
-	i.scriptPath = TclObj(path)
+	i.scriptPath = FeatherObj(path)
 }
 
 //export goVarNames
-func goVarNames(interp C.TclInterp, ns C.TclObj) C.TclObj {
+func goVarNames(interp C.FeatherInterp, ns C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
@@ -2131,7 +2131,7 @@ func goVarNames(interp C.TclInterp, ns C.TclObj) C.TclObj {
 		}
 	} else {
 		// Return variables in the specified namespace
-		pathStr := i.GetString(TclObj(ns))
+		pathStr := i.GetString(FeatherObj(ns))
 		if pathStr == "::" {
 			// Global namespace - return variables from the global frame (frame 0)
 			globalFrame := i.frames[0]
@@ -2149,7 +2149,7 @@ func goVarNames(interp C.TclInterp, ns C.TclObj) C.TclObj {
 	sort.Strings(names)
 
 	// Create list of names
-	items := make([]TclObj, len(names))
+	items := make([]FeatherObj, len(names))
 	for idx, name := range names {
 		items[idx] = i.internString(name)
 	}
@@ -2157,23 +2157,23 @@ func goVarNames(interp C.TclInterp, ns C.TclObj) C.TclObj {
 	id := i.nextID
 	i.nextID++
 	i.objects[id] = &Object{isList: true, listItems: items}
-	return C.TclObj(id)
+	return C.FeatherObj(id)
 }
 
 //export goTraceAdd
-func goTraceAdd(interp C.TclInterp, kind C.TclObj, name C.TclObj, ops C.TclObj, script C.TclObj) C.TclResult {
+func goTraceAdd(interp C.FeatherInterp, kind C.FeatherObj, name C.FeatherObj, ops C.FeatherObj, script C.FeatherObj) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	kindStr := i.GetString(TclObj(kind))
-	nameStr := i.GetString(TclObj(name))
-	opsStr := i.GetString(TclObj(ops))
+	kindStr := i.GetString(FeatherObj(kind))
+	nameStr := i.GetString(FeatherObj(name))
+	opsStr := i.GetString(FeatherObj(ops))
 
 
 	entry := TraceEntry{
 		ops:    opsStr,
-		script: TclObj(script),
+		script: FeatherObj(script),
 	}
 
 	if kindStr == "variable" {
@@ -2188,15 +2188,15 @@ func goTraceAdd(interp C.TclInterp, kind C.TclObj, name C.TclObj, ops C.TclObj, 
 }
 
 //export goTraceRemove
-func goTraceRemove(interp C.TclInterp, kind C.TclObj, name C.TclObj, ops C.TclObj, script C.TclObj) C.TclResult {
+func goTraceRemove(interp C.FeatherInterp, kind C.FeatherObj, name C.FeatherObj, ops C.FeatherObj, script C.FeatherObj) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	kindStr := i.GetString(TclObj(kind))
-	nameStr := i.GetString(TclObj(name))
-	opsStr := i.GetString(TclObj(ops))
-	scriptStr := i.GetString(TclObj(script))
+	kindStr := i.GetString(FeatherObj(kind))
+	nameStr := i.GetString(FeatherObj(name))
+	opsStr := i.GetString(FeatherObj(ops))
+	scriptStr := i.GetString(FeatherObj(script))
 
 	var traces *map[string][]TraceEntry
 	if kindStr == "variable" {
@@ -2223,13 +2223,13 @@ func goTraceRemove(interp C.TclInterp, kind C.TclObj, name C.TclObj, ops C.TclOb
 }
 
 //export goTraceInfo
-func goTraceInfo(interp C.TclInterp, kind C.TclObj, name C.TclObj) C.TclObj {
+func goTraceInfo(interp C.FeatherInterp, kind C.FeatherObj, name C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	kindStr := i.GetString(TclObj(kind))
-	nameStr := i.GetString(TclObj(name))
+	kindStr := i.GetString(FeatherObj(kind))
+	nameStr := i.GetString(FeatherObj(name))
 
 	var entries []TraceEntry
 	if kindStr == "variable" {
@@ -2240,11 +2240,11 @@ func goTraceInfo(interp C.TclInterp, kind C.TclObj, name C.TclObj) C.TclObj {
 
 	// Build list of {ops... script} sublists
 	// Format: each trace is {op1 op2 ... script} where ops are individual elements
-	items := make([]TclObj, 0, len(entries))
+	items := make([]FeatherObj, 0, len(entries))
 	for _, entry := range entries {
 		// Split ops into individual elements
 		ops := strings.Fields(entry.ops)
-		subItems := make([]TclObj, 0, len(ops)+1)
+		subItems := make([]FeatherObj, 0, len(ops)+1)
 		for _, op := range ops {
 			subItems = append(subItems, i.internString(op))
 		}
@@ -2260,28 +2260,28 @@ func goTraceInfo(interp C.TclInterp, kind C.TclObj, name C.TclObj) C.TclObj {
 	id := i.nextID
 	i.nextID++
 	i.objects[id] = &Object{isList: true, listItems: items}
-	return C.TclObj(id)
+	return C.FeatherObj(id)
 }
 
 //export goNsGetExports
-func goNsGetExports(interp C.TclInterp, nsPath C.TclObj) C.TclObj {
+func goNsGetExports(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	pathStr := i.GetString(TclObj(nsPath))
+	pathStr := i.GetString(FeatherObj(nsPath))
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
 		// Return empty list
 		id := i.nextID
 		i.nextID++
-		i.objects[id] = &Object{isList: true, listItems: []TclObj{}}
-		return C.TclObj(id)
+		i.objects[id] = &Object{isList: true, listItems: []FeatherObj{}}
+		return C.FeatherObj(id)
 	}
 
 	// Return export patterns as a list
-	items := make([]TclObj, len(ns.exportPatterns))
+	items := make([]FeatherObj, len(ns.exportPatterns))
 	for idx, pattern := range ns.exportPatterns {
 		items[idx] = i.internString(pattern)
 	}
@@ -2289,21 +2289,21 @@ func goNsGetExports(interp C.TclInterp, nsPath C.TclObj) C.TclObj {
 	id := i.nextID
 	i.nextID++
 	i.objects[id] = &Object{isList: true, listItems: items}
-	return C.TclObj(id)
+	return C.FeatherObj(id)
 }
 
 //export goNsSetExports
-func goNsSetExports(interp C.TclInterp, nsPath C.TclObj, patterns C.TclObj, clear C.int) {
+func goNsSetExports(interp C.FeatherInterp, nsPath C.FeatherObj, patterns C.FeatherObj, clear C.int) {
 	i := getInterp(interp)
 	if i == nil {
 		return
 	}
-	pathStr := i.GetString(TclObj(nsPath))
+	pathStr := i.GetString(FeatherObj(nsPath))
 
 	ns := i.ensureNamespace(pathStr)
 
 	// Get patterns from list
-	patternList, err := i.GetList(TclObj(patterns))
+	patternList, err := i.GetList(FeatherObj(patterns))
 	if err != nil {
 		return
 	}
@@ -2322,13 +2322,13 @@ func goNsSetExports(interp C.TclInterp, nsPath C.TclObj, patterns C.TclObj, clea
 }
 
 //export goNsIsExported
-func goNsIsExported(interp C.TclInterp, nsPath C.TclObj, name C.TclObj) C.int {
+func goNsIsExported(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj) C.int {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	pathStr := i.GetString(TclObj(nsPath))
-	nameStr := i.GetString(TclObj(name))
+	pathStr := i.GetString(FeatherObj(nsPath))
+	nameStr := i.GetString(FeatherObj(name))
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
@@ -2381,16 +2381,16 @@ func globMatchHelper(pattern, str string, pi, si int) bool {
 }
 
 //export goNsCopyCommand
-func goNsCopyCommand(interp C.TclInterp, srcNs C.TclObj, srcName C.TclObj,
-	dstNs C.TclObj, dstName C.TclObj) C.TclResult {
+func goNsCopyCommand(interp C.FeatherInterp, srcNs C.FeatherObj, srcName C.FeatherObj,
+	dstNs C.FeatherObj, dstName C.FeatherObj) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	srcNsStr := i.GetString(TclObj(srcNs))
-	srcNameStr := i.GetString(TclObj(srcName))
-	dstNsStr := i.GetString(TclObj(dstNs))
-	dstNameStr := i.GetString(TclObj(dstName))
+	srcNsStr := i.GetString(FeatherObj(srcNs))
+	srcNameStr := i.GetString(FeatherObj(srcName))
+	dstNsStr := i.GetString(FeatherObj(dstNs))
+	dstNameStr := i.GetString(FeatherObj(dstName))
 
 	// Find source namespace
 	srcNsObj, ok := i.namespaces[srcNsStr]
@@ -2418,51 +2418,51 @@ func goNsCopyCommand(interp C.TclInterp, srcNs C.TclObj, srcName C.TclObj,
 // ============================================================================
 
 //export goForeignIsForeign
-func goForeignIsForeign(interp C.TclInterp, obj C.TclObj) C.int {
+func goForeignIsForeign(interp C.FeatherInterp, obj C.FeatherObj) C.int {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	if i.IsForeign(TclObj(obj)) {
+	if i.IsForeign(FeatherObj(obj)) {
 		return 1
 	}
 	return 0
 }
 
 //export goForeignTypeName
-func goForeignTypeName(interp C.TclInterp, obj C.TclObj) C.TclObj {
+func goForeignTypeName(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	typeName := i.GetForeignType(TclObj(obj))
+	typeName := i.GetForeignType(FeatherObj(obj))
 	if typeName == "" {
 		return 0
 	}
-	return C.TclObj(i.internString(typeName))
+	return C.FeatherObj(i.internString(typeName))
 }
 
 //export goForeignStringRep
-func goForeignStringRep(interp C.TclInterp, obj C.TclObj) C.TclObj {
+func goForeignStringRep(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	o := i.getObject(TclObj(obj))
+	o := i.getObject(FeatherObj(obj))
 	if o == nil || !o.isForeign {
 		return 0
 	}
 	// Return the cached string representation
-	return C.TclObj(i.internString(o.stringVal))
+	return C.FeatherObj(i.internString(o.stringVal))
 }
 
 //export goForeignMethods
-func goForeignMethods(interp C.TclInterp, obj C.TclObj) C.TclObj {
+func goForeignMethods(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
-	o := i.getObject(TclObj(obj))
+	o := i.getObject(FeatherObj(obj))
 	if o == nil || !o.isForeign {
 		return 0
 	}
@@ -2481,39 +2481,39 @@ func goForeignMethods(interp C.TclInterp, obj C.TclObj) C.TclObj {
 	// Build a list of method names
 	id := i.nextID
 	i.nextID++
-	methodHandles := make([]TclObj, len(methods))
+	methodHandles := make([]FeatherObj, len(methods))
 	for j, m := range methods {
 		methodHandles[j] = i.internString(m)
 	}
 	i.objects[id] = &Object{isList: true, listItems: methodHandles}
-	return C.TclObj(id)
+	return C.FeatherObj(id)
 }
 
 //export goForeignInvoke
-func goForeignInvoke(interp C.TclInterp, obj C.TclObj, method C.TclObj, args C.TclObj) C.TclResult {
+func goForeignInvoke(interp C.FeatherInterp, obj C.FeatherObj, method C.FeatherObj, args C.FeatherObj) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	o := i.getObject(TclObj(obj))
+	o := i.getObject(FeatherObj(obj))
 	if o == nil || !o.isForeign {
 		i.SetResult(i.internString("not a foreign object"))
 		return C.TCL_ERROR
 	}
 	// For now, method invocation is not implemented at the low level.
 	// The high-level library will handle method dispatch via the type registry.
-	methodStr := i.GetString(TclObj(method))
+	methodStr := i.GetString(FeatherObj(method))
 	i.SetResult(i.internString("method invocation not implemented: " + methodStr))
 	return C.TCL_ERROR
 }
 
 //export goForeignDestroy
-func goForeignDestroy(interp C.TclInterp, obj C.TclObj) {
+func goForeignDestroy(interp C.FeatherInterp, obj C.FeatherObj) {
 	i := getInterp(interp)
 	if i == nil {
 		return
 	}
-	o := i.getObject(TclObj(obj))
+	o := i.getObject(FeatherObj(obj))
 	if o == nil || !o.isForeign {
 		return
 	}

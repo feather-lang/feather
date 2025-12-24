@@ -10,7 +10,7 @@ src/ contains the interpreter proper. It is written in stdlib-less C:
 - so are all lifetimes, I/O and datastructures.
 
 When the interpreter needs to do something,
-it expresses this need through the TclHostOps interface.
+it expresses this need through the FeatherHostOps interface.
 
 The harness/ directory contains the test harness for
 actually driving this interpreter through a host program.
@@ -53,12 +53,12 @@ to work with multiple implementations, tests must be modeled as data.
 Before you start any task, you must review the last commit in full
 using `git show HEAD`.
 
-@src/tclc.h is the authoritative source of what the interpreter expects from the host and defines the public API.
+@src/feather.h is the authoritative source of what the interpreter expects from the host and defines the public API.
 
 All internal forward declarations necessary should go into src/internal.h
 
 If you encounter a situation where the provided primitives
-in TclHostOps are not sufficient to implement the desired functionality
+in FeatherHostOps are not sufficient to implement the desired functionality
 YOU MUST STOP IMMEDIATELY and inform me, your operator.
 
 Only proceed in this situation after you have received formal approval

@@ -1,4 +1,4 @@
-#include "tclc.h"
+#include "feather.h"
 #include "internal.h"
 
 // Helper to check if char is whitespace
@@ -6,8 +6,8 @@ static int is_whitespace(char c) {
   return c == ' ' || c == '\t' || c == '\n' || c == '\r';
 }
 
-TclResult tcl_builtin_concat(const TclHostOps *ops, TclInterp interp,
-                              TclObj cmd, TclObj args) {
+FeatherResult feather_builtin_concat(const FeatherHostOps *ops, FeatherInterp interp,
+                              FeatherObj cmd, FeatherObj args) {
   (void)cmd;
   size_t argc = ops->list.length(interp, args);
 
@@ -19,10 +19,10 @@ TclResult tcl_builtin_concat(const TclHostOps *ops, TclInterp interp,
 
   // concat joins arguments with spaces, trimming leading/trailing whitespace
   // from each argument
-  TclObj result = 0;
+  FeatherObj result = 0;
 
   for (size_t i = 0; i < argc; i++) {
-    TclObj arg = ops->list.shift(interp, args);
+    FeatherObj arg = ops->list.shift(interp, args);
     size_t len;
     const char *str = ops->string.get(interp, arg, &len);
 
@@ -37,12 +37,12 @@ TclResult tcl_builtin_concat(const TclHostOps *ops, TclInterp interp,
     // Skip empty segments
     if (start >= end) continue;
 
-    TclObj trimmed = ops->string.intern(interp, str + start, end - start);
+    FeatherObj trimmed = ops->string.intern(interp, str + start, end - start);
 
     if (ops->list.is_nil(interp, result) || result == 0) {
       result = trimmed;
     } else {
-      TclObj space = ops->string.intern(interp, " ", 1);
+      FeatherObj space = ops->string.intern(interp, " ", 1);
       result = ops->string.concat(interp, result, space);
       result = ops->string.concat(interp, result, trimmed);
     }

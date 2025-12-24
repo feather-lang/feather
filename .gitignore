@@ -8,7 +8,7 @@
 *.dylib
 
 # C executables (no extension)
-/tclc
+/feather
 /test_runner
 
 # Go
@@ -69,4 +69,4 @@ coverage.html
 *.log
 
 # WASM build artifacts
-wasmtcl/wasm/tclc.wasm
+feather-wasm/wasm/feather.wasm

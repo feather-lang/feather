@@ -1,4 +1,4 @@
-#include "tclc.h"
+#include "feather.h"
 #include "internal.h"
 
 // Helper to check string equality
@@ -10,10 +10,10 @@ static int str_eq(const char *s, size_t len, const char *keyword) {
   return i == len && keyword[i] == '\0';
 }
 
-// Parse a code name or integer into a TclResult value
+// Parse a code name or integer into a FeatherResult value
 // Returns TCL_OK on success and sets *code, TCL_ERROR on failure
-static TclResult parse_code(const TclHostOps *ops, TclInterp interp,
-                            TclObj codeObj, int *code) {
+static FeatherResult parse_code(const FeatherHostOps *ops, FeatherInterp interp,
+                            FeatherObj codeObj, int *code) {
   size_t len;
   const char *str = ops->string.get(interp, codeObj, &len);
 
@@ -47,31 +47,31 @@ static TclResult parse_code(const TclHostOps *ops, TclInterp interp,
   }
 
   // Error: invalid code
-  TclObj msg1 = ops->string.intern(interp, "bad completion code \"", 21);
-  TclObj msg2 = ops->string.intern(interp, str, len);
-  TclObj msg3 = ops->string.intern(interp,
+  FeatherObj msg1 = ops->string.intern(interp, "bad completion code \"", 21);
+  FeatherObj msg2 = ops->string.intern(interp, str, len);
+  FeatherObj msg3 = ops->string.intern(interp,
     "\": must be ok, error, return, break, continue, or an integer", 60);
-  TclObj msg = ops->string.concat(interp, msg1, msg2);
+  FeatherObj msg = ops->string.concat(interp, msg1, msg2);
   msg = ops->string.concat(interp, msg, msg3);
   ops->interp.set_result(interp, msg);
   return TCL_ERROR;
 }
 
-TclResult tcl_builtin_return(const TclHostOps *ops, TclInterp interp,
-                              TclObj cmd, TclObj args) {
+FeatherResult feather_builtin_return(const FeatherHostOps *ops, FeatherInterp interp,
+                              FeatherObj cmd, FeatherObj args) {
   (void)cmd;
 
   int code = TCL_OK;      // Default: -code ok
   int level = 1;          // Default: -level 1
-  TclObj resultValue = ops->string.intern(interp, "", 0);
+  FeatherObj resultValue = ops->string.intern(interp, "", 0);
 
   // Make a copy of args since we'll be shifting
-  TclObj argsCopy = ops->list.from(interp, args);
+  FeatherObj argsCopy = ops->list.from(interp, args);
   size_t argc = ops->list.length(interp, argsCopy);
 
   // Parse options
   while (argc > 0) {
-    TclObj arg = ops->list.at(interp, argsCopy, 0);
+    FeatherObj arg = ops->list.at(interp, argsCopy, 0);
     size_t argLen;
     const char *argStr = ops->string.get(interp, arg, &argLen);
 
@@ -84,11 +84,11 @@ TclResult tcl_builtin_return(const TclHostOps *ops, TclInterp interp,
       if (str_eq(argStr, argLen, "-code")) {
         // Need value
         if (argc == 0) {
-          TclObj msg = ops->string.intern(interp, "-code requires a value", 22);
+          FeatherObj msg = ops->string.intern(interp, "-code requires a value", 22);
           ops->interp.set_result(interp, msg);
           return TCL_ERROR;
         }
-        TclObj codeArg = ops->list.shift(interp, argsCopy);
+        FeatherObj codeArg = ops->list.shift(interp, argsCopy);
         argc--;
         if (parse_code(ops, interp, codeArg, &code) != TCL_OK) {
           return TCL_ERROR;
@@ -96,20 +96,20 @@ TclResult tcl_builtin_return(const TclHostOps *ops, TclInterp interp,
       } else if (str_eq(argStr, argLen, "-level")) {
         // Need value
         if (argc == 0) {
-          TclObj msg = ops->string.intern(interp, "-level requires a value", 23);
+          FeatherObj msg = ops->string.intern(interp, "-level requires a value", 23);
           ops->interp.set_result(interp, msg);
           return TCL_ERROR;
         }
-        TclObj levelArg = ops->list.shift(interp, argsCopy);
+        FeatherObj levelArg = ops->list.shift(interp, argsCopy);
         argc--;
         int64_t levelVal;
         if (ops->integer.get(interp, levelArg, &levelVal) != TCL_OK) {
           size_t valLen;
           const char *valStr = ops->string.get(interp, levelArg, &valLen);
-          TclObj msg1 = ops->string.intern(interp, "expected integer but got \"", 26);
-          TclObj msg2 = ops->string.intern(interp, valStr, valLen);
-          TclObj msg3 = ops->string.intern(interp, "\"", 1);
-          TclObj msg = ops->string.concat(interp, msg1, msg2);
+          FeatherObj msg1 = ops->string.intern(interp, "expected integer but got \"", 26);
+          FeatherObj msg2 = ops->string.intern(interp, valStr, valLen);
+          FeatherObj msg3 = ops->string.intern(interp, "\"", 1);
+          FeatherObj msg = ops->string.concat(interp, msg1, msg2);
           msg = ops->string.concat(interp, msg, msg3);
           ops->interp.set_result(interp, msg);
           return TCL_ERROR;
@@ -117,11 +117,11 @@ TclResult tcl_builtin_return(const TclHostOps *ops, TclInterp interp,
         if (levelVal < 0) {
           size_t valLen;
           const char *valStr = ops->string.get(interp, levelArg, &valLen);
-          TclObj msg1 = ops->string.intern(interp,
+          FeatherObj msg1 = ops->string.intern(interp,
             "bad -level value: expected non-negative integer but got \"", 57);
-          TclObj msg2 = ops->string.intern(interp, valStr, valLen);
-          TclObj msg3 = ops->string.intern(interp, "\"", 1);
-          TclObj msg = ops->string.concat(interp, msg1, msg2);
+          FeatherObj msg2 = ops->string.intern(interp, valStr, valLen);
+          FeatherObj msg3 = ops->string.intern(interp, "\"", 1);
+          FeatherObj msg = ops->string.concat(interp, msg1, msg2);
           msg = ops->string.concat(interp, msg, msg3);
           ops->interp.set_result(interp, msg);
           return TCL_ERROR;
@@ -130,7 +130,7 @@ TclResult tcl_builtin_return(const TclHostOps *ops, TclInterp interp,
       } else if (str_eq(argStr, argLen, "-options")) {
         // -options takes a dictionary - skip for now, just consume value
         if (argc == 0) {
-          TclObj msg = ops->string.intern(interp, "-options requires a value", 25);
+          FeatherObj msg = ops->string.intern(interp, "-options requires a value", 25);
           ops->interp.set_result(interp, msg);
           return TCL_ERROR;
         }
@@ -138,11 +138,11 @@ TclResult tcl_builtin_return(const TclHostOps *ops, TclInterp interp,
         argc--;
       } else {
         // Unknown option
-        TclObj msg1 = ops->string.intern(interp, "bad option \"", 12);
-        TclObj msg2 = ops->string.intern(interp, argStr, argLen);
-        TclObj msg3 = ops->string.intern(interp,
+        FeatherObj msg1 = ops->string.intern(interp, "bad option \"", 12);
+        FeatherObj msg2 = ops->string.intern(interp, argStr, argLen);
+        FeatherObj msg3 = ops->string.intern(interp,
           "\": must be -code, -level, or -options", 37);
-        TclObj msg = ops->string.concat(interp, msg1, msg2);
+        FeatherObj msg = ops->string.concat(interp, msg1, msg2);
         msg = ops->string.concat(interp, msg, msg3);
         ops->interp.set_result(interp, msg);
         return TCL_ERROR;
@@ -157,8 +157,8 @@ TclResult tcl_builtin_return(const TclHostOps *ops, TclInterp interp,
         resultValue = ops->list.shift(interp, argsCopy);
         argc--;
         while (argc > 0) {
-          TclObj space = ops->string.intern(interp, " ", 1);
-          TclObj next = ops->list.shift(interp, argsCopy);
+          FeatherObj space = ops->string.intern(interp, " ", 1);
+          FeatherObj next = ops->list.shift(interp, argsCopy);
           resultValue = ops->string.concat(interp, resultValue, space);
           resultValue = ops->string.concat(interp, resultValue, next);
           argc--;
@@ -169,14 +169,14 @@ TclResult tcl_builtin_return(const TclHostOps *ops, TclInterp interp,
   }
 
   // Build return options dictionary as a list: {-code X -level Y}
-  TclObj options = ops->list.create(interp);
+  FeatherObj options = ops->list.create(interp);
   options = ops->list.push(interp, options, ops->string.intern(interp, "-code", 5));
   options = ops->list.push(interp, options, ops->integer.create(interp, code));
   options = ops->list.push(interp, options, ops->string.intern(interp, "-level", 6));
   options = ops->list.push(interp, options, ops->integer.create(interp, level));
 
   // Store the return options
-  TclResult storeResult = ops->interp.set_return_options(interp, options);
+  FeatherResult storeResult = ops->interp.set_return_options(interp, options);
 
   // Set the result value
   ops->interp.set_result(interp, resultValue);
@@ -184,7 +184,7 @@ TclResult tcl_builtin_return(const TclHostOps *ops, TclInterp interp,
   // Determine what code to return
   if (level == 0) {
     // Level 0: the code takes effect immediately
-    return (TclResult)code;
+    return (FeatherResult)code;
   } else {
     // Level > 0: return TCL_RETURN, proc will handle decrementing level
     return TCL_RETURN;

@@ -6,8 +6,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/dhamidi/tclc/interp"
-	defaults "github.com/dhamidi/tclc/interp/default"
+	"github.com/feather-lang/feather/interp"
+	defaults "github.com/feather-lang/feather/interp/default"
 )
 
 func main() {

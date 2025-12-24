@@ -1,4 +1,4 @@
-#include "tclc.h"
+#include "feather.h"
 #include "internal.h"
 
 // Helper to check if a string equals a literal
@@ -11,7 +11,7 @@ static int str_eq(const char *s, size_t len, const char *lit) {
 }
 
 // Resolve a namespace path (relative or absolute) to an absolute path
-static TclObj resolve_ns_path(const TclHostOps *ops, TclInterp interp, TclObj path) {
+static FeatherObj resolve_ns_path(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj path) {
   size_t len;
   const char *str = ops->string.get(interp, path, &len);
 
@@ -21,71 +21,71 @@ static TclObj resolve_ns_path(const TclHostOps *ops, TclInterp interp, TclObj pa
   }
 
   // Relative - prepend current namespace
-  TclObj current = ops->ns.current(interp);
+  FeatherObj current = ops->ns.current(interp);
   size_t current_len;
   const char *current_str = ops->string.get(interp, current, &current_len);
 
   // If current is global "::", prepend "::" to path
   if (current_len == 2 && current_str[0] == ':' && current_str[1] == ':') {
-    TclObj prefix = ops->string.intern(interp, "::", 2);
+    FeatherObj prefix = ops->string.intern(interp, "::", 2);
     return ops->string.concat(interp, prefix, path);
   }
 
   // Otherwise append "::" and path to current
-  TclObj sep = ops->string.intern(interp, "::", 2);
-  TclObj result = ops->string.concat(interp, current, sep);
+  FeatherObj sep = ops->string.intern(interp, "::", 2);
+  FeatherObj result = ops->string.concat(interp, current, sep);
   return ops->string.concat(interp, result, path);
 }
 
 // namespace current
-static TclResult ns_current(const TclHostOps *ops, TclInterp interp, TclObj args) {
+static FeatherResult ns_current(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   if (ops->list.length(interp, args) != 0) {
-    TclObj msg = ops->string.intern(interp, "wrong # args: should be \"namespace current\"", 44);
+    FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"namespace current\"", 44);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
-  TclObj current = ops->ns.current(interp);
+  FeatherObj current = ops->ns.current(interp);
   ops->interp.set_result(interp, current);
   return TCL_OK;
 }
 
 // namespace eval ns script
-static TclResult ns_eval(const TclHostOps *ops, TclInterp interp, TclObj args) {
+static FeatherResult ns_eval(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc < 2) {
-    TclObj msg = ops->string.intern(interp, "wrong # args: should be \"namespace eval name arg ?arg ...?\"", 59);
+    FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"namespace eval name arg ?arg ...?\"", 59);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj ns_path = ops->list.at(interp, args, 0);
-  TclObj abs_path = resolve_ns_path(ops, interp, ns_path);
+  FeatherObj ns_path = ops->list.at(interp, args, 0);
+  FeatherObj abs_path = resolve_ns_path(ops, interp, ns_path);
 
   // Create namespace if it doesn't exist
   ops->ns.create(interp, abs_path);
 
   // Save current namespace
-  TclObj saved_ns = ops->frame.get_namespace(interp);
+  FeatherObj saved_ns = ops->frame.get_namespace(interp);
 
   // Set current frame's namespace
   ops->frame.set_namespace(interp, abs_path);
 
   // Get the script (concatenate remaining args if multiple)
-  TclObj script;
+  FeatherObj script;
   if (argc == 2) {
     script = ops->list.at(interp, args, 1);
   } else {
     // Concatenate remaining arguments with spaces
     script = ops->list.at(interp, args, 1);
     for (size_t i = 2; i < argc; i++) {
-      TclObj space = ops->string.intern(interp, " ", 1);
+      FeatherObj space = ops->string.intern(interp, " ", 1);
       script = ops->string.concat(interp, script, space);
       script = ops->string.concat(interp, script, ops->list.at(interp, args, i));
     }
   }
 
   // Evaluate the script
-  TclResult result = tcl_script_eval_obj(ops, interp, script, TCL_EVAL_LOCAL);
+  FeatherResult result = feather_script_eval_obj(ops, interp, script, TCL_EVAL_LOCAL);
 
   // Restore namespace
   ops->frame.set_namespace(interp, saved_ns);
@@ -94,32 +94,32 @@ static TclResult ns_eval(const TclHostOps *ops, TclInterp interp, TclObj args) {
 }
 
 // namespace exists ns
-static TclResult ns_exists(const TclHostOps *ops, TclInterp interp, TclObj args) {
+static FeatherResult ns_exists(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   if (ops->list.length(interp, args) != 1) {
-    TclObj msg = ops->string.intern(interp, "wrong # args: should be \"namespace exists name\"", 47);
+    FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"namespace exists name\"", 47);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj ns_path = ops->list.at(interp, args, 0);
-  TclObj abs_path = resolve_ns_path(ops, interp, ns_path);
+  FeatherObj ns_path = ops->list.at(interp, args, 0);
+  FeatherObj abs_path = resolve_ns_path(ops, interp, ns_path);
 
   int exists = ops->ns.exists(interp, abs_path);
-  TclObj result = ops->integer.create(interp, exists ? 1 : 0);
+  FeatherObj result = ops->integer.create(interp, exists ? 1 : 0);
   ops->interp.set_result(interp, result);
   return TCL_OK;
 }
 
 // namespace children ?ns?
-static TclResult ns_children(const TclHostOps *ops, TclInterp interp, TclObj args) {
+static FeatherResult ns_children(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc > 1) {
-    TclObj msg = ops->string.intern(interp, "wrong # args: should be \"namespace children ?name?\"", 51);
+    FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"namespace children ?name?\"", 51);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj ns_path;
+  FeatherObj ns_path;
   if (argc == 0) {
     ns_path = ops->ns.current(interp);
   } else {
@@ -127,21 +127,21 @@ static TclResult ns_children(const TclHostOps *ops, TclInterp interp, TclObj arg
     ns_path = resolve_ns_path(ops, interp, ns_path);
   }
 
-  TclObj children = ops->ns.children(interp, ns_path);
+  FeatherObj children = ops->ns.children(interp, ns_path);
   ops->interp.set_result(interp, children);
   return TCL_OK;
 }
 
 // namespace parent ?ns?
-static TclResult ns_parent(const TclHostOps *ops, TclInterp interp, TclObj args) {
+static FeatherResult ns_parent(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc > 1) {
-    TclObj msg = ops->string.intern(interp, "wrong # args: should be \"namespace parent ?name?\"", 49);
+    FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"namespace parent ?name?\"", 49);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj ns_path;
+  FeatherObj ns_path;
   if (argc == 0) {
     ns_path = ops->ns.current(interp);
   } else {
@@ -155,20 +155,20 @@ static TclResult ns_parent(const TclHostOps *ops, TclInterp interp, TclObj args)
     const char *path_str = ops->string.get(interp, ns_path, &path_len);
 
     // If relative and doesn't exist, try original
-    TclObj original = (argc == 0) ? ns_path : ops->list.at(interp, args, 0);
+    FeatherObj original = (argc == 0) ? ns_path : ops->list.at(interp, args, 0);
     size_t orig_len;
     const char *orig_str = ops->string.get(interp, original, &orig_len);
 
-    TclObj msg = ops->string.intern(interp, "namespace \"", 11);
+    FeatherObj msg = ops->string.intern(interp, "namespace \"", 11);
     msg = ops->string.concat(interp, msg, original);
-    TclObj suffix = ops->string.intern(interp, "\" not found", 11);
+    FeatherObj suffix = ops->string.intern(interp, "\" not found", 11);
     msg = ops->string.concat(interp, msg, suffix);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj parent;
-  TclResult res = ops->ns.parent(interp, ns_path, &parent);
+  FeatherObj parent;
+  FeatherResult res = ops->ns.parent(interp, ns_path, &parent);
   if (res != TCL_OK) {
     return res;
   }
@@ -178,38 +178,38 @@ static TclResult ns_parent(const TclHostOps *ops, TclInterp interp, TclObj args)
 }
 
 // namespace delete ns ?ns ...?
-static TclResult ns_delete(const TclHostOps *ops, TclInterp interp, TclObj args) {
+static FeatherResult ns_delete(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc < 1) {
-    TclObj msg = ops->string.intern(interp, "wrong # args: should be \"namespace delete ?name name ...?\"", 58);
+    FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"namespace delete ?name name ...?\"", 58);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
   for (size_t i = 0; i < argc; i++) {
-    TclObj ns_path = ops->list.at(interp, args, i);
-    TclObj abs_path = resolve_ns_path(ops, interp, ns_path);
+    FeatherObj ns_path = ops->list.at(interp, args, i);
+    FeatherObj abs_path = resolve_ns_path(ops, interp, ns_path);
 
     // Check for deleting global namespace
     size_t len;
     const char *str = ops->string.get(interp, abs_path, &len);
     if (len == 2 && str[0] == ':' && str[1] == ':') {
-      TclObj msg = ops->string.intern(interp, "cannot delete namespace \"::\"", 28);
+      FeatherObj msg = ops->string.intern(interp, "cannot delete namespace \"::\"", 28);
       ops->interp.set_result(interp, msg);
       return TCL_ERROR;
     }
 
     // Check if namespace exists
     if (!ops->ns.exists(interp, abs_path)) {
-      TclObj msg = ops->string.intern(interp, "namespace \"", 11);
+      FeatherObj msg = ops->string.intern(interp, "namespace \"", 11);
       msg = ops->string.concat(interp, msg, ns_path);
-      TclObj suffix = ops->string.intern(interp, "\" not found", 11);
+      FeatherObj suffix = ops->string.intern(interp, "\" not found", 11);
       msg = ops->string.concat(interp, msg, suffix);
       ops->interp.set_result(interp, msg);
       return TCL_ERROR;
     }
 
-    TclResult res = ops->ns.delete(interp, abs_path);
+    FeatherResult res = ops->ns.delete(interp, abs_path);
     if (res != TCL_OK) {
       return res;
     }
@@ -220,20 +220,20 @@ static TclResult ns_delete(const TclHostOps *ops, TclInterp interp, TclObj args)
 }
 
 // namespace export ?-clear? ?pattern pattern ...?
-static TclResult ns_export(const TclHostOps *ops, TclInterp interp, TclObj args) {
+static FeatherResult ns_export(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
-  TclObj current = ops->ns.current(interp);
+  FeatherObj current = ops->ns.current(interp);
 
   // No args - return current export patterns
   if (argc == 0) {
-    TclObj exports = ops->ns.get_exports(interp, current);
+    FeatherObj exports = ops->ns.get_exports(interp, current);
     // Convert list to space-separated string
     size_t len = ops->list.length(interp, exports);
     if (len == 0) {
       ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
       return TCL_OK;
     }
-    TclObj result = ops->list.at(interp, exports, 0);
+    FeatherObj result = ops->list.at(interp, exports, 0);
     for (size_t i = 1; i < len; i++) {
       result = ops->string.concat(interp, result, ops->string.intern(interp, " ", 1));
       result = ops->string.concat(interp, result, ops->list.at(interp, exports, i));
@@ -244,7 +244,7 @@ static TclResult ns_export(const TclHostOps *ops, TclInterp interp, TclObj args)
 
   // Check for -clear flag
   int clear = 0;
-  TclObj first = ops->list.at(interp, args, 0);
+  FeatherObj first = ops->list.at(interp, args, 0);
   size_t first_len;
   const char *first_str = ops->string.get(interp, first, &first_len);
   if (first_len == 6 && first_str[0] == '-' && first_str[1] == 'c' &&
@@ -256,7 +256,7 @@ static TclResult ns_export(const TclHostOps *ops, TclInterp interp, TclObj args)
   }
 
   // Build pattern list from remaining args
-  TclObj patterns = ops->list.create(interp);
+  FeatherObj patterns = ops->list.create(interp);
   for (size_t i = 0; i < argc; i++) {
     patterns = ops->list.push(interp, patterns, ops->list.at(interp, args, i));
   }
@@ -268,11 +268,11 @@ static TclResult ns_export(const TclHostOps *ops, TclInterp interp, TclObj args)
 }
 
 // namespace import ?-force? ?pattern pattern ...?
-static TclResult ns_import(const TclHostOps *ops, TclInterp interp, TclObj args) {
+static FeatherResult ns_import(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
 
   if (argc == 0) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"namespace import ?-force? ?pattern pattern ...?\"", 73);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
@@ -280,7 +280,7 @@ static TclResult ns_import(const TclHostOps *ops, TclInterp interp, TclObj args)
 
   // Check for -force flag
   int force = 0;
-  TclObj first = ops->list.at(interp, args, 0);
+  FeatherObj first = ops->list.at(interp, args, 0);
   size_t first_len;
   const char *first_str = ops->string.get(interp, first, &first_len);
   if (first_len == 6 && first_str[0] == '-' && first_str[1] == 'f' &&
@@ -291,11 +291,11 @@ static TclResult ns_import(const TclHostOps *ops, TclInterp interp, TclObj args)
     argc--;
   }
 
-  TclObj current = ops->ns.current(interp);
+  FeatherObj current = ops->ns.current(interp);
 
   // Process each pattern
   for (size_t i = 0; i < argc; i++) {
-    TclObj pattern = ops->list.at(interp, args, i);
+    FeatherObj pattern = ops->list.at(interp, args, i);
     size_t pat_len;
     const char *pat_str = ops->string.get(interp, pattern, &pat_len);
 
@@ -313,7 +313,7 @@ static TclResult ns_import(const TclHostOps *ops, TclInterp interp, TclObj args)
 
     if (!found) {
       // No :: in pattern - error
-      TclObj msg = ops->string.intern(interp, "unknown or unexported command \"", 31);
+      FeatherObj msg = ops->string.intern(interp, "unknown or unexported command \"", 31);
       msg = ops->string.concat(interp, msg, pattern);
       msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\"", 1));
       ops->interp.set_result(interp, msg);
@@ -321,7 +321,7 @@ static TclResult ns_import(const TclHostOps *ops, TclInterp interp, TclObj args)
     }
 
     // Extract namespace path and command pattern
-    TclObj srcNs = ops->string.intern(interp, pat_str, last_sep);
+    FeatherObj srcNs = ops->string.intern(interp, pat_str, last_sep);
     if (last_sep == 0 && pat_len >= 2 && pat_str[0] == ':' && pat_str[1] == ':') {
       // Pattern like "::cmd" means global namespace
       srcNs = ops->string.intern(interp, "::", 2);
@@ -335,23 +335,23 @@ static TclResult ns_import(const TclHostOps *ops, TclInterp interp, TclObj args)
       size_t ns_len;
       const char *ns_str = ops->string.get(interp, srcNs, &ns_len);
       // Remove leading :: for relative display
-      TclObj displayNs = srcNs;
+      FeatherObj displayNs = srcNs;
       if (ns_len > 2 && ns_str[0] == ':' && ns_str[1] == ':') {
         displayNs = ops->string.intern(interp, ns_str + 2, ns_len - 2);
       }
-      TclObj msg = ops->string.intern(interp, "namespace \"", 11);
+      FeatherObj msg = ops->string.intern(interp, "namespace \"", 11);
       msg = ops->string.concat(interp, msg, displayNs);
       msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\" not found", 11));
       ops->interp.set_result(interp, msg);
       return TCL_ERROR;
     }
 
-    TclObj cmdPattern = ops->string.intern(interp, pat_str + last_sep + 2, pat_len - last_sep - 2);
+    FeatherObj cmdPattern = ops->string.intern(interp, pat_str + last_sep + 2, pat_len - last_sep - 2);
     size_t cmd_pat_len;
     const char *cmd_pat_str = ops->string.get(interp, cmdPattern, &cmd_pat_len);
 
     // Get list of commands in source namespace
-    TclObj srcCmds = ops->ns.list_commands(interp, srcNs);
+    FeatherObj srcCmds = ops->ns.list_commands(interp, srcNs);
     size_t numCmds = ops->list.length(interp, srcCmds);
 
     // Check if pattern contains wildcard
@@ -365,14 +365,14 @@ static TclResult ns_import(const TclHostOps *ops, TclInterp interp, TclObj args)
 
     int matched = 0;
     for (size_t j = 0; j < numCmds; j++) {
-      TclObj cmdName = ops->list.at(interp, srcCmds, j);
+      FeatherObj cmdName = ops->list.at(interp, srcCmds, j);
       size_t cmd_len;
       const char *cmd_str = ops->string.get(interp, cmdName, &cmd_len);
 
       // Check if command matches pattern
       int matches = 0;
       if (has_wildcard) {
-        matches = tcl_glob_match(cmd_pat_str, cmd_pat_len, cmd_str, cmd_len);
+        matches = feather_glob_match(cmd_pat_str, cmd_pat_len, cmd_str, cmd_len);
       } else {
         matches = (cmd_len == cmd_pat_len);
         for (size_t k = 0; k < cmd_len && matches; k++) {
@@ -386,7 +386,7 @@ static TclResult ns_import(const TclHostOps *ops, TclInterp interp, TclObj args)
       if (!ops->ns.is_exported(interp, srcNs, cmdName)) {
         if (!has_wildcard) {
           // Specific command not exported - error
-          TclObj msg = ops->string.intern(interp, "unknown or unexported command \"", 31);
+          FeatherObj msg = ops->string.intern(interp, "unknown or unexported command \"", 31);
           msg = ops->string.concat(interp, msg, pattern);
           msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\"", 1));
           ops->interp.set_result(interp, msg);
@@ -398,10 +398,10 @@ static TclResult ns_import(const TclHostOps *ops, TclInterp interp, TclObj args)
       matched = 1;
 
       // Check if command already exists in current namespace
-      TclBuiltinCmd unusedFn = NULL;
-      TclCommandType existingType = ops->ns.get_command(interp, current, cmdName, &unusedFn);
+      FeatherBuiltinCmd unusedFn = NULL;
+      FeatherCommandType existingType = ops->ns.get_command(interp, current, cmdName, &unusedFn);
       if (existingType != TCL_CMD_NONE && !force) {
-        TclObj msg = ops->string.intern(interp, "can't import command \"", 22);
+        FeatherObj msg = ops->string.intern(interp, "can't import command \"", 22);
         msg = ops->string.concat(interp, msg, cmdName);
         msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\": already exists", 17));
         ops->interp.set_result(interp, msg);
@@ -414,7 +414,7 @@ static TclResult ns_import(const TclHostOps *ops, TclInterp interp, TclObj args)
 
     // If no wildcard and no match, error
     if (!has_wildcard && !matched) {
-      TclObj msg = ops->string.intern(interp, "unknown or unexported command \"", 31);
+      FeatherObj msg = ops->string.intern(interp, "unknown or unexported command \"", 31);
       msg = ops->string.concat(interp, msg, pattern);
       msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\"", 1));
       ops->interp.set_result(interp, msg);
@@ -426,18 +426,18 @@ static TclResult ns_import(const TclHostOps *ops, TclInterp interp, TclObj args)
   return TCL_OK;
 }
 
-TclResult tcl_builtin_namespace(const TclHostOps *ops, TclInterp interp,
-                                 TclObj cmd, TclObj args) {
+FeatherResult feather_builtin_namespace(const FeatherHostOps *ops, FeatherInterp interp,
+                                 FeatherObj cmd, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
 
   if (argc == 0) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"namespace subcommand ?arg ...?\"", 56);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj subcmd = ops->list.shift(interp, args);
+  FeatherObj subcmd = ops->list.shift(interp, args);
   size_t subcmd_len;
   const char *subcmd_str = ops->string.get(interp, subcmd, &subcmd_len);
 
@@ -458,10 +458,10 @@ TclResult tcl_builtin_namespace(const TclHostOps *ops, TclInterp interp,
   } else if (str_eq(subcmd_str, subcmd_len, "import")) {
     return ns_import(ops, interp, args);
   } else {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "bad option \"", 12);
     msg = ops->string.concat(interp, msg, subcmd);
-    TclObj suffix = ops->string.intern(interp,
+    FeatherObj suffix = ops->string.intern(interp,
       "\": must be children, current, delete, eval, exists, export, import, or parent", 77);
     msg = ops->string.concat(interp, msg, suffix);
     ops->interp.set_result(interp, msg);

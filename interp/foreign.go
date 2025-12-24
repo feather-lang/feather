@@ -49,7 +49,7 @@ type foreignTypeInfo struct {
 type foreignInstance struct {
 	typeName   string
 	handleName string     // e.g., "mux1"
-	objHandle  TclObj     // the TclObj handle
+	objHandle  FeatherObj     // the FeatherObj handle
 	value      any        // the actual Go value
 }
 
@@ -59,7 +59,7 @@ type ForeignRegistry struct {
 	types        map[string]*foreignTypeInfo    // type name -> type info
 	instances    map[string]*foreignInstance    // handle name -> instance
 	counters     map[string]int                 // type name -> next counter
-	handleToType map[TclObj]*foreignInstance    // TclObj handle -> instance
+	handleToType map[FeatherObj]*foreignInstance    // FeatherObj handle -> instance
 }
 
 // newForeignRegistry creates a new foreign registry.
@@ -68,7 +68,7 @@ func newForeignRegistry() *ForeignRegistry {
 		types:        make(map[string]*foreignTypeInfo),
 		instances:    make(map[string]*foreignInstance),
 		counters:     make(map[string]int),
-		handleToType: make(map[TclObj]*foreignInstance),
+		handleToType: make(map[FeatherObj]*foreignInstance),
 	}
 }
 
@@ -122,7 +122,7 @@ func DefineType[T any](host *Host, typeName string, def ForeignTypeDef[T]) error
 	host.Interp.ForeignRegistry.counters[typeName] = 1
 
 	// Register the constructor command (e.g., "Mux")
-	host.Register(typeName, func(i *Interp, cmd TclObj, args []TclObj) TclResult {
+	host.Register(typeName, func(i *Interp, cmd FeatherObj, args []FeatherObj) FeatherResult {
 		return host.foreignConstructor(typeName, i, cmd, args)
 	})
 
@@ -130,7 +130,7 @@ func DefineType[T any](host *Host, typeName string, def ForeignTypeDef[T]) error
 }
 
 // foreignConstructor handles "TypeName new" and "TypeName subcommand" calls.
-func (h *Host) foreignConstructor(typeName string, i *Interp, cmd TclObj, args []TclObj) TclResult {
+func (h *Host) foreignConstructor(typeName string, i *Interp, cmd FeatherObj, args []FeatherObj) FeatherResult {
 	if len(args) == 0 {
 		i.SetErrorString(fmt.Sprintf("wrong # args: should be \"%s subcommand ?arg ...?\"", typeName))
 		return ResultError
@@ -187,7 +187,7 @@ func (h *Host) foreignConstructor(typeName string, i *Interp, cmd TclObj, args [
 	h.Interp.ForeignRegistry.mu.Unlock()
 
 	// Register the handle as a command (object-as-command pattern)
-	h.Register(handleName, func(i *Interp, cmd TclObj, args []TclObj) TclResult {
+	h.Register(handleName, func(i *Interp, cmd FeatherObj, args []FeatherObj) FeatherResult {
 		return h.foreignMethodDispatch(handleName, i, cmd, args)
 	})
 
@@ -198,7 +198,7 @@ func (h *Host) foreignConstructor(typeName string, i *Interp, cmd TclObj, args [
 
 // foreignMethodDispatch handles method calls on foreign objects.
 // Called when "$handle method args..." is evaluated.
-func (h *Host) foreignMethodDispatch(handleName string, i *Interp, cmd TclObj, args []TclObj) TclResult {
+func (h *Host) foreignMethodDispatch(handleName string, i *Interp, cmd FeatherObj, args []FeatherObj) FeatherResult {
 	if len(args) == 0 {
 		i.SetErrorString(fmt.Sprintf("wrong # args: should be \"%s method ?arg ...?\"", handleName))
 		return ResultError
@@ -248,7 +248,7 @@ func (h *Host) foreignMethodDispatch(handleName string, i *Interp, cmd TclObj, a
 }
 
 // callForeignMethod calls a method with automatic argument conversion.
-func (h *Host) callForeignMethod(i *Interp, receiver any, methodFunc reflect.Value, args []TclObj) TclResult {
+func (h *Host) callForeignMethod(i *Interp, receiver any, methodFunc reflect.Value, args []FeatherObj) FeatherResult {
 	methodType := methodFunc.Type()
 	numParams := methodType.NumIn()
 
@@ -287,8 +287,8 @@ func (h *Host) callForeignMethod(i *Interp, receiver any, methodFunc reflect.Val
 	return h.processResults(i, results, methodType)
 }
 
-// convertArg converts a TclObj to a Go value of the specified type.
-func (h *Host) convertArg(i *Interp, arg TclObj, targetType reflect.Type) (reflect.Value, error) {
+// convertArg converts a FeatherObj to a Go value of the specified type.
+func (h *Host) convertArg(i *Interp, arg FeatherObj, targetType reflect.Type) (reflect.Value, error) {
 	switch targetType.Kind() {
 	case reflect.String:
 		return reflect.ValueOf(i.GetString(arg)), nil
@@ -364,7 +364,7 @@ func (h *Host) convertArg(i *Interp, arg TclObj, targetType reflect.Type) (refle
 		return m, nil
 
 	case reflect.Interface:
-		// For interface{}/any, return the TclObj handle wrapped
+		// For interface{}/any, return the FeatherObj handle wrapped
 		if targetType.NumMethod() == 0 {
 			// It's any/interface{}
 			return reflect.ValueOf(arg), nil
@@ -406,7 +406,7 @@ func (h *Host) convertArg(i *Interp, arg TclObj, targetType reflect.Type) (refle
 }
 
 // processResults handles the return values from a method call.
-func (h *Host) processResults(i *Interp, results []reflect.Value, methodType reflect.Type) TclResult {
+func (h *Host) processResults(i *Interp, results []reflect.Value, methodType reflect.Type) FeatherResult {
 	if len(results) == 0 {
 		i.SetResultString("")
 		return ResultOK
@@ -433,8 +433,8 @@ func (h *Host) processResults(i *Interp, results []reflect.Value, methodType ref
 	return h.convertResult(i, result)
 }
 
-// convertResult converts a Go value back to a TclObj result.
-func (h *Host) convertResult(i *Interp, result reflect.Value) TclResult {
+// convertResult converts a Go value back to a FeatherObj result.
+func (h *Host) convertResult(i *Interp, result reflect.Value) FeatherResult {
 	if !result.IsValid() {
 		i.SetResultString("")
 		return ResultOK
@@ -465,7 +465,7 @@ func (h *Host) convertResult(i *Interp, result reflect.Value) TclResult {
 		list := i.createList()
 		for j := 0; j < result.Len(); j++ {
 			elem := result.Index(j)
-			var elemHandle TclObj
+			var elemHandle FeatherObj
 			switch elem.Kind() {
 			case reflect.String:
 				elemHandle = i.internString(elem.String())
@@ -485,7 +485,7 @@ func (h *Host) convertResult(i *Interp, result reflect.Value) TclResult {
 		for iter.Next() {
 			key := fmt.Sprintf("%v", iter.Key().Interface())
 			val := iter.Value()
-			var valHandle TclObj
+			var valHandle FeatherObj
 			switch val.Kind() {
 			case reflect.String:
 				valHandle = i.internString(val.String())
@@ -516,7 +516,7 @@ func (h *Host) convertResult(i *Interp, result reflect.Value) TclResult {
 }
 
 // foreignDestroy handles the "destroy" method on foreign objects.
-func (h *Host) foreignDestroy(handleName string, i *Interp) TclResult {
+func (h *Host) foreignDestroy(handleName string, i *Interp) FeatherResult {
 	h.Interp.ForeignRegistry.mu.Lock()
 	instance, ok := h.Interp.ForeignRegistry.instances[handleName]
 	if !ok {
@@ -577,7 +577,7 @@ func (h *Host) GetForeignMethods(typeName string) []string {
 
 // GetForeignStringRep returns a custom string representation for a foreign object.
 // Used by the goForeignStringRep callback.
-func (h *Host) GetForeignStringRep(obj TclObj) string {
+func (h *Host) GetForeignStringRep(obj FeatherObj) string {
 	if h.Interp.ForeignRegistry == nil {
 		return ""
 	}
@@ -604,14 +604,14 @@ func (h *Host) GetForeignStringRep(obj TclObj) string {
 
 // Helper methods for creating TCL values
 
-func (i *Interp) createList() TclObj {
+func (i *Interp) createList() FeatherObj {
 	id := i.nextID
 	i.nextID++
-	i.objects[id] = &Object{isList: true, listItems: []TclObj{}}
+	i.objects[id] = &Object{isList: true, listItems: []FeatherObj{}}
 	return id
 }
 
-func (i *Interp) listPush(list TclObj, item TclObj) TclObj {
+func (i *Interp) listPush(list FeatherObj, item FeatherObj) FeatherObj {
 	obj := i.getObject(list)
 	if obj != nil && obj.isList {
 		obj.listItems = append(obj.listItems, item)
@@ -620,25 +620,25 @@ func (i *Interp) listPush(list TclObj, item TclObj) TclObj {
 	return list
 }
 
-func (i *Interp) createInt(val int64) TclObj {
+func (i *Interp) createInt(val int64) FeatherObj {
 	id := i.nextID
 	i.nextID++
 	i.objects[id] = &Object{intVal: val, isInt: true}
 	return id
 }
 
-func (i *Interp) createDict() TclObj {
+func (i *Interp) createDict() FeatherObj {
 	id := i.nextID
 	i.nextID++
 	i.objects[id] = &Object{
 		isDict:    true,
-		dictItems: make(map[string]TclObj),
+		dictItems: make(map[string]FeatherObj),
 		dictOrder: []string{},
 	}
 	return id
 }
 
-func (i *Interp) dictSet(dict TclObj, key string, val TclObj) TclObj {
+func (i *Interp) dictSet(dict FeatherObj, key string, val FeatherObj) FeatherObj {
 	obj := i.getObject(dict)
 	if obj != nil && obj.isDict {
 		if _, exists := obj.dictItems[key]; !exists {

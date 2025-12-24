@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/dhamidi/tclc/interp"
+	"github.com/feather-lang/feather/interp"
 )
 
 // Counter is a simple test type for foreign object testing.

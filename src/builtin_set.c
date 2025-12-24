@@ -1,28 +1,28 @@
-#include "tclc.h"
+#include "feather.h"
 
-TclResult tcl_builtin_set(const TclHostOps *ops, TclInterp interp,
-                          TclObj cmd, TclObj args) {
+FeatherResult feather_builtin_set(const FeatherHostOps *ops, FeatherInterp interp,
+                          FeatherObj cmd, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
 
   if (argc == 0) {
     // No arguments - error
-    TclObj msg = ops->string.intern(interp, "wrong # args: should be \"set varName ?newValue?\"", 48);
+    FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"set varName ?newValue?\"", 48);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
   // Get the variable name (first argument)
-  TclObj varName = ops->list.shift(interp, args);
+  FeatherObj varName = ops->list.shift(interp, args);
   size_t nameLen;
   const char *nameStr = ops->string.get(interp, varName, &nameLen);
 
   // Resolve the variable name (handles qualified names)
-  TclObj ns, localName;
-  tcl_resolve_variable(ops, interp, nameStr, nameLen, &ns, &localName);
+  FeatherObj ns, localName;
+  feather_resolve_variable(ops, interp, nameStr, nameLen, &ns, &localName);
 
   if (argc == 1) {
     // One argument: get variable value
-    TclObj value;
+    FeatherObj value;
     if (ops->list.is_nil(interp, ns)) {
       // Unqualified - frame-local lookup
       value = ops->var.get(interp, localName);
@@ -33,11 +33,11 @@ TclResult tcl_builtin_set(const TclHostOps *ops, TclInterp interp,
 
     if (ops->list.is_nil(interp, value)) {
       // Variable doesn't exist - build error message
-      TclObj part1 = ops->string.intern(interp, "can't read \"", 12);
-      TclObj part2 = ops->string.intern(interp, nameStr, nameLen);
-      TclObj part3 = ops->string.intern(interp, "\": no such variable", 19);
+      FeatherObj part1 = ops->string.intern(interp, "can't read \"", 12);
+      FeatherObj part2 = ops->string.intern(interp, nameStr, nameLen);
+      FeatherObj part3 = ops->string.intern(interp, "\": no such variable", 19);
 
-      TclObj msg = ops->string.concat(interp, part1, part2);
+      FeatherObj msg = ops->string.concat(interp, part1, part2);
       msg = ops->string.concat(interp, msg, part3);
 
       ops->interp.set_result(interp, msg);
@@ -49,11 +49,11 @@ TclResult tcl_builtin_set(const TclHostOps *ops, TclInterp interp,
 
   // Two arguments: set variable value
   if (argc > 2) {
-    TclObj msg = ops->string.intern(interp, "wrong # args: should be \"set varName ?newValue?\"", 48);
+    FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"set varName ?newValue?\"", 48);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
-  TclObj value = ops->list.shift(interp, args);
+  FeatherObj value = ops->list.shift(interp, args);
 
   if (ops->list.is_nil(interp, ns)) {
     // Unqualified - frame-local

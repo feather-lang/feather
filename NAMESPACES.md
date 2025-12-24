@@ -48,26 +48,26 @@ Three forms of variable names:
 
 Resolution happens in C code before calling host operations.
 
-## TclHostOps Extensions
+## FeatherHostOps Extensions
 
-### New: TclNamespaceOps
+### New: FeatherNamespaceOps
 
 ```c
 /**
- * TclNamespaceOps provides operations on the namespace hierarchy.
+ * FeatherNamespaceOps provides operations on the namespace hierarchy.
  *
  * Namespaces are containers for commands and persistent variables.
  * The global namespace "::" always exists and is the root.
  * Namespace paths use "::" as separator (e.g., "::foo::bar").
  */
-typedef struct TclNamespaceOps {
+typedef struct FeatherNamespaceOps {
     /**
      * create ensures a namespace exists, creating it and parents as needed.
      *
      * Returns TCL_OK on success.
      * Creating "::" is a no-op (always exists).
      */
-    TclResult (*create)(TclInterp interp, TclObj path);
+    FeatherResult (*create)(FeatherInterp interp, FeatherObj path);
 
     /**
      * delete removes a namespace and all its children.
@@ -76,21 +76,21 @@ typedef struct TclNamespaceOps {
      * Returns TCL_ERROR if path is "::" (cannot delete global).
      * Returns TCL_ERROR if namespace doesn't exist.
      */
-    TclResult (*delete)(TclInterp interp, TclObj path);
+    FeatherResult (*delete)(FeatherInterp interp, FeatherObj path);
 
     /**
      * exists checks if a namespace exists.
      *
      * Returns TCL_OK if it exists, TCL_ERROR if not.
      */
-    TclResult (*exists)(TclInterp interp, TclObj path);
+    FeatherResult (*exists)(FeatherInterp interp, FeatherObj path);
 
     /**
      * current returns the namespace path of the current call frame.
      *
      * Returns a string like "::" or "::foo::bar".
      */
-    TclObj (*current)(TclInterp interp);
+    FeatherObj (*current)(FeatherInterp interp);
 
     /**
      * parent returns the parent namespace path.
@@ -99,7 +99,7 @@ typedef struct TclNamespaceOps {
      * For "::foo::bar", returns "::foo".
      * Returns TCL_ERROR if namespace doesn't exist.
      */
-    TclResult (*parent)(TclInterp interp, TclObj ns, TclObj *result);
+    FeatherResult (*parent)(FeatherInterp interp, FeatherObj ns, FeatherObj *result);
 
     /**
      * children returns a list of child namespace paths.
@@ -107,7 +107,7 @@ typedef struct TclNamespaceOps {
      * Returns full paths (e.g., "::foo::bar" for child "bar" of "::foo").
      * Returns empty list if no children.
      */
-    TclObj (*children)(TclInterp interp, TclObj ns);
+    FeatherObj (*children)(FeatherInterp interp, FeatherObj ns);
 
     /**
      * get_var retrieves a variable from namespace storage.
@@ -116,7 +116,7 @@ typedef struct TclNamespaceOps {
      * The 'name' parameter must be unqualified (just "x", not "::foo::x").
      * The namespace path must be absolute.
      */
-    TclObj (*get_var)(TclInterp interp, TclObj ns, TclObj name);
+    FeatherObj (*get_var)(FeatherInterp interp, FeatherObj ns, FeatherObj name);
 
     /**
      * set_var sets a variable in namespace storage.
@@ -125,28 +125,28 @@ typedef struct TclNamespaceOps {
      * Creates the namespace if it doesn't exist.
      * The 'name' parameter must be unqualified.
      */
-    void (*set_var)(TclInterp interp, TclObj ns, TclObj name, TclObj value);
+    void (*set_var)(FeatherInterp interp, FeatherObj ns, FeatherObj name, FeatherObj value);
 
     /**
      * var_exists checks if a variable exists in namespace storage.
      *
      * Returns TCL_OK if exists, TCL_ERROR if not.
      */
-    TclResult (*var_exists)(TclInterp interp, TclObj ns, TclObj name);
+    FeatherResult (*var_exists)(FeatherInterp interp, FeatherObj ns, FeatherObj name);
 
     /**
      * unset_var removes a variable from namespace storage.
      *
      * No-op if variable doesn't exist.
      */
-    void (*unset_var)(TclInterp interp, TclObj ns, TclObj name);
-} TclNamespaceOps;
+    void (*unset_var)(FeatherInterp interp, FeatherObj ns, FeatherObj name);
+} FeatherNamespaceOps;
 ```
 
-### TclFrameOps Extension
+### FeatherFrameOps Extension
 
 ```c
-typedef struct TclFrameOps {
+typedef struct FeatherFrameOps {
     /* ... existing operations ... */
 
     /**
@@ -155,19 +155,19 @@ typedef struct TclFrameOps {
      * Used by 'namespace eval' to temporarily change context.
      * The namespace is created if it doesn't exist.
      */
-    TclResult (*set_namespace)(TclInterp interp, TclObj ns);
+    FeatherResult (*set_namespace)(FeatherInterp interp, FeatherObj ns);
 
     /**
      * get_namespace returns the namespace of the current frame.
      */
-    TclObj (*get_namespace)(TclInterp interp);
-} TclFrameOps;
+    FeatherObj (*get_namespace)(FeatherInterp interp);
+} FeatherFrameOps;
 ```
 
-### TclVarOps Extension
+### FeatherVarOps Extension
 
 ```c
-typedef struct TclVarOps {
+typedef struct FeatherVarOps {
     /* ... existing operations ... */
 
     /**
@@ -184,25 +184,25 @@ typedef struct TclVarOps {
      * The 'ns' parameter is the absolute namespace path.
      * The 'name' parameter is the variable name in the namespace.
      */
-    void (*link_ns)(TclInterp interp, TclObj local, TclObj ns, TclObj name);
-} TclVarOps;
+    void (*link_ns)(FeatherInterp interp, FeatherObj local, FeatherObj ns, FeatherObj name);
+} FeatherVarOps;
 ```
 
-### Updated TclHostOps
+### Updated FeatherHostOps
 
 ```c
-typedef struct TclHostOps {
-    TclFrameOps frame;
-    TclVarOps var;
-    TclProcOps proc;
-    TclNamespaceOps ns;      /* NEW */
-    TclStringOps string;
-    TclListOps list;
-    TclIntOps integer;
-    TclDoubleOps dbl;
-    TclInterpOps interp;
-    TclBindOpts bind;
-} TclHostOps;
+typedef struct FeatherHostOps {
+    FeatherFrameOps frame;
+    FeatherVarOps var;
+    FeatherProcOps proc;
+    FeatherNamespaceOps ns;      /* NEW */
+    FeatherStringOps string;
+    FeatherListOps list;
+    FeatherIntOps integer;
+    FeatherDoubleOps dbl;
+    FeatherInterpOps interp;
+    FeatherBindOpts bind;
+} FeatherHostOps;
 ```
 
 ## C-Side Resolution
@@ -214,7 +214,7 @@ unqualified names with explicit namespace paths.
 
 ```c
 /**
- * tcl_resolve_variable resolves a variable name to namespace + local parts.
+ * feather_resolve_variable resolves a variable name to namespace + local parts.
  *
  * Three cases:
  *   1. Unqualified ("x") - no "::" in name
@@ -230,14 +230,14 @@ unqualified names with explicit namespace paths.
  *
  * Returns TCL_OK on success.
  */
-TclResult tcl_resolve_variable(const TclHostOps *ops, TclInterp interp,
+FeatherResult feather_resolve_variable(const FeatherHostOps *ops, FeatherInterp interp,
                                 const char *name, size_t len,
-                                TclObj *ns_out, TclObj *local_out);
+                                FeatherObj *ns_out, FeatherObj *local_out);
 
 /**
- * tcl_is_qualified returns 1 if name contains "::", 0 otherwise.
+ * feather_is_qualified returns 1 if name contains "::", 0 otherwise.
  */
-int tcl_is_qualified(const char *name, size_t len);
+int feather_is_qualified(const char *name, size_t len);
 ```
 
 ### Usage Pattern
@@ -245,8 +245,8 @@ int tcl_is_qualified(const char *name, size_t len);
 The parser and all variable-touching builtins use this pattern:
 
 ```c
-TclObj ns, local;
-tcl_resolve_variable(ops, interp, name, len, &ns, &local);
+FeatherObj ns, local;
+feather_resolve_variable(ops, interp, name, len, &ns, &local);
 
 if (ops->list.is_nil(interp, ns)) {
     // Unqualified - use frame-local storage
@@ -263,9 +263,9 @@ if (ops->list.is_nil(interp, ns)) {
 
 | File | Changes |
 |------|---------|
-| `src/tclc.h` | Add TclNamespaceOps, extend TclFrameOps, TclVarOps |
+| `src/feather.h` | Add FeatherNamespaceOps, extend FeatherFrameOps, FeatherVarOps |
 | `src/internal.h` | Declare resolution helpers, new builtins |
-| `src/resolve.c` | NEW: tcl_resolve_variable, tcl_is_qualified |
+| `src/resolve.c` | NEW: feather_resolve_variable, feather_is_qualified |
 | `src/parse.c` | Update substitute_variable for qualified names |
 | `src/builtin_namespace.c` | NEW: namespace command |
 | `src/builtin_variable.c` | NEW: variable command |
@@ -281,7 +281,7 @@ if (ops->list.is_nil(interp, ns)) {
 | File | Changes |
 |------|---------|
 | `interp/tclc.go` | Add Namespace struct, extend CallFrame |
-| `interp/callbacks.go` | Implement TclNamespaceOps callbacks |
+| `interp/callbacks.go` | Implement FeatherNamespaceOps callbacks |
 | `interp/callbacks.c` | Wire up new C callbacks |
 
 ## Go Host Implementation
@@ -294,14 +294,14 @@ type Namespace struct {
     fullPath string
     parent   *Namespace
     children map[string]*Namespace
-    vars     map[string]TclObj
+    vars     map[string]FeatherObj
 }
 
 // Extended CallFrame
 type CallFrame struct {
-    cmd       TclObj
-    args      TclObj
-    vars      map[string]TclObj
+    cmd       FeatherObj
+    args      FeatherObj
+    vars      map[string]FeatherObj
     links     map[string]varLink
     namespace *Namespace          // NEW: execution context
     level     int

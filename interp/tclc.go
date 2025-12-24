@@ -2,7 +2,7 @@ package interp
 
 /*
 #cgo CFLAGS: -I${SRCDIR}/../src
-#include "tclc.h"
+#include "feather.h"
 #include <stdlib.h>
 */
 import "C"
@@ -15,24 +15,24 @@ import (
 	"unsafe"
 )
 
-type TclResult uint
+type FeatherResult uint
 
-// Result codes matching TclResult enum
+// Result codes matching FeatherResult enum
 const (
-	ResultOK       TclResult = C.TCL_OK
-	ResultError    TclResult = C.TCL_ERROR
-	ResultReturn   TclResult = C.TCL_RETURN
-	ResultBreak    TclResult = C.TCL_BREAK
-	ResultContinue TclResult = C.TCL_CONTINUE
+	ResultOK       FeatherResult = C.TCL_OK
+	ResultError    FeatherResult = C.TCL_ERROR
+	ResultReturn   FeatherResult = C.TCL_RETURN
+	ResultBreak    FeatherResult = C.TCL_BREAK
+	ResultContinue FeatherResult = C.TCL_CONTINUE
 )
 
-// EvalFlags matching TclEvalFlags enum
+// EvalFlags matching FeatherEvalFlags enum
 const (
 	EvalLocal  = C.TCL_EVAL_LOCAL
 	EvalGlobal = C.TCL_EVAL_GLOBAL
 )
 
-// ParseStatus matching TclParseStatus enum
+// ParseStatus matching FeatherParseStatus enum
 type ParseStatus uint
 
 const (
@@ -48,14 +48,14 @@ type ParseResult struct {
 	ErrorMessage string // For ParseError, the error message from the result list
 }
 
-// Handle is the Go type for TclHandle
+// Handle is the Go type for FeatherHandle
 type Handle = uintptr
 
-// TclInterp is a handle to an interpreter instance
-type TclInterp Handle
+// FeatherInterp is a handle to an interpreter instance
+type FeatherInterp Handle
 
-// TclObj is a handle to an object
-type TclObj Handle
+// FeatherObj is a handle to an object
+type FeatherObj Handle
 
 // CommandFunc is the signature for host command implementations.
 // Commands receive the interpreter, the command name and a list of argument objects.
@@ -63,7 +63,7 @@ type TclObj Handle
 // # In case of an error, the command should set the interpreter's error information and return ResultError
 //
 // To return a value, the command should set the interpreter's result value and return ResultOK
-type CommandFunc func(i *Interp, cmd TclObj, args []TclObj) TclResult
+type CommandFunc func(i *Interp, cmd FeatherObj, args []FeatherObj) FeatherResult
 
 // varLink represents a link to a variable in another frame (for upvar)
 // or a link to a namespace variable (for variable command)
@@ -81,7 +81,7 @@ type Namespace struct {
 	fullPath       string
 	parent         *Namespace
 	children       map[string]*Namespace
-	vars           map[string]TclObj
+	vars           map[string]FeatherObj
 	commands       map[string]*Command // commands defined in this namespace
 	exportPatterns []string            // patterns for exported commands (e.g., "get*", "set*")
 }
@@ -89,9 +89,9 @@ type Namespace struct {
 // CallFrame represents an execution frame on the call stack.
 // Each frame has its own variable environment.
 type CallFrame struct {
-	cmd   TclObj            // command being evaluated
-	args  TclObj            // arguments to the command
-	vars  map[string]TclObj // local variable storage
+	cmd   FeatherObj            // command being evaluated
+	args  FeatherObj            // arguments to the command
+	vars  map[string]FeatherObj // local variable storage
 	links map[string]varLink // upvar links: local name -> target variable
 	level int               // frame index on the call stack
 	ns    *Namespace        // current namespace context
@@ -99,9 +99,9 @@ type CallFrame struct {
 
 // Procedure represents a user-defined procedure
 type Procedure struct {
-	name   TclObj
-	params TclObj
-	body   TclObj
+	name   FeatherObj
+	params FeatherObj
+	body   FeatherObj
 }
 
 // CommandType indicates the type of a command
@@ -116,30 +116,30 @@ const (
 // Command represents an entry in the unified command table
 type Command struct {
 	cmdType CommandType      // type of command
-	builtin C.TclBuiltinCmd  // function pointer (only for CmdBuiltin)
+	builtin C.FeatherBuiltinCmd  // function pointer (only for CmdBuiltin)
 	proc    *Procedure       // procedure info (only for CmdProc)
 }
 
 // TraceEntry represents a single trace registration
 type TraceEntry struct {
 	ops    string // space-separated operations: "read write" or "rename delete"
-	script TclObj // the command prefix to invoke
+	script FeatherObj // the command prefix to invoke
 }
 
 // Interp represents a TCL interpreter instance
 type Interp struct {
-	handle         TclInterp
-	objects        map[TclObj]*Object
-	globalNS       TclObj              // global namespace object (TclObj handle for "::")
+	handle         FeatherInterp
+	objects        map[FeatherObj]*Object
+	globalNS       FeatherObj              // global namespace object (FeatherObj handle for "::")
 	namespaces     map[string]*Namespace // namespace path -> Namespace
 	globalNamespace *Namespace           // the global namespace "::"
-	nextID         TclObj
-	result         TclObj
-	returnOptions  TclObj       // options from the last return command
+	nextID         FeatherObj
+	result         FeatherObj
+	returnOptions  FeatherObj       // options from the last return command
 	frames         []*CallFrame // call stack (frame 0 is global)
 	active         int          // currently active frame index
 	recursionLimit int          // maximum call stack depth (0 means use default)
-	scriptPath     TclObj       // current script file being executed (0 = none)
+	scriptPath     FeatherObj       // current script file being executed (0 = none)
 	varTraces      map[string][]TraceEntry // variable name -> traces
 	cmdTraces      map[string][]TraceEntry // command name -> traces
 
@@ -159,9 +159,9 @@ type Object struct {
 	isInt     bool
 	dblVal    float64
 	isDouble  bool
-	listItems []TclObj
+	listItems []FeatherObj
 	isList    bool
-	dictItems map[string]TclObj // key → value mapping
+	dictItems map[string]FeatherObj // key → value mapping
 	dictOrder []string          // keys in insertion order
 	isDict    bool
 	// Foreign object support
@@ -173,7 +173,7 @@ type Object struct {
 // NewInterp creates a new interpreter
 func NewInterp() *Interp {
 	interp := &Interp{
-		objects:    make(map[TclObj]*Object),
+		objects:    make(map[FeatherObj]*Object),
 		namespaces: make(map[string]*Namespace),
 		varTraces:  make(map[string][]TraceEntry),
 		cmdTraces:  make(map[string][]TraceEntry),
@@ -184,14 +184,14 @@ func NewInterp() *Interp {
 		fullPath: "::",
 		parent:   nil,
 		children: make(map[string]*Namespace),
-		vars:     make(map[string]TclObj),
+		vars:     make(map[string]FeatherObj),
 		commands: make(map[string]*Command),
 	}
 	interp.globalNamespace = globalNS
 	interp.namespaces["::"] = globalNS
 	// Initialize the global frame (frame 0)
 	globalFrame := &CallFrame{
-		vars:  make(map[string]TclObj),
+		vars:  make(map[string]FeatherObj),
 		links: make(map[string]varLink),
 		level: 0,
 		ns:    globalNS,
@@ -199,8 +199,8 @@ func NewInterp() *Interp {
 	interp.frames = []*CallFrame{globalFrame}
 	interp.active = 0
 	// Use cgo.Handle to allow C callbacks to find this interpreter
-	interp.handle = TclInterp(cgo.NewHandle(interp))
-	// Create the global namespace object (TclObj handle for "::")
+	interp.handle = FeatherInterp(cgo.NewHandle(interp))
+	// Create the global namespace object (FeatherObj handle for "::")
 	interp.globalNS = interp.internString("::")
 	// Initialize the C interpreter (registers builtins)
 	callCInterpInit(interp.handle)
@@ -235,7 +235,7 @@ func (i *Interp) getRecursionLimit() int {
 }
 
 // Handle returns the interpreter's handle
-func (i *Interp) Handle() TclInterp {
+func (i *Interp) Handle() FeatherInterp {
 	return i.handle
 }
 
@@ -403,7 +403,7 @@ func (i *Interp) Eval(script string) (string, error) {
 	// Handle TCL_RETURN at top level - apply the return options
 	if result == C.TCL_RETURN {
 		// Get return options and apply the code
-		var code C.TclResult = C.TCL_OK
+		var code C.FeatherResult = C.TCL_OK
 		if i.returnOptions != 0 {
 			items, err := i.GetList(i.returnOptions)
 			if err == nil {
@@ -411,7 +411,7 @@ func (i *Interp) Eval(script string) (string, error) {
 					key := i.GetString(items[j])
 					if key == "-code" {
 						if codeVal, err := i.GetInt(items[j+1]); err == nil {
-							code = C.TclResult(codeVal)
+							code = C.FeatherResult(codeVal)
 						}
 					}
 				}
@@ -460,7 +460,7 @@ func (e *EvalError) Error() string {
 }
 
 // internString stores a string and returns its handle
-func (i *Interp) internString(s string) TclObj {
+func (i *Interp) internString(s string) FeatherObj {
 	id := i.nextID
 	i.nextID++
 	i.objects[id] = &Object{stringVal: s}
@@ -468,14 +468,14 @@ func (i *Interp) internString(s string) TclObj {
 }
 
 // InternString stores a string and returns its handle.
-func (i *Interp) InternString(s string) TclObj {
+func (i *Interp) InternString(s string) FeatherObj {
 	return i.internString(s)
 }
 
 // NewForeign creates a new foreign object with the given type name and Go value.
 // The string representation is generated as "<TypeName:id>".
 // Returns the handle to the new foreign object.
-func (i *Interp) NewForeign(typeName string, value any) TclObj {
+func (i *Interp) NewForeign(typeName string, value any) FeatherObj {
 	id := i.nextID
 	i.nextID++
 	i.objects[id] = &Object{
@@ -488,7 +488,7 @@ func (i *Interp) NewForeign(typeName string, value any) TclObj {
 }
 
 // IsForeign returns true if the object is a foreign object.
-func (i *Interp) IsForeign(h TclObj) bool {
+func (i *Interp) IsForeign(h FeatherObj) bool {
 	if obj := i.getObject(h); obj != nil {
 		return obj.isForeign
 	}
@@ -496,7 +496,7 @@ func (i *Interp) IsForeign(h TclObj) bool {
 }
 
 // GetForeignType returns the type name of a foreign object, or empty string if not foreign.
-func (i *Interp) GetForeignType(h TclObj) string {
+func (i *Interp) GetForeignType(h FeatherObj) string {
 	if obj := i.getObject(h); obj != nil && obj.isForeign {
 		return obj.foreignType
 	}
@@ -504,7 +504,7 @@ func (i *Interp) GetForeignType(h TclObj) string {
 }
 
 // GetForeignValue returns the Go value of a foreign object, or nil if not foreign.
-func (i *Interp) GetForeignValue(h TclObj) any {
+func (i *Interp) GetForeignValue(h FeatherObj) any {
 	if obj := i.getObject(h); obj != nil && obj.isForeign {
 		return obj.foreignValue
 	}
@@ -512,13 +512,13 @@ func (i *Interp) GetForeignValue(h TclObj) any {
 }
 
 // getObject retrieves an object by handle
-func (i *Interp) getObject(h TclObj) *Object {
+func (i *Interp) getObject(h FeatherObj) *Object {
 	return i.objects[h]
 }
 
 // GetString returns the string representation of an object.
 // Performs shimmering: converts int/double/list/dict representations to string as needed.
-func (i *Interp) GetString(h TclObj) string {
+func (i *Interp) GetString(h FeatherObj) string {
 	if obj := i.getObject(h); obj != nil {
 		// Shimmer: int → string
 		if obj.isInt && obj.stringVal == "" {
@@ -559,7 +559,7 @@ func (i *Interp) DisplayName(name string) string {
 // GetInt returns the integer representation of an object.
 // Performs shimmering: parses string representation as integer if needed.
 // Returns an error if the value cannot be converted to an integer.
-func (i *Interp) GetInt(h TclObj) (int64, error) {
+func (i *Interp) GetInt(h FeatherObj) (int64, error) {
 	obj := i.getObject(h)
 	if obj == nil {
 		return 0, fmt.Errorf("nil object")
@@ -588,7 +588,7 @@ func (i *Interp) GetInt(h TclObj) (int64, error) {
 // GetDouble returns the floating-point representation of an object.
 // Performs shimmering: parses string representation as double if needed.
 // Returns an error if the value cannot be converted to a double.
-func (i *Interp) GetDouble(h TclObj) (float64, error) {
+func (i *Interp) GetDouble(h FeatherObj) (float64, error) {
 	obj := i.getObject(h)
 	if obj == nil {
 		return 0, fmt.Errorf("nil object")
@@ -617,7 +617,7 @@ func (i *Interp) GetDouble(h TclObj) (float64, error) {
 // GetList returns the list representation of an object.
 // Performs shimmering: parses string representation as list if needed.
 // Returns an error if the value cannot be converted to a list.
-func (i *Interp) GetList(h TclObj) ([]TclObj, error) {
+func (i *Interp) GetList(h FeatherObj) ([]FeatherObj, error) {
 	obj := i.getObject(h)
 	if obj == nil {
 		return nil, fmt.Errorf("nil object")
@@ -641,7 +641,7 @@ func (i *Interp) GetList(h TclObj) ([]TclObj, error) {
 // GetDict returns the dict representation of an object.
 // Performs shimmering: parses string/list representation as dict if needed.
 // Returns an error if the value cannot be converted to a dict (odd number of elements).
-func (i *Interp) GetDict(h TclObj) (map[string]TclObj, []string, error) {
+func (i *Interp) GetDict(h FeatherObj) (map[string]FeatherObj, []string, error) {
 	obj := i.getObject(h)
 	if obj == nil {
 		return nil, nil, fmt.Errorf("nil object")
@@ -661,7 +661,7 @@ func (i *Interp) GetDict(h TclObj) (map[string]TclObj, []string, error) {
 		return nil, nil, fmt.Errorf("missing value to go with key")
 	}
 	// Build dict
-	dictItems := make(map[string]TclObj)
+	dictItems := make(map[string]FeatherObj)
 	var dictOrder []string
 	for j := 0; j < len(items); j += 2 {
 		key := i.GetString(items[j])
@@ -680,8 +680,8 @@ func (i *Interp) GetDict(h TclObj) (map[string]TclObj, []string, error) {
 }
 
 // parseList parses a TCL list string into a slice of object handles.
-func (i *Interp) parseList(s string) ([]TclObj, error) {
-	var items []TclObj
+func (i *Interp) parseList(s string) ([]FeatherObj, error) {
+	var items []FeatherObj
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return items, nil
@@ -744,7 +744,7 @@ func (i *Interp) parseList(s string) ([]TclObj, error) {
 }
 
 // SetResult sets the interpreter's result to the given object.
-func (i *Interp) SetResult(obj TclObj) {
+func (i *Interp) SetResult(obj FeatherObj) {
 	i.result = obj
 }
 
@@ -777,7 +777,7 @@ func (i *Interp) GetVar(name string) string {
 	return ""
 }
 
-func getInterp(h C.TclInterp) *Interp {
+func getInterp(h C.FeatherInterp) *Interp {
 	return cgo.Handle(h).Value().(*Interp)
 }
 

@@ -1,4 +1,4 @@
-#include "tclc.h"
+#include "feather.h"
 #include "internal.h"
 
 // Helper to check string equality
@@ -13,19 +13,19 @@ static int str_eq(const char *s, size_t len, const char *lit) {
 }
 
 // dict create ?key value ...?
-static TclResult dict_create(const TclHostOps *ops, TclInterp interp, TclObj args) {
+static FeatherResult dict_create(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc % 2 != 0) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"dict create ?key value ...?\"", 53);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj dict = ops->dict.create(interp);
+  FeatherObj dict = ops->dict.create(interp);
   while (ops->list.length(interp, args) >= 2) {
-    TclObj key = ops->list.shift(interp, args);
-    TclObj val = ops->list.shift(interp, args);
+    FeatherObj key = ops->list.shift(interp, args);
+    FeatherObj val = ops->list.shift(interp, args);
     dict = ops->dict.set(interp, dict, key, val);
   }
 
@@ -34,16 +34,16 @@ static TclResult dict_create(const TclHostOps *ops, TclInterp interp, TclObj arg
 }
 
 // dict get dictValue ?key ...?
-static TclResult dict_get(const TclHostOps *ops, TclInterp interp, TclObj args) {
+static FeatherResult dict_get(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc < 1) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"dict get dictionary ?key ...?\"", 55);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj dict = ops->list.shift(interp, args);
+  FeatherObj dict = ops->list.shift(interp, args);
 
   // If no keys, return dictionary as list (all key-value pairs)
   if (ops->list.length(interp, args) == 0) {
@@ -53,12 +53,12 @@ static TclResult dict_get(const TclHostOps *ops, TclInterp interp, TclObj args) 
 
   // Navigate through nested dicts
   while (ops->list.length(interp, args) > 0) {
-    TclObj key = ops->list.shift(interp, args);
-    TclObj val = ops->dict.get(interp, dict, key);
+    FeatherObj key = ops->list.shift(interp, args);
+    FeatherObj val = ops->dict.get(interp, dict, key);
     if (ops->list.is_nil(interp, val)) {
-      TclObj msg = ops->string.intern(interp, "key \"", 5);
+      FeatherObj msg = ops->string.intern(interp, "key \"", 5);
       msg = ops->string.concat(interp, msg, key);
-      TclObj suffix = ops->string.intern(interp, "\" not known in dictionary", 25);
+      FeatherObj suffix = ops->string.intern(interp, "\" not known in dictionary", 25);
       msg = ops->string.concat(interp, msg, suffix);
       ops->interp.set_result(interp, msg);
       return TCL_ERROR;
@@ -71,50 +71,50 @@ static TclResult dict_get(const TclHostOps *ops, TclInterp interp, TclObj args) 
 }
 
 // dict set dictVariable key ?key ...? value
-static TclResult dict_set(const TclHostOps *ops, TclInterp interp, TclObj args) {
+static FeatherResult dict_set(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc < 3) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"dict set dictVarName key ?key ...? value\"", 66);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj varName = ops->list.shift(interp, args);
+  FeatherObj varName = ops->list.shift(interp, args);
 
   // Get the current dict from the variable (or empty if doesn't exist)
-  TclObj dict = ops->var.get(interp, varName);
+  FeatherObj dict = ops->var.get(interp, varName);
   if (ops->list.is_nil(interp, dict)) {
     dict = ops->dict.create(interp);
   }
 
   // Get all keys except the last argument (which is the value)
-  TclObj keys = ops->list.create(interp);
+  FeatherObj keys = ops->list.create(interp);
   while (ops->list.length(interp, args) > 1) {
-    TclObj key = ops->list.shift(interp, args);
+    FeatherObj key = ops->list.shift(interp, args);
     keys = ops->list.push(interp, keys, key);
   }
-  TclObj value = ops->list.shift(interp, args);
+  FeatherObj value = ops->list.shift(interp, args);
 
   size_t numKeys = ops->list.length(interp, keys);
   if (numKeys == 1) {
     // Simple case: single key
-    TclObj key = ops->list.at(interp, keys, 0);
+    FeatherObj key = ops->list.at(interp, keys, 0);
     dict = ops->dict.set(interp, dict, key, value);
   } else {
     // Nested dict case: navigate to innermost, then set
     // Build array of dicts from outermost to innermost
-    TclObj dicts[64]; // Max nesting depth
+    FeatherObj dicts[64]; // Max nesting depth
     if (numKeys > 64) {
-      TclObj msg = ops->string.intern(interp, "too many nested keys", 20);
+      FeatherObj msg = ops->string.intern(interp, "too many nested keys", 20);
       ops->interp.set_result(interp, msg);
       return TCL_ERROR;
     }
 
     dicts[0] = dict;
     for (size_t i = 0; i < numKeys - 1; i++) {
-      TclObj key = ops->list.at(interp, keys, i);
-      TclObj nested = ops->dict.get(interp, dicts[i], key);
+      FeatherObj key = ops->list.at(interp, keys, i);
+      FeatherObj nested = ops->dict.get(interp, dicts[i], key);
       if (ops->list.is_nil(interp, nested)) {
         nested = ops->dict.create(interp);
       }
@@ -122,12 +122,12 @@ static TclResult dict_set(const TclHostOps *ops, TclInterp interp, TclObj args) 
     }
 
     // Set value in innermost dict
-    TclObj innerKey = ops->list.at(interp, keys, numKeys - 1);
+    FeatherObj innerKey = ops->list.at(interp, keys, numKeys - 1);
     dicts[numKeys - 1] = ops->dict.set(interp, dicts[numKeys - 1], innerKey, value);
 
     // Rebuild from inside out
     for (size_t i = numKeys - 1; i > 0; i--) {
-      TclObj key = ops->list.at(interp, keys, i - 1);
+      FeatherObj key = ops->list.at(interp, keys, i - 1);
       dicts[i - 1] = ops->dict.set(interp, dicts[i - 1], key, dicts[i]);
     }
     dict = dicts[0];
@@ -139,20 +139,20 @@ static TclResult dict_set(const TclHostOps *ops, TclInterp interp, TclObj args) 
 }
 
 // dict exists dictValue key ?key ...?
-static TclResult dict_exists(const TclHostOps *ops, TclInterp interp, TclObj args) {
+static FeatherResult dict_exists(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc < 2) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"dict exists dictionary key ?key ...?\"", 62);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj dict = ops->list.shift(interp, args);
+  FeatherObj dict = ops->list.shift(interp, args);
 
   // Navigate through nested dicts
   while (ops->list.length(interp, args) > 0) {
-    TclObj key = ops->list.shift(interp, args);
+    FeatherObj key = ops->list.shift(interp, args);
     if (!ops->dict.exists(interp, dict, key)) {
       ops->interp.set_result(interp, ops->integer.create(interp, 0));
       return TCL_OK;
@@ -165,17 +165,17 @@ static TclResult dict_exists(const TclHostOps *ops, TclInterp interp, TclObj arg
 }
 
 // dict keys dictValue ?pattern?
-static TclResult dict_keys(const TclHostOps *ops, TclInterp interp, TclObj args) {
+static FeatherResult dict_keys(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc < 1 || argc > 2) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"dict keys dictionary ?globPattern?\"", 60);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj dict = ops->list.shift(interp, args);
-  TclObj allKeys = ops->dict.keys(interp, dict);
+  FeatherObj dict = ops->list.shift(interp, args);
+  FeatherObj allKeys = ops->dict.keys(interp, dict);
 
   if (argc == 1) {
     // No pattern, return all keys
@@ -184,17 +184,17 @@ static TclResult dict_keys(const TclHostOps *ops, TclInterp interp, TclObj args)
   }
 
   // Filter by pattern
-  TclObj pattern = ops->list.shift(interp, args);
+  FeatherObj pattern = ops->list.shift(interp, args);
   size_t patLen;
   const char *patStr = ops->string.get(interp, pattern, &patLen);
 
-  TclObj result = ops->list.create(interp);
+  FeatherObj result = ops->list.create(interp);
   size_t numKeys = ops->list.length(interp, allKeys);
   for (size_t i = 0; i < numKeys; i++) {
-    TclObj key = ops->list.at(interp, allKeys, i);
+    FeatherObj key = ops->list.at(interp, allKeys, i);
     size_t keyLen;
     const char *keyStr = ops->string.get(interp, key, &keyLen);
-    if (tcl_glob_match(patStr, patLen, keyStr, keyLen)) {
+    if (feather_glob_match(patStr, patLen, keyStr, keyLen)) {
       result = ops->list.push(interp, result, key);
     }
   }
@@ -204,17 +204,17 @@ static TclResult dict_keys(const TclHostOps *ops, TclInterp interp, TclObj args)
 }
 
 // dict values dictValue ?pattern?
-static TclResult dict_values(const TclHostOps *ops, TclInterp interp, TclObj args) {
+static FeatherResult dict_values(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc < 1 || argc > 2) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"dict values dictionary ?globPattern?\"", 62);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj dict = ops->list.shift(interp, args);
-  TclObj allValues = ops->dict.values(interp, dict);
+  FeatherObj dict = ops->list.shift(interp, args);
+  FeatherObj allValues = ops->dict.values(interp, dict);
 
   if (argc == 1) {
     // No pattern, return all values
@@ -223,17 +223,17 @@ static TclResult dict_values(const TclHostOps *ops, TclInterp interp, TclObj arg
   }
 
   // Filter by pattern
-  TclObj pattern = ops->list.shift(interp, args);
+  FeatherObj pattern = ops->list.shift(interp, args);
   size_t patLen;
   const char *patStr = ops->string.get(interp, pattern, &patLen);
 
-  TclObj result = ops->list.create(interp);
+  FeatherObj result = ops->list.create(interp);
   size_t numVals = ops->list.length(interp, allValues);
   for (size_t i = 0; i < numVals; i++) {
-    TclObj val = ops->list.at(interp, allValues, i);
+    FeatherObj val = ops->list.at(interp, allValues, i);
     size_t valLen;
     const char *valStr = ops->string.get(interp, val, &valLen);
-    if (tcl_glob_match(patStr, patLen, valStr, valLen)) {
+    if (feather_glob_match(patStr, patLen, valStr, valLen)) {
       result = ops->list.push(interp, result, val);
     }
   }
@@ -243,34 +243,34 @@ static TclResult dict_values(const TclHostOps *ops, TclInterp interp, TclObj arg
 }
 
 // dict size dictValue
-static TclResult dict_size(const TclHostOps *ops, TclInterp interp, TclObj args) {
+static FeatherResult dict_size(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   if (ops->list.length(interp, args) != 1) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"dict size dictionary\"", 46);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj dict = ops->list.shift(interp, args);
+  FeatherObj dict = ops->list.shift(interp, args);
   size_t sz = ops->dict.size(interp, dict);
   ops->interp.set_result(interp, ops->integer.create(interp, (int64_t)sz));
   return TCL_OK;
 }
 
 // dict remove dictValue ?key ...?
-static TclResult dict_remove(const TclHostOps *ops, TclInterp interp, TclObj args) {
+static FeatherResult dict_remove(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   if (ops->list.length(interp, args) < 1) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"dict remove dictionary ?key ...?\"", 58);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj dict = ops->list.shift(interp, args);
+  FeatherObj dict = ops->list.shift(interp, args);
 
   // Remove each key
   while (ops->list.length(interp, args) > 0) {
-    TclObj key = ops->list.shift(interp, args);
+    FeatherObj key = ops->list.shift(interp, args);
     dict = ops->dict.remove(interp, dict, key);
   }
 
@@ -279,21 +279,21 @@ static TclResult dict_remove(const TclHostOps *ops, TclInterp interp, TclObj arg
 }
 
 // dict replace dictValue ?key value ...?
-static TclResult dict_replace(const TclHostOps *ops, TclInterp interp, TclObj args) {
+static FeatherResult dict_replace(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc < 1 || (argc - 1) % 2 != 0) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"dict replace dictionary ?key value ...?\"", 65);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj dict = ops->list.shift(interp, args);
+  FeatherObj dict = ops->list.shift(interp, args);
 
   // Set each key-value pair
   while (ops->list.length(interp, args) >= 2) {
-    TclObj key = ops->list.shift(interp, args);
-    TclObj val = ops->list.shift(interp, args);
+    FeatherObj key = ops->list.shift(interp, args);
+    FeatherObj val = ops->list.shift(interp, args);
     dict = ops->dict.set(interp, dict, key, val);
   }
 
@@ -302,16 +302,16 @@ static TclResult dict_replace(const TclHostOps *ops, TclInterp interp, TclObj ar
 }
 
 // dict merge ?dictValue ...?
-static TclResult dict_merge(const TclHostOps *ops, TclInterp interp, TclObj args) {
-  TclObj result = ops->dict.create(interp);
+static FeatherResult dict_merge(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
+  FeatherObj result = ops->dict.create(interp);
 
   while (ops->list.length(interp, args) > 0) {
-    TclObj dict = ops->list.shift(interp, args);
-    TclObj keys = ops->dict.keys(interp, dict);
+    FeatherObj dict = ops->list.shift(interp, args);
+    FeatherObj keys = ops->dict.keys(interp, dict);
     size_t numKeys = ops->list.length(interp, keys);
     for (size_t i = 0; i < numKeys; i++) {
-      TclObj key = ops->list.at(interp, keys, i);
-      TclObj val = ops->dict.get(interp, dict, key);
+      FeatherObj key = ops->list.at(interp, keys, i);
+      FeatherObj val = ops->dict.get(interp, dict, key);
       result = ops->dict.set(interp, result, key, val);
     }
   }
@@ -321,33 +321,33 @@ static TclResult dict_merge(const TclHostOps *ops, TclInterp interp, TclObj args
 }
 
 // dict append dictVariable key ?string ...?
-static TclResult dict_append(const TclHostOps *ops, TclInterp interp, TclObj args) {
+static FeatherResult dict_append(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc < 2) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"dict append dictVarName key ?value ...?\"", 65);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj varName = ops->list.shift(interp, args);
-  TclObj key = ops->list.shift(interp, args);
+  FeatherObj varName = ops->list.shift(interp, args);
+  FeatherObj key = ops->list.shift(interp, args);
 
   // Get current dict
-  TclObj dict = ops->var.get(interp, varName);
+  FeatherObj dict = ops->var.get(interp, varName);
   if (ops->list.is_nil(interp, dict)) {
     dict = ops->dict.create(interp);
   }
 
   // Get current value or empty string
-  TclObj val = ops->dict.get(interp, dict, key);
+  FeatherObj val = ops->dict.get(interp, dict, key);
   if (ops->list.is_nil(interp, val)) {
     val = ops->string.intern(interp, "", 0);
   }
 
   // Append all strings
   while (ops->list.length(interp, args) > 0) {
-    TclObj str = ops->list.shift(interp, args);
+    FeatherObj str = ops->list.shift(interp, args);
     val = ops->string.concat(interp, val, str);
   }
 
@@ -358,25 +358,25 @@ static TclResult dict_append(const TclHostOps *ops, TclInterp interp, TclObj arg
 }
 
 // dict incr dictVariable key ?increment?
-static TclResult dict_incr(const TclHostOps *ops, TclInterp interp, TclObj args) {
+static FeatherResult dict_incr(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc < 2 || argc > 3) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"dict incr dictVarName key ?increment?\"", 63);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj varName = ops->list.shift(interp, args);
-  TclObj key = ops->list.shift(interp, args);
+  FeatherObj varName = ops->list.shift(interp, args);
+  FeatherObj key = ops->list.shift(interp, args);
 
   int64_t increment = 1;
   if (argc == 3) {
-    TclObj incrObj = ops->list.shift(interp, args);
+    FeatherObj incrObj = ops->list.shift(interp, args);
     if (ops->integer.get(interp, incrObj, &increment) != TCL_OK) {
-      TclObj msg = ops->string.intern(interp, "expected integer but got \"", 26);
+      FeatherObj msg = ops->string.intern(interp, "expected integer but got \"", 26);
       msg = ops->string.concat(interp, msg, incrObj);
-      TclObj suffix = ops->string.intern(interp, "\"", 1);
+      FeatherObj suffix = ops->string.intern(interp, "\"", 1);
       msg = ops->string.concat(interp, msg, suffix);
       ops->interp.set_result(interp, msg);
       return TCL_ERROR;
@@ -384,20 +384,20 @@ static TclResult dict_incr(const TclHostOps *ops, TclInterp interp, TclObj args)
   }
 
   // Get current dict
-  TclObj dict = ops->var.get(interp, varName);
+  FeatherObj dict = ops->var.get(interp, varName);
   if (ops->list.is_nil(interp, dict)) {
     dict = ops->dict.create(interp);
   }
 
   // Get current value or 0
   int64_t current = 0;
-  TclObj val = ops->dict.get(interp, dict, key);
+  FeatherObj val = ops->dict.get(interp, dict, key);
   if (!ops->list.is_nil(interp, val)) {
     if (ops->integer.get(interp, val, &current) != TCL_OK) {
-      TclObj msg = ops->string.intern(interp,
+      FeatherObj msg = ops->string.intern(interp,
         "expected integer but got \"", 26);
       msg = ops->string.concat(interp, msg, val);
-      TclObj suffix = ops->string.intern(interp, "\"", 1);
+      FeatherObj suffix = ops->string.intern(interp, "\"", 1);
       msg = ops->string.concat(interp, msg, suffix);
       ops->interp.set_result(interp, msg);
       return TCL_ERROR;
@@ -405,7 +405,7 @@ static TclResult dict_incr(const TclHostOps *ops, TclInterp interp, TclObj args)
   }
 
   current += increment;
-  TclObj newVal = ops->integer.create(interp, current);
+  FeatherObj newVal = ops->integer.create(interp, current);
   dict = ops->dict.set(interp, dict, key, newVal);
   ops->var.set(interp, varName, dict);
   ops->interp.set_result(interp, dict);
@@ -413,26 +413,26 @@ static TclResult dict_incr(const TclHostOps *ops, TclInterp interp, TclObj args)
 }
 
 // dict lappend dictVariable key ?value ...?
-static TclResult dict_lappend(const TclHostOps *ops, TclInterp interp, TclObj args) {
+static FeatherResult dict_lappend(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc < 2) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"dict lappend dictVarName key ?value ...?\"", 66);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj varName = ops->list.shift(interp, args);
-  TclObj key = ops->list.shift(interp, args);
+  FeatherObj varName = ops->list.shift(interp, args);
+  FeatherObj key = ops->list.shift(interp, args);
 
   // Get current dict
-  TclObj dict = ops->var.get(interp, varName);
+  FeatherObj dict = ops->var.get(interp, varName);
   if (ops->list.is_nil(interp, dict)) {
     dict = ops->dict.create(interp);
   }
 
   // Get current value or empty list
-  TclObj val = ops->dict.get(interp, dict, key);
+  FeatherObj val = ops->dict.get(interp, dict, key);
   if (ops->list.is_nil(interp, val)) {
     val = ops->list.create(interp);
   } else {
@@ -442,7 +442,7 @@ static TclResult dict_lappend(const TclHostOps *ops, TclInterp interp, TclObj ar
 
   // Append all values
   while (ops->list.length(interp, args) > 0) {
-    TclObj item = ops->list.shift(interp, args);
+    FeatherObj item = ops->list.shift(interp, args);
     val = ops->list.push(interp, val, item);
   }
 
@@ -453,48 +453,48 @@ static TclResult dict_lappend(const TclHostOps *ops, TclInterp interp, TclObj ar
 }
 
 // dict unset dictVariable key ?key ...?
-static TclResult dict_unset(const TclHostOps *ops, TclInterp interp, TclObj args) {
+static FeatherResult dict_unset(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc < 2) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"dict unset dictVarName key ?key ...?\"", 62);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj varName = ops->list.shift(interp, args);
+  FeatherObj varName = ops->list.shift(interp, args);
 
   // Get current dict
-  TclObj dict = ops->var.get(interp, varName);
+  FeatherObj dict = ops->var.get(interp, varName);
   if (ops->list.is_nil(interp, dict)) {
     dict = ops->dict.create(interp);
   }
 
   // Collect keys
-  TclObj keys = ops->list.create(interp);
+  FeatherObj keys = ops->list.create(interp);
   while (ops->list.length(interp, args) > 0) {
-    TclObj key = ops->list.shift(interp, args);
+    FeatherObj key = ops->list.shift(interp, args);
     keys = ops->list.push(interp, keys, key);
   }
 
   size_t numKeys = ops->list.length(interp, keys);
   if (numKeys == 1) {
     // Simple case
-    TclObj key = ops->list.at(interp, keys, 0);
+    FeatherObj key = ops->list.at(interp, keys, 0);
     dict = ops->dict.remove(interp, dict, key);
   } else {
     // Nested case: navigate and unset
-    TclObj dicts[64];
+    FeatherObj dicts[64];
     if (numKeys > 64) {
-      TclObj msg = ops->string.intern(interp, "too many nested keys", 20);
+      FeatherObj msg = ops->string.intern(interp, "too many nested keys", 20);
       ops->interp.set_result(interp, msg);
       return TCL_ERROR;
     }
 
     dicts[0] = dict;
     for (size_t i = 0; i < numKeys - 1; i++) {
-      TclObj key = ops->list.at(interp, keys, i);
-      TclObj nested = ops->dict.get(interp, dicts[i], key);
+      FeatherObj key = ops->list.at(interp, keys, i);
+      FeatherObj nested = ops->dict.get(interp, dicts[i], key);
       if (ops->list.is_nil(interp, nested)) {
         // Key doesn't exist, nothing to unset
         ops->var.set(interp, varName, dict);
@@ -505,12 +505,12 @@ static TclResult dict_unset(const TclHostOps *ops, TclInterp interp, TclObj args
     }
 
     // Remove from innermost
-    TclObj innerKey = ops->list.at(interp, keys, numKeys - 1);
+    FeatherObj innerKey = ops->list.at(interp, keys, numKeys - 1);
     dicts[numKeys - 1] = ops->dict.remove(interp, dicts[numKeys - 1], innerKey);
 
     // Rebuild from inside out
     for (size_t i = numKeys - 1; i > 0; i--) {
-      TclObj key = ops->list.at(interp, keys, i - 1);
+      FeatherObj key = ops->list.at(interp, keys, i - 1);
       dicts[i - 1] = ops->dict.set(interp, dicts[i - 1], key, dicts[i]);
     }
     dict = dicts[0];
@@ -522,40 +522,40 @@ static TclResult dict_unset(const TclHostOps *ops, TclInterp interp, TclObj args
 }
 
 // dict for {keyVar valueVar} dictValue body
-static TclResult dict_for(const TclHostOps *ops, TclInterp interp, TclObj args) {
+static FeatherResult dict_for(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   if (ops->list.length(interp, args) != 3) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"dict for {keyVarName valueVarName} dictionary body\"", 77);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj varSpec = ops->list.shift(interp, args);
-  TclObj dict = ops->list.shift(interp, args);
-  TclObj body = ops->list.shift(interp, args);
+  FeatherObj varSpec = ops->list.shift(interp, args);
+  FeatherObj dict = ops->list.shift(interp, args);
+  FeatherObj body = ops->list.shift(interp, args);
 
   // Parse varSpec to get keyVar and valueVar
-  TclObj varList = ops->list.from(interp, varSpec);
+  FeatherObj varList = ops->list.from(interp, varSpec);
   if (ops->list.length(interp, varList) != 2) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "must have exactly two variable names", 36);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
-  TclObj keyVar = ops->list.at(interp, varList, 0);
-  TclObj valVar = ops->list.at(interp, varList, 1);
+  FeatherObj keyVar = ops->list.at(interp, varList, 0);
+  FeatherObj valVar = ops->list.at(interp, varList, 1);
 
-  TclObj keys = ops->dict.keys(interp, dict);
+  FeatherObj keys = ops->dict.keys(interp, dict);
   size_t numKeys = ops->list.length(interp, keys);
 
   for (size_t i = 0; i < numKeys; i++) {
-    TclObj key = ops->list.at(interp, keys, i);
-    TclObj val = ops->dict.get(interp, dict, key);
+    FeatherObj key = ops->list.at(interp, keys, i);
+    FeatherObj val = ops->dict.get(interp, dict, key);
 
     ops->var.set(interp, keyVar, key);
     ops->var.set(interp, valVar, val);
 
-    TclResult res = tcl_script_eval_obj(ops, interp, body, TCL_EVAL_LOCAL);
+    FeatherResult res = feather_script_eval_obj(ops, interp, body, TCL_EVAL_LOCAL);
     if (res == TCL_BREAK) {
       break;
     } else if (res == TCL_CONTINUE) {
@@ -570,15 +570,15 @@ static TclResult dict_for(const TclHostOps *ops, TclInterp interp, TclObj args) 
 }
 
 // dict info dictValue
-static TclResult dict_info(const TclHostOps *ops, TclInterp interp, TclObj args) {
+static FeatherResult dict_info(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   if (ops->list.length(interp, args) != 1) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"dict info dictionary\"", 46);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj dict = ops->list.shift(interp, args);
+  FeatherObj dict = ops->list.shift(interp, args);
   size_t sz = ops->dict.size(interp, dict);
 
   // Return simple info string
@@ -609,23 +609,23 @@ static TclResult dict_info(const TclHostOps *ops, TclInterp interp, TclObj args)
 }
 
 // dict getdef / getwithdefault dictValue ?key ...? key default
-static TclResult dict_getdef(const TclHostOps *ops, TclInterp interp, TclObj args) {
+static FeatherResult dict_getdef(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
   if (argc < 3) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"dict getdef dictionary ?key ...? key default\"", 70);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj dict = ops->list.shift(interp, args);
+  FeatherObj dict = ops->list.shift(interp, args);
 
   // Last argument is default, rest are keys
-  TclObj defaultVal = ops->list.pop(interp, args);
+  FeatherObj defaultVal = ops->list.pop(interp, args);
 
   // Navigate through nested dicts
   while (ops->list.length(interp, args) > 0) {
-    TclObj key = ops->list.shift(interp, args);
+    FeatherObj key = ops->list.shift(interp, args);
     if (!ops->dict.exists(interp, dict, key)) {
       ops->interp.set_result(interp, defaultVal);
       return TCL_OK;
@@ -638,19 +638,19 @@ static TclResult dict_getdef(const TclHostOps *ops, TclInterp interp, TclObj arg
 }
 
 // Main dict command dispatcher
-TclResult tcl_builtin_dict(const TclHostOps *ops, TclInterp interp,
-                           TclObj cmd, TclObj args) {
+FeatherResult feather_builtin_dict(const FeatherHostOps *ops, FeatherInterp interp,
+                           FeatherObj cmd, FeatherObj args) {
   (void)cmd;
   size_t argc = ops->list.length(interp, args);
 
   if (argc < 1) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"dict subcommand ?arg ...?\"", 51);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj subcmd = ops->list.shift(interp, args);
+  FeatherObj subcmd = ops->list.shift(interp, args);
   size_t len;
   const char *subcmdStr = ops->string.get(interp, subcmd, &len);
 
@@ -689,9 +689,9 @@ TclResult tcl_builtin_dict(const TclHostOps *ops, TclInterp interp,
   } else if (str_eq(subcmdStr, len, "getdef") || str_eq(subcmdStr, len, "getwithdefault")) {
     return dict_getdef(ops, interp, args);
   } else {
-    TclObj msg = ops->string.intern(interp, "unknown or ambiguous subcommand \"", 33);
+    FeatherObj msg = ops->string.intern(interp, "unknown or ambiguous subcommand \"", 33);
     msg = ops->string.concat(interp, msg, subcmd);
-    TclObj suffix = ops->string.intern(interp,
+    FeatherObj suffix = ops->string.intern(interp,
       "\": must be append, create, exists, for, get, getdef, getwithdefault, incr, info, keys, lappend, merge, remove, replace, set, size, unset, or values", 147);
     msg = ops->string.concat(interp, msg, suffix);
     ops->interp.set_result(interp, msg);

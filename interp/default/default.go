@@ -4,7 +4,7 @@ package defaults
 import (
 	"fmt"
 
-	"github.com/dhamidi/tclc/interp"
+	"github.com/feather-lang/feather/interp"
 )
 
 // Counter is a simple foreign object type for testing and demonstration.
@@ -53,13 +53,13 @@ func NewHost() *interp.Host {
 	return h
 }
 
-func cmdSayHello(i *interp.Interp, cmd interp.TclObj, args []interp.TclObj) interp.TclResult {
+func cmdSayHello(i *interp.Interp, cmd interp.FeatherObj, args []interp.FeatherObj) interp.FeatherResult {
 	fmt.Println("hello")
 	i.SetResultString("")
 	return interp.ResultOK
 }
 
-func cmdEcho(i *interp.Interp, cmd interp.TclObj, args []interp.TclObj) interp.TclResult {
+func cmdEcho(i *interp.Interp, cmd interp.FeatherObj, args []interp.FeatherObj) interp.FeatherResult {
 	// Print all arguments separated by spaces
 	for idx, arg := range args {
 		if idx > 0 {
@@ -72,13 +72,13 @@ func cmdEcho(i *interp.Interp, cmd interp.TclObj, args []interp.TclObj) interp.T
 	return interp.ResultOK
 }
 
-func cmdCount(i *interp.Interp, cmd interp.TclObj, args []interp.TclObj) interp.TclResult {
+func cmdCount(i *interp.Interp, cmd interp.FeatherObj, args []interp.FeatherObj) interp.FeatherResult {
 	// Return the number of arguments received
 	i.SetResultString(fmt.Sprintf("%d", len(args)))
 	return interp.ResultOK
 }
 
-func cmdList(i *interp.Interp, cmd interp.TclObj, args []interp.TclObj) interp.TclResult {
+func cmdList(i *interp.Interp, cmd interp.FeatherObj, args []interp.FeatherObj) interp.FeatherResult {
 	// Return arguments as a properly formatted TCL list
 	var parts []string
 	for _, arg := range args {

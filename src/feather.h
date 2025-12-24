@@ -87,19 +87,19 @@
  */
 
 /** An opaque handle type, used by the host to identify objects */
-typedef uintptr_t TclHandle;
+typedef uintptr_t FeatherHandle;
 
 /** A handle to an interpreter instance */
-typedef TclHandle TclInterp;
+typedef FeatherHandle FeatherInterp;
 
 /** A handle to an object */
-typedef TclHandle TclObj;
+typedef FeatherHandle FeatherObj;
 
 /**
- * TclHostOps contains all operations that the host needs to support for
+ * FeatherHostOps contains all operations that the host needs to support for
  * this interpreter to work.
  */
-typedef struct TclHostOps TclHostOps;
+typedef struct FeatherHostOps FeatherHostOps;
 
 /**
  * The return code of a function informs the TCL interpreter about how to
@@ -132,20 +132,20 @@ typedef enum {
    * Continue in the caller's frame (used by custom continue-like functions).
    */
   TCL_CONTINUE = 4,
-} TclResult;
+} FeatherResult;
 
 /**
- * TclBuiltinCmd is the signature for builtin command implementations.
+ * FeatherBuiltinCmd is the signature for builtin command implementations.
  *
  * Builtin commands receive the host operations, interpreter, command name,
  * and argument list. They return a result code and set the interpreter's
  * result via ops->interp.set_result.
  */
-typedef TclResult (*TclBuiltinCmd)(const TclHostOps *ops, TclInterp interp,
-                                   TclObj cmd, TclObj args);
+typedef FeatherResult (*FeatherBuiltinCmd)(const FeatherHostOps *ops, FeatherInterp interp,
+                                   FeatherObj cmd, FeatherObj args);
 
 /**
- * TclTokenType encodes the types of tokens returned by the parser.
+ * FeatherTokenType encodes the types of tokens returned by the parser.
  *
  * During parsing, the parser creates tagged spans of text and stores
  * them in a TCL list.
@@ -161,10 +161,10 @@ typedef enum {
   TCL_TOKEN_QUOTED = 4,           // "hello world"
   TCL_TOKEN_BRACED = 5,           // {hello world}
   TCL_TOKEN_COMMAND_SEPARATOR = 6 // newline, end of input
-} TclTokenType;
+} FeatherTokenType;
 
 /**
- * TclParseStatus informs the caller about whether and how the parser
+ * FeatherParseStatus informs the caller about whether and how the parser
  * can be invoked again on the same input.
  */
 typedef enum {
@@ -176,24 +176,24 @@ typedef enum {
   TCL_PARSE_ERROR = 2,
   // no more commands in the script
   TCL_PARSE_DONE = 3
-} TclParseStatus;
+} FeatherParseStatus;
 
 /**
- * TclParseContext holds the state for iterating over commands in a script.
+ * FeatherParseContext holds the state for iterating over commands in a script.
  */
 typedef struct {
   const char *script;  // Original script
   size_t len;          // Total length
   size_t pos;          // Current position
-} TclParseContext;
+} FeatherParseContext;
 
 /**
- * tcl_parse_init initializes a parse context for iterating over commands.
+ * feather_parse_init initializes a parse context for iterating over commands.
  */
-void tcl_parse_init(TclParseContext *ctx, const char *script, size_t len);
+void feather_parse_init(FeatherParseContext *ctx, const char *script, size_t len);
 
 /**
- * tcl_parse_command parses the next command from the script.
+ * feather_parse_command parses the next command from the script.
  *
  * Returns TCL_PARSE_OK when a command was parsed successfully.
  * The parsed command (list of words) is in the interpreter's result slot.
@@ -203,15 +203,15 @@ void tcl_parse_init(TclParseContext *ctx, const char *script, size_t len);
  * Returns TCL_PARSE_INCOMPLETE or TCL_PARSE_ERROR on failure,
  * with error information in the interpreter's result slot.
  */
-TclParseStatus tcl_parse_command(const TclHostOps *ops, TclInterp interp,
-                                  TclParseContext *ctx);
+FeatherParseStatus feather_parse_command(const FeatherHostOps *ops, FeatherInterp interp,
+                                  FeatherParseContext *ctx);
 
 typedef enum {
   // Evaluate in the current scope of the interpreter
   TCL_EVAL_LOCAL = 0,
   // Evaluate in the interpreter's global scope
   TCL_EVAL_GLOBAL = 1,
-} TclEvalFlags;
+} FeatherEvalFlags;
 
 /*
  * EVALUATION API
@@ -245,7 +245,7 @@ typedef enum {
  */
 
 /**
- * tcl_command_exec executes a single parsed command.
+ * feather_command_exec executes a single parsed command.
  *
  * The command must be a list [name, arg1, arg2, ...].
  * Looks up 'name' and invokes it with the argument list.
@@ -256,11 +256,11 @@ typedef enum {
  *
  * The result of execution is in the interpreter's result slot.
  */
-TclResult tcl_command_exec(const TclHostOps *ops, TclInterp interp,
-                           TclObj command, TclEvalFlags flags);
+FeatherResult feather_command_exec(const FeatherHostOps *ops, FeatherInterp interp,
+                           FeatherObj command, FeatherEvalFlags flags);
 
 /**
- * tcl_script_eval evaluates a script string.
+ * feather_script_eval evaluates a script string.
  *
  * Parses each command and executes it. Stops on error or when
  * a command returns a non-OK code (break/continue/return).
@@ -270,11 +270,11 @@ TclResult tcl_command_exec(const TclHostOps *ops, TclInterp interp,
  *
  * The result of the last command is in the interpreter's result slot.
  */
-TclResult tcl_script_eval(const TclHostOps *ops, TclInterp interp,
-                          const char *source, size_t len, TclEvalFlags flags);
+FeatherResult feather_script_eval(const FeatherHostOps *ops, FeatherInterp interp,
+                          const char *source, size_t len, FeatherEvalFlags flags);
 
 /**
- * tcl_script_eval_obj evaluates a script object.
+ * feather_script_eval_obj evaluates a script object.
  *
  * Gets the string representation of the object and evaluates it
  * as a script. This is what control structures (if, while, catch, proc)
@@ -284,21 +284,21 @@ TclResult tcl_script_eval(const TclHostOps *ops, TclInterp interp,
  *
  * The result is in the interpreter's result slot.
  */
-TclResult tcl_script_eval_obj(const TclHostOps *ops, TclInterp interp,
-                              TclObj script, TclEvalFlags flags);
+FeatherResult feather_script_eval_obj(const FeatherHostOps *ops, FeatherInterp interp,
+                              FeatherObj script, FeatherEvalFlags flags);
 
 /**
- * Flags for tcl_subst controlling which substitutions to perform.
+ * Flags for feather_subst controlling which substitutions to perform.
  */
 typedef enum {
   TCL_SUBST_BACKSLASHES = 1,
   TCL_SUBST_VARIABLES = 2,
   TCL_SUBST_COMMANDS = 4,
   TCL_SUBST_ALL = 7
-} TclSubstFlags;
+} FeatherSubstFlags;
 
 /**
- * tcl_subst performs substitutions on a string.
+ * feather_subst performs substitutions on a string.
  *
  * Performs backslash, variable, and/or command substitution on the input
  * string according to the flags parameter. The result is placed in the
@@ -310,7 +310,7 @@ typedef enum {
  *
  * Returns TCL_OK on success, TCL_ERROR on failure.
  */
-TclResult tcl_subst(const TclHostOps *ops, TclInterp interp,
+FeatherResult feather_subst(const FeatherHostOps *ops, FeatherInterp interp,
                     const char *str, size_t len, int flags);
 
 /**
@@ -321,7 +321,7 @@ TclResult tcl_subst(const TclHostOps *ops, TclInterp interp,
  */
 
 /**
- * TclFrameOps describe the operations on execution frames.
+ * FeatherFrameOps describe the operations on execution frames.
  *
  * Frames contain:
  * - the variable environment in which expressions are evaluated,
@@ -331,26 +331,26 @@ TclResult tcl_subst(const TclHostOps *ops, TclInterp interp,
  * - the error object in case of an error,
  * - their index on the call stack.
  */
-typedef struct TclFrameOps {
+typedef struct FeatherFrameOps {
   /**
    * push adds a new call frame to the stack for the evaluation of cmd and args.
    */
-  TclResult (*push)(TclInterp interp, TclObj cmd, TclObj args);
+  FeatherResult (*push)(FeatherInterp interp, FeatherObj cmd, FeatherObj args);
 
   /**
    * pop removes the topmost frame from the callstack.
    */
-  TclResult (*pop)(TclInterp interp);
+  FeatherResult (*pop)(FeatherInterp interp);
 
   /**
    * level returns the current level of the call stack.
    */
-  size_t (*level)(TclInterp interp);
+  size_t (*level)(FeatherInterp interp);
 
   /**
    * set_active makes the provided frame the active frame on the call stack.
    */
-  TclResult (*set_active)(TclInterp interp, size_t level);
+  FeatherResult (*set_active)(FeatherInterp interp, size_t level);
 
   /**
    * size returns the size of the call stack.
@@ -358,7 +358,7 @@ typedef struct TclFrameOps {
    * This is important because the level reported by level can
    * be less than the size because of a prior call to set_active.
    */
-  size_t (*size)(TclInterp interp);
+  size_t (*size)(FeatherInterp interp);
 
   /**
    * info returns information about a frame at the given level.
@@ -367,8 +367,8 @@ typedef struct TclFrameOps {
    * Sets *ns to the namespace the frame is executing in.
    * Returns TCL_ERROR if the level is out of bounds.
    */
-  TclResult (*info)(TclInterp interp, size_t level, TclObj *cmd, TclObj *args,
-                    TclObj *ns);
+  FeatherResult (*info)(FeatherInterp interp, size_t level, FeatherObj *cmd, FeatherObj *args,
+                    FeatherObj *ns);
 
   /**
    * set_namespace changes the namespace of the current frame.
@@ -376,45 +376,45 @@ typedef struct TclFrameOps {
    * Used by 'namespace eval' to temporarily change context.
    * The namespace is created if it doesn't exist.
    */
-  TclResult (*set_namespace)(TclInterp interp, TclObj ns);
+  FeatherResult (*set_namespace)(FeatherInterp interp, FeatherObj ns);
 
   /**
    * get_namespace returns the namespace of the current frame.
    */
-  TclObj (*get_namespace)(TclInterp interp);
-} TclFrameOps;
+  FeatherObj (*get_namespace)(FeatherInterp interp);
+} FeatherFrameOps;
 
 /**
- * TclStringOps describes the string operations the host needs to support.
+ * FeatherStringOps describes the string operations the host needs to support.
  *
  * Strings are sequences of Unicode codepoints (runes).
  *
  * tclc is encoding neutral, as strings are managed by the host and all
  * characters with special meaning to the parser are part of ASCII.
  */
-typedef struct TclStringOps {
+typedef struct FeatherStringOps {
   /**
    * intern returns a cached value for the given string s,
    * caching it if not present yet.
    */
-  TclObj (*intern)(TclInterp interp, const char *s, size_t len);
+  FeatherObj (*intern)(FeatherInterp interp, const char *s, size_t len);
 
   /**
    * get returns the string representation of an object.
    */
-  const char *(*get)(TclInterp interp, TclObj obj, size_t *len);
+  const char *(*get)(FeatherInterp interp, FeatherObj obj, size_t *len);
 
   /**
    * concat returns a new object whose string value is
    * the concatenation of two objects.
    */
-  TclObj (*concat)(TclInterp interp, TclObj a, TclObj b);
+  FeatherObj (*concat)(FeatherInterp interp, FeatherObj a, FeatherObj b);
 
   /**
    * compare compares two strings using Unicode ordering.
    * Returns <0 if a < b, 0 if a == b, >0 if a > b.
    */
-  int (*compare)(TclInterp interp, TclObj a, TclObj b);
+  int (*compare)(FeatherInterp interp, FeatherObj a, FeatherObj b);
 
   /**
    * regex_match tests if a string matches a regular expression pattern.
@@ -423,24 +423,24 @@ typedef struct TclStringOps {
    * or 0 if it doesn't match. Returns TCL_ERROR if the pattern is invalid,
    * with an error message in the interpreter's result.
    */
-  TclResult (*regex_match)(TclInterp interp, TclObj pattern, TclObj string,
+  FeatherResult (*regex_match)(FeatherInterp interp, FeatherObj pattern, FeatherObj string,
                            int *result);
-} TclStringOps;
+} FeatherStringOps;
 
 /**
- * TclRuneOps provides Unicode-aware character operations.
+ * FeatherRuneOps provides Unicode-aware character operations.
  *
  * These operations work with Unicode code points (runes) rather than bytes.
  * The host is responsible for proper UTF-8 handling.
  */
-typedef struct TclRuneOps {
+typedef struct FeatherRuneOps {
   /**
    * length returns the number of Unicode code points in a string.
    *
    * For UTF-8 encoded strings, this counts runes, not bytes.
    * Example: "héllo" has 5 runes but 6 bytes.
    */
-  size_t (*length)(TclInterp interp, TclObj str);
+  size_t (*length)(FeatherInterp interp, FeatherObj str);
 
   /**
    * at returns the nth Unicode character as a new string object.
@@ -448,7 +448,7 @@ typedef struct TclRuneOps {
    * Index is 0-based. Returns empty string if index is out of bounds.
    * The returned string contains the single character at that position.
    */
-  TclObj (*at)(TclInterp interp, TclObj str, size_t index);
+  FeatherObj (*at)(FeatherInterp interp, FeatherObj str, size_t index);
 
   /**
    * range returns substring from first to last (inclusive) by character index.
@@ -457,21 +457,21 @@ typedef struct TclRuneOps {
    * If last >= length, it is clamped to length-1.
    * Returns empty string if first > last or string is empty.
    */
-  TclObj (*range)(TclInterp interp, TclObj str, int64_t first, int64_t last);
+  FeatherObj (*range)(FeatherInterp interp, FeatherObj str, int64_t first, int64_t last);
 
   /**
    * to_upper returns a new string with Unicode-aware uppercase conversion.
    *
    * Handles non-ASCII characters (é→É, ß→SS, etc.)
    */
-  TclObj (*to_upper)(TclInterp interp, TclObj str);
+  FeatherObj (*to_upper)(FeatherInterp interp, FeatherObj str);
 
   /**
    * to_lower returns a new string with Unicode-aware lowercase conversion.
    *
    * Handles non-ASCII characters (É→é, etc.)
    */
-  TclObj (*to_lower)(TclInterp interp, TclObj str);
+  FeatherObj (*to_lower)(FeatherInterp interp, FeatherObj str);
 
   /**
    * fold returns case-folded string for case-insensitive comparison.
@@ -479,17 +479,17 @@ typedef struct TclRuneOps {
    * Case folding is more appropriate than lowercasing for comparison.
    * For example, German ß folds to "ss".
    */
-  TclObj (*fold)(TclInterp interp, TclObj str);
-} TclRuneOps;
+  FeatherObj (*fold)(FeatherInterp interp, FeatherObj str);
+} FeatherRuneOps;
 
 /**
- * TclIntOps gives access to integers from the host.
+ * FeatherIntOps gives access to integers from the host.
  */
-typedef struct TclIntOps {
+typedef struct FeatherIntOps {
   /**
    * create requests a possibly new integer from the host.
    */
-  TclObj (*create)(TclInterp interp, int64_t val);
+  FeatherObj (*create)(FeatherInterp interp, int64_t val);
 
   /**
    * get extracts the integer value from an object.
@@ -497,17 +497,17 @@ typedef struct TclIntOps {
    * This can cause a conversion of the object's internal representation to an
    * integer.
    */
-  TclResult (*get)(TclInterp interp, TclObj obj, int64_t *out);
-} TclIntOps;
+  FeatherResult (*get)(FeatherInterp interp, FeatherObj obj, int64_t *out);
+} FeatherIntOps;
 
 /**
- * TclDoubleOps gives access to floating-point numbers from the host.
+ * FeatherDoubleOps gives access to floating-point numbers from the host.
  */
-typedef struct TclDoubleOps {
+typedef struct FeatherDoubleOps {
   /**
    * create requests a possibly new double from the host.
    */
-  TclObj (*create)(TclInterp interp, double val);
+  FeatherObj (*create)(FeatherInterp interp, double val);
 
   /**
    * get extracts the double value from an object.
@@ -515,32 +515,32 @@ typedef struct TclDoubleOps {
    * This can cause a conversion of the object's internal representation to a
    * double.
    */
-  TclResult (*get)(TclInterp interp, TclObj obj, double *out);
-} TclDoubleOps;
+  FeatherResult (*get)(FeatherInterp interp, FeatherObj obj, double *out);
+} FeatherDoubleOps;
 
 /**
- * TclInterpOps holds the operations on the state of the
+ * FeatherInterpOps holds the operations on the state of the
  * interpreter instance.
  *
- * @see https://www.tcl-lang.org/man/tcl9.0/TclLib/AddErrInfo.html
- * @see https://www.tcl-lang.org/man/tcl9.0/TclLib/SetResult.html
+ * @see https://www.tcl-lang.org/man/tcl9.0/FeatherLib/AddErrInfo.html
+ * @see https://www.tcl-lang.org/man/tcl9.0/FeatherLib/SetResult.html
  */
-typedef struct TclInterpOps {
+typedef struct FeatherInterpOps {
   /**
    * set_result sets the interpreter's result object.
    */
-  TclResult (*set_result)(TclInterp interp, TclObj result);
+  FeatherResult (*set_result)(FeatherInterp interp, FeatherObj result);
 
   /**
    * get_result returns the interpreter's result object.
    */
-  TclObj (*get_result)(TclInterp interp);
+  FeatherObj (*get_result)(FeatherInterp interp);
 
   /**
    * reset_result clears the interpreters evaluation state
    * like the current evaluation result and error information.
    */
-  TclResult (*reset_result)(TclInterp interp, TclObj result);
+  FeatherResult (*reset_result)(FeatherInterp interp, FeatherObj result);
 
   /**
    * set_return_options corresponds to the options passed to return.
@@ -551,7 +551,7 @@ typedef struct TclInterpOps {
    * message. Otherwise, a completion code in agreement with the -code and
    * -level keys in options will be returned.
    */
-  TclResult (*set_return_options)(TclInterp interp, TclObj options);
+  FeatherResult (*set_return_options)(FeatherInterp interp, FeatherObj options);
 
   /**
    * get_return_options returns the options passed to the return command.
@@ -559,7 +559,7 @@ typedef struct TclInterpOps {
    * Retrieves the dictionary of return options from an interpreter following a
    * script evaluation.
    *
-   * Routines such as tcl_eval are called to evaluate a
+   * Routines such as feather_eval are called to evaluate a
    * script in an interpreter.
    *
    * These routines return an integer completion code.
@@ -567,7 +567,7 @@ typedef struct TclInterpOps {
    * These routines also leave in the interpreter both a result and a dictionary
    * of return options generated by script evaluation.
    */
-  TclObj (*get_return_options)(TclInterp interp, TclResult code);
+  FeatherObj (*get_return_options)(FeatherInterp interp, FeatherResult code);
 
   /**
    * get_script returns the path of the currently executing script file.
@@ -575,7 +575,7 @@ typedef struct TclInterpOps {
    * Returns empty string if no script file is being evaluated
    * (e.g., interactive input or eval'd string).
    */
-  TclObj (*get_script)(TclInterp interp);
+  FeatherObj (*get_script)(FeatherInterp interp);
 
   /**
    * set_script sets the current script path.
@@ -583,26 +583,26 @@ typedef struct TclInterpOps {
    * Called by the host when sourcing a file.
    * Pass nil or empty string to clear.
    */
-  void (*set_script)(TclInterp interp, TclObj path);
-} TclInterpOps;
+  void (*set_script)(FeatherInterp interp, FeatherObj path);
+} FeatherInterpOps;
 
 /**
- * TclVarOps provide access to the interpreter's symbol table.
+ * FeatherVarOps provide access to the interpreter's symbol table.
  *
  * Note that the results depend on the currently active evaluation frame.
  */
-typedef struct TclVarOps {
+typedef struct FeatherVarOps {
   /**
    * get returns the value of the variable identified by name
    * in the current evaluation frame.
    */
-  TclObj (*get)(TclInterp interp, TclObj name);
+  FeatherObj (*get)(FeatherInterp interp, FeatherObj name);
 
   /**
    * set sets the value of the variable name to value in
    * the current evaluation frame.
    */
-  void (*set)(TclInterp interp, TclObj name, TclObj value);
+  void (*set)(FeatherInterp interp, FeatherObj name, FeatherObj value);
 
   /**
    * unset removes the given variable from the current evaluation frame's
@@ -610,13 +610,13 @@ typedef struct TclVarOps {
    *
    *
    */
-  void (*unset)(TclInterp interp, TclObj name);
+  void (*unset)(FeatherInterp interp, FeatherObj name);
 
   /**
    * exists returns TCL_OK when the given variable exists
    * in the current evaluation frame.
    */
-  TclResult (*exists)(TclInterp interp, TclObj name);
+  FeatherResult (*exists)(FeatherInterp interp, FeatherObj name);
 
   /**
    * link creates a connection between the variable local
@@ -625,8 +625,8 @@ typedef struct TclVarOps {
    *
    * The link affects get, set, unset, and exists.
    */
-  void (*link)(TclInterp interp, TclObj local, size_t target_level,
-               TclObj target);
+  void (*link)(FeatherInterp interp, FeatherObj local, size_t target_level,
+               FeatherObj target);
 
   /**
    * link_ns creates a link from a local variable to a namespace variable.
@@ -642,7 +642,7 @@ typedef struct TclVarOps {
    * The 'ns' parameter is the absolute namespace path.
    * The 'name' parameter is the variable name in the namespace.
    */
-  void (*link_ns)(TclInterp interp, TclObj local, TclObj ns, TclObj name);
+  void (*link_ns)(FeatherInterp interp, FeatherObj local, FeatherObj ns, FeatherObj name);
 
   /**
    * names returns a list of variable names.
@@ -659,20 +659,20 @@ typedef struct TclVarOps {
    * Does NOT include variables from enclosing scopes that weren't
    * explicitly linked.
    */
-  TclObj (*names)(TclInterp interp, TclObj ns);
-} TclVarOps;
+  FeatherObj (*names)(FeatherInterp interp, FeatherObj ns);
+} FeatherVarOps;
 
 /**
- * TclCommandType indicates the type of a command in the unified command table.
+ * FeatherCommandType indicates the type of a command in the unified command table.
  */
 typedef enum {
   TCL_CMD_NONE = 0,    // command doesn't exist
   TCL_CMD_BUILTIN = 1, // it's a builtin command
   TCL_CMD_PROC = 2,    // it's a user-defined procedure
-} TclCommandType;
+} FeatherCommandType;
 
 /**
- * TclProcOps define operations on the interpreter's symbol table.
+ * FeatherProcOps define operations on the interpreter's symbol table.
  *
  * Variables and procs exist in separate namespaces, so having a variable xyz
  * and a proc named xyz at the same time is perfectly valid.
@@ -683,18 +683,18 @@ typedef enum {
  * The global namespace need not be explicitly stated when referring to entries
  * in the symbol table through this API.
  */
-typedef struct TclProcOps {
+typedef struct FeatherProcOps {
   /**
    * define overwrites the symbol table entry with the given procedure.
    *
    * Nested namespaces are created automatically.
    */
-  void (*define)(TclInterp interp, TclObj name, TclObj params, TclObj body);
+  void (*define)(FeatherInterp interp, FeatherObj name, FeatherObj params, FeatherObj body);
 
   /**
    * exists reports whether a procedure entry with the given name exists.
    */
-  int (*exists)(TclInterp interp, TclObj name);
+  int (*exists)(FeatherInterp interp, FeatherObj name);
 
   /**
    * params returns the parameter list associated with a procedure.
@@ -702,7 +702,7 @@ typedef struct TclProcOps {
    * Trying to retrieve the parameter list of a non-existing procedure
    * puts the interpreter into an error state as indicated by the result.
    */
-  TclResult (*params)(TclInterp interp, TclObj name, TclObj *result);
+  FeatherResult (*params)(FeatherInterp interp, FeatherObj name, FeatherObj *result);
 
   /**
    * body returns the body list associated with a procedure.
@@ -710,7 +710,7 @@ typedef struct TclProcOps {
    * Trying to retrieve the body list of a non-existing procedure
    * puts the interpreter into an error state as indicated by the result.
    */
-  TclResult (*body)(TclInterp interp, TclObj name, TclObj *result);
+  FeatherResult (*body)(FeatherInterp interp, FeatherObj name, FeatherObj *result);
 
   /**
    * names returns a list of all command names visible in the given namespace.
@@ -718,7 +718,7 @@ typedef struct TclProcOps {
    * If namespace is nil (0), uses the global namespace.
    * This includes builtins, user-defined procs, and host-registered commands.
    */
-  TclObj (*names)(TclInterp interp, TclObj namespace);
+  FeatherObj (*names)(FeatherInterp interp, FeatherObj namespace);
 
   /**
    * resolve_namespace resolves a namespace path and returns the namespace object.
@@ -726,15 +726,15 @@ typedef struct TclProcOps {
    * If path is nil or empty, returns the global namespace object.
    * Returns TCL_ERROR if the namespace does not exist.
    */
-  TclResult (*resolve_namespace)(TclInterp interp, TclObj path, TclObj *result);
+  FeatherResult (*resolve_namespace)(FeatherInterp interp, FeatherObj path, FeatherObj *result);
 
   /**
    * register_builtin records a builtin command with its implementation.
    *
-   * Used by tcl_interp_init to register builtin commands with the host.
+   * Used by feather_interp_init to register builtin commands with the host.
    * The host stores the function pointer for later dispatch.
    */
-  void (*register_builtin)(TclInterp interp, TclObj name, TclBuiltinCmd fn);
+  void (*register_builtin)(FeatherInterp interp, FeatherObj name, FeatherBuiltinCmd fn);
 
   /**
    * lookup checks if a command exists and returns its type.
@@ -743,7 +743,7 @@ typedef struct TclProcOps {
    * For procs, *fn is set to NULL.
    * For non-existent commands, returns TCL_CMD_NONE and *fn is NULL.
    */
-  TclCommandType (*lookup)(TclInterp interp, TclObj name, TclBuiltinCmd *fn);
+  FeatherCommandType (*lookup)(FeatherInterp interp, FeatherObj name, FeatherBuiltinCmd *fn);
 
   /**
    * rename changes a command's name in the unified command table.
@@ -751,32 +751,32 @@ typedef struct TclProcOps {
    * If newName is empty (zero-length string), the command is deleted.
    * Returns TCL_ERROR if oldName doesn't exist or newName already exists.
    */
-  TclResult (*rename)(TclInterp interp, TclObj oldName, TclObj newName);
-} TclProcOps;
+  FeatherResult (*rename)(FeatherInterp interp, FeatherObj oldName, FeatherObj newName);
+} FeatherProcOps;
 
 /**
- * TclListOps define the operations necessary for the interpreter to work with
+ * FeatherListOps define the operations necessary for the interpreter to work with
  * lists.
  *
  * It is up to the host to decide whether lists are implemented as linked lists
  * or contiguous, dynamically growing arrays.  The internal lists the
  * interpreter uses are small.
  */
-typedef struct TclListOps {
+typedef struct FeatherListOps {
   /**
    * is_nil return true if the given object is the special nil object.
    */
-  int (*is_nil)(TclInterp interp, TclObj obj);
+  int (*is_nil)(FeatherInterp interp, FeatherObj obj);
 
   /**
    * create returns an empty, mutable list.
    */
-  TclObj (*create)(TclInterp interp);
+  FeatherObj (*create)(FeatherInterp interp);
 
   /**
    * from returns a new list initialized from the given object.
    */
-  TclObj (*from)(TclInterp interp, TclObj obj);
+  FeatherObj (*from)(FeatherInterp interp, FeatherObj obj);
 
   /**
    * push appends an item to the end of list and returns the new list head.
@@ -784,7 +784,7 @@ typedef struct TclListOps {
    * If the host decides to mutate the underlying list, returning the list
    * object is expected.
    */
-  TclObj (*push)(TclInterp interp, TclObj list, TclObj item);
+  FeatherObj (*push)(FeatherInterp interp, FeatherObj list, FeatherObj item);
 
   /**
    * pop removes the rightmost item from the list and returns it.
@@ -794,7 +794,7 @@ typedef struct TclListOps {
    *
    * popping the nil object returns nil.
    */
-  TclObj (*pop)(TclInterp interp, TclObj list);
+  FeatherObj (*pop)(FeatherInterp interp, FeatherObj list);
 
   /**
    * unshift prepends an item to the beginning of list and returns the new list
@@ -803,7 +803,7 @@ typedef struct TclListOps {
    * If the host decides to mutate the underlying list, returning the list
    * object is expected.
    */
-  TclObj (*unshift)(TclInterp interp, TclObj list, TclObj item);
+  FeatherObj (*unshift)(FeatherInterp interp, FeatherObj list, FeatherObj item);
 
   /**
    * shift removes the leftmost item from the list and returns it.
@@ -813,21 +813,21 @@ typedef struct TclListOps {
    *
    * shifting the nil object returns nil.
    */
-  TclObj (*shift)(TclInterp interp, TclObj list);
+  FeatherObj (*shift)(FeatherInterp interp, FeatherObj list);
 
   /**
    * length returns the length of the list.
    *
    * The length of the nil object is 0.
    */
-  size_t (*length)(TclInterp interp, TclObj list);
+  size_t (*length)(FeatherInterp interp, FeatherObj list);
 
   /**
    * at returns the element of list at the given index.
    *
    * If the index is out of bounds, the nil object is returned.
    */
-  TclObj (*at)(TclInterp interp, TclObj list, size_t index);
+  FeatherObj (*at)(FeatherInterp interp, FeatherObj list, size_t index);
 
   /**
    * slice returns a new list containing elements from first to last (inclusive).
@@ -837,7 +837,7 @@ typedef struct TclListOps {
    *
    * This enables O(n) lrange where n is slice size, not source list size.
    */
-  TclObj (*slice)(TclInterp interp, TclObj list, size_t first, size_t last);
+  FeatherObj (*slice)(FeatherInterp interp, FeatherObj list, size_t first, size_t last);
 
   /**
    * set_at replaces the element at index with value.
@@ -847,7 +847,7 @@ typedef struct TclListOps {
    *
    * This enables O(1) lset instead of O(n) list rebuild.
    */
-  TclResult (*set_at)(TclInterp interp, TclObj list, size_t index, TclObj value);
+  FeatherResult (*set_at)(FeatherInterp interp, FeatherObj list, size_t index, FeatherObj value);
 
   /**
    * splice removes 'deleteCount' elements starting at 'first',
@@ -859,8 +859,8 @@ typedef struct TclListOps {
    *
    * This enables O(n) lreplace instead of O(n²).
    */
-  TclObj (*splice)(TclInterp interp, TclObj list, size_t first,
-                   size_t deleteCount, TclObj insertions);
+  FeatherObj (*splice)(FeatherInterp interp, FeatherObj list, size_t first,
+                   size_t deleteCount, FeatherObj insertions);
 
   /**
    * sort sorts the list in place using the provided comparison function.
@@ -871,13 +871,13 @@ typedef struct TclListOps {
    * The host can use its native O(n log n) sort algorithm.
    * This removes the 1024 element limit and O(n²) insertion sort.
    */
-  TclResult (*sort)(TclInterp interp, TclObj list,
-                    int (*cmp)(TclInterp interp, TclObj a, TclObj b, void *ctx),
+  FeatherResult (*sort)(FeatherInterp interp, FeatherObj list,
+                    int (*cmp)(FeatherInterp interp, FeatherObj a, FeatherObj b, void *ctx),
                     void *ctx);
-} TclListOps;
+} FeatherListOps;
 
 /**
- * TclDictOps provides operations on dictionaries.
+ * FeatherDictOps provides operations on dictionaries.
  *
  * Dictionaries are ordered key-value maps. Keys are strings, values are
  * arbitrary TCL objects. Insertion order is preserved for iteration.
@@ -886,11 +886,11 @@ typedef struct TclListOps {
  * Typical backing: Go map with separate slice for key order,
  * or a linked hash map in other languages.
  */
-typedef struct TclDictOps {
+typedef struct FeatherDictOps {
   /**
    * create returns a new empty dictionary.
    */
-  TclObj (*create)(TclInterp interp);
+  FeatherObj (*create)(FeatherInterp interp);
 
   /**
    * from converts a list or string to a dictionary.
@@ -901,14 +901,14 @@ typedef struct TclDictOps {
    *
    * Duplicate keys: only the last value for each key is retained.
    */
-  TclObj (*from)(TclInterp interp, TclObj obj);
+  FeatherObj (*from)(FeatherInterp interp, FeatherObj obj);
 
   /**
    * get retrieves the value for a key.
    *
    * Returns 0 (nil) if the key does not exist.
    */
-  TclObj (*get)(TclInterp interp, TclObj dict, TclObj key);
+  FeatherObj (*get)(FeatherInterp interp, FeatherObj dict, FeatherObj key);
 
   /**
    * set stores a key-value pair in the dictionary.
@@ -917,14 +917,14 @@ typedef struct TclDictOps {
    * If the key is new, it is appended to the key order.
    * Returns the (possibly new) dictionary object.
    */
-  TclObj (*set)(TclInterp interp, TclObj dict, TclObj key, TclObj value);
+  FeatherObj (*set)(FeatherInterp interp, FeatherObj dict, FeatherObj key, FeatherObj value);
 
   /**
    * exists checks if a key is present in the dictionary.
    *
    * Returns 1 if the key exists, 0 otherwise.
    */
-  int (*exists)(TclInterp interp, TclObj dict, TclObj key);
+  int (*exists)(FeatherInterp interp, FeatherObj dict, FeatherObj key);
 
   /**
    * remove deletes a key from the dictionary.
@@ -932,39 +932,39 @@ typedef struct TclDictOps {
    * Returns the (possibly new) dictionary object.
    * Removing a non-existent key is a no-op.
    */
-  TclObj (*remove)(TclInterp interp, TclObj dict, TclObj key);
+  FeatherObj (*remove)(FeatherInterp interp, FeatherObj dict, FeatherObj key);
 
   /**
    * size returns the number of key-value pairs.
    */
-  size_t (*size)(TclInterp interp, TclObj dict);
+  size_t (*size)(FeatherInterp interp, FeatherObj dict);
 
   /**
    * keys returns a list of all keys in insertion order.
    */
-  TclObj (*keys)(TclInterp interp, TclObj dict);
+  FeatherObj (*keys)(FeatherInterp interp, FeatherObj dict);
 
   /**
    * values returns a list of all values in key order.
    */
-  TclObj (*values)(TclInterp interp, TclObj dict);
-} TclDictOps;
+  FeatherObj (*values)(FeatherInterp interp, FeatherObj dict);
+} FeatherDictOps;
 
 /**
- * TclNamespaceOps provides operations on the namespace hierarchy.
+ * FeatherNamespaceOps provides operations on the namespace hierarchy.
  *
  * Namespaces are containers for commands and persistent variables.
  * The global namespace "::" always exists and is the root.
  * Namespace paths use "::" as separator (e.g., "::foo::bar").
  */
-typedef struct TclNamespaceOps {
+typedef struct FeatherNamespaceOps {
   /**
    * create ensures a namespace exists, creating it and parents as needed.
    *
    * Returns TCL_OK on success.
    * Creating "::" is a no-op (always exists).
    */
-  TclResult (*create)(TclInterp interp, TclObj path);
+  FeatherResult (*create)(FeatherInterp interp, FeatherObj path);
 
   /**
    * delete removes a namespace and all its children.
@@ -973,21 +973,21 @@ typedef struct TclNamespaceOps {
    * Returns TCL_ERROR if path is "::" (cannot delete global).
    * Returns TCL_ERROR if namespace doesn't exist.
    */
-  TclResult (*delete)(TclInterp interp, TclObj path);
+  FeatherResult (*delete)(FeatherInterp interp, FeatherObj path);
 
   /**
    * exists checks if a namespace exists.
    *
    * Returns 1 if it exists, 0 if not.
    */
-  int (*exists)(TclInterp interp, TclObj path);
+  int (*exists)(FeatherInterp interp, FeatherObj path);
 
   /**
    * current returns the namespace path of the current call frame.
    *
    * Returns a string like "::" or "::foo::bar".
    */
-  TclObj (*current)(TclInterp interp);
+  FeatherObj (*current)(FeatherInterp interp);
 
   /**
    * parent returns the parent namespace path.
@@ -996,7 +996,7 @@ typedef struct TclNamespaceOps {
    * For "::foo::bar", returns "::foo".
    * Returns TCL_ERROR if namespace doesn't exist.
    */
-  TclResult (*parent)(TclInterp interp, TclObj ns, TclObj *result);
+  FeatherResult (*parent)(FeatherInterp interp, FeatherObj ns, FeatherObj *result);
 
   /**
    * children returns a list of child namespace paths.
@@ -1004,7 +1004,7 @@ typedef struct TclNamespaceOps {
    * Returns full paths (e.g., "::foo::bar" for child "bar" of "::foo").
    * Returns empty list if no children.
    */
-  TclObj (*children)(TclInterp interp, TclObj ns);
+  FeatherObj (*children)(FeatherInterp interp, FeatherObj ns);
 
   /**
    * get_var retrieves a variable from namespace storage.
@@ -1013,7 +1013,7 @@ typedef struct TclNamespaceOps {
    * The 'name' parameter must be unqualified (just "x", not "::foo::x").
    * The namespace path must be absolute.
    */
-  TclObj (*get_var)(TclInterp interp, TclObj ns, TclObj name);
+  FeatherObj (*get_var)(FeatherInterp interp, FeatherObj ns, FeatherObj name);
 
   /**
    * set_var sets a variable in namespace storage.
@@ -1022,21 +1022,21 @@ typedef struct TclNamespaceOps {
    * Creates the namespace if it doesn't exist.
    * The 'name' parameter must be unqualified.
    */
-  void (*set_var)(TclInterp interp, TclObj ns, TclObj name, TclObj value);
+  void (*set_var)(FeatherInterp interp, FeatherObj ns, FeatherObj name, FeatherObj value);
 
   /**
    * var_exists checks if a variable exists in namespace storage.
    *
    * Returns 1 if exists, 0 if not.
    */
-  int (*var_exists)(TclInterp interp, TclObj ns, TclObj name);
+  int (*var_exists)(FeatherInterp interp, FeatherObj ns, FeatherObj name);
 
   /**
    * unset_var removes a variable from namespace storage.
    *
    * No-op if variable doesn't exist.
    */
-  void (*unset_var)(TclInterp interp, TclObj ns, TclObj name);
+  void (*unset_var)(FeatherInterp interp, FeatherObj ns, FeatherObj name);
 
   /**
    * get_command retrieves a command from a namespace.
@@ -1048,8 +1048,8 @@ typedef struct TclNamespaceOps {
    * For procs, sets *fn to NULL and returns TCL_CMD_PROC.
    * Returns TCL_CMD_NONE if the command doesn't exist in this namespace.
    */
-  TclCommandType (*get_command)(TclInterp interp, TclObj ns, TclObj name,
-                                TclBuiltinCmd *fn);
+  FeatherCommandType (*get_command)(FeatherInterp interp, FeatherObj ns, FeatherObj name,
+                                FeatherBuiltinCmd *fn);
 
   /**
    * set_command stores a command in a namespace.
@@ -1061,16 +1061,16 @@ typedef struct TclNamespaceOps {
    * For builtins: kind=TCL_CMD_BUILTIN, fn=function pointer, params=0, body=0
    * For procs: kind=TCL_CMD_PROC, fn=NULL, params=param list, body=body obj
    */
-  void (*set_command)(TclInterp interp, TclObj ns, TclObj name,
-                      TclCommandType kind, TclBuiltinCmd fn,
-                      TclObj params, TclObj body);
+  void (*set_command)(FeatherInterp interp, FeatherObj ns, FeatherObj name,
+                      FeatherCommandType kind, FeatherBuiltinCmd fn,
+                      FeatherObj params, FeatherObj body);
 
   /**
    * delete_command removes a command from a namespace.
    *
    * Returns TCL_ERROR if the command doesn't exist.
    */
-  TclResult (*delete_command)(TclInterp interp, TclObj ns, TclObj name);
+  FeatherResult (*delete_command)(FeatherInterp interp, FeatherObj ns, FeatherObj name);
 
   /**
    * list_commands returns a list of command names in a namespace.
@@ -1078,7 +1078,7 @@ typedef struct TclNamespaceOps {
    * Returns simple names (not qualified).
    * Does NOT include commands from parent or child namespaces.
    */
-  TclObj (*list_commands)(TclInterp interp, TclObj ns);
+  FeatherObj (*list_commands)(FeatherInterp interp, FeatherObj ns);
 
   /**
    * get_exports returns the list of export patterns for a namespace.
@@ -1086,7 +1086,7 @@ typedef struct TclNamespaceOps {
    * Returns a list of pattern strings (e.g., {"get*", "set*"}).
    * Returns empty list if no exports defined.
    */
-  TclObj (*get_exports)(TclInterp interp, TclObj ns);
+  FeatherObj (*get_exports)(FeatherInterp interp, FeatherObj ns);
 
   /**
    * set_exports sets the export patterns for a namespace.
@@ -1095,7 +1095,7 @@ typedef struct TclNamespaceOps {
    * If 'clear' is non-zero, existing patterns are replaced.
    * If 'clear' is zero, patterns are appended to existing list.
    */
-  void (*set_exports)(TclInterp interp, TclObj ns, TclObj patterns, int clear);
+  void (*set_exports)(FeatherInterp interp, FeatherObj ns, FeatherObj patterns, int clear);
 
   /**
    * is_exported checks if a command name matches any export pattern.
@@ -1103,7 +1103,7 @@ typedef struct TclNamespaceOps {
    * 'name' is the simple (unqualified) command name.
    * Returns 1 if the command matches an export pattern, 0 otherwise.
    */
-  int (*is_exported)(TclInterp interp, TclObj ns, TclObj name);
+  int (*is_exported)(FeatherInterp interp, FeatherObj ns, FeatherObj name);
 
   /**
    * copy_command copies a command from one namespace to another.
@@ -1112,12 +1112,12 @@ typedef struct TclNamespaceOps {
    * 'srcName' and 'dstName' are simple (unqualified) names.
    * Returns TCL_ERROR if source command doesn't exist.
    */
-  TclResult (*copy_command)(TclInterp interp, TclObj srcNs, TclObj srcName,
-                            TclObj dstNs, TclObj dstName);
-} TclNamespaceOps;
+  FeatherResult (*copy_command)(FeatherInterp interp, FeatherObj srcNs, FeatherObj srcName,
+                            FeatherObj dstNs, FeatherObj dstName);
+} FeatherNamespaceOps;
 
 /**
- * TclTraceOps provides unified trace management for variables and commands.
+ * FeatherTraceOps provides unified trace management for variables and commands.
  *
  * Traces are callbacks that fire when certain events occur on variables
  * or commands. The host is responsible for:
@@ -1129,7 +1129,7 @@ typedef struct TclNamespaceOps {
  * - Variable: "read", "write", "unset", or combinations like "read write"
  * - Command: "rename", "delete"
  */
-typedef struct TclTraceOps {
+typedef struct FeatherTraceOps {
   /**
    * add registers a trace callback.
    *
@@ -1148,8 +1148,8 @@ typedef struct TclTraceOps {
    *   - newName: new name (empty for delete)
    *   - op: "rename" or "delete"
    */
-  TclResult (*add)(TclInterp interp, TclObj kind, TclObj name,
-                   TclObj ops, TclObj script);
+  FeatherResult (*add)(FeatherInterp interp, FeatherObj kind, FeatherObj name,
+                   FeatherObj ops, FeatherObj script);
 
   /**
    * remove unregisters a trace callback.
@@ -1157,8 +1157,8 @@ typedef struct TclTraceOps {
    * All parameters must match a previously registered trace.
    * Returns TCL_ERROR if no matching trace found.
    */
-  TclResult (*remove)(TclInterp interp, TclObj kind, TclObj name,
-                      TclObj ops, TclObj script);
+  FeatherResult (*remove)(FeatherInterp interp, FeatherObj kind, FeatherObj name,
+                      FeatherObj ops, FeatherObj script);
 
   /**
    * info returns a list of traces on a variable or command.
@@ -1166,13 +1166,13 @@ typedef struct TclTraceOps {
    * Returns a list of {ops script} pairs for each registered trace.
    * Returns empty list if no traces.
    */
-  TclObj (*info)(TclInterp interp, TclObj kind, TclObj name);
-} TclTraceOps;
+  FeatherObj (*info)(FeatherInterp interp, FeatherObj kind, FeatherObj name);
+} FeatherTraceOps;
 
 /**
- * TclBindOps defines the operations for host <> interpreter interop.
+ * FeatherBindOps defines the operations for host <> interpreter interop.
  */
-typedef struct TclBindOpts {
+typedef struct FeatherBindOpts {
   /**
    * unknown is invoked when the interpreter tries to invoke an undefined
    * procedure and gives the host a chance to react to this.
@@ -1180,12 +1180,12 @@ typedef struct TclBindOpts {
    * If the host returns TCL_ERROR, the interpreter considers the procedure
    * lookup to have failed for good.
    */
-  TclResult (*unknown)(TclInterp interp, TclObj cmd, TclObj args,
-                       TclObj *value);
-} TclBindOpts;
+  FeatherResult (*unknown)(FeatherInterp interp, FeatherObj cmd, FeatherObj args,
+                       FeatherObj *value);
+} FeatherBindOpts;
 
 /**
- * TclForeignOps provides operations for foreign (host-language) objects.
+ * FeatherForeignOps provides operations for foreign (host-language) objects.
  *
  * Foreign objects are values that wrap host language types (Go structs,
  * JavaScript objects, Java objects, etc.). They participate in TCL's
@@ -1202,21 +1202,21 @@ typedef struct TclBindOpts {
  * - Can expose methods callable from TCL
  * - Participate in introspection via info type/methods
  */
-typedef struct TclForeignOps {
+typedef struct FeatherForeignOps {
   /**
    * is_foreign checks if an object is a foreign object.
    *
    * Returns 1 if obj is a foreign object, 0 otherwise.
    */
-  int (*is_foreign)(TclInterp interp, TclObj obj);
+  int (*is_foreign)(FeatherInterp interp, FeatherObj obj);
 
   /**
    * type_name returns the type name of a foreign object.
    *
-   * Returns the type name (e.g., "Mux", "Connection") as a TclObj.
+   * Returns the type name (e.g., "Mux", "Connection") as a FeatherObj.
    * Returns nil (0) if the object is not a foreign object.
    */
-  TclObj (*type_name)(TclInterp interp, TclObj obj);
+  FeatherObj (*type_name)(FeatherInterp interp, FeatherObj obj);
 
   /**
    * string_rep returns the string representation of a foreign object.
@@ -1227,7 +1227,7 @@ typedef struct TclForeignOps {
    * Typical formats: "<Mux:1>", "mux1", "<Connection:host:3306>"
    * Returns nil (0) if the object is not a foreign object.
    */
-  TclObj (*string_rep)(TclInterp interp, TclObj obj);
+  FeatherObj (*string_rep)(FeatherInterp interp, FeatherObj obj);
 
   /**
    * methods returns a list of method names available on a foreign object.
@@ -1237,7 +1237,7 @@ typedef struct TclForeignOps {
    *
    * Used by "info methods $obj" for introspection.
    */
-  TclObj (*methods)(TclInterp interp, TclObj obj);
+  FeatherObj (*methods)(FeatherInterp interp, FeatherObj obj);
 
   /**
    * invoke calls a method on a foreign object.
@@ -1249,7 +1249,7 @@ typedef struct TclForeignOps {
    * Returns TCL_OK on success with result in interpreter's result slot.
    * Returns TCL_ERROR if method doesn't exist or invocation fails.
    */
-  TclResult (*invoke)(TclInterp interp, TclObj obj, TclObj method, TclObj args);
+  FeatherResult (*invoke)(FeatherInterp interp, FeatherObj obj, FeatherObj method, FeatherObj args);
 
   /**
    * destroy is called when a foreign object is being destroyed.
@@ -1259,40 +1259,40 @@ typedef struct TclForeignOps {
    *
    * Called when the object's command is deleted (e.g., via rename to "").
    */
-  void (*destroy)(TclInterp interp, TclObj obj);
-} TclForeignOps;
+  void (*destroy)(FeatherInterp interp, FeatherObj obj);
+} FeatherForeignOps;
 
 /**
- * TclHostOps contains the aggregation of all operations necessary
+ * FeatherHostOps contains the aggregation of all operations necessary
  * for interpreter to work.
  */
-typedef struct TclHostOps {
-  TclFrameOps frame;
-  TclVarOps var;
-  TclProcOps proc;
-  TclNamespaceOps ns;
-  TclStringOps string;
-  TclRuneOps rune;
-  TclListOps list;
-  TclDictOps dict;
-  TclIntOps integer;
-  TclDoubleOps dbl;
-  TclInterpOps interp;
-  TclBindOpts bind;
-  TclTraceOps trace;
-  TclForeignOps foreign;
-} TclHostOps;
+typedef struct FeatherHostOps {
+  FeatherFrameOps frame;
+  FeatherVarOps var;
+  FeatherProcOps proc;
+  FeatherNamespaceOps ns;
+  FeatherStringOps string;
+  FeatherRuneOps rune;
+  FeatherListOps list;
+  FeatherDictOps dict;
+  FeatherIntOps integer;
+  FeatherDoubleOps dbl;
+  FeatherInterpOps interp;
+  FeatherBindOpts bind;
+  FeatherTraceOps trace;
+  FeatherForeignOps foreign;
+} FeatherHostOps;
 
 /**
- * tcl_interp_init registers all builtin commands with the interpreter.
+ * feather_interp_init registers all builtin commands with the interpreter.
  *
  * This should be called once after creating the interpreter and before
  * evaluating any scripts.
  */
-void tcl_interp_init(const TclHostOps *ops, TclInterp interp);
+void feather_interp_init(const FeatherHostOps *ops, FeatherInterp interp);
 
 /**
- * tcl_builtin_set implements the TCL 'set' command.
+ * feather_builtin_set implements the TCL 'set' command.
  *
  * Usage:
  *   set varName ?value?
@@ -1301,11 +1301,11 @@ void tcl_interp_init(const TclHostOps *ops, TclInterp interp);
  * With one argument, returns the current value of varName.
  * Errors if varName does not exist (one-argument form).
  */
-TclResult tcl_builtin_set(const TclHostOps *ops, TclInterp interp,
-                          TclObj cmd, TclObj args);
+FeatherResult feather_builtin_set(const FeatherHostOps *ops, FeatherInterp interp,
+                          FeatherObj cmd, FeatherObj args);
 
 /**
- * tcl_builtin_expr implements the TCL 'expr' command.
+ * feather_builtin_expr implements the TCL 'expr' command.
  *
  * Usage:
  *   expr arg ?arg ...?
@@ -1314,18 +1314,18 @@ TclResult tcl_builtin_set(const TclHostOps *ops, TclInterp interp,
  * Supports comparison (<, <=, >, >=, ==, !=), bitwise (&, |),
  * and logical (&&, ||) operators on integers.
  */
-TclResult tcl_builtin_expr(const TclHostOps *ops, TclInterp interp,
-                           TclObj cmd, TclObj args);
+FeatherResult feather_builtin_expr(const FeatherHostOps *ops, FeatherInterp interp,
+                           FeatherObj cmd, FeatherObj args);
 
 /**
- * tcl_strlen counts bytes in a null-terminated C string, excluding the null.
+ * feather_strlen counts bytes in a null-terminated C string, excluding the null.
  *
  * This is equivalent to strlen but avoids stdlib dependency.
  */
-size_t tcl_strlen(const char *s);
+size_t feather_strlen(const char *s);
 
 /**
- * tcl_glob_match performs glob pattern matching.
+ * feather_glob_match performs glob pattern matching.
  *
  * Supports:
  *   * - matches any sequence of characters (including empty)
@@ -1336,16 +1336,16 @@ size_t tcl_strlen(const char *s);
  *
  * Returns 1 if string matches pattern, 0 otherwise.
  */
-int tcl_glob_match(const char *pattern, size_t pattern_len,
+int feather_glob_match(const char *pattern, size_t pattern_len,
                    const char *string, size_t string_len);
 
 /**
- * tcl_is_qualified returns 1 if name contains "::", 0 otherwise.
+ * feather_is_qualified returns 1 if name contains "::", 0 otherwise.
  */
-int tcl_is_qualified(const char *name, size_t len);
+int feather_is_qualified(const char *name, size_t len);
 
 /**
- * tcl_resolve_variable resolves a variable name to namespace + local parts.
+ * feather_resolve_variable resolves a variable name to namespace + local parts.
  *
  * Three cases:
  *   1. Unqualified ("x") - no "::" in name
@@ -1361,8 +1361,8 @@ int tcl_is_qualified(const char *name, size_t len);
  *
  * Returns TCL_OK on success.
  */
-TclResult tcl_resolve_variable(const TclHostOps *ops, TclInterp interp,
+FeatherResult feather_resolve_variable(const FeatherHostOps *ops, FeatherInterp interp,
                                const char *name, size_t len,
-                               TclObj *ns_out, TclObj *local_out);
+                               FeatherObj *ns_out, FeatherObj *local_out);
 
 #endif

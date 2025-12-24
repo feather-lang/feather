@@ -1,4 +1,4 @@
-module github.com/dhamidi/tclc/harness
+module github.com/feather-lang/feather/harness
 
 go 1.24.3
 

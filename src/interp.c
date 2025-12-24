@@ -1,63 +1,63 @@
-#include "tclc.h"
+#include "feather.h"
 #include "internal.h"
 
 // Builtin command table entry
 typedef struct {
   const char *name;
-  TclBuiltinCmd cmd;
+  FeatherBuiltinCmd cmd;
 } BuiltinEntry;
 
 // Table of all builtin commands
 // All builtins are registered in the global namespace (::)
 static const BuiltinEntry builtins[] = {
-    {"::set", tcl_builtin_set},
-    {"::expr", tcl_builtin_expr},
-    {"::proc", tcl_builtin_proc},
-    {"::if", tcl_builtin_if},
-    {"::while", tcl_builtin_while},
-    {"::for", tcl_builtin_for},
-    {"::foreach", tcl_builtin_foreach},
-    {"::switch", tcl_builtin_switch},
-    {"::tailcall", tcl_builtin_tailcall},
-    {"::break", tcl_builtin_break},
-    {"::continue", tcl_builtin_continue},
-    {"::incr", tcl_builtin_incr},
-    {"::llength", tcl_builtin_llength},
-    {"::lindex", tcl_builtin_lindex},
-    {"::return", tcl_builtin_return},
-    {"::tcl::mathfunc::exp", tcl_builtin_mathfunc_exp},
-    {"::error", tcl_builtin_error},
-    {"::catch", tcl_builtin_catch},
-    {"::info", tcl_builtin_info},
-    {"::upvar", tcl_builtin_upvar},
-    {"::uplevel", tcl_builtin_uplevel},
-    {"::rename", tcl_builtin_rename},
-    {"::namespace", tcl_builtin_namespace},
-    {"::variable", tcl_builtin_variable},
-    {"::throw", tcl_builtin_throw},
-    {"::try", tcl_builtin_try},
-    {"::trace", tcl_builtin_trace},
+    {"::set", feather_builtin_set},
+    {"::expr", feather_builtin_expr},
+    {"::proc", feather_builtin_proc},
+    {"::if", feather_builtin_if},
+    {"::while", feather_builtin_while},
+    {"::for", feather_builtin_for},
+    {"::foreach", feather_builtin_foreach},
+    {"::switch", feather_builtin_switch},
+    {"::tailcall", feather_builtin_tailcall},
+    {"::break", feather_builtin_break},
+    {"::continue", feather_builtin_continue},
+    {"::incr", feather_builtin_incr},
+    {"::llength", feather_builtin_llength},
+    {"::lindex", feather_builtin_lindex},
+    {"::return", feather_builtin_return},
+    {"::tcl::mathfunc::exp", feather_builtin_mathfunc_exp},
+    {"::error", feather_builtin_error},
+    {"::catch", feather_builtin_catch},
+    {"::info", feather_builtin_info},
+    {"::upvar", feather_builtin_upvar},
+    {"::uplevel", feather_builtin_uplevel},
+    {"::rename", feather_builtin_rename},
+    {"::namespace", feather_builtin_namespace},
+    {"::variable", feather_builtin_variable},
+    {"::throw", feather_builtin_throw},
+    {"::try", feather_builtin_try},
+    {"::trace", feather_builtin_trace},
     // M15: List and string operations
-    {"::list", tcl_builtin_list},
-    {"::lrange", tcl_builtin_lrange},
-    {"::lappend", tcl_builtin_lappend},
-    {"::lset", tcl_builtin_lset},
-    {"::lreplace", tcl_builtin_lreplace},
-    {"::lsort", tcl_builtin_lsort},
-    {"::lsearch", tcl_builtin_lsearch},
-    {"::string", tcl_builtin_string},
-    {"::split", tcl_builtin_split},
-    {"::join", tcl_builtin_join},
-    {"::concat", tcl_builtin_concat},
-    {"::append", tcl_builtin_append},
-    {"::unset", tcl_builtin_unset},
+    {"::list", feather_builtin_list},
+    {"::lrange", feather_builtin_lrange},
+    {"::lappend", feather_builtin_lappend},
+    {"::lset", feather_builtin_lset},
+    {"::lreplace", feather_builtin_lreplace},
+    {"::lsort", feather_builtin_lsort},
+    {"::lsearch", feather_builtin_lsearch},
+    {"::string", feather_builtin_string},
+    {"::split", feather_builtin_split},
+    {"::join", feather_builtin_join},
+    {"::concat", feather_builtin_concat},
+    {"::append", feather_builtin_append},
+    {"::unset", feather_builtin_unset},
     // M16: Dictionary support
-    {"::dict", tcl_builtin_dict},
+    {"::dict", feather_builtin_dict},
     {NULL, NULL} // sentinel
 };
 
 // Look up a builtin command by name
-TclBuiltinCmd tcl_lookup_builtin(const char *name, size_t len) {
+FeatherBuiltinCmd feather_lookup_builtin(const char *name, size_t len) {
   for (const BuiltinEntry *entry = builtins; entry->name != NULL; entry++) {
     // Compare strings (need to check length since name might not be
     // null-terminated)
@@ -76,14 +76,14 @@ TclBuiltinCmd tcl_lookup_builtin(const char *name, size_t len) {
   return NULL;
 }
 
-void tcl_interp_init(const TclHostOps *ops, TclInterp interp) {
+void feather_interp_init(const FeatherHostOps *ops, FeatherInterp interp) {
   // Register all builtin commands in their respective namespaces
   for (const BuiltinEntry *entry = builtins; entry->name != NULL; entry++) {
-    TclObj fullName = ops->string.intern(interp, entry->name, tcl_strlen(entry->name));
+    FeatherObj fullName = ops->string.intern(interp, entry->name, feather_strlen(entry->name));
 
     // Split the qualified name into namespace and simple name
-    TclObj ns, simpleName;
-    tcl_split_command(ops, interp, fullName, &ns, &simpleName);
+    FeatherObj ns, simpleName;
+    feather_split_command(ops, interp, fullName, &ns, &simpleName);
 
     // If no namespace part (shouldn't happen for our table), use global
     if (ops->list.is_nil(interp, ns)) {

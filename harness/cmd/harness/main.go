@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/dhamidi/tclc/harness"
+	"github.com/feather-lang/feather/harness"
 	"github.com/spf13/cobra"
 )
 

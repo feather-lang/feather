@@ -1,23 +1,23 @@
-#include "tclc.h"
+#include "feather.h"
 #include "internal.h"
 
-TclResult tcl_builtin_lappend(const TclHostOps *ops, TclInterp interp,
-                               TclObj cmd, TclObj args) {
+FeatherResult feather_builtin_lappend(const FeatherHostOps *ops, FeatherInterp interp,
+                               FeatherObj cmd, FeatherObj args) {
   (void)cmd;
   size_t argc = ops->list.length(interp, args);
 
   if (argc < 1) {
-    TclObj msg = ops->string.intern(interp,
+    FeatherObj msg = ops->string.intern(interp,
       "wrong # args: should be \"lappend varName ?value ...?\"", 53);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  TclObj varName = ops->list.shift(interp, args);
+  FeatherObj varName = ops->list.shift(interp, args);
 
   // Get current value or create empty list
-  TclObj current = ops->var.get(interp, varName);
-  TclObj list;
+  FeatherObj current = ops->var.get(interp, varName);
+  FeatherObj list;
   if (ops->list.is_nil(interp, current)) {
     list = ops->list.create(interp);
   } else {
@@ -27,7 +27,7 @@ TclResult tcl_builtin_lappend(const TclHostOps *ops, TclInterp interp,
   // Append all values
   size_t numValues = ops->list.length(interp, args);
   for (size_t i = 0; i < numValues; i++) {
-    TclObj value = ops->list.shift(interp, args);
+    FeatherObj value = ops->list.shift(interp, args);
     list = ops->list.push(interp, list, value);
   }
 

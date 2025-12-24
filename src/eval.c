@@ -1,8 +1,8 @@
-#include "tclc.h"
+#include "feather.h"
 #include "internal.h"
 
-TclResult tcl_command_exec(const TclHostOps *ops, TclInterp interp,
-                           TclObj command, TclEvalFlags flags) {
+FeatherResult feather_command_exec(const FeatherHostOps *ops, FeatherInterp interp,
+                           FeatherObj command, FeatherEvalFlags flags) {
   // command is a parsed command list [name, arg1, arg2, ...]
   // First element is the command name, rest are arguments (unevaluated)
 
@@ -12,13 +12,13 @@ TclResult tcl_command_exec(const TclHostOps *ops, TclInterp interp,
   }
 
   // Extract the command name (first element)
-  TclObj cmd = ops->list.shift(interp, command);
+  FeatherObj cmd = ops->list.shift(interp, command);
   if (ops->list.is_nil(interp, cmd)) {
     return TCL_OK;
   }
 
   // The remaining list is the arguments
-  TclObj args = command;
+  FeatherObj args = command;
 
   // Resolve command name using namespace-scoped lookup
   // TCL command resolution order:
@@ -31,20 +31,20 @@ TclResult tcl_command_exec(const TclHostOps *ops, TclInterp interp,
   size_t cmdLen;
   const char *cmdStr = ops->string.get(interp, cmd, &cmdLen);
 
-  TclBuiltinCmd builtin = NULL;
-  TclCommandType cmdType = TCL_CMD_NONE;
-  TclObj lookupNs = 0;
-  TclObj simpleName = cmd;
+  FeatherBuiltinCmd builtin = NULL;
+  FeatherCommandType cmdType = TCL_CMD_NONE;
+  FeatherObj lookupNs = 0;
+  FeatherObj simpleName = cmd;
 
-  TclObj currentNs = ops->ns.current(interp);
+  FeatherObj currentNs = ops->ns.current(interp);
   size_t nsLen;
   const char *nsStr = ops->string.get(interp, currentNs, &nsLen);
   int inGlobalNs = (nsLen == 2 && nsStr[0] == ':' && nsStr[1] == ':');
-  TclObj globalNs = ops->string.intern(interp, "::", 2);
+  FeatherObj globalNs = ops->string.intern(interp, "::", 2);
 
-  if (tcl_is_qualified(cmdStr, cmdLen)) {
+  if (feather_is_qualified(cmdStr, cmdLen)) {
     // Qualified name - split and look up in the target namespace
-    tcl_split_command(ops, interp, cmd, &lookupNs, &simpleName);
+    feather_split_command(ops, interp, cmd, &lookupNs, &simpleName);
     if (ops->list.is_nil(interp, lookupNs)) {
       lookupNs = globalNs;
     }
@@ -70,7 +70,7 @@ TclResult tcl_command_exec(const TclHostOps *ops, TclInterp interp,
   }
 
   // Build fully qualified name for proc invocation and error messages
-  TclObj lookupName;
+  FeatherObj lookupName;
   if (ops->list.is_nil(interp, lookupNs) || lookupNs == 0) {
     lookupName = cmd;
   } else {
@@ -97,33 +97,33 @@ TclResult tcl_command_exec(const TclHostOps *ops, TclInterp interp,
     break;
   case TCL_CMD_PROC:
     // For procs, use the fully qualified name for lookup
-    return tcl_invoke_proc(ops, interp, lookupName, args);
+    return feather_invoke_proc(ops, interp, lookupName, args);
   case TCL_CMD_NONE:
     // Fall through to unknown handling
     break;
   }
 
   // Check for user-defined 'unknown' procedure in global namespace
-  TclObj unknownSimple = ops->string.intern(interp, "unknown", 7);
-  TclBuiltinCmd unusedFn = NULL;
-  TclCommandType unknownType = ops->ns.get_command(interp, globalNs, unknownSimple, &unusedFn);
+  FeatherObj unknownSimple = ops->string.intern(interp, "unknown", 7);
+  FeatherBuiltinCmd unusedFn = NULL;
+  FeatherCommandType unknownType = ops->ns.get_command(interp, globalNs, unknownSimple, &unusedFn);
 
   if (unknownType == TCL_CMD_PROC) {
     // Build args list: [originalCmd, arg1, arg2, ...]
-    TclObj unknownArgs = ops->list.create(interp);
+    FeatherObj unknownArgs = ops->list.create(interp);
     unknownArgs = ops->list.push(interp, unknownArgs, cmd);
     size_t argc = ops->list.length(interp, args);
     for (size_t i = 0; i < argc; i++) {
-      TclObj arg = ops->list.at(interp, args, i);
+      FeatherObj arg = ops->list.at(interp, args, i);
       unknownArgs = ops->list.push(interp, unknownArgs, arg);
     }
-    TclObj unknownName = ops->string.intern(interp, "::unknown", 9);
-    return tcl_invoke_proc(ops, interp, unknownName, unknownArgs);
+    FeatherObj unknownName = ops->string.intern(interp, "::unknown", 9);
+    return feather_invoke_proc(ops, interp, unknownName, unknownArgs);
   }
 
   // Fall back to host command lookup via bind.unknown
-  TclObj result;
-  TclResult code = ops->bind.unknown(interp, cmd, args, &result);
+  FeatherObj result;
+  FeatherResult code = ops->bind.unknown(interp, cmd, args, &result);
 
   if (code == TCL_OK) {
     ops->interp.set_result(interp, result);
@@ -132,19 +132,19 @@ TclResult tcl_command_exec(const TclHostOps *ops, TclInterp interp,
   return code;
 }
 
-TclResult tcl_script_eval(const TclHostOps *ops, TclInterp interp,
-                          const char *source, size_t len, TclEvalFlags flags) {
-  TclResult result = TCL_OK;
-  TclParseContext ctx;
-  tcl_parse_init(&ctx, source, len);
+FeatherResult feather_script_eval(const FeatherHostOps *ops, FeatherInterp interp,
+                          const char *source, size_t len, FeatherEvalFlags flags) {
+  FeatherResult result = TCL_OK;
+  FeatherParseContext ctx;
+  feather_parse_init(&ctx, source, len);
 
-  TclParseStatus status;
-  while ((status = tcl_parse_command(ops, interp, &ctx)) == TCL_PARSE_OK) {
-    TclObj parsed = ops->interp.get_result(interp);
+  FeatherParseStatus status;
+  while ((status = feather_parse_command(ops, interp, &ctx)) == TCL_PARSE_OK) {
+    FeatherObj parsed = ops->interp.get_result(interp);
 
     // Only execute non-empty commands
     if (ops->list.length(interp, parsed) > 0) {
-      result = tcl_command_exec(ops, interp, parsed, flags);
+      result = feather_command_exec(ops, interp, parsed, flags);
       if (result != TCL_OK) {
         // Let break/continue propagate - the while loop will catch them
         // If they reach the top level, the host converts to error
@@ -156,9 +156,9 @@ TclResult tcl_script_eval(const TclHostOps *ops, TclInterp interp,
   return (status == TCL_PARSE_DONE) ? result : TCL_ERROR;
 }
 
-TclResult tcl_script_eval_obj(const TclHostOps *ops, TclInterp interp,
-                              TclObj script, TclEvalFlags flags) {
+FeatherResult feather_script_eval_obj(const FeatherHostOps *ops, FeatherInterp interp,
+                              FeatherObj script, FeatherEvalFlags flags) {
   size_t len;
   const char *source = ops->string.get(interp, script, &len);
-  return tcl_script_eval(ops, interp, source, len, flags);
+  return feather_script_eval(ops, interp, source, len, flags);
 }
