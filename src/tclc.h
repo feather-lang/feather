@@ -894,6 +894,41 @@ typedef struct TclNamespaceOps {
    * Does NOT include commands from parent or child namespaces.
    */
   TclObj (*list_commands)(TclInterp interp, TclObj ns);
+
+  /**
+   * get_exports returns the list of export patterns for a namespace.
+   *
+   * Returns a list of pattern strings (e.g., {"get*", "set*"}).
+   * Returns empty list if no exports defined.
+   */
+  TclObj (*get_exports)(TclInterp interp, TclObj ns);
+
+  /**
+   * set_exports sets the export patterns for a namespace.
+   *
+   * 'patterns' is a list of pattern strings.
+   * If 'clear' is non-zero, existing patterns are replaced.
+   * If 'clear' is zero, patterns are appended to existing list.
+   */
+  void (*set_exports)(TclInterp interp, TclObj ns, TclObj patterns, int clear);
+
+  /**
+   * is_exported checks if a command name matches any export pattern.
+   *
+   * 'name' is the simple (unqualified) command name.
+   * Returns 1 if the command matches an export pattern, 0 otherwise.
+   */
+  int (*is_exported)(TclInterp interp, TclObj ns, TclObj name);
+
+  /**
+   * copy_command copies a command from one namespace to another.
+   *
+   * Used by namespace import. Copies the command entry from srcNs to dstNs.
+   * 'srcName' and 'dstName' are simple (unqualified) names.
+   * Returns TCL_ERROR if source command doesn't exist.
+   */
+  TclResult (*copy_command)(TclInterp interp, TclObj srcNs, TclObj srcName,
+                            TclObj dstNs, TclObj dstName);
 } TclNamespaceOps;
 
 /**

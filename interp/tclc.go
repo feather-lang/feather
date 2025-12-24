@@ -78,11 +78,12 @@ type varLink struct {
 
 // Namespace represents a namespace in the hierarchy
 type Namespace struct {
-	fullPath string
-	parent   *Namespace
-	children map[string]*Namespace
-	vars     map[string]TclObj
-	commands map[string]*Command // commands defined in this namespace
+	fullPath       string
+	parent         *Namespace
+	children       map[string]*Namespace
+	vars           map[string]TclObj
+	commands       map[string]*Command // commands defined in this namespace
+	exportPatterns []string            // patterns for exported commands (e.g., "get*", "set*")
 }
 
 // CallFrame represents an execution frame on the call stack.

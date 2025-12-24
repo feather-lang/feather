@@ -243,6 +243,23 @@ static TclObj c_ns_list_commands(TclInterp interp, TclObj ns) {
     return goNsListCommands(interp, ns);
 }
 
+static TclObj c_ns_get_exports(TclInterp interp, TclObj ns) {
+    return goNsGetExports(interp, ns);
+}
+
+static void c_ns_set_exports(TclInterp interp, TclObj ns, TclObj patterns, int clear) {
+    goNsSetExports(interp, ns, patterns, clear);
+}
+
+static int c_ns_is_exported(TclInterp interp, TclObj ns, TclObj name) {
+    return goNsIsExported(interp, ns, name);
+}
+
+static TclResult c_ns_copy_command(TclInterp interp, TclObj srcNs, TclObj srcName,
+                                   TclObj dstNs, TclObj dstName) {
+    return goNsCopyCommand(interp, srcNs, srcName, dstNs, dstName);
+}
+
 // Frame namespace extensions
 static TclResult c_frame_set_namespace(TclInterp interp, TclObj ns) {
     return goFrameSetNamespace(interp, ns);
@@ -319,6 +336,10 @@ TclHostOps make_host_ops(void) {
     ops.ns.set_command = c_ns_set_command;
     ops.ns.delete_command = c_ns_delete_command;
     ops.ns.list_commands = c_ns_list_commands;
+    ops.ns.get_exports = c_ns_get_exports;
+    ops.ns.set_exports = c_ns_set_exports;
+    ops.ns.is_exported = c_ns_is_exported;
+    ops.ns.copy_command = c_ns_copy_command;
 
     ops.string.intern = c_string_intern;
     ops.string.get = c_string_get;

@@ -1655,3 +1655,153 @@ func goTraceInfo(interp C.TclInterp, kind C.TclObj, name C.TclObj) C.TclObj {
 	i.objects[id] = &Object{isList: true, listItems: items}
 	return C.TclObj(id)
 }
+
+//export goNsGetExports
+func goNsGetExports(interp C.TclInterp, nsPath C.TclObj) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	pathStr := i.GetString(TclObj(nsPath))
+
+	ns, ok := i.namespaces[pathStr]
+	if !ok {
+		// Return empty list
+		id := i.nextID
+		i.nextID++
+		i.objects[id] = &Object{isList: true, listItems: []TclObj{}}
+		return C.TclObj(id)
+	}
+
+	// Return export patterns as a list
+	items := make([]TclObj, len(ns.exportPatterns))
+	for idx, pattern := range ns.exportPatterns {
+		items[idx] = i.internString(pattern)
+	}
+
+	id := i.nextID
+	i.nextID++
+	i.objects[id] = &Object{isList: true, listItems: items}
+	return C.TclObj(id)
+}
+
+//export goNsSetExports
+func goNsSetExports(interp C.TclInterp, nsPath C.TclObj, patterns C.TclObj, clear C.int) {
+	i := getInterp(interp)
+	if i == nil {
+		return
+	}
+	pathStr := i.GetString(TclObj(nsPath))
+
+	ns := i.ensureNamespace(pathStr)
+
+	// Get patterns from list
+	patternList, err := i.GetList(TclObj(patterns))
+	if err != nil {
+		return
+	}
+	newPatterns := make([]string, len(patternList))
+	for idx, p := range patternList {
+		newPatterns[idx] = i.GetString(p)
+	}
+
+	if clear != 0 {
+		// Replace existing patterns
+		ns.exportPatterns = newPatterns
+	} else {
+		// Append to existing patterns
+		ns.exportPatterns = append(ns.exportPatterns, newPatterns...)
+	}
+}
+
+//export goNsIsExported
+func goNsIsExported(interp C.TclInterp, nsPath C.TclObj, name C.TclObj) C.int {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	pathStr := i.GetString(TclObj(nsPath))
+	nameStr := i.GetString(TclObj(name))
+
+	ns, ok := i.namespaces[pathStr]
+	if !ok {
+		return 0
+	}
+
+	// Check if name matches any export pattern
+	for _, pattern := range ns.exportPatterns {
+		if globMatch(pattern, nameStr) {
+			return 1
+		}
+	}
+	return 0
+}
+
+// globMatch performs simple glob pattern matching
+// Supports * for any sequence and ? for single character
+func globMatch(pattern, str string) bool {
+	return globMatchHelper(pattern, str, 0, 0)
+}
+
+func globMatchHelper(pattern, str string, pi, si int) bool {
+	for pi < len(pattern) {
+		if pattern[pi] == '*' {
+			// Skip consecutive *
+			for pi < len(pattern) && pattern[pi] == '*' {
+				pi++
+			}
+			if pi >= len(pattern) {
+				return true // * at end matches everything
+			}
+			// Try matching * with 0, 1, 2, ... characters
+			for si <= len(str) {
+				if globMatchHelper(pattern, str, pi, si) {
+					return true
+				}
+				si++
+			}
+			return false
+		} else if si >= len(str) {
+			return false // pattern has chars but string is empty
+		} else if pattern[pi] == '?' || pattern[pi] == str[si] {
+			pi++
+			si++
+		} else {
+			return false
+		}
+	}
+	return si >= len(str)
+}
+
+//export goNsCopyCommand
+func goNsCopyCommand(interp C.TclInterp, srcNs C.TclObj, srcName C.TclObj,
+	dstNs C.TclObj, dstName C.TclObj) C.TclResult {
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	srcNsStr := i.GetString(TclObj(srcNs))
+	srcNameStr := i.GetString(TclObj(srcName))
+	dstNsStr := i.GetString(TclObj(dstNs))
+	dstNameStr := i.GetString(TclObj(dstName))
+
+	// Find source namespace
+	srcNsObj, ok := i.namespaces[srcNsStr]
+	if !ok {
+		return C.TCL_ERROR
+	}
+
+	// Find source command
+	cmd, ok := srcNsObj.commands[srcNameStr]
+	if !ok {
+		return C.TCL_ERROR
+	}
+
+	// Ensure destination namespace exists
+	dstNsObj := i.ensureNamespace(dstNsStr)
+
+	// Copy command to destination (it's a pointer copy, so both share the same Command)
+	dstNsObj.commands[dstNameStr] = cmd
+
+	return C.TCL_OK
+}
