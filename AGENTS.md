@@ -1,6 +1,6 @@
 # Overview
 
-This repository holds tclc, a small, embeddable interpreter for a subset of TCL.
+This repository holds feather, a small, embeddable interpreter for a subset of TCL.
 
 The structure is this:
 

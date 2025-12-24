@@ -185,7 +185,7 @@ The browser is one example of this model being successful, but what about all
 the other applications? Your job runner, web server, database, your desktop
 or mobile app.
 
-tclc wants to be the thin glue layer that's easy to embed into your programs,
+feather wants to be the thin glue layer that's easy to embed into your programs,
 so that you can talk to them while they are running.
 
 Another way to look at TCL is this: it is a Lisp-2 with fexprs that extend
@@ -206,11 +206,11 @@ Notable omissions (all to be covered by the host):
 - I/O: chan, puts, gets, refchan, transchan, after, vwait, update
   These are better provided by the host in the form of exposed commands.
 
-- OO: tclc intended use case is short, interactive programs
-  similar to bash. Programming in the large is explicitly not supported.
+- OO: feather intended use case is short, interactive programs
+   similar to bash. Programming in the large is explicitly not supported.
 
-- Coroutines: tclc interpreter objects are small and lightweight so you can
-  have of them if you need something like coroutines.
+- Coroutines: feather interpreter objects are small and lightweight so you can
+   have of them if you need something like coroutines.
 
 Notables qualities of the implementation:
 

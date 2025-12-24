@@ -1,6 +1,6 @@
 # M10: Namespace Design
 
-This document describes the design for namespace support in tclc.
+This document describes the design for namespace support in feather.
 
 ## Scope
 
@@ -280,7 +280,7 @@ if (ops->list.is_nil(interp, ns)) {
 
 | File | Changes |
 |------|---------|
-| `interp/tclc.go` | Add Namespace struct, extend CallFrame |
+| `interp/feather.go` | Add Namespace struct, extend CallFrame |
 | `interp/callbacks.go` | Implement FeatherNamespaceOps callbacks |
 | `interp/callbacks.c` | Wire up new C callbacks |
 

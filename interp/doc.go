@@ -1,6 +1,6 @@
 /*
 Package interp contains the Go host
-for the tclc interpreter.
+for the feather interpreter.
 
 For the binary using this, see cmd/gcl/main.go
 */

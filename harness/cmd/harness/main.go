@@ -14,7 +14,7 @@ func main() {
 
 	rootCmd := &cobra.Command{
 		Use:   "harness",
-		Short: "Test harness for tclc",
+		Short: "Test harness for feather",
 	}
 
 	runCmd := &cobra.Command{

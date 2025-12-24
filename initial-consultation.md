@@ -1948,7 +1948,7 @@ Responsibility of the host: memory, I/O (through embedding commands, like in the
 
 ```
 /**
- * tclc is an embeddable implementation of the core TCL language.
+ * feather is an embeddable implementation of the core TCL language.
  *
  * TCL was conceived at a time when most networked software was written
  * in C at the core, the internet was young, user expectations were looser.
@@ -1985,7 +1985,7 @@ Responsibility of the host: memory, I/O (through embedding commands, like in the
  * the other applications? Your job runner, web server, database, your desktop
  * or mobile app.
  *
- * tclc wants to be the thin glue layer that's easy to embed into your programs,
+ * feather wants to be the thin glue layer that's easy to embed into your programs,
  * so that you can talk to them while they are running.
  *
  * Here you will find a faithful implementation of:
@@ -2003,10 +2003,10 @@ Responsibility of the host: memory, I/O (through embedding commands, like in the
  * - I/O: chan, puts, gets, refchan, transchan, after, vwait, update
  *   These are better provided by the host in the form of exposed commands.
  *
- * - Namespaces, OO: tclc intended use case is short, interactive programs similar to bash.
+ * - Namespaces, OO: feather intended use case is short, interactive programs similar to bash.
  *   Programming in the large is explicitly not supported.
  *
- * - Coroutines: tclc interpreter objects are small and lightweight so you can have of them if you
+ * - Coroutines: feather interpreter objects are small and lightweight so you can have of them if you
  *   need something like coroutines.
  *
  * Notable differences:
@@ -2241,7 +2241,7 @@ typedef struct FeatherHostOps {
  * ============================================================================
  * INTERPRETER API
  * ============================================================================
- * Functions exported by tclc, called by the host.
+ * Functions exported by feather, called by the host.
  */
 
 /*

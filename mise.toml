@@ -22,7 +22,7 @@ mkdir -p build
 for f in src/*.c; do
   cc -c -fPIC -I src -o "build/$(basename "$f" .c).o" "$f"
 done
-ar rcs build/libtclc.a build/*.o
+ar rcs build/libfeather.a build/*.o
 """
 
 [tasks."build:oracle"]

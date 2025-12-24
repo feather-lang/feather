@@ -2,7 +2,7 @@
  * Oracle: Reference TCL interpreter for test comparison
  *
  * This embeds the real TCL interpreter to provide ground truth
- * for tclc's behavior.
+ * for feather's behavior.
  */
 
 #include <tcl.h>
@@ -64,7 +64,7 @@ int main(int argc, char *argv[]) {
     (void)argv;
 
     /* Check if running in harness mode */
-    const char *harness_env = getenv("TCLC_IN_HARNESS");
+    const char *harness_env = getenv("FEATHER_IN_HARNESS");
     if (harness_env && strcmp(harness_env, "1") == 0) {
         in_harness = 1;
         harness_fd = fdopen(3, "w");

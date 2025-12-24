@@ -2,7 +2,7 @@ package interp
 
 /*
 #cgo CFLAGS: -I${SRCDIR}/../src
-#cgo LDFLAGS: -L${SRCDIR}/../build -ltclc -Wl,-rpath,${SRCDIR}/../build
+#cgo LDFLAGS: -L${SRCDIR}/../build -lfeather -Wl,-rpath,${SRCDIR}/../build
 #include "feather.h"
 #include <stdlib.h>
 

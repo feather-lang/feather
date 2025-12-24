@@ -107,7 +107,7 @@ func runScript(host *interp.Host) {
 }
 
 func writeHarnessResult(returnCode string, result string, errorMsg string) {
-	if os.Getenv("TCLC_IN_HARNESS") != "1" {
+	if os.Getenv("FEATHER_IN_HARNESS") != "1" {
 		return
 	}
 

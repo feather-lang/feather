@@ -1,4 +1,4 @@
-# Plan: Transparent Foreign Object Support in tclc
+# Plan: Transparent Foreign Object Support in feather
 
 ## Goals
 
@@ -8,7 +8,7 @@
 
 ## Design Philosophy
 
-**Complexity budget**: tclc stays minimal, host libraries absorb complexity.
+**Complexity budget**: feather stays minimal, host libraries absorb complexity.
 
 The libraries we ship (Go, Node.js, Java, Swift) handle:
 - Type registration and method dispatch
@@ -16,7 +16,7 @@ The libraries we ship (Go, Node.js, Java, Swift) handle:
 - Object-as-command registration
 - Lifecycle management
 
-tclc just needs hooks for the libraries to build on.
+feather just needs hooks for the libraries to build on.
 
 ## User Experience Goals
 
@@ -47,12 +47,12 @@ $mux destroy
 
 ```go
 // Go: Define a type in ~10 lines
-tclc.DefineType[*http.ServeMux]("Mux", tclc.TypeDef{
+feather.DefineType[*http.ServeMux]("Mux", feather.TypeDef{
     New: func() *http.ServeMux {
         return http.NewServeMux()
     },
-    Methods: tclc.Methods{
-        "handle": func(m *http.ServeMux, pattern string, handler tclc.Proc) {
+    Methods: feather.Methods{
+        "handle": func(m *http.ServeMux, pattern string, handler feather.Proc) {
             m.HandleFunc(pattern, handler.AsHTTPHandler())
         },
         "listen": func(m *http.ServeMux, port int) error {
@@ -65,7 +65,7 @@ tclc.DefineType[*http.ServeMux]("Mux", tclc.TypeDef{
 
 ```javascript
 // Node.js: Same pattern
-tclc.defineType('Server', {
+feather.defineType('Server', {
     new: () => http.createServer(),
     methods: {
         listen: (server, port) => server.listen(port),
@@ -105,9 +105,9 @@ extension URLSession: FeatherExposable {
 
 ## Architecture
 
-### Layer 1: tclc Core (C) - Minimal Hooks
+### Layer 1: feather Core (C) - Minimal Hooks
 
-tclc provides the primitives. The host libraries build ergonomics on top.
+feather provides the primitives. The host libraries build ergonomics on top.
 
 ```c
 typedef struct FeatherForeignOps {
@@ -132,7 +132,7 @@ typedef struct FeatherForeignOps {
 } FeatherForeignOps;
 ```
 
-**tclc changes:**
+**feather changes:**
 1. Add `FeatherForeignOps` to `FeatherHostOps`
 2. `info type $obj` - returns type name for any value
 3. `info methods $obj` - returns method list (empty for non-foreign)
@@ -172,7 +172,7 @@ The library automatically converts FeatherObj ↔ native types:
 - `[]T` ↔ FeatherObj (list rep)
 - `map[string]T` ↔ FeatherObj (dict rep)
 - `*ForeignType` ↔ FeatherObj (foreign rep)
-- `tclc.Proc` ↔ FeatherObj (callable script/proc name)
+- `feather.Proc` ↔ FeatherObj (callable script/proc name)
 - `error` → TCL_ERROR with message
 
 **D. Object-as-Command Pattern**
@@ -204,7 +204,7 @@ func (lib *Library) CreateForeign(typeName string, value any) FeatherObj {
 
 ## Implementation Roadmap
 
-### Phase 1: tclc Core Changes
+### Phase 1: feather Core Changes
 
 **Files:**
 - `src/feather.h` - Add `FeatherForeignOps` to `FeatherHostOps`
@@ -214,24 +214,24 @@ func (lib *Library) CreateForeign(typeName string, value any) FeatherObj {
 1. Define `FeatherForeignOps` struct with 6 callbacks
 2. Add `foreign` field to `FeatherHostOps`
 3. Extend `info` command:
-   - `info type $obj` → type name (or "string"/"list"/"dict"/"int" for builtins)
-   - `info methods $obj` → method list (calls `foreign.methods`)
+    - `info type $obj` → type name (or "string"/"list"/"dict"/"int" for builtins)
+    - `info methods $obj` → method list (calls `foreign.methods`)
 4. Modify string shimmering path to check `foreign.is_foreign()` and call `foreign.string_rep()`
 
 ### Phase 2: Go Host - Low-Level Support
 
 **Files:**
-- `interp/tclc.go` - Add foreign fields to Object, implement callbacks
+- `interp/feather.go` - Add foreign fields to Object, implement callbacks
 - `interp/callbacks.go` - Export foreign ops to C
 - `interp/callbacks.c` - C wrapper functions
 
 **Scope:**
 1. Add to `Object` struct:
-   ```go
-   isForeign    bool
-   foreignType  string
-   foreignValue any
-   ```
+    ```go
+    isForeign    bool
+    foreignType  string
+    foreignValue any
+    ```
 2. Implement `FeatherForeignOps` callbacks
 3. Add `NewForeign(typeName string, value any) FeatherObj` method
 4. Add type registry: `map[string]*ForeignTypeDef`
@@ -239,7 +239,7 @@ func (lib *Library) CreateForeign(typeName string, value any) FeatherObj {
 ### Phase 3: Go Library - High-Level API
 
 **Files:**
-- New package: `tclc/` (or extend `interp/`)
+- New package: `feather/` (or extend `interp/`)
 
 **Scope:**
 1. `DefineType[T]()` - generic type registration with reflection
@@ -261,7 +261,7 @@ func (lib *Library) CreateForeign(typeName string, value any) FeatherObj {
 |------|---------|
 | `src/feather.h` | Add `FeatherForeignOps` struct, add to `FeatherHostOps` |
 | `src/builtins.c` | `info type`, `info methods` subcommands |
-| `interp/tclc.go` | Foreign fields in Object, type registry, NewForeign |
+| `interp/feather.go` | Foreign fields in Object, type registry, NewForeign |
 | `interp/callbacks.go` | Implement 6 foreign ops callbacks |
 | `interp/callbacks.c` | C wrappers for foreign ops |
 | `interp/library.go` (new) | High-level DefineType API |
@@ -296,23 +296,23 @@ type Object struct {
 
 ## Testing Strategy
 
-1. **Unit tests** (in tclc test harness):
-   - `info type` returns correct type for all value types
-   - `info methods` returns method list for foreign objects
-   - Foreign objects have string representation
-   - Foreign objects pass through lists/dicts unchanged
+1. **Unit tests** (in feather test harness):
+    - `info type` returns correct type for all value types
+    - `info methods` returns method list for foreign objects
+    - Foreign objects have string representation
+    - Foreign objects pass through lists/dicts unchanged
 
 2. **Integration tests** (Go):
-   - Define type, create instance, call methods
-   - Object-as-command dispatch works
-   - Argument conversion for various types
-   - Error handling (wrong type, missing method)
-   - Lifecycle: destroy cleans up
+    - Define type, create instance, call methods
+    - Object-as-command dispatch works
+    - Argument conversion for various types
+    - Error handling (wrong type, missing method)
+    - Lifecycle: destroy cleans up
 
 3. **Example applications**:
-   - HTTP server with routes
-   - Database with queries
-   - File handle wrapper
+    - HTTP server with routes
+    - Database with queries
+    - File handle wrapper
 
 ## Design Decisions
 

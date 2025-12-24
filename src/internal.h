@@ -1,5 +1,5 @@
-#ifndef INCLUDE_TCLC_INTERNAL
-#define INCLUDE_TCLC_INTERNAL
+#ifndef INCLUDE_FEATHER_INTERNAL
+#define INCLUDE_FEATHER_INTERNAL
 
 #include "feather.h"
 

@@ -92,7 +92,7 @@ func (r *Runner) runTestWithTimeout(tc TestCase, suiteTimeout time.Duration) Tes
 
 	cmd := exec.CommandContext(ctx, r.HostPath)
 	cmd.Stdin = strings.NewReader(tc.Script)
-	cmd.Env = append(os.Environ(), "TCLC_IN_HARNESS=1")
+	cmd.Env = append(os.Environ(), "FEATHER_IN_HARNESS=1")
 
 	// Set up the extra file descriptor (will be fd 3 in the child)
 	cmd.ExtraFiles = []*os.File{harnessWriter}

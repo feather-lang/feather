@@ -1,6 +1,6 @@
 # WASM Design
 
-This document describes how to build tclc as a WebAssembly module that can be embedded in any WASM runtime. The design preserves the existing `FeatherHostOps` interface unchanged, using WASM's function table mechanism for indirect calls.
+This document describes how to build feather as a WebAssembly module that can be embedded in any WASM runtime. The design preserves the existing `FeatherHostOps` interface unchanged, using WASM's function table mechanism for indirect calls.
 
 ## Architecture Overview
 
@@ -14,7 +14,7 @@ This document describes how to build tclc as a WebAssembly module that can be em
         │           function table + memory         │
         ▼                                           ▼
 ┌───────────────────┐                    ┌───────────────────┐
-│  tclc.wasm        │                    │  Host             │
+│  feather.wasm        │                    │  Host             │
 │  (C → WASM)       │                    │  (JS or Python)   │
 │                   │                    │                   │
 │  FeatherHostOps*  ────│──── points to ────→│  Function table   │
@@ -45,7 +45,7 @@ result = ops->string.intern(interp, s, len);
 //   call_indirect (dispatch through table)
 ```
 
-**No conditional compilation. No `#ifdef TCLC_WASM`. The same C source builds for both targets.**
+**No conditional compilation. No `#ifdef FEATHER_WASM`. The same C source builds for both targets.**
 
 ### 2. Objects Live in the Host
 
@@ -83,7 +83,7 @@ The WASM Component Model with WIT (WebAssembly Interface Types) would simplify h
 | Node.js | **Not supported** |
 | Browsers | **Not supported** |
 
-The Component Model is production-ready for server-side runtimes (Wasmtime, cloud functions) but **not yet available in browsers or Node.js**, which are primary targets for tclc.
+The Component Model is production-ready for server-side runtimes (Wasmtime, cloud functions) but **not yet available in browsers or Node.js**, which are primary targets for feather.
 
 **Function tables provide:**
 - Universal compatibility (works everywhere WASM runs)
@@ -91,13 +91,13 @@ The Component Model is production-ready for server-side runtimes (Wasmtime, clou
 - Runtime flexibility (can modify functions after load)
 - Battle-tested mechanism (used since WASM 1.0)
 
-**Trade-off:** Hosts must manually marshal data (strings via ptr/len, structs laid out in memory). This is more code but ensures tclc works in any WASM environment today.
+**Trade-off:** Hosts must manually marshal data (strings via ptr/len, structs laid out in memory). This is more code but ensures feather works in any WASM environment today.
 
 **Future option:** When Component Model reaches browsers, a WIT interface could be added alongside the function-table approach for hosts that support it.
 
 ## WASM Module Exports
 
-The compiled `tclc.wasm` exports:
+The compiled `feather.wasm` exports:
 
 | Export | Signature | Description |
 |--------|-----------|-------------|
@@ -958,21 +958,21 @@ async function createFeatherc(wasmPath) {
 
 // Usage example
 async function main() {
-  const tclc = await createFeatherc('./tclc.wasm');
-  const interp = tclc.create();
+  const feather = await createFeatherc('./feather.wasm');
+  const interp = feather.create();
 
   // Register host commands
-  tclc.register(interp, 'add', (args) => Number(args[0]) + Number(args[1]));
-  tclc.register(interp, 'multiply', (args) => Number(args[0]) * Number(args[1]));
-  tclc.register(interp, 'greet', (args) => `Hello, ${args[0]}!`);
+  feather.register(interp, 'add', (args) => Number(args[0]) + Number(args[1]));
+  feather.register(interp, 'multiply', (args) => Number(args[0]) * Number(args[1]));
+  feather.register(interp, 'greet', (args) => `Hello, ${args[0]}!`);
 
   // Evaluate TCL scripts
-  console.log(tclc.eval(interp, 'set x 10'));           // "10"
-  console.log(tclc.eval(interp, 'set y [add $x 5]'));   // "15"
-  console.log(tclc.eval(interp, 'expr {$x * $y}'));     // "150"
-  console.log(tclc.eval(interp, 'greet World'));        // "Hello, World!"
+  console.log(feather.eval(interp, 'set x 10'));           // "10"
+  console.log(feather.eval(interp, 'set y [add $x 5]'));   // "15"
+  console.log(feather.eval(interp, 'expr {$x * $y}'));     // "150"
+  console.log(feather.eval(interp, 'greet World'));        // "Hello, World!"
 
-  tclc.destroy(interp);
+  feather.destroy(interp);
 }
 
 export { createFeatherc };
@@ -985,7 +985,7 @@ Using the `wasmer` package for WASM runtime:
 ```python
 #!/usr/bin/env python3
 """
-tclc WASM host implementation in Python using wasmer.
+feather WASM host implementation in Python using wasmer.
 
 Install: pip install wasmer wasmer-compiler-cranelift
 """
@@ -1048,7 +1048,7 @@ class FeatherInterp:
 
 
 class FeathercHost:
-    """WASM host for tclc interpreter."""
+    """WASM host for feather interpreter."""
 
     def __init__(self, wasm_path):
         self.interpreters = {}
@@ -1624,33 +1624,33 @@ class FeathercHost:
 
 # Usage example
 if __name__ == '__main__':
-    tclc = FeathercHost('./tclc.wasm')
-    interp = tclc.create()
+    feather = FeathercHost('./feather.wasm')
+    interp = feather.create()
 
     # Register Python functions as TCL commands
-    tclc.register(interp, 'add', lambda args: int(args[0]) + int(args[1]))
-    tclc.register(interp, 'multiply', lambda args: int(args[0]) * int(args[1]))
-    tclc.register(interp, 'greet', lambda args: f"Hello, {args[0]}!")
-    tclc.register(interp, 'range', lambda args: ' '.join(str(i) for i in range(int(args[0]))))
+    feather.register(interp, 'add', lambda args: int(args[0]) + int(args[1]))
+    feather.register(interp, 'multiply', lambda args: int(args[0]) * int(args[1]))
+    feather.register(interp, 'greet', lambda args: f"Hello, {args[0]}!")
+    feather.register(interp, 'range', lambda args: ' '.join(str(i) for i in range(int(args[0]))))
 
     # Evaluate TCL scripts
-    print(tclc.eval(interp, 'set x 10'))           # "10"
-    print(tclc.eval(interp, 'set y [add $x 5]'))   # "15"
-    print(tclc.eval(interp, 'expr {$x * $y}'))     # "150"
-    print(tclc.eval(interp, 'greet World'))        # "Hello, World!"
+    print(feather.eval(interp, 'set x 10'))           # "10"
+    print(feather.eval(interp, 'set y [add $x 5]'))   # "15"
+    print(feather.eval(interp, 'expr {$x * $y}'))     # "150"
+    print(feather.eval(interp, 'greet World'))        # "Hello, World!"
 
     # Define a TCL procedure
-    tclc.eval(interp, '''
+    feather.eval(interp, '''
         proc factorial {n} {
-            if {$n <= 1} {
+             if {$n <= 1} {
                 return 1
             }
             expr {$n * [factorial [expr {$n - 1}]]}
         }
     ''')
-    print(tclc.eval(interp, 'factorial 5'))        # "120"
+    print(feather.eval(interp, 'factorial 5'))        # "120"
 
-    tclc.destroy(interp)
+    feather.destroy(interp)
 ```
 
 ## Build Process
@@ -1672,7 +1672,7 @@ emcc \
   -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap"]' \
   -s ALLOW_TABLE_GROWTH=1 \
   -s EXPORT_ALL=1 \
-  -o tclc.wasm \
+  -o feather.wasm \
   src/*.c
 
 # Using clang with WASI SDK
@@ -1684,13 +1684,13 @@ clang \
   -Wl,--export=alloc \
   -Wl,--export=free \
   -O2 \
-  -o tclc.wasm \
+  -o feather.wasm \
   src/*.c
 ```
 
 ### Required C Additions
 
-Add to `src/tclc.c`:
+Add to `src/feather.c`:
 
 ```c
 // Simple bump allocator for WASM builds
@@ -1731,7 +1731,7 @@ void free(void* ptr) {
 | Data marshaling | Manual | Manual | Automatic |
 | Runtime flexibility | Fixed at load | Can modify | Fixed at load |
 
-**Function table is the right choice for tclc because:**
+**Function table is the right choice for feather because:**
 
 1. **Universal compatibility** — works in browsers, Node.js, Python, and server runtimes
 2. **No C code bifurcation** — same source builds for native and WASM
