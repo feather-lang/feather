@@ -448,13 +448,12 @@ func (s *HTTPServer) cmdTemplateList(i *interp.Interp) interp.FeatherResult {
 	s.templateMu.RLock()
 	defer s.templateMu.RUnlock()
 
-	names := make([]string, 0, len(s.templates))
+	list := i.NewList()
 	for name := range s.templates {
-		names = append(names, name)
+		i.ListAppend(list, i.InternString(name))
 	}
 
-	// Build a TCL list as string
-	i.SetResultString(tclList(names))
+	i.SetResult(list)
 	return interp.ResultOK
 }
 
@@ -535,14 +534,13 @@ func (s *HTTPServer) cmdTemplateErrors(i *interp.Interp) interp.FeatherResult {
 	s.templateMu.RLock()
 	defer s.templateMu.RUnlock()
 
-	// Build dict as TCL string (key-value pairs)
-	var pairs []string
+	dict := i.NewDict()
 	for name, info := range s.templates {
 		if info.Error != nil {
-			pairs = append(pairs, name, info.Error.Error())
+			i.DictSet(dict, name, i.InternString(info.Error.Error()))
 		}
 	}
-	i.SetResultString(tclList(pairs))
+	i.SetResult(dict)
 	return interp.ResultOK
 }
 

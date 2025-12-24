@@ -604,14 +604,17 @@ func (h *Host) GetForeignStringRep(obj FeatherObj) string {
 
 // Helper methods for creating TCL values
 
-func (i *Interp) createList() FeatherObj {
+// NewList creates an empty list object.
+func (i *Interp) NewList() FeatherObj {
 	id := i.nextID
 	i.nextID++
 	i.objects[id] = &Object{isList: true, listItems: []FeatherObj{}}
 	return id
 }
 
-func (i *Interp) listPush(list FeatherObj, item FeatherObj) FeatherObj {
+// ListAppend appends an item to a list and returns the list.
+// If the object is not a list, returns it unchanged.
+func (i *Interp) ListAppend(list FeatherObj, item FeatherObj) FeatherObj {
 	obj := i.getObject(list)
 	if obj != nil && obj.isList {
 		obj.listItems = append(obj.listItems, item)
@@ -620,14 +623,24 @@ func (i *Interp) listPush(list FeatherObj, item FeatherObj) FeatherObj {
 	return list
 }
 
-func (i *Interp) createInt(val int64) FeatherObj {
+// NewInt creates an integer object.
+func (i *Interp) NewInt(val int64) FeatherObj {
 	id := i.nextID
 	i.nextID++
 	i.objects[id] = &Object{intVal: val, isInt: true}
 	return id
 }
 
-func (i *Interp) createDict() FeatherObj {
+// NewDouble creates a floating-point object.
+func (i *Interp) NewDouble(val float64) FeatherObj {
+	id := i.nextID
+	i.nextID++
+	i.objects[id] = &Object{dblVal: val, isDouble: true}
+	return id
+}
+
+// NewDict creates an empty dict object.
+func (i *Interp) NewDict() FeatherObj {
 	id := i.nextID
 	i.nextID++
 	i.objects[id] = &Object{
@@ -638,7 +651,9 @@ func (i *Interp) createDict() FeatherObj {
 	return id
 }
 
-func (i *Interp) dictSet(dict FeatherObj, key string, val FeatherObj) FeatherObj {
+// DictSet sets a key-value pair in a dict and returns the dict.
+// If the object is not a dict, returns it unchanged.
+func (i *Interp) DictSet(dict FeatherObj, key string, val FeatherObj) FeatherObj {
 	obj := i.getObject(dict)
 	if obj != nil && obj.isDict {
 		if _, exists := obj.dictItems[key]; !exists {
@@ -648,4 +663,62 @@ func (i *Interp) dictSet(dict FeatherObj, key string, val FeatherObj) FeatherObj
 		obj.stringVal = "" // invalidate string cache
 	}
 	return dict
+}
+
+// DictGet retrieves a value from a dict by key.
+// Returns the value and true if found, or 0 and false if not found.
+func (i *Interp) DictGet(dict FeatherObj, key string) (FeatherObj, bool) {
+	obj := i.getObject(dict)
+	if obj != nil && obj.isDict {
+		val, ok := obj.dictItems[key]
+		return val, ok
+	}
+	return 0, false
+}
+
+// Type returns the native type of an object: "string", "int", "double", "list", "dict",
+// or the foreign type name if it's a foreign object.
+func (i *Interp) Type(h FeatherObj) string {
+	obj := i.getObject(h)
+	if obj == nil {
+		return "string"
+	}
+	if obj.isForeign {
+		return obj.foreignType
+	}
+	if obj.isDict {
+		return "dict"
+	}
+	if obj.isList {
+		return "list"
+	}
+	if obj.isDouble {
+		return "double"
+	}
+	if obj.isInt {
+		return "int"
+	}
+	return "string"
+}
+
+// Aliases for internal use (to avoid breaking existing code)
+
+func (i *Interp) createList() FeatherObj {
+	return i.NewList()
+}
+
+func (i *Interp) listPush(list FeatherObj, item FeatherObj) FeatherObj {
+	return i.ListAppend(list, item)
+}
+
+func (i *Interp) createInt(val int64) FeatherObj {
+	return i.NewInt(val)
+}
+
+func (i *Interp) createDict() FeatherObj {
+	return i.NewDict()
+}
+
+func (i *Interp) dictSet(dict FeatherObj, key string, val FeatherObj) FeatherObj {
+	return i.DictSet(dict, key, val)
 }
