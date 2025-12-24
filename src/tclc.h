@@ -428,6 +428,61 @@ typedef struct TclStringOps {
 } TclStringOps;
 
 /**
+ * TclRuneOps provides Unicode-aware character operations.
+ *
+ * These operations work with Unicode code points (runes) rather than bytes.
+ * The host is responsible for proper UTF-8 handling.
+ */
+typedef struct TclRuneOps {
+  /**
+   * length returns the number of Unicode code points in a string.
+   *
+   * For UTF-8 encoded strings, this counts runes, not bytes.
+   * Example: "héllo" has 5 runes but 6 bytes.
+   */
+  size_t (*length)(TclInterp interp, TclObj str);
+
+  /**
+   * at returns the nth Unicode character as a new string object.
+   *
+   * Index is 0-based. Returns empty string if index is out of bounds.
+   * The returned string contains the single character at that position.
+   */
+  TclObj (*at)(TclInterp interp, TclObj str, size_t index);
+
+  /**
+   * range returns substring from first to last (inclusive) by character index.
+   *
+   * Indices are 0-based. Negative indices are treated as 0.
+   * If last >= length, it is clamped to length-1.
+   * Returns empty string if first > last or string is empty.
+   */
+  TclObj (*range)(TclInterp interp, TclObj str, int64_t first, int64_t last);
+
+  /**
+   * to_upper returns a new string with Unicode-aware uppercase conversion.
+   *
+   * Handles non-ASCII characters (é→É, ß→SS, etc.)
+   */
+  TclObj (*to_upper)(TclInterp interp, TclObj str);
+
+  /**
+   * to_lower returns a new string with Unicode-aware lowercase conversion.
+   *
+   * Handles non-ASCII characters (É→é, etc.)
+   */
+  TclObj (*to_lower)(TclInterp interp, TclObj str);
+
+  /**
+   * fold returns case-folded string for case-insensitive comparison.
+   *
+   * Case folding is more appropriate than lowercasing for comparison.
+   * For example, German ß folds to "ss".
+   */
+  TclObj (*fold)(TclInterp interp, TclObj str);
+} TclRuneOps;
+
+/**
  * TclIntOps gives access to integers from the host.
  */
 typedef struct TclIntOps {
@@ -1019,6 +1074,7 @@ typedef struct TclHostOps {
   TclProcOps proc;
   TclNamespaceOps ns;
   TclStringOps string;
+  TclRuneOps rune;
   TclListOps list;
   TclIntOps integer;
   TclDoubleOps dbl;

@@ -1,17 +1,6 @@
 #include "tclc.h"
 #include "internal.h"
 
-// Helper for ASCII case conversion
-static int char_tolower(int c) {
-  if (c >= 'A' && c <= 'Z') return c + 32;
-  return c;
-}
-
-static int char_toupper(int c) {
-  if (c >= 'a' && c <= 'z') return c - 32;
-  return c;
-}
-
 // Helper to check string equality
 static int str_eq(const char *s, size_t len, const char *lit) {
   size_t llen = 0;
@@ -20,62 +9,6 @@ static int str_eq(const char *s, size_t len, const char *lit) {
   for (size_t i = 0; i < len; i++) {
     if (s[i] != lit[i]) return 0;
   }
-  return 1;
-}
-
-// UTF-8 utilities
-// Returns the number of UTF-8 characters (runes) in a string
-static size_t utf8_strlen(const char *s, size_t len) {
-  size_t count = 0;
-  size_t i = 0;
-  while (i < len) {
-    unsigned char c = (unsigned char)s[i];
-    if ((c & 0x80) == 0) {
-      i += 1;
-    } else if ((c & 0xE0) == 0xC0) {
-      i += 2;
-    } else if ((c & 0xF0) == 0xE0) {
-      i += 3;
-    } else if ((c & 0xF8) == 0xF0) {
-      i += 4;
-    } else {
-      i += 1;  // Invalid UTF-8, treat as single byte
-    }
-    count++;
-  }
-  return count;
-}
-
-// Get byte offset of nth character (0-indexed)
-static size_t utf8_offset(const char *s, size_t len, size_t charIndex) {
-  size_t count = 0;
-  size_t i = 0;
-  while (i < len && count < charIndex) {
-    unsigned char c = (unsigned char)s[i];
-    if ((c & 0x80) == 0) {
-      i += 1;
-    } else if ((c & 0xE0) == 0xC0) {
-      i += 2;
-    } else if ((c & 0xF0) == 0xE0) {
-      i += 3;
-    } else if ((c & 0xF8) == 0xF0) {
-      i += 4;
-    } else {
-      i += 1;
-    }
-    count++;
-  }
-  return i;
-}
-
-// Get byte length of character at position
-static size_t utf8_charlen(const char *s, size_t pos, size_t len) {
-  if (pos >= len) return 0;
-  unsigned char c = (unsigned char)s[pos];
-  if ((c & 0x80) == 0) return 1;
-  if ((c & 0xE0) == 0xC0) return 2;
-  if ((c & 0xF0) == 0xE0) return 3;
-  if ((c & 0xF8) == 0xF0) return 4;
   return 1;
 }
 
@@ -142,9 +75,7 @@ static TclResult string_length(const TclHostOps *ops, TclInterp interp, TclObj a
   }
 
   TclObj strObj = ops->list.shift(interp, args);
-  size_t len;
-  const char *str = ops->string.get(interp, strObj, &len);
-  size_t charLen = utf8_strlen(str, len);
+  size_t charLen = ops->rune.length(interp, strObj);
 
   ops->interp.set_result(interp, ops->integer.create(interp, (int64_t)charLen));
   return TCL_OK;
@@ -162,9 +93,7 @@ static TclResult string_index(const TclHostOps *ops, TclInterp interp, TclObj ar
   TclObj strObj = ops->list.shift(interp, args);
   TclObj indexObj = ops->list.shift(interp, args);
 
-  size_t len;
-  const char *str = ops->string.get(interp, strObj, &len);
-  size_t charLen = utf8_strlen(str, len);
+  size_t charLen = ops->rune.length(interp, strObj);
 
   int64_t index;
   if (parse_index(ops, interp, indexObj, charLen, &index) != TCL_OK) {
@@ -176,10 +105,8 @@ static TclResult string_index(const TclHostOps *ops, TclInterp interp, TclObj ar
     return TCL_OK;
   }
 
-  size_t byteOffset = utf8_offset(str, len, (size_t)index);
-  size_t charBytes = utf8_charlen(str, byteOffset, len);
-
-  ops->interp.set_result(interp, ops->string.intern(interp, str + byteOffset, charBytes));
+  TclObj result = ops->rune.at(interp, strObj, (size_t)index);
+  ops->interp.set_result(interp, result);
   return TCL_OK;
 }
 
@@ -196,9 +123,7 @@ static TclResult string_range(const TclHostOps *ops, TclInterp interp, TclObj ar
   TclObj firstObj = ops->list.shift(interp, args);
   TclObj lastObj = ops->list.shift(interp, args);
 
-  size_t len;
-  const char *str = ops->string.get(interp, strObj, &len);
-  size_t charLen = utf8_strlen(str, len);
+  size_t charLen = ops->rune.length(interp, strObj);
 
   int64_t first, last;
   if (parse_index(ops, interp, firstObj, charLen, &first) != TCL_OK) {
@@ -208,19 +133,9 @@ static TclResult string_range(const TclHostOps *ops, TclInterp interp, TclObj ar
     return TCL_ERROR;
   }
 
-  if (first < 0) first = 0;
-  if (last >= (int64_t)charLen) last = (int64_t)charLen - 1;
-
-  if (first > last || charLen == 0) {
-    ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
-    return TCL_OK;
-  }
-
-  size_t startByte = utf8_offset(str, len, (size_t)first);
-  size_t endByte = utf8_offset(str, len, (size_t)last);
-  endByte += utf8_charlen(str, endByte, len);
-
-  ops->interp.set_result(interp, ops->string.intern(interp, str + startByte, endByte - startByte));
+  // ops->rune.range handles clamping and empty string cases
+  TclObj result = ops->rune.range(interp, strObj, first, last);
+  ops->interp.set_result(interp, result);
   return TCL_OK;
 }
 
@@ -252,27 +167,19 @@ static TclResult string_match(const TclHostOps *ops, TclInterp interp, TclObj ar
   TclObj pattern = ops->list.shift(interp, args);
   TclObj string = ops->list.shift(interp, args);
 
-  size_t plen, slen;
-  const char *pstr = ops->string.get(interp, pattern, &plen);
-  const char *sstr = ops->string.get(interp, string, &slen);
-
   int matches;
   if (nocase) {
-    // Simple case-insensitive glob match
-    // For a full implementation, we'd need proper case folding
-    // For now, convert both to lowercase and compare
-    char pbuf[1024], sbuf[1024];
-    size_t pi = 0, si = 0;
-    for (size_t i = 0; i < plen && pi < sizeof(pbuf) - 1; i++) {
-      pbuf[pi++] = (char)char_tolower((unsigned char)pstr[i]);
-    }
-    pbuf[pi] = 0;
-    for (size_t i = 0; i < slen && si < sizeof(sbuf) - 1; i++) {
-      sbuf[si++] = (char)char_tolower((unsigned char)sstr[i]);
-    }
-    sbuf[si] = 0;
-    matches = tcl_glob_match(pbuf, pi, sbuf, si);
+    // Use case-folded versions for comparison
+    TclObj foldedPattern = ops->rune.fold(interp, pattern);
+    TclObj foldedString = ops->rune.fold(interp, string);
+    size_t plen, slen;
+    const char *pstr = ops->string.get(interp, foldedPattern, &plen);
+    const char *sstr = ops->string.get(interp, foldedString, &slen);
+    matches = tcl_glob_match(pstr, plen, sstr, slen);
   } else {
+    size_t plen, slen;
+    const char *pstr = ops->string.get(interp, pattern, &plen);
+    const char *sstr = ops->string.get(interp, string, &slen);
     matches = tcl_glob_match(pstr, plen, sstr, slen);
   }
 
@@ -290,21 +197,9 @@ static TclResult string_toupper(const TclHostOps *ops, TclInterp interp, TclObj 
   }
 
   TclObj strObj = ops->list.shift(interp, args);
-  size_t len;
-  const char *str = ops->string.get(interp, strObj, &len);
-
   // For now, convert entire string (ignore first/last)
-  char buf[4096];
-  if (len >= sizeof(buf)) {
-    ops->interp.set_result(interp, ops->string.intern(interp, "string too long", 15));
-    return TCL_ERROR;
-  }
-
-  for (size_t i = 0; i < len; i++) {
-    buf[i] = (char)char_toupper((unsigned char)str[i]);
-  }
-
-  ops->interp.set_result(interp, ops->string.intern(interp, buf, len));
+  TclObj result = ops->rune.to_upper(interp, strObj);
+  ops->interp.set_result(interp, result);
   return TCL_OK;
 }
 
@@ -318,20 +213,8 @@ static TclResult string_tolower(const TclHostOps *ops, TclInterp interp, TclObj 
   }
 
   TclObj strObj = ops->list.shift(interp, args);
-  size_t len;
-  const char *str = ops->string.get(interp, strObj, &len);
-
-  char buf[4096];
-  if (len >= sizeof(buf)) {
-    ops->interp.set_result(interp, ops->string.intern(interp, "string too long", 15));
-    return TCL_ERROR;
-  }
-
-  for (size_t i = 0; i < len; i++) {
-    buf[i] = (char)char_tolower((unsigned char)str[i]);
-  }
-
-  ops->interp.set_result(interp, ops->string.intern(interp, buf, len));
+  TclObj result = ops->rune.to_lower(interp, strObj);
+  ops->interp.set_result(interp, result);
   return TCL_OK;
 }
 
@@ -440,7 +323,8 @@ static TclResult string_trimright(const TclHostOps *ops, TclInterp interp, TclOb
   return TCL_OK;
 }
 
-// string map
+// string map - uses byte-level comparison with ASCII-only case folding for -nocase
+// TODO: For full Unicode support, this would need to use rune operations
 static TclResult string_map(const TclHostOps *ops, TclInterp interp, TclObj args) {
   size_t argc = ops->list.length(interp, args);
 
@@ -466,6 +350,9 @@ static TclResult string_map(const TclHostOps *ops, TclInterp interp, TclObj args
   TclObj mappingObj = ops->list.shift(interp, args);
   TclObj strObj = ops->list.shift(interp, args);
 
+  // For nocase, we compare folded versions
+  TclObj foldedStr = nocase ? ops->rune.fold(interp, strObj) : strObj;
+
   // Parse mapping as list of key/value pairs
   TclObj mapping = ops->list.from(interp, mappingObj);
   size_t mappingLen = ops->list.length(interp, mapping);
@@ -477,13 +364,15 @@ static TclResult string_map(const TclHostOps *ops, TclInterp interp, TclObj args
 
   size_t strLen;
   const char *str = ops->string.get(interp, strObj, &strLen);
+  size_t foldedLen;
+  const char *folded = ops->string.get(interp, foldedStr, &foldedLen);
 
-  // Build result
-  char buf[8192];
-  size_t bufPos = 0;
+  // Build result - note: for nocase with case-folding that changes length,
+  // we use the folded string for matching but original for non-matched chars
+  TclObj result = ops->string.intern(interp, "", 0);
   size_t i = 0;
 
-  while (i < strLen && bufPos < sizeof(buf) - 1) {
+  while (i < strLen) {
     int matched = 0;
 
     // Try each mapping
@@ -491,33 +380,30 @@ static TclResult string_map(const TclHostOps *ops, TclInterp interp, TclObj args
       TclObj keyObj = ops->list.at(interp, mapping, m);
       TclObj valObj = ops->list.at(interp, mapping, m + 1);
 
-      size_t keyLen, valLen;
-      const char *key = ops->string.get(interp, keyObj, &keyLen);
+      // For nocase, fold the key
+      TclObj keyToMatch = nocase ? ops->rune.fold(interp, keyObj) : keyObj;
+
+      size_t keyLen;
+      const char *key = ops->string.get(interp, keyToMatch, &keyLen);
+      size_t valLen;
       const char *val = ops->string.get(interp, valObj, &valLen);
 
       if (keyLen == 0) continue;
-      if (i + keyLen > strLen) continue;
+      if (i + keyLen > foldedLen) continue;
 
-      // Check if key matches at position i
+      // Check if key matches at position i in folded string
       int match = 1;
       for (size_t k = 0; k < keyLen; k++) {
-        char c1 = str[i + k];
-        char c2 = key[k];
-        if (nocase) {
-          c1 = (char)char_tolower((unsigned char)c1);
-          c2 = (char)char_tolower((unsigned char)c2);
-        }
-        if (c1 != c2) {
+        if (folded[i + k] != key[k]) {
           match = 0;
           break;
         }
       }
 
       if (match) {
-        // Copy replacement value
-        for (size_t v = 0; v < valLen && bufPos < sizeof(buf) - 1; v++) {
-          buf[bufPos++] = val[v];
-        }
+        // Append replacement value
+        TclObj valStr = ops->string.intern(interp, val, valLen);
+        result = ops->string.concat(interp, result, valStr);
         i += keyLen;
         matched = 1;
         break;
@@ -525,11 +411,14 @@ static TclResult string_map(const TclHostOps *ops, TclInterp interp, TclObj args
     }
 
     if (!matched) {
-      buf[bufPos++] = str[i++];
+      // Append original character (from folded, which may differ from original)
+      TclObj ch = ops->string.intern(interp, &folded[i], 1);
+      result = ops->string.concat(interp, result, ch);
+      i++;
     }
   }
 
-  ops->interp.set_result(interp, ops->string.intern(interp, buf, bufPos));
+  ops->interp.set_result(interp, result);
   return TCL_OK;
 }
 

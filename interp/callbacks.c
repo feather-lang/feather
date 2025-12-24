@@ -28,6 +28,31 @@ static TclResult c_string_regex_match(TclInterp interp, TclObj pattern, TclObj s
     return goStringRegexMatch(interp, pattern, string, result);
 }
 
+// Rune operations (Unicode-aware)
+static size_t c_rune_length(TclInterp interp, TclObj str) {
+    return goRuneLength(interp, str);
+}
+
+static TclObj c_rune_at(TclInterp interp, TclObj str, size_t index) {
+    return goRuneAt(interp, str, index);
+}
+
+static TclObj c_rune_range(TclInterp interp, TclObj str, int64_t first, int64_t last) {
+    return goRuneRange(interp, str, first, last);
+}
+
+static TclObj c_rune_to_upper(TclInterp interp, TclObj str) {
+    return goRuneToUpper(interp, str);
+}
+
+static TclObj c_rune_to_lower(TclInterp interp, TclObj str) {
+    return goRuneToLower(interp, str);
+}
+
+static TclObj c_rune_fold(TclInterp interp, TclObj str) {
+    return goRuneFold(interp, str);
+}
+
 static TclResult c_interp_set_result(TclInterp interp, TclObj result) {
     return goInterpSetResult(interp, result);
 }
@@ -350,6 +375,13 @@ TclHostOps make_host_ops(void) {
     ops.string.concat = c_string_concat;
     ops.string.compare = c_string_compare;
     ops.string.regex_match = c_string_regex_match;
+
+    ops.rune.length = c_rune_length;
+    ops.rune.at = c_rune_at;
+    ops.rune.range = c_rune_range;
+    ops.rune.to_upper = c_rune_to_upper;
+    ops.rune.to_lower = c_rune_to_lower;
+    ops.rune.fold = c_rune_fold;
 
     ops.list.is_nil = c_list_is_nil;
     ops.list.create = c_list_create;

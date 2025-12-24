@@ -16,6 +16,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // Go callback implementations - these are called from C via the wrappers in callbacks.c
@@ -134,6 +136,103 @@ func goStringRegexMatch(interp C.TclInterp, pattern C.TclObj, str C.TclObj, resu
 		*result = 0
 	}
 	return C.TCL_OK
+}
+
+// Rune operations (Unicode-aware)
+
+//export goRuneLength
+func goRuneLength(interp C.TclInterp, str C.TclObj) C.size_t {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	s := i.GetString(TclObj(str))
+	return C.size_t(utf8.RuneCountInString(s))
+}
+
+//export goRuneAt
+func goRuneAt(interp C.TclInterp, str C.TclObj, index C.size_t) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	s := i.GetString(TclObj(str))
+	runes := []rune(s)
+	idx := int(index)
+	if idx < 0 || idx >= len(runes) {
+		return C.TclObj(i.internString(""))
+	}
+	return C.TclObj(i.internString(string(runes[idx])))
+}
+
+//export goRuneRange
+func goRuneRange(interp C.TclInterp, str C.TclObj, first C.int64_t, last C.int64_t) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	s := i.GetString(TclObj(str))
+	runes := []rune(s)
+	length := len(runes)
+
+	// Clamp indices
+	f := int(first)
+	l := int(last)
+	if f < 0 {
+		f = 0
+	}
+	if l >= length {
+		l = length - 1
+	}
+	if f > l || length == 0 {
+		return C.TclObj(i.internString(""))
+	}
+
+	return C.TclObj(i.internString(string(runes[f : l+1])))
+}
+
+//export goRuneToUpper
+func goRuneToUpper(interp C.TclInterp, str C.TclObj) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	s := i.GetString(TclObj(str))
+	return C.TclObj(i.internString(strings.ToUpper(s)))
+}
+
+//export goRuneToLower
+func goRuneToLower(interp C.TclInterp, str C.TclObj) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	s := i.GetString(TclObj(str))
+	return C.TclObj(i.internString(strings.ToLower(s)))
+}
+
+//export goRuneFold
+func goRuneFold(interp C.TclInterp, str C.TclObj) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	s := i.GetString(TclObj(str))
+	// Case folding: convert each rune to its folded form
+	// This handles cases like ß -> ss properly for comparison
+	var result strings.Builder
+	for _, r := range s {
+		// unicode.SimpleFold gives the next case-folded rune in the chain
+		// We use ToLower as primary, but handle special cases
+		folded := unicode.ToLower(r)
+		// Special case: German sharp s (ß) folds to "ss"
+		if r == 'ß' {
+			result.WriteString("ss")
+		} else {
+			result.WriteRune(folded)
+		}
+	}
+	return C.TclObj(i.internString(result.String()))
 }
 
 //export goInterpSetResult
