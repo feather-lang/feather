@@ -1,0 +1,123 @@
+<test-suite>
+  <!-- M15: lsort command - sort list -->
+
+  <!-- ============================================= -->
+  <!-- Basic lsort operations                        -->
+  <!-- ============================================= -->
+
+  <test-case name="lsort alphabetic default">
+    <script>lsort {c a b}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsort already sorted">
+    <script>lsort {a b c}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsort reverse sorted">
+    <script>lsort {z y x}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>x y z</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsort empty list">
+    <script>lsort {}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsort single element">
+    <script>lsort {a}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsort -decreasing">
+    <script>lsort -decreasing {a b c}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>c b a</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsort -integer">
+    <script>lsort -integer {10 2 5 1}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1 2 5 10</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsort -integer -decreasing">
+    <script>lsort -integer -decreasing {1 5 2 10}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10 5 2 1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsort -unique">
+    <script>lsort -unique {c a b a c}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsort -nocase">
+    <script>lsort -nocase {B a C}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a B C</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsort with duplicates">
+    <script>lsort {b a b c a}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a a b b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsort wrong args">
+    <script>lsort</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "lsort ?options? list"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="lsort bad option">
+    <script>lsort -badoption {a b}</script>
+    <return>TCL_ERROR</return>
+    <error>bad option "-badoption": must be -ascii, -decreasing, -increasing, -integer, -nocase, -real, or -unique</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

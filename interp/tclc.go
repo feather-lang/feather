@@ -282,8 +282,8 @@ func (i *Interp) listToString(obj *Object) string {
 		} else if itemObj.isList {
 			result += i.listToString(itemObj)
 		} else {
-			// Quote strings that contain spaces
-			if strings.ContainsAny(itemObj.stringVal, " \t\n") {
+			// Quote strings that contain spaces or are empty
+			if len(itemObj.stringVal) == 0 || strings.ContainsAny(itemObj.stringVal, " \t\n") {
 				result += "{" + itemObj.stringVal + "}"
 			} else {
 				result += itemObj.stringVal
@@ -331,8 +331,8 @@ func (i *Interp) listToValue(obj *Object) string {
 				result += nested
 			}
 		} else {
-			// Quote strings that contain spaces or special chars
-			if strings.ContainsAny(itemObj.stringVal, " \t\n{}") {
+			// Quote strings that contain spaces, special chars, or are empty
+			if len(itemObj.stringVal) == 0 || strings.ContainsAny(itemObj.stringVal, " \t\n{}") {
 				result += "{" + itemObj.stringVal + "}"
 			} else {
 				result += itemObj.stringVal

@@ -1,0 +1,89 @@
+<test-suite>
+  <!-- M15: split command - split string into list -->
+
+  <!-- ============================================= -->
+  <!-- Basic split operations                        -->
+  <!-- ============================================= -->
+
+  <test-case name="split on space default">
+    <script>split "a b c"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="split on comma">
+    <script>split "a,b,c" ","</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="split on colon">
+    <script>split "/usr/local/bin" "/"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{} usr local bin</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="split empty string">
+    <script>split ""</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="split no separator found">
+    <script>split "hello" ","</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="split into characters">
+    <script>split "abc" ""</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="split multiple char separator">
+    <script>split "a::b::c" ":"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a {} b {} c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="split preserves empty between delims">
+    <script>split "a,,b" ","</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a {} b</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="split on whitespace chars">
+    <script>llength [split "a b\tc\nd"]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>4</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

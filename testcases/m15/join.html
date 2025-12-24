@@ -1,0 +1,79 @@
+<test-suite>
+  <!-- M15: join command - join list elements into string -->
+
+  <!-- ============================================= -->
+  <!-- Basic join operations                         -->
+  <!-- ============================================= -->
+
+  <test-case name="join default separator">
+    <script>join {a b c}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="join comma separator">
+    <script>join {a b c} ","</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a,b,c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="join empty separator">
+    <script>join {a b c} ""</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>abc</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="join empty list">
+    <script>join {}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="join single element">
+    <script>join {hello}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="join multi-char separator">
+    <script>join {a b c} " :: "</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a :: b :: c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="join preserves element content">
+    <script>join {{hello world} foo bar} ","</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello world,foo,bar</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="join wrong args">
+    <script>join</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "join list ?joinString?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

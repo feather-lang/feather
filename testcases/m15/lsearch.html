@@ -1,0 +1,151 @@
+<test-suite>
+  <!-- M15: lsearch command - search in list -->
+
+  <!-- ============================================= -->
+  <!-- Basic lsearch operations                      -->
+  <!-- ============================================= -->
+
+  <test-case name="lsearch found first">
+    <script>lsearch {a b c} a</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsearch found middle">
+    <script>lsearch {a b c} b</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsearch found last">
+    <script>lsearch {a b c} c</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsearch not found">
+    <script>lsearch {a b c} x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsearch empty list">
+    <script>lsearch {} x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsearch -exact default">
+    <script>lsearch -exact {foo bar baz} bar</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsearch -glob">
+    <script>lsearch -glob {foo bar baz} b*</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsearch -glob star">
+    <script>lsearch -glob {hello world goodbye} *bye</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsearch -regexp">
+    <script>lsearch -regexp {foo bar123 baz} {bar[0-9]+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsearch -nocase">
+    <script>lsearch -nocase {Foo BAR baz} bar</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsearch -all">
+    <script>lsearch -all {a b a c a} a</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0 2 4</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsearch -all not found">
+    <script>lsearch -all {a b c} x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsearch -inline">
+    <script>lsearch -inline {foo bar baz} bar</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>bar</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsearch -inline not found">
+    <script>lsearch -inline {a b c} x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsearch -not">
+    <script>lsearch -not {a b c} b</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lsearch wrong args">
+    <script>lsearch {a b}</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "lsearch ?options? list pattern"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

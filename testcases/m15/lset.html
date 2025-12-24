@@ -1,0 +1,104 @@
+<test-suite>
+  <!-- M15: lset command - set element in list -->
+
+  <!-- ============================================= -->
+  <!-- Basic lset operations                         -->
+  <!-- ============================================= -->
+
+  <test-case name="lset first element">
+    <script>set x {a b c}
+lset x 0 X</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>X b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lset middle element">
+    <script>set x {a b c}
+lset x 1 Y</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a Y c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lset last element">
+    <script>set x {a b c}
+lset x 2 Z</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b Z</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lset with end index">
+    <script>set x {a b c}
+lset x end X</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b X</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lset with end-1 index">
+    <script>set x {a b c d}
+lset x end-1 X</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b X d</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lset modifies variable">
+    <script>set x {a b c}
+lset x 0 X
+set x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>X b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lset out of range">
+    <script>set x {a b c}
+lset x 5 X</script>
+    <return>TCL_ERROR</return>
+    <error>list index out of range</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="lset negative index">
+    <script>set x {a b c}
+lset x -1 X</script>
+    <return>TCL_ERROR</return>
+    <error>list index out of range</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="lset wrong args too few">
+    <script>lset x</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "lset varName index ?index ...? value"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="lset undefined variable">
+    <script>unset -nocomplain z
+lset z 0 X</script>
+    <return>TCL_ERROR</return>
+    <error>can't read "z": no such variable</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

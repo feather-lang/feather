@@ -38,6 +38,20 @@ static const BuiltinEntry builtins[] = {
     {"::throw", tcl_builtin_throw},
     {"::try", tcl_builtin_try},
     {"::trace", tcl_builtin_trace},
+    // M15: List and string operations
+    {"::list", tcl_builtin_list},
+    {"::lrange", tcl_builtin_lrange},
+    {"::lappend", tcl_builtin_lappend},
+    {"::lset", tcl_builtin_lset},
+    {"::lreplace", tcl_builtin_lreplace},
+    {"::lsort", tcl_builtin_lsort},
+    {"::lsearch", tcl_builtin_lsearch},
+    {"::string", tcl_builtin_string},
+    {"::split", tcl_builtin_split},
+    {"::join", tcl_builtin_join},
+    {"::concat", tcl_builtin_concat},
+    {"::append", tcl_builtin_append},
+    {"::unset", tcl_builtin_unset},
     {NULL, NULL} // sentinel
 };
 

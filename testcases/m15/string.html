@@ -1,0 +1,349 @@
+<test-suite>
+  <!-- M15: string command - string operations -->
+
+  <!-- ============================================= -->
+  <!-- string length                                 -->
+  <!-- ============================================= -->
+
+  <test-case name="string length empty">
+    <script>string length ""</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string length ascii">
+    <script>string length "hello"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string length with spaces">
+    <script>string length "hello world"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>11</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- string index                                  -->
+  <!-- ============================================= -->
+
+  <test-case name="string index first">
+    <script>string index "hello" 0</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>h</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string index middle">
+    <script>string index "hello" 2</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>l</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string index last">
+    <script>string index "hello" 4</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>o</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string index end">
+    <script>string index "hello" end</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>o</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string index end-1">
+    <script>string index "hello" end-1</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>l</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string index out of range">
+    <script>string index "hello" 10</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string index negative">
+    <script>string index "hello" -1</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- string range                                  -->
+  <!-- ============================================= -->
+
+  <test-case name="string range basic">
+    <script>string range "hello world" 0 4</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string range middle">
+    <script>string range "hello world" 6 10</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string range with end">
+    <script>string range "hello world" 6 end</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string range with end-N">
+    <script>string range "hello world" 0 end-6</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string range empty result">
+    <script>string range "hello" 3 2</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- string match                                  -->
+  <!-- ============================================= -->
+
+  <test-case name="string match exact">
+    <script>string match "hello" "hello"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string match no match">
+    <script>string match "hello" "world"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string match star">
+    <script>string match "*world" "hello world"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string match question">
+    <script>string match "h?llo" "hello"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string match bracket">
+    <script>string match {[abc]ello} "hello"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string match bracket match">
+    <script>string match {[abc]ello} "aello"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string match -nocase">
+    <script>string match -nocase "HELLO" "hello"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- string toupper / tolower                      -->
+  <!-- ============================================= -->
+
+  <test-case name="string toupper">
+    <script>string toupper "hello"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>HELLO</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string toupper mixed">
+    <script>string toupper "Hello World"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>HELLO WORLD</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string tolower">
+    <script>string tolower "HELLO"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string tolower mixed">
+    <script>string tolower "Hello World"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- string trim / trimleft / trimright            -->
+  <!-- ============================================= -->
+
+  <test-case name="string trim spaces">
+    <script>string trim "  hello  "</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string trim custom chars">
+    <script>string trim "xxhelloxx" "x"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string trimleft">
+    <script>string trimleft "  hello  "</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello  </stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string trimright">
+    <script>string trimright "  hello  "</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>  hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- string map                                    -->
+  <!-- ============================================= -->
+
+  <test-case name="string map basic">
+    <script>string map {a A e E} "hello"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hEllo</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string map word replacement">
+    <script>string map {hello goodbye} "hello world"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>goodbye world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string map -nocase">
+    <script>string map -nocase {HELLO goodbye} "hello world"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>goodbye world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Error cases                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="string unknown subcommand">
+    <script>string badcmd "hello"</script>
+    <return>TCL_ERROR</return>
+    <error>unknown or ambiguous subcommand "badcmd": must be index, length, map, match, range, tolower, toupper, trim, trimleft, or trimright</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="string no args">
+    <script>string</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "string subcommand ?arg ...?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

@@ -352,4 +352,151 @@ TclResult tcl_builtin_trace(const TclHostOps *ops, TclInterp interp,
 TclResult tcl_split_command(const TclHostOps *ops, TclInterp interp,
                             TclObj qualified, TclObj *ns_out, TclObj *name_out);
 
+// M15: List operations
+
+/**
+ * tcl_builtin_list implements the TCL 'list' command.
+ *
+ * Usage:
+ *   list ?arg ...?
+ *
+ * Returns a list containing the arguments.
+ */
+TclResult tcl_builtin_list(const TclHostOps *ops, TclInterp interp,
+                            TclObj cmd, TclObj args);
+
+/**
+ * tcl_builtin_lrange implements the TCL 'lrange' command.
+ *
+ * Usage:
+ *   lrange list first last
+ *
+ * Returns a sublist from index first to last (inclusive).
+ */
+TclResult tcl_builtin_lrange(const TclHostOps *ops, TclInterp interp,
+                              TclObj cmd, TclObj args);
+
+/**
+ * tcl_builtin_lappend implements the TCL 'lappend' command.
+ *
+ * Usage:
+ *   lappend varName ?value ...?
+ *
+ * Appends values to list variable and returns new list.
+ */
+TclResult tcl_builtin_lappend(const TclHostOps *ops, TclInterp interp,
+                               TclObj cmd, TclObj args);
+
+/**
+ * tcl_builtin_lset implements the TCL 'lset' command.
+ *
+ * Usage:
+ *   lset varName index ?index ...? value
+ *
+ * Sets element at index in list variable.
+ */
+TclResult tcl_builtin_lset(const TclHostOps *ops, TclInterp interp,
+                            TclObj cmd, TclObj args);
+
+/**
+ * tcl_builtin_lreplace implements the TCL 'lreplace' command.
+ *
+ * Usage:
+ *   lreplace list first last ?element ...?
+ *
+ * Replaces elements in a list.
+ */
+TclResult tcl_builtin_lreplace(const TclHostOps *ops, TclInterp interp,
+                                TclObj cmd, TclObj args);
+
+/**
+ * tcl_builtin_lsort implements the TCL 'lsort' command.
+ *
+ * Usage:
+ *   lsort ?options? list
+ *
+ * Sorts list according to options.
+ */
+TclResult tcl_builtin_lsort(const TclHostOps *ops, TclInterp interp,
+                             TclObj cmd, TclObj args);
+
+/**
+ * tcl_builtin_lsearch implements the TCL 'lsearch' command.
+ *
+ * Usage:
+ *   lsearch ?options? list pattern
+ *
+ * Searches list for pattern.
+ */
+TclResult tcl_builtin_lsearch(const TclHostOps *ops, TclInterp interp,
+                               TclObj cmd, TclObj args);
+
+// M15: String operations
+
+/**
+ * tcl_builtin_string implements the TCL 'string' command.
+ *
+ * Usage:
+ *   string subcommand ?arg ...?
+ *
+ * String manipulation subcommands.
+ */
+TclResult tcl_builtin_string(const TclHostOps *ops, TclInterp interp,
+                              TclObj cmd, TclObj args);
+
+/**
+ * tcl_builtin_split implements the TCL 'split' command.
+ *
+ * Usage:
+ *   split string ?splitChars?
+ *
+ * Splits string into list.
+ */
+TclResult tcl_builtin_split(const TclHostOps *ops, TclInterp interp,
+                             TclObj cmd, TclObj args);
+
+/**
+ * tcl_builtin_join implements the TCL 'join' command.
+ *
+ * Usage:
+ *   join list ?joinString?
+ *
+ * Joins list elements into string.
+ */
+TclResult tcl_builtin_join(const TclHostOps *ops, TclInterp interp,
+                            TclObj cmd, TclObj args);
+
+/**
+ * tcl_builtin_concat implements the TCL 'concat' command.
+ *
+ * Usage:
+ *   concat ?arg ...?
+ *
+ * Concatenates arguments with space, trimming whitespace.
+ */
+TclResult tcl_builtin_concat(const TclHostOps *ops, TclInterp interp,
+                              TclObj cmd, TclObj args);
+
+/**
+ * tcl_builtin_append implements the TCL 'append' command.
+ *
+ * Usage:
+ *   append varName ?value ...?
+ *
+ * Appends values to string variable.
+ */
+TclResult tcl_builtin_append(const TclHostOps *ops, TclInterp interp,
+                              TclObj cmd, TclObj args);
+
+/**
+ * tcl_builtin_unset implements the TCL 'unset' command.
+ *
+ * Usage:
+ *   unset ?-nocomplain? ?--? ?name ...?
+ *
+ * Removes variables.
+ */
+TclResult tcl_builtin_unset(const TclHostOps *ops, TclInterp interp,
+                             TclObj cmd, TclObj args);
+
 #endif

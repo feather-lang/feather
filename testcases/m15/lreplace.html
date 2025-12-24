@@ -1,0 +1,97 @@
+<test-suite>
+  <!-- M15: lreplace command - replace elements in list -->
+
+  <!-- ============================================= -->
+  <!-- Basic lreplace operations                     -->
+  <!-- ============================================= -->
+
+  <test-case name="lreplace single element">
+    <script>lreplace {a b c d} 1 1 X</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a X c d</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lreplace range">
+    <script>lreplace {a b c d e} 1 3 X Y</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a X Y e</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lreplace with more elements">
+    <script>lreplace {a b c} 1 1 X Y Z</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a X Y Z c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lreplace delete elements">
+    <script>lreplace {a b c d e} 1 3</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a e</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lreplace insert at beginning">
+    <script>lreplace {a b c} -1 -1 X Y</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>X Y a b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lreplace insert at end">
+    <script>lreplace {a b c} 3 2 X Y</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c X Y</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lreplace with end index">
+    <script>lreplace {a b c d} 2 end X</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b X</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lreplace with end-N index">
+    <script>lreplace {a b c d e} 1 end-1 X</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a X e</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lreplace empty list insert">
+    <script>lreplace {} 0 -1 a b c</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lreplace wrong args">
+    <script>lreplace {a b c} 0</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "lreplace list first last ?element ...?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>
