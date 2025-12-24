@@ -51,13 +51,6 @@ Next steps for colleague:
    - Document dead ends and failed approaches if relevant
    - State assumptions that might need revisiting
 
-3. **End with the standard footer**
-   ```
-   Generated with [Claude Code](https://claude.com/claude-code)
-
-   Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
-   ```
-
 ## Example Commit
 
 ```
@@ -84,10 +77,6 @@ Next steps for colleague:
 1. Implement a minimal host that can run the simple-command-invocation test
 2. Update mise.toml to wire up the test task properly
 3. Consider adding support for the <result> field (TCL_OK/TCL_ERROR)
-
-Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 ```
 
 ## Important Reminders
