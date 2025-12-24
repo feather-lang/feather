@@ -32,6 +32,13 @@ cc -o $MISE_PROJECT_ROOT/bin/oracle \
   $(pkg-config --libs tcl)
 """
 
+[tasks."build:feather-httpd"]
+description = "Builds the feather-httpd example server"
+depends = ["build:core"]
+run = """
+go build -o $MISE_CONFIG_ROOT/bin/feather-httpd ./cmd/feather-httpd
+"""
+
 [tasks.build]
 description = "build all binaries in bin/"
 depends = ["build:core", "build:harness", "build:gcl"]

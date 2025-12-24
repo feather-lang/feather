@@ -15,6 +15,43 @@ Omissions from Tcl 9:
 - an event loop,
 - an OO system.
 
+## Feather in your pogram
+
+Go is the only supported host language at the moment.
+
+See [./cmd/feather-httpd/main.go](./cmd/feather-httpd/main.go) for an example:
+
+```go
+// feather-httpd is an example HTTP server configurable via the feather TCL interpreter.
+//
+// Usage:
+//
+// feather-httpd [script.tcl]
+//
+// If a script is provided, it is evaluated at startup. Then, a REPL is started
+// for interactive configuration. The server can be controlled via TCL commands:
+//
+// route GET /path {script}   - register a route handler
+// listen 8080                - start the HTTP server on a port
+// stop                       - stop the HTTP server
+// response body              - set response body (in handler context)
+// status code                - set HTTP status code (in handler context)
+// header name value          - set response header (in handler context)
+// request method             - get request method (in handler context)
+// request path               - get request path (in handler context)
+// request header name        - get request header (in handler context)
+// request query name         - get query parameter (in handler context)
+//
+// Example session:
+//
+// % route GET / {response "Hello, World!"}
+// % route GET /time {response [clock format [clock seconds]]}
+// % listen 8080
+// Listening on :8080
+// % stop
+// Server stopped
+```
+
 ## Feather vs Lua
 
 Lua is great for programming extensions to software in the large.

@@ -1,0 +1,445 @@
+// feather-httpd is an example HTTP server configurable via the feather TCL interpreter.
+//
+// Usage:
+//
+//	feather-httpd [script.tcl]
+//
+// If a script is provided, it is evaluated at startup. Then, a REPL is started
+// for interactive configuration. The server can be controlled via TCL commands:
+//
+//	route GET /path {script}   - register a route handler
+//	listen 8080                - start the HTTP server on a port
+//	stop                       - stop the HTTP server
+//	response body              - set response body (in handler context)
+//	status code                - set HTTP status code (in handler context)
+//	header name value          - set response header (in handler context)
+//	request method             - get request method (in handler context)
+//	request path               - get request path (in handler context)
+//	request header name        - get request header (in handler context)
+//	request query name         - get query parameter (in handler context)
+//
+// Example session:
+//
+//	% route GET / {response "Hello, World!"}
+//	% route GET /time {response [clock format [clock seconds]]}
+//	% listen 8080
+//	Listening on :8080
+//	% stop
+//	Server stopped
+package main
+
+import (
+	"bufio"
+	"context"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"strings"
+	"sync"
+
+	"github.com/feather-lang/feather/interp"
+)
+
+// HTTPServer wraps an HTTP server with feather integration.
+type HTTPServer struct {
+	host    *interp.Host
+	mux     *http.ServeMux
+	server  *http.Server
+	mu      sync.RWMutex
+	routes  map[string]string // "METHOD /path" -> script
+	running bool
+}
+
+// RequestContext holds per-request state for handler scripts.
+type RequestContext struct {
+	Request      *http.Request
+	Writer       http.ResponseWriter
+	StatusCode   int
+	Headers      map[string]string
+	BodyWritten  bool
+	ResponseBody string
+}
+
+// Global request context (thread-local would be better, but this is a demo)
+var currentRequest *RequestContext
+var requestMu sync.Mutex
+
+func main() {
+	host := interp.NewHost()
+	defer host.Close()
+
+	srv := &HTTPServer{
+		host:   host,
+		mux:    http.NewServeMux(),
+		routes: make(map[string]string),
+	}
+
+	// Register HTTP commands
+	srv.registerCommands()
+
+	// If a script file is provided, evaluate it
+	if len(os.Args) > 1 {
+		script, err := os.ReadFile(os.Args[1])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading script: %v\n", err)
+			os.Exit(1)
+		}
+		if _, err := host.Eval(string(script)); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	// Check if stdin is a TTY for REPL
+	stat, _ := os.Stdin.Stat()
+	if (stat.Mode() & os.ModeCharDevice) != 0 {
+		runREPL(host)
+	} else {
+		// Non-interactive: read and eval stdin, then wait if server is running
+		script, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading stdin: %v\n", err)
+			os.Exit(1)
+		}
+		if len(script) > 0 {
+			if _, err := host.Eval(string(script)); err != nil {
+				fmt.Fprintf(os.Stderr, "error: %v\n", err)
+				os.Exit(1)
+			}
+		}
+		// If server is running, block forever
+		srv.mu.RLock()
+		running := srv.running
+		srv.mu.RUnlock()
+		if running {
+			select {} // Block forever
+		}
+	}
+}
+
+func (s *HTTPServer) registerCommands() {
+	s.host.Register("route", s.cmdRoute)
+	s.host.Register("listen", s.cmdListen)
+	s.host.Register("stop", s.cmdStop)
+	s.host.Register("response", s.cmdResponse)
+	s.host.Register("status", s.cmdStatus)
+	s.host.Register("header", s.cmdHeader)
+	s.host.Register("request", s.cmdRequest)
+}
+
+// cmdRoute registers a route handler.
+// Usage: route METHOD /path {script}
+func (s *HTTPServer) cmdRoute(i *interp.Interp, cmd interp.FeatherObj, args []interp.FeatherObj) interp.FeatherResult {
+	if len(args) < 3 {
+		i.SetErrorString("wrong # args: should be \"route method path script\"")
+		return interp.ResultError
+	}
+
+	method := strings.ToUpper(i.GetString(args[0]))
+	path := i.GetString(args[1])
+	script := i.GetString(args[2])
+
+	key := method + " " + path
+	s.mu.Lock()
+	s.routes[key] = script
+	s.mu.Unlock()
+
+	i.SetResultString("")
+	return interp.ResultOK
+}
+
+// cmdListen starts the HTTP server.
+// Usage: listen port
+func (s *HTTPServer) cmdListen(i *interp.Interp, cmd interp.FeatherObj, args []interp.FeatherObj) interp.FeatherResult {
+	if len(args) < 1 {
+		i.SetErrorString("wrong # args: should be \"listen port\"")
+		return interp.ResultError
+	}
+
+	port := i.GetString(args[0])
+	addr := ":" + port
+
+	s.mu.Lock()
+	if s.running {
+		s.mu.Unlock()
+		i.SetErrorString("server already running")
+		return interp.ResultError
+	}
+
+	s.server = &http.Server{
+		Addr:    addr,
+		Handler: s,
+	}
+	s.running = true
+	s.mu.Unlock()
+
+	// Start server in background
+	go func() {
+		err := s.server.ListenAndServe()
+		if err != nil && err != http.ErrServerClosed {
+			fmt.Fprintf(os.Stderr, "server error: %v\n", err)
+		}
+		s.mu.Lock()
+		s.running = false
+		s.mu.Unlock()
+	}()
+
+	fmt.Printf("Listening on %s\n", addr)
+	i.SetResultString("")
+	return interp.ResultOK
+}
+
+// cmdStop stops the HTTP server.
+// Usage: stop
+func (s *HTTPServer) cmdStop(i *interp.Interp, cmd interp.FeatherObj, args []interp.FeatherObj) interp.FeatherResult {
+	s.mu.Lock()
+	if !s.running || s.server == nil {
+		s.mu.Unlock()
+		i.SetErrorString("server not running")
+		return interp.ResultError
+	}
+	server := s.server
+	s.mu.Unlock()
+
+	if err := server.Shutdown(context.Background()); err != nil {
+		i.SetErrorString(fmt.Sprintf("shutdown error: %v", err))
+		return interp.ResultError
+	}
+
+	fmt.Println("Server stopped")
+	i.SetResultString("")
+	return interp.ResultOK
+}
+
+// cmdResponse sets the response body.
+// Usage: response body
+func (s *HTTPServer) cmdResponse(i *interp.Interp, cmd interp.FeatherObj, args []interp.FeatherObj) interp.FeatherResult {
+	requestMu.Lock()
+	ctx := currentRequest
+	requestMu.Unlock()
+
+	if ctx == nil {
+		i.SetErrorString("response: not in request context")
+		return interp.ResultError
+	}
+
+	if len(args) < 1 {
+		i.SetErrorString("wrong # args: should be \"response body\"")
+		return interp.ResultError
+	}
+
+	ctx.ResponseBody = i.GetString(args[0])
+	i.SetResultString("")
+	return interp.ResultOK
+}
+
+// cmdStatus sets the HTTP status code.
+// Usage: status code
+func (s *HTTPServer) cmdStatus(i *interp.Interp, cmd interp.FeatherObj, args []interp.FeatherObj) interp.FeatherResult {
+	requestMu.Lock()
+	ctx := currentRequest
+	requestMu.Unlock()
+
+	if ctx == nil {
+		i.SetErrorString("status: not in request context")
+		return interp.ResultError
+	}
+
+	if len(args) < 1 {
+		i.SetErrorString("wrong # args: should be \"status code\"")
+		return interp.ResultError
+	}
+
+	code, err := i.GetInt(args[0])
+	if err != nil {
+		i.SetErrorString(fmt.Sprintf("status: invalid code: %v", err))
+		return interp.ResultError
+	}
+
+	ctx.StatusCode = int(code)
+	i.SetResultString("")
+	return interp.ResultOK
+}
+
+// cmdHeader sets a response header.
+// Usage: header name value
+func (s *HTTPServer) cmdHeader(i *interp.Interp, cmd interp.FeatherObj, args []interp.FeatherObj) interp.FeatherResult {
+	requestMu.Lock()
+	ctx := currentRequest
+	requestMu.Unlock()
+
+	if ctx == nil {
+		i.SetErrorString("header: not in request context")
+		return interp.ResultError
+	}
+
+	if len(args) < 2 {
+		i.SetErrorString("wrong # args: should be \"header name value\"")
+		return interp.ResultError
+	}
+
+	name := i.GetString(args[0])
+	value := i.GetString(args[1])
+	ctx.Headers[name] = value
+
+	i.SetResultString("")
+	return interp.ResultOK
+}
+
+// cmdRequest gets request information.
+// Usage: request method | path | header name | query name | body
+func (s *HTTPServer) cmdRequest(i *interp.Interp, cmd interp.FeatherObj, args []interp.FeatherObj) interp.FeatherResult {
+	requestMu.Lock()
+	ctx := currentRequest
+	requestMu.Unlock()
+
+	if ctx == nil {
+		i.SetErrorString("request: not in request context")
+		return interp.ResultError
+	}
+
+	if len(args) < 1 {
+		i.SetErrorString("wrong # args: should be \"request subcommand ?arg?\"")
+		return interp.ResultError
+	}
+
+	subcmd := i.GetString(args[0])
+	switch subcmd {
+	case "method":
+		i.SetResultString(ctx.Request.Method)
+	case "path":
+		i.SetResultString(ctx.Request.URL.Path)
+	case "header":
+		if len(args) < 2 {
+			i.SetErrorString("wrong # args: should be \"request header name\"")
+			return interp.ResultError
+		}
+		name := i.GetString(args[1])
+		i.SetResultString(ctx.Request.Header.Get(name))
+	case "query":
+		if len(args) < 2 {
+			i.SetErrorString("wrong # args: should be \"request query name\"")
+			return interp.ResultError
+		}
+		name := i.GetString(args[1])
+		i.SetResultString(ctx.Request.URL.Query().Get(name))
+	case "body":
+		body, err := io.ReadAll(ctx.Request.Body)
+		if err != nil {
+			i.SetErrorString(fmt.Sprintf("request body: %v", err))
+			return interp.ResultError
+		}
+		i.SetResultString(string(body))
+	default:
+		i.SetErrorString(fmt.Sprintf("request: unknown subcommand %q", subcmd))
+		return interp.ResultError
+	}
+
+	return interp.ResultOK
+}
+
+// ServeHTTP implements http.Handler.
+func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Find matching route
+	key := r.Method + " " + r.URL.Path
+	s.mu.RLock()
+	script, ok := s.routes[key]
+	s.mu.RUnlock()
+
+	if !ok {
+		// Try without method (ANY)
+		key = "ANY " + r.URL.Path
+		s.mu.RLock()
+		script, ok = s.routes[key]
+		s.mu.RUnlock()
+	}
+
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+
+	// Set up request context
+	ctx := &RequestContext{
+		Request:    r,
+		Writer:     w,
+		StatusCode: 200,
+		Headers:    make(map[string]string),
+	}
+
+	requestMu.Lock()
+	currentRequest = ctx
+	requestMu.Unlock()
+
+	defer func() {
+		requestMu.Lock()
+		currentRequest = nil
+		requestMu.Unlock()
+	}()
+
+	// Execute the handler script
+	_, err := s.host.Eval(script)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Write response
+	for name, value := range ctx.Headers {
+		w.Header().Set(name, value)
+	}
+	w.WriteHeader(ctx.StatusCode)
+	if ctx.ResponseBody != "" {
+		w.Write([]byte(ctx.ResponseBody))
+	}
+}
+
+func runREPL(host *interp.Host) {
+	scanner := bufio.NewScanner(os.Stdin)
+	var inputBuffer string
+
+	for {
+		if inputBuffer == "" {
+			fmt.Print("% ")
+		} else {
+			fmt.Print("> ")
+		}
+
+		if !scanner.Scan() {
+			break
+		}
+
+		line := scanner.Text()
+		if inputBuffer != "" {
+			inputBuffer += "\n" + line
+		} else {
+			inputBuffer = line
+		}
+
+		// Check if input is complete
+		parseResult := host.Parse(inputBuffer)
+		if parseResult.Status == interp.ParseIncomplete {
+			continue
+		}
+
+		if parseResult.Status == interp.ParseError {
+			fmt.Fprintf(os.Stderr, "error: %s\n", parseResult.ErrorMessage)
+			inputBuffer = ""
+			continue
+		}
+
+		// Evaluate the complete input
+		result, err := host.Eval(inputBuffer)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %s\n", err.Error())
+		} else if result != "" {
+			fmt.Println(result)
+		}
+		inputBuffer = ""
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintf(os.Stderr, "error reading input: %v\n", err)
+	}
+}
