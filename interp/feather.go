@@ -90,12 +90,12 @@ type Namespace struct {
 // CallFrame represents an execution frame on the call stack.
 // Each frame has its own variable environment.
 type CallFrame struct {
-	cmd   FeatherObj            // command being evaluated
-	args  FeatherObj            // arguments to the command
-	vars  map[string]FeatherObj // local variable storage
-	links map[string]varLink // upvar links: local name -> target variable
-	level int               // frame index on the call stack
-	ns    *Namespace        // current namespace context
+	cmd    FeatherObj         // command being evaluated
+	args   FeatherObj         // arguments to the command
+	locals *Namespace         // local variable storage (for global frame, this IS the :: namespace)
+	links  map[string]varLink // upvar links: local name -> target variable
+	level  int                // frame index on the call stack
+	ns     *Namespace         // current namespace context
 }
 
 // Procedure represents a user-defined procedure
@@ -191,11 +191,12 @@ func NewInterp() *Interp {
 	interp.globalNamespace = globalNS
 	interp.namespaces["::"] = globalNS
 	// Initialize the global frame (frame 0)
+	// The global frame's locals IS the global namespace - unified storage
 	globalFrame := &CallFrame{
-		vars:  make(map[string]FeatherObj),
-		links: make(map[string]varLink),
-		level: 0,
-		ns:    globalNS,
+		locals: globalNS,
+		links:  make(map[string]varLink),
+		level:  0,
+		ns:     globalNS,
 	}
 	interp.frames = []*CallFrame{globalFrame}
 	interp.active = 0
@@ -800,7 +801,7 @@ func (i *Interp) SetErrorString(s string) {
 // SetVar sets a variable by name to a string value in the current frame.
 func (i *Interp) SetVar(name, value string) {
 	frame := i.frames[i.active]
-	frame.vars[name] = i.nextID
+	frame.locals.vars[name] = i.nextID
 	i.objects[i.nextID] = &Object{stringVal: value}
 	i.nextID++
 }
@@ -808,7 +809,7 @@ func (i *Interp) SetVar(name, value string) {
 // GetVar returns the string value of a variable from the current frame, or empty string if not found.
 func (i *Interp) GetVar(name string) string {
 	frame := i.frames[i.active]
-	if val, ok := frame.vars[name]; ok {
+	if val, ok := frame.locals.vars[name]; ok {
 		if obj := i.objects[val]; obj != nil {
 			return obj.stringVal
 		}

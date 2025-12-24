@@ -973,13 +973,17 @@ func goFramePush(interp C.FeatherInterp, cmd C.FeatherObj, args C.FeatherObj) C.
 	if i.active < len(i.frames) && i.frames[i.active].ns != nil {
 		currentNS = i.frames[i.active].ns
 	}
+	// Create an anonymous locals namespace for this frame's variables
+	localsNS := &Namespace{
+		vars: make(map[string]FeatherObj),
+	}
 	frame := &CallFrame{
-		cmd:   FeatherObj(cmd),
-		args:  FeatherObj(args),
-		vars:  make(map[string]FeatherObj),
-		links: make(map[string]varLink),
-		level: newLevel,
-		ns:    currentNS,
+		cmd:    FeatherObj(cmd),
+		args:   FeatherObj(args),
+		locals: localsNS,
+		links:  make(map[string]varLink),
+		level:  newLevel,
+		ns:     currentNS,
 	}
 	i.frames = append(i.frames, frame)
 	i.active = newLevel
@@ -1097,7 +1101,7 @@ func goVarGet(interp C.FeatherInterp, name C.FeatherObj) C.FeatherObj {
 		}
 	}
 	var result C.FeatherObj
-	if val, ok := frame.vars[varName]; ok {
+	if val, ok := frame.locals.vars[varName]; ok {
 		result = C.FeatherObj(val)
 	}
 	// Copy traces before unlocking
@@ -1149,7 +1153,7 @@ func goVarSet(interp C.FeatherInterp, name C.FeatherObj, value C.FeatherObj) {
 			break
 		}
 	}
-	frame.vars[varName] = FeatherObj(value)
+	frame.locals.vars[varName] = FeatherObj(value)
 	// Copy traces before unlocking
 	traces := make([]TraceEntry, len(i.varTraces[originalVarName]))
 	copy(traces, i.varTraces[originalVarName])
@@ -1198,7 +1202,7 @@ func goVarUnset(interp C.FeatherInterp, name C.FeatherObj) {
 			break
 		}
 	}
-	delete(frame.vars, varName)
+	delete(frame.locals.vars, varName)
 	// Copy traces before unlocking
 	traces := make([]TraceEntry, len(i.varTraces[originalVarName]))
 	copy(traces, i.varTraces[originalVarName])
@@ -1241,7 +1245,7 @@ func goVarExists(interp C.FeatherInterp, name C.FeatherObj) C.FeatherResult {
 			break
 		}
 	}
-	if _, ok := frame.vars[varName]; ok {
+	if _, ok := frame.locals.vars[varName]; ok {
 		return C.TCL_OK
 	}
 	return C.TCL_ERROR
@@ -2125,12 +2129,12 @@ func goVarNames(interp C.FeatherInterp, ns C.FeatherObj) C.FeatherObj {
 	if ns == 0 {
 		// Return variables in current frame (locals)
 		frame := i.frames[i.active]
-		for name := range frame.vars {
+		for name := range frame.locals.vars {
 			names = append(names, name)
 		}
 		// Also include linked variables (upvar, variable)
 		for name := range frame.links {
-			// Only include if not already in vars (avoid duplicates)
+			// Only include if not already in locals (avoid duplicates)
 			found := false
 			for _, n := range names {
 				if n == name {
@@ -2145,13 +2149,7 @@ func goVarNames(interp C.FeatherInterp, ns C.FeatherObj) C.FeatherObj {
 	} else {
 		// Return variables in the specified namespace
 		pathStr := i.GetString(FeatherObj(ns))
-		if pathStr == "::" {
-			// Global namespace - return variables from the global frame (frame 0)
-			globalFrame := i.frames[0]
-			for name := range globalFrame.vars {
-				names = append(names, name)
-			}
-		} else if nsObj, ok := i.namespaces[pathStr]; ok {
+		if nsObj, ok := i.namespaces[pathStr]; ok {
 			for name := range nsObj.vars {
 				names = append(names, name)
 			}

@@ -631,4 +631,21 @@ dict keys $d
     <exit-code>0</exit-code>
   </test-case>
 
+  <!-- ============================================= -->
+  <!-- Global variable access                        -->
+  <!-- ============================================= -->
+
+  <test-case name="dict set creates global variable accessible from proc">
+    <script>
+dict set config host localhost
+proc get_config {} { set ::config }
+get_config
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>host localhost</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
 </test-suite>
