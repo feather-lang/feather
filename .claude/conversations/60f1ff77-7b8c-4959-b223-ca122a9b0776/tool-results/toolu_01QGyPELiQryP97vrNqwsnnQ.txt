@@ -1,6 +1,0 @@
-cc -Wall -Wextra -Werror -std=c11 -g -O2 -Icore -c -o build/builtins.o core/builtins.c
-core/builtins.c:1186:12: error: unused function 'infoGlobMatch' [-Werror,-Wunused-function]
- 1186 | static int infoGlobMatch(const char *pattern, const char *str, size_t strLen) {
-      |            ^~~~~~~~~~~~~
-1 error generated.
-make: *** [build/builtins.o] Error 1

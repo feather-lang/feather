@@ -1,4 +1,0 @@
-/Users/dhamidi/projects/tclc/interp/doc.go
-/Users/dhamidi/projects/tclc/interp/tclc.go
-/Users/dhamidi/projects/tclc/interp/callbacks.go
-/Users/dhamidi/projects/tclc/interp/host.go

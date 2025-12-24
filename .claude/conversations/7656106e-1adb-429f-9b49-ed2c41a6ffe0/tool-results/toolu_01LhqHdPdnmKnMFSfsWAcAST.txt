@@ -1,1 +1,0 @@
-./harness/diff.go:			Stderr:     "Interpreter not implemented yet",

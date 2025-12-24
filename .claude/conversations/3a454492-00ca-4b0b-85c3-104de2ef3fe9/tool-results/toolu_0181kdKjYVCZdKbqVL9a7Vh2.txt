@@ -1,6 +1,0 @@
-/Users/dhamidi/projects/tclc/core/parser.c
-/Users/dhamidi/projects/tclc/core/eval.c
-/Users/dhamidi/projects/tclc/core/builtin_expr.c
-/Users/dhamidi/projects/tclc/core/subst.c
-/Users/dhamidi/projects/tclc/core/builtins.c
-/Users/dhamidi/projects/tclc/core/lexer.c

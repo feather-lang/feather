@@ -1,1 +1,0 @@
-File created successfully at: /Users/dhamidi/projects/tclc/spec/tests/event/vwait-2.0.tcl
