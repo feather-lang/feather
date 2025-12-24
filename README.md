@@ -15,6 +15,20 @@ Omissions from Tcl 9:
 - an event loop,
 - an OO system.
 
+## Feather vs Lua
+
+Lua is great for programming extensions to software in the large.
+
+Feather is filling the niche where you have an existing program,
+and want to add an interactive console or a networked REPL for
+poking and prodding the program state:
+
+- giving agents access to your program (like the Chrome Dev Tools, but for YOUR application),
+- [configuring an HTTP server while it's running](https://vinyl-cache.org/docs/6.0/reference/varnish-cli.html)
+- Quake-style consoles,
+- as a configuration file format,
+- allowing users to customize software after you shipped it.
+
 ## Using the example
 
 Since Feather is designed to be embedded into other programming languages,
@@ -78,7 +92,7 @@ host localhost port 8080
 8080
 ```
 
-Run the test harness:
+<details><summary>Run the test harness</summary>
 
 ```
 $ mise test
@@ -94,6 +108,8 @@ $ mise test
 [test] Finished in 9.88s
 Finished in 11.19s
 ```
+
+</details>
 
 ## Philosophy
 
