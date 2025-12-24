@@ -341,11 +341,25 @@ func goListPush(interp C.TclInterp, list C.TclObj, item C.TclObj) C.TclObj {
 	if i == nil {
 		return list
 	}
+	// Use GetList for shimmering (string → list)
+	_, err := i.GetList(TclObj(list))
+	if err != nil {
+		return list
+	}
 	o := i.getObject(TclObj(list))
-	if o == nil || !o.isList {
+	if o == nil {
 		return list
 	}
 	o.listItems = append(o.listItems, TclObj(item))
+	// Invalidate string and dict representations (list is now authoritative)
+	o.stringVal = ""
+	o.isDict = false
+	o.dictItems = nil
+	o.dictOrder = nil
+	if o.cstr != nil {
+		C.free(unsafe.Pointer(o.cstr))
+		o.cstr = nil
+	}
 	return list
 }
 
@@ -366,8 +380,11 @@ func goListPop(interp C.TclInterp, list C.TclObj) C.TclObj {
 	}
 	last := o.listItems[len(items)-1]
 	o.listItems = o.listItems[:len(items)-1]
-	// Invalidate string representation
+	// Invalidate string and dict representations (list is now authoritative)
 	o.stringVal = ""
+	o.isDict = false
+	o.dictItems = nil
+	o.dictOrder = nil
 	if o.cstr != nil {
 		C.free(unsafe.Pointer(o.cstr))
 		o.cstr = nil
@@ -377,6 +394,30 @@ func goListPop(interp C.TclInterp, list C.TclObj) C.TclObj {
 
 //export goListUnshift
 func goListUnshift(interp C.TclInterp, list C.TclObj, item C.TclObj) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return list
+	}
+	// Use GetList for shimmering (string → list)
+	_, err := i.GetList(TclObj(list))
+	if err != nil {
+		return list
+	}
+	o := i.getObject(TclObj(list))
+	if o == nil {
+		return list
+	}
+	// Prepend item to the list
+	o.listItems = append([]TclObj{TclObj(item)}, o.listItems...)
+	// Invalidate string and dict representations (list is now authoritative)
+	o.stringVal = ""
+	o.isDict = false
+	o.dictItems = nil
+	o.dictOrder = nil
+	if o.cstr != nil {
+		C.free(unsafe.Pointer(o.cstr))
+		o.cstr = nil
+	}
 	return list
 }
 
@@ -397,6 +438,15 @@ func goListShift(interp C.TclInterp, list C.TclObj) C.TclObj {
 	}
 	first := o.listItems[0]
 	o.listItems = o.listItems[1:]
+	// Invalidate string and dict representations (list is now authoritative)
+	o.stringVal = ""
+	o.isDict = false
+	o.dictItems = nil
+	o.dictOrder = nil
+	if o.cstr != nil {
+		C.free(unsafe.Pointer(o.cstr))
+		o.cstr = nil
+	}
 	return C.TclObj(first)
 }
 
@@ -479,22 +529,30 @@ func goListSetAt(interp C.TclInterp, list C.TclObj, index C.size_t, value C.TclO
 		return C.TCL_ERROR
 	}
 
-	// Get the list object directly for mutation
-	o := i.getObject(TclObj(list))
-	if o == nil || !o.isList {
+	// Use GetList for shimmering (string → list)
+	items, err := i.GetList(TclObj(list))
+	if err != nil {
 		return C.TCL_ERROR
 	}
 
 	idx := int(index)
-	if idx < 0 || idx >= len(o.listItems) {
+	if idx < 0 || idx >= len(items) {
+		return C.TCL_ERROR
+	}
+
+	o := i.getObject(TclObj(list))
+	if o == nil {
 		return C.TCL_ERROR
 	}
 
 	// Mutate in place
 	o.listItems[idx] = TclObj(value)
 
-	// Invalidate string representation if any
+	// Invalidate string and dict representations (list is now authoritative)
 	o.stringVal = ""
+	o.isDict = false
+	o.dictItems = nil
+	o.dictOrder = nil
 	if o.cstr != nil {
 		C.free(unsafe.Pointer(o.cstr))
 		o.cstr = nil
@@ -573,14 +631,19 @@ func goListSort(interp C.TclInterp, list C.TclObj, cmpFunc unsafe.Pointer, ctx u
 		return C.TCL_ERROR
 	}
 
-	// Get the list object directly for in-place mutation
-	o := i.getObject(TclObj(list))
-	if o == nil || !o.isList {
+	// Use GetList for shimmering (string → list)
+	items, err := i.GetList(TclObj(list))
+	if err != nil {
 		return C.TCL_ERROR
 	}
 
-	if len(o.listItems) <= 1 {
+	if len(items) <= 1 {
 		return C.TCL_OK // Already sorted
+	}
+
+	o := i.getObject(TclObj(list))
+	if o == nil {
+		return C.TCL_ERROR
 	}
 
 	// Set up sort context
@@ -599,8 +662,11 @@ func goListSort(interp C.TclInterp, list C.TclObj, cmpFunc unsafe.Pointer, ctx u
 
 	currentSortCtx = nil
 
-	// Invalidate string representation
+	// Invalidate string and dict representations (list is now authoritative)
 	o.stringVal = ""
+	o.isDict = false
+	o.dictItems = nil
+	o.dictOrder = nil
 	if o.cstr != nil {
 		C.free(unsafe.Pointer(o.cstr))
 		o.cstr = nil
