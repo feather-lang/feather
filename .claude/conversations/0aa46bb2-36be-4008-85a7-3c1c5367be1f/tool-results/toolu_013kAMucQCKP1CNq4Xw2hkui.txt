@@ -1,0 +1,15 @@
+The file /Users/dhamidi/projects/tclc/src/interp.c has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
+    24→    {"tcl::mathfunc::exp", tcl_builtin_mathfunc_exp},
+    25→    {"error", tcl_builtin_error},
+    26→    {"catch", tcl_builtin_catch},
+    27→    {"info", tcl_builtin_info},
+    28→    {"upvar", tcl_builtin_upvar},
+    29→    {"uplevel", tcl_builtin_uplevel},
+    30→    {"rename", tcl_builtin_rename},
+    31→    {"namespace", tcl_builtin_namespace},
+    32→    {"variable", tcl_builtin_variable},
+    33→    {NULL, NULL} // sentinel
+    34→};
+    35→
+    36→// Look up a builtin command by name
+    37→TclBuiltinCmd tcl_lookup_builtin(const char *name, size_t len) {

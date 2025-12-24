@@ -1,0 +1,604 @@
+     1→/*
+     2→ * builtin_info.c - TCL Info Command Implementation
+     3→ */
+     4→
+     5→#include "internal.h"
+     6→
+     7→
+     8→
+     9→
+    10→
+    11→/* ========================================================================
+    12→ * info Command
+    13→ * ======================================================================== */
+    14→
+    15→/* Helper: look up procedure and get argList/body, returns 0 on success */
+    16→static int infoProcLookup(TclInterp *interp, TclObj *nameObj, TclObj **argListOut, TclObj **bodyOut) {
+    17→    const TclHost *host = interp->host;
+    18→    size_t nameLen;
+    19→    const char *name = host->getStringPtr(nameObj, &nameLen);
+    20→
+    21→    TclCmdInfo info;
+    22→    host->cmdLookup(interp->hostCtx, name, nameLen, &info);
+    23→    if (info.type != TCL_CMD_PROC) {
+    24→        return -1;
+    25→    }
+    26→    if (host->procGetDef(info.u.procHandle, argListOut, bodyOut) != 0) {
+    27→        return -1;
+    28→    }
+    29→    return 0;
+    30→}
+    31→
+    32→TclResult tclCmdInfo(TclInterp *interp, int objc, TclObj **objv) {
+    33→    const TclHost *host = interp->host;
+    34→
+    35→    if (objc < 2) {
+    36→        tclSetError(interp, "wrong # args: should be \"info subcommand ?arg ...?\"", -1);
+    37→        return TCL_ERROR;
+    38→    }
+    39→
+    40→    size_t subcmdLen;
+    41→    const char *subcmd = host->getStringPtr(objv[1], &subcmdLen);
+    42→
+    43→    /* info exists varName */
+    44→    if (subcmdLen == 6 && tclStrncmp(subcmd, "exists", 6) == 0) {
+    45→        if (objc != 3) {
+    46→            tclSetError(interp, "wrong # args: should be \"info exists varName\"", -1);
+    47→            return TCL_ERROR;
+    48→        }
+    49→        size_t nameLen;
+    50→        const char *name = host->getStringPtr(objv[2], &nameLen);
+    51→
+    52→        /* Handle :: prefix for global variables */
+    53→        int forceGlobal = 0;
+    54→        if (nameLen >= 2 && name[0] == ':' && name[1] == ':') {
+    55→            name += 2;
+    56→            nameLen -= 2;
+    57→            forceGlobal = 1;
+    58→        }
+    59→
+    60→        void *vars = forceGlobal ? interp->globalFrame->varsHandle : interp->currentFrame->varsHandle;
+    61→
+    62→        /* Check for scalar variable */
+    63→        int exists = host->varExists(vars, name, nameLen);
+    64→
+    65→        /* Also check for array (without subscript) */
+    66→        if (!exists) {
+    67→            size_t arrayCount = host->arraySize(vars, name, nameLen);
+    68→            exists = (arrayCount > 0);
+    69→        }
+    70→
+    71→        /* Check global frame if not found and not already forced global */
+    72→        if (!exists && !forceGlobal && interp->currentFrame != interp->globalFrame) {
+    73→            exists = host->varExists(interp->globalFrame->varsHandle, name, nameLen);
+    74→            if (!exists) {
+    75→                size_t arrayCount = host->arraySize(interp->globalFrame->varsHandle, name, nameLen);
+    76→                exists = (arrayCount > 0);
+    77→            }
+    78→        }
+    79→
+    80→        tclSetResult(interp, host->newInt(exists ? 1 : 0));
+    81→        return TCL_OK;
+    82→    }
+    83→
+    84→    /* info args procName */
+    85→    if (subcmdLen == 4 && tclStrncmp(subcmd, "args", 4) == 0) {
+    86→        if (objc != 3) {
+    87→            tclSetError(interp, "wrong # args: should be \"info args procname\"", -1);
+    88→            return TCL_ERROR;
+    89→        }
+    90→
+    91→        TclObj *argList, *body;
+    92→        if (infoProcLookup(interp, objv[2], &argList, &body) != 0) {
+    93→            /* Build error message: "procname" isn't a procedure */
+    94→            size_t nameLen;
+    95→            const char *name = host->getStringPtr(objv[2], &nameLen);
+    96→            void *arena = host->arenaPush(interp->hostCtx);
+    97→            char *msg = host->arenaAlloc(arena, nameLen + 30, 1);
+    98→            char *p = msg;
+    99→            *p++ = '"';
+   100→            for (size_t i = 0; i < nameLen; i++) *p++ = name[i];
+   101→            *p++ = '"';
+   102→            const char *suffix = " isn't a procedure";
+   103→            while (*suffix) *p++ = *suffix++;
+   104→            *p = '\0';
+   105→            tclSetError(interp, msg, p - msg);
+   106→            host->arenaPop(interp->hostCtx, arena);
+   107→            return TCL_ERROR;
+   108→        }
+   109→
+   110→        /* Parse argList and extract just the argument names */
+   111→        TclObj **args;
+   112→        size_t argCount;
+   113→        if (host->asList(argList, &args, &argCount) != 0) {
+   114→            tclSetResult(interp, host->newString("", 0));
+   115→            return TCL_OK;
+   116→        }
+   117→
+   118→        /* Build result list with just argument names */
+   119→        void *arena = host->arenaPush(interp->hostCtx);
+   120→        TclObj **names = host->arenaAlloc(arena, argCount * sizeof(TclObj*), sizeof(void*));
+   121→
+   122→        for (size_t i = 0; i < argCount; i++) {
+   123→            /* Each arg might be a list {name default} or just a name */
+   124→            TclObj **argParts;
+   125→            size_t partCount;
+   126→            if (host->asList(args[i], &argParts, &partCount) == 0 && partCount >= 1) {
+   127→                names[i] = argParts[0];  /* First element is the name */
+   128→            } else {
+   129→                names[i] = args[i];  /* Use whole thing as name */
+   130→            }
+   131→        }
+   132→
+   133→        TclObj *result = host->newList(names, argCount);
+   134→        host->arenaPop(interp->hostCtx, arena);
+   135→
+   136→        /* Convert list to space-separated string for output */
+   137→        size_t resultLen;
+   138→        const char *resultStr = host->getStringPtr(result, &resultLen);
+   139→        tclSetResult(interp, host->newString(resultStr, resultLen));
+   140→        return TCL_OK;
+   141→    }
+   142→
+   143→    /* info body procName */
+   144→    if (subcmdLen == 4 && tclStrncmp(subcmd, "body", 4) == 0) {
+   145→        if (objc != 3) {
+   146→            tclSetError(interp, "wrong # args: should be \"info body procname\"", -1);
+   147→            return TCL_ERROR;
+   148→        }
+   149→
+   150→        TclObj *argList, *body;
+   151→        if (infoProcLookup(interp, objv[2], &argList, &body) != 0) {
+   152→            /* Build error message: "procname" isn't a procedure */
+   153→            size_t nameLen;
+   154→            const char *name = host->getStringPtr(objv[2], &nameLen);
+   155→            void *arena = host->arenaPush(interp->hostCtx);
+   156→            char *msg = host->arenaAlloc(arena, nameLen + 30, 1);
+   157→            char *p = msg;
+   158→            *p++ = '"';
+   159→            for (size_t i = 0; i < nameLen; i++) *p++ = name[i];
+   160→            *p++ = '"';
+   161→            const char *suffix = " isn't a procedure";
+   162→            while (*suffix) *p++ = *suffix++;
+   163→            *p = '\0';
+   164→            tclSetError(interp, msg, p - msg);
+   165→            host->arenaPop(interp->hostCtx, arena);
+   166→            return TCL_ERROR;
+   167→        }
+   168→
+   169→        tclSetResult(interp, host->dup(body));
+   170→        return TCL_OK;
+   171→    }
+   172→
+   173→    /* info commands ?pattern? */
+   174→    if (subcmdLen == 8 && tclStrncmp(subcmd, "commands", 8) == 0) {
+   175→        if (objc > 3) {
+   176→            tclSetError(interp, "wrong # args: should be \"info commands ?pattern?\"", -1);
+   177→            return TCL_ERROR;
+   178→        }
+   179→
+   180→        const char *pattern = NULL;
+   181→        if (objc == 3) {
+   182→            size_t patLen;
+   183→            pattern = host->getStringPtr(objv[2], &patLen);
+   184→        }
+   185→
+   186→        TclObj *cmdList = host->cmdList(interp->hostCtx, pattern);
+   187→        tclSetResult(interp, cmdList ? cmdList : host->newString("", 0));
+   188→        return TCL_OK;
+   189→    }
+   190→
+   191→    /* info complete string */
+   192→    if (subcmdLen == 8 && tclStrncmp(subcmd, "complete", 8) == 0) {
+   193→        if (objc != 3) {
+   194→            tclSetError(interp, "wrong # args: should be \"info complete command\"", -1);
+   195→            return TCL_ERROR;
+   196→        }
+   197→
+   198→        size_t strLen;
+   199→        const char *str = host->getStringPtr(objv[2], &strLen);
+   200→
+   201→        /* Check if the string is a complete TCL command */
+   202→        /* A command is complete if all braces, brackets, and quotes are balanced */
+   203→        int braceDepth = 0;
+   204→        int bracketDepth = 0;
+   205→        int inQuote = 0;
+   206→        int complete = 1;
+   207→
+   208→        const char *p = str;
+   209→        const char *end = str + strLen;
+   210→
+   211→        while (p < end) {
+   212→            if (*p == '\\' && p + 1 < end) {
+   213→                p += 2;  /* Skip escaped character */
+   214→                continue;
+   215→            }
+   216→
+   217→            if (inQuote) {
+   218→                if (*p == '"') {
+   219→                    inQuote = 0;
+   220→                }
+   221→            } else if (braceDepth > 0) {
+   222→                if (*p == '{') {
+   223→                    braceDepth++;
+   224→                } else if (*p == '}') {
+   225→                    braceDepth--;
+   226→                }
+   227→            } else {
+   228→                if (*p == '"') {
+   229→                    inQuote = 1;
+   230→                } else if (*p == '{') {
+   231→                    braceDepth++;
+   232→                } else if (*p == '[') {
+   233→                    bracketDepth++;
+   234→                } else if (*p == ']') {
+   235→                    if (bracketDepth > 0) {
+   236→                        bracketDepth--;
+   237→                    }
+   238→                }
+   239→            }
+   240→            p++;
+   241→        }
+   242→
+   243→        /* Complete if all are balanced */
+   244→        complete = (braceDepth == 0 && bracketDepth == 0 && !inQuote);
+   245→
+   246→        tclSetResult(interp, host->newInt(complete ? 1 : 0));
+   247→        return TCL_OK;
+   248→    }
+   249→
+   250→    /* info default procName arg varName */
+   251→    if (subcmdLen == 7 && tclStrncmp(subcmd, "default", 7) == 0) {
+   252→        if (objc != 5) {
+   253→            tclSetError(interp, "wrong # args: should be \"info default procname arg varname\"", -1);
+   254→            return TCL_ERROR;
+   255→        }
+   256→
+   257→        TclObj *argList, *body;
+   258→        if (infoProcLookup(interp, objv[2], &argList, &body) != 0) {
+   259→            /* Build error message: "procname" isn't a procedure */
+   260→            size_t nameLen;
+   261→            const char *name = host->getStringPtr(objv[2], &nameLen);
+   262→            void *arena = host->arenaPush(interp->hostCtx);
+   263→            char *msg = host->arenaAlloc(arena, nameLen + 30, 1);
+   264→            char *p = msg;
+   265→            *p++ = '"';
+   266→            for (size_t i = 0; i < nameLen; i++) *p++ = name[i];
+   267→            *p++ = '"';
+   268→            const char *suffix = " isn't a procedure";
+   269→            while (*suffix) *p++ = *suffix++;
+   270→            *p = '\0';
+   271→            tclSetError(interp, msg, p - msg);
+   272→            host->arenaPop(interp->hostCtx, arena);
+   273→            return TCL_ERROR;
+   274→        }
+   275→
+   276→        /* Get the argument name we're looking for */
+   277→        size_t targetArgLen;
+   278→        const char *targetArg = host->getStringPtr(objv[3], &targetArgLen);
+   279→
+   280→        /* Get the variable name to store the default */
+   281→        size_t varNameLen;
+   282→        const char *varName = host->getStringPtr(objv[4], &varNameLen);
+   283→
+   284→        /* Parse argList */
+   285→        TclObj **args;
+   286→        size_t argCount;
+   287→        if (host->asList(argList, &args, &argCount) != 0) {
+   288→            /* Build error message */
+   289→            void *arena = host->arenaPush(interp->hostCtx);
+   290→            size_t procNameLen;
+   291→            const char *procName = host->getStringPtr(objv[2], &procNameLen);
+   292→            char *msg = host->arenaAlloc(arena, procNameLen + targetArgLen + 60, 1);
+   293→            char *mp = msg;
+   294→            const char *pre = "procedure \"";
+   295→            while (*pre) *mp++ = *pre++;
+   296→            for (size_t i = 0; i < procNameLen; i++) *mp++ = procName[i];
+   297→            const char *mid = "\" doesn't have an argument \"";
+   298→            while (*mid) *mp++ = *mid++;
+   299→            for (size_t i = 0; i < targetArgLen; i++) *mp++ = targetArg[i];
+   300→            *mp++ = '"';
+   301→            *mp = '\0';
+   302→            tclSetError(interp, msg, mp - msg);
+   303→            host->arenaPop(interp->hostCtx, arena);
+   304→            return TCL_ERROR;
+   305→        }
+   306→
+   307→        /* Find the argument */
+   308→        int found = 0;
+   309→        int hasDefault = 0;
+   310→        TclObj *defaultValue = NULL;
+   311→
+   312→        for (size_t i = 0; i < argCount; i++) {
+   313→            TclObj **argParts;
+   314→            size_t partCount;
+   315→            const char *argName;
+   316→            size_t argNameLen;
+   317→
+   318→            if (host->asList(args[i], &argParts, &partCount) == 0 && partCount >= 1) {
+   319→                argName = host->getStringPtr(argParts[0], &argNameLen);
+   320→                if (argNameLen == targetArgLen && tclStrncmp(argName, targetArg, targetArgLen) == 0) {
+   321→                    found = 1;
+   322→                    if (partCount >= 2) {
+   323→                        hasDefault = 1;
+   324→                        defaultValue = argParts[1];
+   325→                    }
+   326→                    break;
+   327→                }
+   328→            } else {
+   329→                argName = host->getStringPtr(args[i], &argNameLen);
+   330→                if (argNameLen == targetArgLen && tclStrncmp(argName, targetArg, targetArgLen) == 0) {
+   331→                    found = 1;
+   332→                    break;
+   333→                }
+   334→            }
+   335→        }
+   336→
+   337→        if (!found) {
+   338→            /* Build error message */
+   339→            void *arena = host->arenaPush(interp->hostCtx);
+   340→            size_t procNameLen;
+   341→            const char *procName = host->getStringPtr(objv[2], &procNameLen);
+   342→            char *msg = host->arenaAlloc(arena, procNameLen + targetArgLen + 60, 1);
+   343→            char *mp = msg;
+   344→            const char *pre = "procedure \"";
+   345→            while (*pre) *mp++ = *pre++;
+   346→            for (size_t i = 0; i < procNameLen; i++) *mp++ = procName[i];
+   347→            const char *mid = "\" doesn't have an argument \"";
+   348→            while (*mid) *mp++ = *mid++;
+   349→            for (size_t i = 0; i < targetArgLen; i++) *mp++ = targetArg[i];
+   350→            *mp++ = '"';
+   351→            *mp = '\0';
+   352→            tclSetError(interp, msg, mp - msg);
+   353→            host->arenaPop(interp->hostCtx, arena);
+   354→            return TCL_ERROR;
+   355→        }
+   356→
+   357→        /* Set the variable with the default value if there is one */
+   358→        if (hasDefault) {
+   359→            void *vars = interp->currentFrame->varsHandle;
+   360→            host->varSet(vars, varName, varNameLen, host->dup(defaultValue));
+   361→            tclSetResult(interp, host->newInt(1));
+   362→        } else {
+   363→            tclSetResult(interp, host->newInt(0));
+   364→        }
+   365→        return TCL_OK;
+   366→    }
+   367→
+   368→    /* info globals ?pattern? */
+   369→    if (subcmdLen == 7 && tclStrncmp(subcmd, "globals", 7) == 0) {
+   370→        if (objc > 3) {
+   371→            tclSetError(interp, "wrong # args: should be \"info globals ?pattern?\"", -1);
+   372→            return TCL_ERROR;
+   373→        }
+   374→
+   375→        const char *pattern = NULL;
+   376→        if (objc == 3) {
+   377→            size_t patLen;
+   378→            pattern = host->getStringPtr(objv[2], &patLen);
+   379→        }
+   380→
+   381→        TclObj *names = host->varNames(interp->globalFrame->varsHandle, pattern);
+   382→        tclSetResult(interp, names ? names : host->newString("", 0));
+   383→        return TCL_OK;
+   384→    }
+   385→
+   386→    /* info level ?number? */
+   387→    if (subcmdLen == 5 && tclStrncmp(subcmd, "level", 5) == 0) {
+   388→        if (objc > 3) {
+   389→            tclSetError(interp, "wrong # args: should be \"info level ?number?\"", -1);
+   390→            return TCL_ERROR;
+   391→        }
+   392→
+   393→        if (objc == 2) {
+   394→            /* Return current level */
+   395→            tclSetResult(interp, host->newInt((int64_t)interp->currentFrame->level));
+   396→            return TCL_OK;
+   397→        }
+   398→
+   399→        /* Get information about a specific level */
+   400→        int64_t levelNum;
+   401→        if (host->asInt(objv[2], &levelNum) != 0) {
+   402→            tclSetError(interp, "expected integer but got non-integer value", -1);
+   403→            return TCL_ERROR;
+   404→        }
+   405→
+   406→        /* Handle zero and negative levels as relative (0 = current, -1 = caller) */
+   407→        /* Positive levels are absolute (1 = most recent proc, 2 = its caller) */
+   408→        int targetLevel;
+   409→        if (levelNum <= 0) {
+   410→            targetLevel = (int)interp->currentFrame->level + (int)levelNum;
+   411→        } else {
+   412→            targetLevel = (int)levelNum;
+   413→        }
+   414→
+   415→        if (targetLevel < 0 || targetLevel > (int)interp->currentFrame->level) {
+   416→            tclSetError(interp, "bad level", -1);
+   417→            return TCL_ERROR;
+   418→        }
+   419→
+   420→        /* Find the frame at the target level */
+   421→        TclFrame *frame = interp->currentFrame;
+   422→        while (frame && (int)frame->level > targetLevel) {
+   423→            frame = frame->parent;
+   424→        }
+   425→
+   426→        if (!frame || (int)frame->level != targetLevel) {
+   427→            tclSetError(interp, "bad level", -1);
+   428→            return TCL_ERROR;
+   429→        }
+   430→
+   431→        /* Return the full command invocation as a list at that level */
+   432→        if (frame->invocationObjs && frame->invocationCount > 0) {
+   433→            TclObj *invocList = host->newList(frame->invocationObjs, frame->invocationCount);
+   434→            tclSetResult(interp, invocList);
+   435→        } else if (frame->procName) {
+   436→            tclSetResult(interp, host->newString(frame->procName, tclStrlen(frame->procName)));
+   437→        } else {
+   438→            tclSetResult(interp, host->newString("", 0));
+   439→        }
+   440→        return TCL_OK;
+   441→    }
+   442→
+   443→    /* info locals ?pattern? */
+   444→    if (subcmdLen == 6 && tclStrncmp(subcmd, "locals", 6) == 0) {
+   445→        if (objc > 3) {
+   446→            tclSetError(interp, "wrong # args: should be \"info locals ?pattern?\"", -1);
+   447→            return TCL_ERROR;
+   448→        }
+   449→
+   450→        /* At global level, return empty */
+   451→        if (interp->currentFrame == interp->globalFrame) {
+   452→            tclSetResult(interp, host->newString("", 0));
+   453→            return TCL_OK;
+   454→        }
+   455→
+   456→        const char *pattern = NULL;
+   457→        if (objc == 3) {
+   458→            size_t patLen;
+   459→            pattern = host->getStringPtr(objv[2], &patLen);
+   460→        }
+   461→
+   462→        /* Use varNamesLocal to exclude linked variables (from global/upvar) */
+   463→        TclObj *names = host->varNamesLocal(interp->currentFrame->varsHandle, pattern);
+   464→        tclSetResult(interp, names ? names : host->newString("", 0));
+   465→        return TCL_OK;
+   466→    }
+   467→
+   468→    /* info procs ?pattern? */
+   469→    if (subcmdLen == 5 && tclStrncmp(subcmd, "procs", 5) == 0) {
+   470→        if (objc > 3) {
+   471→            tclSetError(interp, "wrong # args: should be \"info procs ?pattern?\"", -1);
+   472→            return TCL_ERROR;
+   473→        }
+   474→
+   475→        const char *pattern = NULL;
+   476→        if (objc == 3) {
+   477→            size_t patLen;
+   478→            pattern = host->getStringPtr(objv[2], &patLen);
+   479→        }
+   480→
+   481→        /* Get all commands, then filter for procs */
+   482→        TclObj *allCmds = host->cmdList(interp->hostCtx, pattern);
+   483→        if (!allCmds) {
+   484→            tclSetResult(interp, host->newString("", 0));
+   485→            return TCL_OK;
+   486→        }
+   487→
+   488→        TclObj **cmds;
+   489→        size_t cmdCount;
+   490→        if (host->asList(allCmds, &cmds, &cmdCount) != 0 || cmdCount == 0) {
+   491→            tclSetResult(interp, host->newString("", 0));
+   492→            return TCL_OK;
+   493→        }
+   494→
+   495→        /* Filter for procs only */
+   496→        void *arena = host->arenaPush(interp->hostCtx);
+   497→        TclObj **procs = host->arenaAlloc(arena, cmdCount * sizeof(TclObj*), sizeof(void*));
+   498→        size_t procCount = 0;
+   499→
+   500→        for (size_t i = 0; i < cmdCount; i++) {
+   501→            size_t nameLen;
+   502→            const char *name = host->getStringPtr(cmds[i], &nameLen);
+   503→            TclCmdInfo info;
+   504→            host->cmdLookup(interp->hostCtx, name, nameLen, &info);
+   505→            if (info.type == TCL_CMD_PROC) {
+   506→                procs[procCount++] = cmds[i];
+   507→            }
+   508→        }
+   509→
+   510→        TclObj *result = host->newList(procs, procCount);
+   511→        host->arenaPop(interp->hostCtx, arena);
+   512→        tclSetResult(interp, result);
+   513→        return TCL_OK;
+   514→    }
+   515→
+   516→    /* info vars ?pattern? */
+   517→    if (subcmdLen == 4 && tclStrncmp(subcmd, "vars", 4) == 0) {
+   518→        if (objc > 3) {
+   519→            tclSetError(interp, "wrong # args: should be \"info vars ?pattern?\"", -1);
+   520→            return TCL_ERROR;
+   521→        }
+   522→
+   523→        const char *pattern = NULL;
+   524→        if (objc == 3) {
+   525→            size_t patLen;
+   526→            pattern = host->getStringPtr(objv[2], &patLen);
+   527→        }
+   528→
+   529→        TclObj *names = host->varNames(interp->currentFrame->varsHandle, pattern);
+   530→        tclSetResult(interp, names ? names : host->newString("", 0));
+   531→        return TCL_OK;
+   532→    }
+   533→
+   534→    /* info patchlevel */
+   535→    if (subcmdLen == 10 && tclStrncmp(subcmd, "patchlevel", 10) == 0) {
+   536→        if (objc != 2) {
+   537→            tclSetError(interp, "wrong # args: should be \"info patchlevel\"", -1);
+   538→            return TCL_ERROR;
+   539→        }
+   540→        tclSetResult(interp, host->newString("9.0.2", 5));
+   541→        return TCL_OK;
+   542→    }
+   543→
+   544→    /* info tclversion */
+   545→    if (subcmdLen == 10 && tclStrncmp(subcmd, "tclversion", 10) == 0) {
+   546→        if (objc != 2) {
+   547→            tclSetError(interp, "wrong # args: should be \"info tclversion\"", -1);
+   548→            return TCL_ERROR;
+   549→        }
+   550→        tclSetResult(interp, host->newString("9.0", 3));
+   551→        return TCL_OK;
+   552→    }
+   553→
+   554→    /* info script ?filename? */
+   555→    if (subcmdLen == 6 && tclStrncmp(subcmd, "script", 6) == 0) {
+   556→        if (objc > 3) {
+   557→            tclSetError(interp, "wrong # args: should be \"info script ?filename?\"", -1);
+   558→            return TCL_ERROR;
+   559→        }
+   560→
+   561→        /* Get the current script path */
+   562→        const char *currentScript = interp->scriptFile ? interp->scriptFile : "";
+   563→
+   564→        if (objc == 3) {
+   565→            /* Set new script path, return old one */
+   566→            size_t newPathLen;
+   567→            const char *newPath = host->getStringPtr(objv[2], &newPathLen);
+   568→
+   569→            /* Return the old script path */
+   570→            tclSetResult(interp, host->newString(currentScript, tclStrlen(currentScript)));
+   571→
+   572→            /* Set the new script path - need to copy the string since objv might be freed */
+   573→            /* The host should provide a way to store this, but for now we use the arena */
+   574→            if (newPathLen > 0) {
+   575→                void *arena = host->arenaPush(interp->hostCtx);
+   576→                char *newScriptPath = host->arenaAlloc(arena, newPathLen + 1, 1);
+   577→                for (size_t i = 0; i < newPathLen; i++) {
+   578→                    newScriptPath[i] = newPath[i];
+   579→                }
+   580→                newScriptPath[newPathLen] = '\0';
+   581→                interp->scriptFile = newScriptPath;
+   582→                /* Note: arena is intentionally not popped - the string needs to persist */
+   583→            } else {
+   584→                interp->scriptFile = NULL;
+   585→            }
+   586→        } else {
+   587→            /* Just return current script path */
+   588→            tclSetResult(interp, host->newString(currentScript, tclStrlen(currentScript)));
+   589→        }
+   590→        return TCL_OK;
+   591→    }
+   592→
+   593→    /* Use static error message - subcmd name is embedded as literal */
+   594→    /* This matches what string/dict commands do */
+   595→    (void)subcmd;  /* Unused for now - using literal "unknown" */
+   596→    (void)subcmdLen;
+   597→    tclSetError(interp, "unknown or ambiguous subcommand \"unknown\": must be args, body, class, cmdcount, cmdtype, commands, complete, constant, consts, coroutine, default, errorstack, exists, frame, functions, globals, hostname, level, library, loaded, locals, nameofexecutable, object, patchlevel, procs, script, sharedlibextension, tclversion, or vars", -1);
+   598→    return TCL_ERROR;
+   599→}
+   600→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

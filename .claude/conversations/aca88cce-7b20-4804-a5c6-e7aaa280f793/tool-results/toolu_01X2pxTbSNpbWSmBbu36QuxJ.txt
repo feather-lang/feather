@@ -1,0 +1,631 @@
+     1→/*
+     2→ * tclc.h - TCL Core Host Interface
+     3→ *
+     4→ * This header defines the interface between the TCL core (implemented in C)
+     5→ * and the host language (Go). The C core handles parsing, evaluation, and
+     6→ * control flow. The host provides memory management, data structures, I/O,
+     7→ * and OS services.
+     8→ *
+     9→ * Design principles:
+    10→ *   - C core is allocation-free and stdlib-free (except math.h)
+    11→ *   - All dynamic storage managed by host via callbacks
+    12→ *   - Host provides GC, so no explicit reference counting in C
+    13→ *   - Multiple interpreters supported via context handles
+    14→ *   - Coroutines supported via non-recursive eval (trampoline)
+    15→ */
+    16→
+    17→#ifndef TCLC_H
+    18→#define TCLC_H
+    19→
+    20→#include <stddef.h>
+    21→#include <stdint.h>
+    22→
+    23→#ifdef __cplusplus
+    24→extern "C" {
+    25→#endif
+    26→
+    27→/* ========================================================================
+    28→ * Forward Declarations
+    29→ * ======================================================================== */
+    30→
+    31→typedef struct TclObj TclObj;           /* Opaque value handle (host-managed) */
+    32→typedef struct TclChannel TclChannel;   /* Opaque I/O channel (host-managed) */
+    33→typedef struct TclProcess TclProcess;   /* Opaque subprocess (host-managed) */
+    34→typedef struct TclInterp TclInterp;     /* Interpreter state (C-managed) */
+    35→typedef struct TclFrame TclFrame;       /* Activation record (host-allocated) */
+    36→typedef struct TclHost TclHost;         /* Host callback table */
+    37→typedef struct TclCmdInfo TclCmdInfo;   /* Command lookup result */
+    38→typedef void *TclTimerToken;            /* Event loop timer handle */
+    39→
+    40→/* ========================================================================
+    41→ * Result Codes
+    42→ * ======================================================================== */
+    43→
+    44→typedef enum TclResult {
+    45→    TCL_OK       = 0,   /* Normal completion */
+    46→    TCL_ERROR    = 1,   /* Error occurred */
+    47→    TCL_RETURN   = 2,   /* return command */
+    48→    TCL_BREAK    = 3,   /* break command */
+    49→    TCL_CONTINUE = 4,   /* continue command */
+    50→} TclResult;
+    51→
+    52→/* ========================================================================
+    53→ * Command Dispatch
+    54→ * ======================================================================== */
+    55→
+    56→/* Result of command lookup */
+    57→typedef enum TclCmdType {
+    58→    TCL_CMD_NOT_FOUND = 0,
+    59→    TCL_CMD_BUILTIN,      /* Implemented in C, use builtinId */
+    60→    TCL_CMD_PROC,         /* TCL proc, use procHandle */
+    61→    TCL_CMD_EXTENSION,    /* Host-implemented, call through extInvoke */
+    62→    TCL_CMD_ALIAS,        /* Cross-interpreter alias */
+    63→} TclCmdType;
+    64→
+    65→struct TclCmdInfo {
+    66→    TclCmdType type;
+    67→    union {
+    68→        int    builtinId;     /* TCL_CMD_BUILTIN: index into C builtin table */
+    69→        void  *procHandle;    /* TCL_CMD_PROC: opaque handle to proc def */
+    70→        void  *extHandle;     /* TCL_CMD_EXTENSION: opaque handle for callback */
+    71→        void  *aliasHandle;   /* TCL_CMD_ALIAS: alias data */
+    72→    } u;
+    73→};
+    74→
+    75→/* Command procedure signature (builtins and extensions) */
+    76→typedef TclResult (*TclCmdProc)(
+    77→    TclInterp *interp,
+    78→    void      *clientData,
+    79→    int        objc,
+    80→    TclObj   **objv
+    81→);
+    82→
+    83→/* Socket accept callback */
+    84→typedef void (*TclAcceptProc)(
+    85→    void       *clientData,
+    86→    TclChannel *chan,
+    87→    const char *addr,
+    88→    int         port
+    89→);
+    90→
+    91→/* Variable trace callback */
+    92→typedef void (*TclTraceProc)(
+    93→    void       *clientData,
+    94→    const char *name,
+    95→    int         op
+    96→);
+    97→
+    98→/* Trace operation flags */
+    99→typedef enum TclTraceOp {
+   100→    TCL_TRACE_READ   = (1 << 0),
+   101→    TCL_TRACE_WRITE  = (1 << 1),
+   102→    TCL_TRACE_UNSET  = (1 << 2),
+   103→} TclTraceOp;
+   104→
+   105→/* Event loop flags */
+   106→typedef enum TclEventFlag {
+   107→    TCL_EVENT_FILE   = (1 << 0),
+   108→    TCL_EVENT_TIMER  = (1 << 1),
+   109→    TCL_EVENT_IDLE   = (1 << 2),
+   110→    TCL_EVENT_ALL    = 0xFF,
+   111→    TCL_EVENT_NOWAIT = (1 << 8),
+   112→} TclEventFlag;
+   113→
+   114→/* Channel event mask */
+   115→typedef enum TclChannelMask {
+   116→    TCL_READABLE = (1 << 0),
+   117→    TCL_WRITABLE = (1 << 1),
+   118→} TclChannelMask;
+   119→
+   120→/* Process spawn flags */
+   121→typedef enum TclProcessFlag {
+   122→    TCL_PROCESS_PIPE_STDIN  = (1 << 0),
+   123→    TCL_PROCESS_PIPE_STDOUT = (1 << 1),
+   124→    TCL_PROCESS_PIPE_STDERR = (1 << 2),
+   125→    TCL_PROCESS_BACKGROUND  = (1 << 3),
+   126→} TclProcessFlag;
+   127→
+   128→/* Socket flags */
+   129→typedef enum TclSocketFlag {
+   130→    TCL_SOCKET_ASYNC = (1 << 0),
+   131→} TclSocketFlag;
+   132→
+   133→/* Glob type flags */
+   134→typedef enum TclGlobType {
+   135→    TCL_GLOB_TYPE_FILE = (1 << 0),
+   136→    TCL_GLOB_TYPE_DIR  = (1 << 1),
+   137→    TCL_GLOB_TYPE_LINK = (1 << 2),
+   138→} TclGlobType;
+   139→
+   140→/* Seek whence */
+   141→typedef enum TclSeekWhence {
+   142→    TCL_SEEK_SET = 0,
+   143→    TCL_SEEK_CUR = 1,
+   144→    TCL_SEEK_END = 2,
+   145→} TclSeekWhence;
+   146→
+   147→/* Path type (for file pathtype) */
+   148→typedef enum TclPathType {
+   149→    TCL_PATH_ABSOLUTE = 0,
+   150→    TCL_PATH_RELATIVE = 1,
+   151→    TCL_PATH_VOLUMERELATIVE = 2,
+   152→} TclPathType;
+   153→
+   154→/* Link type (for file link) */
+   155→typedef enum TclLinkType {
+   156→    TCL_LINK_SYMBOLIC = 0,
+   157→    TCL_LINK_HARD = 1,
+   158→} TclLinkType;
+   159→
+   160→/* ========================================================================
+   161→ * Activation Record (Frame)
+   162→ *
+   163→ * Host allocates these (for coroutine support - frames outlive arena LIFO).
+   164→ * C core defines the structure.
+   165→ * ======================================================================== */
+   166→
+   167→typedef enum TclFrameFlag {
+   168→    TCL_FRAME_PROC      = (1 << 0),  /* Frame is a proc call */
+   169→    TCL_FRAME_GLOBAL    = (1 << 1),  /* Global frame */
+   170→    TCL_FRAME_NAMESPACE = (1 << 2),  /* Namespace eval frame */
+   171→    TCL_FRAME_COROUTINE = (1 << 3),  /* Coroutine base frame */
+   172→} TclFrameFlag;
+   173→
+   174→struct TclFrame {
+   175→    TclFrame   *parent;         /* Calling frame (NULL for global) */
+   176→    void       *varsHandle;     /* Host-managed variable table */
+   177→    void       *nsHandle;       /* Namespace handle (NULL = current) */
+   178→    const char *procName;       /* Proc name for stack traces, or NULL */
+   179→    TclObj    **invocationObjs; /* Command invocation for info level */
+   180→    int         invocationCount;/* Number of invocation objects */
+   181→    uint32_t    level;          /* Call depth from global */
+   182→    uint32_t    flags;          /* TCL_FRAME_* flags */
+   183→
+   184→    /* Coroutine resume state (valid when frame is suspended) */
+   185→    int         resumeCmdIndex; /* Command index to resume at */
+   186→    int         resumePhase;    /* Parse phase to resume at */
+   187→    void       *resumeState;    /* Opaque parse/eval state */
+   188→};
+   189→
+   190→/* ========================================================================
+   191→ * Interpreter State
+   192→ *
+   193→ * Managed by C core. Contains current execution state.
+   194→ * ======================================================================== */
+   195→
+   196→struct TclInterp {
+   197→    const TclHost *host;        /* Host callback table (shared) */
+   198→    void          *hostCtx;     /* Per-interp host context */
+   199→
+   200→    TclFrame      *globalFrame; /* Bottom of frame stack */
+   201→    TclFrame      *currentFrame;/* Current execution frame */
+   202→
+   203→    TclObj        *result;      /* Command result / return value */
+   204→    TclResult      resultCode;  /* TCL_OK, TCL_ERROR, etc. */
+   205→
+   206→    /* Error information */
+   207→    TclObj        *errorInfo;   /* Stack trace */
+   208→    TclObj        *errorCode;   /* Machine-readable error code */
+   209→    int            errorLine;   /* Line number of error */
+   210→
+   211→    /* Return options (for return -code, -level) */
+   212→    int            returnCode;
+   213→    int            returnLevel;
+   214→
+   215→    /* Coroutine state */
+   216→    void          *currentCoro; /* Current coroutine, or NULL */
+   217→
+   218→    /* Script tracking (for info script) */
+   219→    const char    *scriptFile;  /* Current source file, or NULL */
+   220→    int            scriptLine;  /* Current line number */
+   221→
+   222→    /* Parent interpreter (for interp create) */
+   223→    TclInterp     *parent;
+   224→    int            isSafe;      /* Safe interpreter flag */
+   225→};
+   226→
+   227→/* ========================================================================
+   228→ * Host Callback Interface
+   229→ *
+   230→ * The host (Go) provides this table of function pointers.
+   231→ * All callbacks that access per-interpreter state take a context handle.
+   232→ * ======================================================================== */
+   233→
+   234→struct TclHost {
+   235→
+   236→    /* ==================================================================
+   237→     * Interpreter Context
+   238→     *
+   239→     * Each interpreter has an opaque host context. Child interpreters
+   240→     * reference their parent's context for channel sharing, aliases, etc.
+   241→     * ================================================================== */
+   242→
+   243→    void* (*interpContextNew)(void *parentCtx, int safe);
+   244→    void  (*interpContextFree)(void *ctx);
+   245→
+   246→    /* ==================================================================
+   247→     * Frame Allocation
+   248→     *
+   249→     * Frames must outlive LIFO arena ordering (for coroutines).
+   250→     * Host allocates from GC-managed memory.
+   251→     * ================================================================== */
+   252→
+   253→    TclFrame* (*frameAlloc)(void *ctx);
+   254→    void      (*frameFree)(void *ctx, TclFrame *frame);
+   255→
+   256→    /* ==================================================================
+   257→     * Objects (Values)
+   258→     *
+   259→     * All TCL values are host-managed. The host handles:
+   260→     *   - String representation caching (shimmering)
+   261→     *   - Type conversions
+   262→     *   - Garbage collection
+   263→     * ================================================================== */
+   264→
+   265→    /* Constructors */
+   266→    TclObj* (*newString)(const char *s, size_t len);
+   267→    TclObj* (*newInt)(int64_t val);
+   268→    TclObj* (*newDouble)(double val);
+   269→    TclObj* (*newBool)(int val);
+   270→    TclObj* (*newList)(TclObj **elems, size_t count);
+   271→    TclObj* (*newDict)(void);
+   272→    TclObj* (*dup)(TclObj *obj);
+   273→
+   274→    /* String representation (always available) */
+   275→    const char* (*getStringPtr)(TclObj *obj, size_t *lenOut);
+   276→
+   277→    /* Type conversions (may fail, return 0 on success) */
+   278→    int (*asInt)(TclObj *obj, int64_t *out);
+   279→    int (*asDouble)(TclObj *obj, double *out);
+   280→    int (*asBool)(TclObj *obj, int *out);
+   281→    int (*asList)(TclObj *obj, TclObj ***elemsOut, size_t *countOut);
+   282→
+   283→    /* ==================================================================
+   284→     * List Operations
+   285→     * ================================================================== */
+   286→
+   287→    size_t  (*listLength)(TclObj *list);
+   288→    TclObj* (*listIndex)(TclObj *list, size_t idx);
+   289→    TclObj* (*listRange)(TclObj *list, size_t first, size_t last);
+   290→    TclObj* (*listSet)(TclObj *list, size_t idx, TclObj *val);
+   291→    TclObj* (*listAppend)(TclObj *list, TclObj *elem);
+   292→    TclObj* (*listConcat)(TclObj *a, TclObj *b);
+   293→    TclObj* (*listInsert)(TclObj *list, size_t idx, TclObj **elems, size_t count);
+   294→    TclObj* (*listSort)(TclObj *list, int flags);  /* flags: 1=decreasing, 2=integer */
+   295→
+   296→    /* ==================================================================
+   297→     * Dict Operations
+   298→     * ================================================================== */
+   299→
+   300→    TclObj* (*dictGet)(TclObj *dict, TclObj *key);
+   301→    TclObj* (*dictSet)(TclObj *dict, TclObj *key, TclObj *val);
+   302→    int     (*dictExists)(TclObj *dict, TclObj *key);
+   303→    TclObj* (*dictKeys)(TclObj *dict, const char *pattern);
+   304→    TclObj* (*dictValues)(TclObj *dict, const char *pattern);
+   305→    TclObj* (*dictRemove)(TclObj *dict, TclObj *key);
+   306→    size_t  (*dictSize)(TclObj *dict);
+   307→
+   308→    /* ==================================================================
+   309→     * String Operations
+   310→     *
+   311→     * String length/index are in characters (Unicode code points),
+   312→     * not bytes. Host handles UTF-8 encoding.
+   313→     * ================================================================== */
+   314→
+   315→    size_t  (*stringLength)(TclObj *str);
+   316→    TclObj* (*stringIndex)(TclObj *str, size_t idx);
+   317→    TclObj* (*stringRange)(TclObj *str, size_t first, size_t last);
+   318→    TclObj* (*stringConcat)(TclObj **parts, size_t count);
+   319→    int     (*stringCompare)(TclObj *a, TclObj *b);
+   320→    int     (*stringCompareNocase)(TclObj *a, TclObj *b);
+   321→    int     (*stringMatch)(const char *pattern, TclObj *str, int nocase);
+   322→    TclObj* (*stringToLower)(TclObj *str);
+   323→    TclObj* (*stringToUpper)(TclObj *str);
+   324→    TclObj* (*stringTrim)(TclObj *str, const char *chars);
+   325→    TclObj* (*stringReplace)(TclObj *str, size_t first, size_t last, TclObj *rep);
+   326→    int     (*stringFirst)(TclObj *needle, TclObj *haystack, size_t start);
+   327→    int     (*stringLast)(TclObj *needle, TclObj *haystack, size_t start);
+   328→
+   329→    /* ==================================================================
+   330→     * Arena Allocation
+   331→     *
+   332→     * Arenas provide bump-pointer allocation for parse/eval temporaries.
+   333→     * LIFO discipline: must pop in reverse order of push.
+   334→     * ================================================================== */
+   335→
+   336→    void*  (*arenaPush)(void *ctx);
+   337→    void   (*arenaPop)(void *ctx, void *arena);
+   338→    void*  (*arenaAlloc)(void *arena, size_t size, size_t align);
+   339→    char*  (*arenaStrdup)(void *arena, const char *s, size_t len);
+   340→    size_t (*arenaMark)(void *arena);
+   341→    void   (*arenaReset)(void *arena, size_t mark);
+   342→
+   343→    /* ==================================================================
+   344→     * Variables (Scalars)
+   345→     *
+   346→     * Each frame has a varsHandle for local variables.
+   347→     * The host special-cases "env" array to route to environment.
+   348→     * ================================================================== */
+   349→
+   350→    void*   (*varsNew)(void *ctx);
+   351→    void    (*varsFree)(void *ctx, void *vars);
+   352→    TclObj* (*varGet)(void *vars, const char *name, size_t len);
+   353→    void    (*varSet)(void *vars, const char *name, size_t len, TclObj *val);
+   354→    void    (*varUnset)(void *vars, const char *name, size_t len);
+   355→    int     (*varExists)(void *vars, const char *name, size_t len);
+   356→    TclObj* (*varNames)(void *vars, const char *pattern);
+   357→    TclObj* (*varNamesLocal)(void *vars, const char *pattern);  /* Excludes linked vars */
+   358→    void    (*varLink)(void *localVars, const char *localName, size_t localLen,
+   359→                       void *targetVars, const char *targetName, size_t targetLen);
+   360→
+   361→    /* ==================================================================
+   362→     * Arrays
+   363→     *
+   364→     * TCL arrays are associative: $arr(key) syntax.
+   365→     * Distinct from lists and dicts.
+   366→     * ================================================================== */
+   367→
+   368→    void    (*arraySet)(void *vars, const char *arr, size_t arrLen,
+   369→                        const char *key, size_t keyLen, TclObj *val);
+   370→    TclObj* (*arrayGet)(void *vars, const char *arr, size_t arrLen,
+   371→                        const char *key, size_t keyLen);
+   372→    int     (*arrayExists)(void *vars, const char *arr, size_t arrLen,
+   373→                           const char *key, size_t keyLen);
+   374→    TclObj* (*arrayNames)(void *vars, const char *arr, size_t arrLen,
+   375→                          const char *pattern);
+   376→    void    (*arrayUnset)(void *vars, const char *arr, size_t arrLen,
+   377→                          const char *key, size_t keyLen);
+   378→    size_t  (*arraySize)(void *vars, const char *arr, size_t arrLen);
+   379→
+   380→    /* ==================================================================
+   381→     * Variable Traces
+   382→     *
+   383→     * For vwait, trace command, etc.
+   384→     * ================================================================== */
+   385→
+   386→    void (*traceVarAdd)(void *vars, const char *name, size_t len, int ops,
+   387→                        TclTraceProc callback, void *clientData);
+   388→    void (*traceVarRemove)(void *vars, const char *name, size_t len,
+   389→                           TclTraceProc callback, void *clientData);
+   390→
+   391→    /* ==================================================================
+   392→     * Commands
+   393→     *
+   394→     * Command lookup returns type + handle. C has static builtin table.
+   395→     * Host manages procs, extensions, aliases.
+   396→     * ================================================================== */
+   397→
+   398→    int       (*cmdLookup)(void *ctx, const char *name, size_t len,
+   399→                           TclCmdInfo *out);
+   400→    void*     (*procRegister)(void *ctx, const char *name, size_t len,
+   401→                              TclObj *argList, TclObj *body);
+   402→    int       (*procGetDef)(void *handle, TclObj **argListOut, TclObj **bodyOut);
+   403→    TclResult (*extInvoke)(TclInterp *interp, void *handle,
+   404→                           int objc, TclObj **objv);
+   405→    int       (*cmdRename)(void *ctx, const char *oldName, size_t oldLen,
+   406→                           const char *newName, size_t newLen);
+   407→    int       (*cmdDelete)(void *ctx, const char *name, size_t len);
+   408→    int       (*cmdExists)(void *ctx, const char *name, size_t len);
+   409→    TclObj*   (*cmdList)(void *ctx, const char *pattern);
+   410→    void      (*cmdHide)(void *ctx, const char *name, size_t len);
+   411→    void      (*cmdExpose)(void *ctx, const char *name, size_t len);
+   412→
+   413→    /* ==================================================================
+   414→     * Channels (I/O)
+   415→     *
+   416→     * Abstract I/O handles. Host manages buffering, encoding.
+   417→     * Channels can be shared between interpreters.
+   418→     * ================================================================== */
+   419→
+   420→    TclChannel* (*chanOpen)(void *ctx, const char *name, const char *mode);
+   421→    void        (*chanClose)(void *ctx, TclChannel *chan);
+   422→    TclChannel* (*chanStdin)(void *ctx);
+   423→    TclChannel* (*chanStdout)(void *ctx);
+   424→    TclChannel* (*chanStderr)(void *ctx);
+   425→    int         (*chanRead)(TclChannel *chan, char *buf, size_t len);
+   426→    int         (*chanWrite)(TclChannel *chan, const char *buf, size_t len);
+   427→    TclObj*     (*chanGets)(TclChannel *chan, int *eofOut);
+   428→    int         (*chanFlush)(TclChannel *chan);
+   429→    int         (*chanSeek)(TclChannel *chan, int64_t offset, int whence);
+   430→    int64_t     (*chanTell)(TclChannel *chan);
+   431→    int         (*chanEof)(TclChannel *chan);
+   432→    int         (*chanBlocked)(TclChannel *chan);
+   433→    int         (*chanConfigure)(TclChannel *chan, const char *opt, TclObj *val);
+   434→    TclObj*     (*chanCget)(TclChannel *chan, const char *opt);
+   435→    TclObj*     (*chanNames)(void *ctx, const char *pattern);
+   436→    void        (*chanShare)(void *fromCtx, void *toCtx, TclChannel *chan);
+   437→    void        (*chanTransfer)(void *fromCtx, void *toCtx, TclChannel *chan);
+   438→    int         (*chanTruncate)(TclChannel *chan, int64_t length);
+   439→    int64_t     (*chanCopy)(TclChannel *src, TclChannel *dst, int64_t size);
+   440→    int64_t     (*chanPending)(TclChannel *chan, int input);
+   441→    int         (*chanPipe)(void *ctx, TclChannel **readChan, TclChannel **writeChan);
+   442→
+   443→    /* ==================================================================
+   444→     * Event Loop
+   445→     *
+   446→     * Timers, channel events, idle callbacks.
+   447→     * Host owns the event loop; C commands register handlers.
+   448→     * ================================================================== */
+   449→
+   450→    TclTimerToken (*afterMs)(void *ctx, int ms, TclObj *script);
+   451→    TclTimerToken (*afterIdle)(void *ctx, TclObj *script);
+   452→    void          (*afterCancel)(void *ctx, TclTimerToken token);
+   453→    TclObj*       (*afterInfo)(void *ctx, TclTimerToken token);
+   454→    void          (*fileeventSet)(void *ctx, TclChannel *chan,
+   455→                                  int mask, TclObj *script);
+   456→    TclObj*       (*fileeventGet)(void *ctx, TclChannel *chan, int mask);
+   457→    int           (*doOneEvent)(void *ctx, int flags);
+   458→
+   459→    /* ==================================================================
+   460→     * Subprocess Execution
+   461→     * ================================================================== */
+   462→
+   463→    TclProcess* (*processSpawn)(const char **argv, int argc, int flags,
+   464→                                TclChannel **pipeIn,
+   465→                                TclChannel **pipeOut,
+   466→                                TclChannel **pipeErr);
+   467→    int   (*processWait)(TclProcess *proc, int *exitCode);
+   468→    int   (*processPid)(TclProcess *proc);
+   469→    void  (*processKill)(TclProcess *proc, int signal);
+   470→
+   471→    /* ==================================================================
+   472→     * Sockets
+   473→     * ================================================================== */
+   474→
+   475→    TclChannel* (*socketOpen)(const char *host, int port, int flags);
+   476→    void*       (*socketListen)(const char *addr, int port,
+   477→                                TclAcceptProc onAccept, void *clientData);
+   478→    void        (*socketListenClose)(void *listener);
+   479→
+   480→    /* ==================================================================
+   481→     * Filesystem
+   482→     * ================================================================== */
+   483→
+   484→    int     (*fileExists)(const char *path);
+   485→    int     (*fileIsFile)(const char *path);
+   486→    int     (*fileIsDir)(const char *path);
+   487→    int     (*fileReadable)(const char *path);
+   488→    int     (*fileWritable)(const char *path);
+   489→    int     (*fileExecutable)(const char *path);
+   490→    int64_t (*fileSize)(const char *path);
+   491→    int64_t (*fileMtime)(const char *path);
+   492→    int64_t (*fileAtime)(const char *path);
+   493→    int     (*fileDelete)(const char *path, int force);
+   494→    int     (*fileRename)(const char *oldPath, const char *newPath, int force);
+   495→    int     (*fileMkdir)(const char *path);
+   496→    int     (*fileCopy)(const char *src, const char *dst, int force);
+   497→    TclObj* (*fileDirname)(const char *path);
+   498→    TclObj* (*fileTail)(const char *path);
+   499→    TclObj* (*fileExtension)(const char *path);
+   500→    TclObj* (*fileRootname)(const char *path);
+   501→    TclObj* (*fileJoin)(TclObj **parts, size_t count);
+   502→    TclObj* (*fileNormalize)(const char *path);
+   503→    TclObj* (*fileSplit)(const char *path);
+   504→    TclObj* (*fileType)(const char *path);
+   505→    TclObj* (*glob)(const char *pattern, int types, const char *directory);
+   506→    int     (*filePathtype)(const char *path);  /* Returns TclPathType */
+   507→    TclObj* (*fileSeparator)(void);
+   508→    TclObj* (*fileStat)(const char *path);      /* Returns dict with atime,ctime,dev,gid,ino,mode,mtime,nlink,size,type,uid */
+   509→    TclObj* (*fileLstat)(const char *path);     /* Like fileStat but doesn't follow symlinks */
+   510→    TclObj* (*fileNativename)(const char *path);
+   511→    int     (*fileOwned)(const char *path);
+   512→    TclObj* (*fileTempfile)(void *ctx, const char *template);  /* Returns channel, sets name in template if non-NULL */
+   513→    TclObj* (*fileTempdir)(const char *template);
+   514→    TclObj* (*fileHome)(const char *user);      /* NULL for current user */
+   515→    int     (*fileLink)(const char *linkName, const char *target, int linkType);  /* linkType: TclLinkType */
+   516→    TclObj* (*fileReadlink)(const char *linkName);
+   517→    TclObj* (*fileSystem)(const char *path);    /* Returns list: {fstype ?detail?} */
+   518→    TclObj* (*fileVolumes)(void);               /* Returns list of volume mount points */
+   519→    TclObj* (*fileAttributes)(const char *path, const char *option);  /* NULL option = get all */
+   520→    int     (*fileAttributesSet)(const char *path, const char *option, TclObj *value);
+   521→
+   522→    /* ==================================================================
+   523→     * System
+   524→     * ================================================================== */
+   525→
+   526→    int     (*chdir)(const char *path);
+   527→    TclObj* (*getcwd)(void);
+   528→    TclObj* (*sysHostname)(void);
+   529→    TclObj* (*sysExecutable)(void);
+   530→    int     (*sysPid)(void);
+   531→
+   532→    /* ==================================================================
+   533→     * Regular Expressions
+   534→     *
+   535→     * Returns list of match indices, or NULL on no match.
+   536→     * ================================================================== */
+   537→
+   538→    TclObj* (*regexMatch)(const char *pattern, size_t patLen,
+   539→                          TclObj *str, int flags);
+   540→    TclObj* (*regexSubst)(const char *pattern, size_t patLen,
+   541→                          TclObj *str, TclObj *replacement, int flags);
+   542→
+   543→    /* ==================================================================
+   544→     * Clock / Time
+   545→     * ================================================================== */
+   546→
+   547→    int64_t (*clockSeconds)(void);
+   548→    int64_t (*clockMillis)(void);
+   549→    int64_t (*clockMicros)(void);
+   550→    TclObj* (*clockFormat)(int64_t time, const char *fmt, const char *tz);
+   551→    int64_t (*clockScan)(const char *str, const char *fmt, const char *tz);
+   552→
+   553→    /* ==================================================================
+   554→     * Encoding
+   555→     *
+   556→     * TCL strings are Unicode. These convert at I/O boundaries.
+   557→     * ================================================================== */
+   558→
+   559→    TclObj* (*encodingConvertTo)(const char *encoding, TclObj *str);
+   560→    TclObj* (*encodingConvertFrom)(const char *encoding, TclObj *bytes);
+   561→    TclObj* (*encodingNames)(void);
+   562→    const char* (*encodingSystem)(void);
+   563→
+   564→};
+   565→
+   566→/* ========================================================================
+   567→ * C Core API
+   568→ *
+   569→ * Functions implemented by the C core, called by the host.
+   570→ * ======================================================================== */
+   571→
+   572→/* Initialize interpreter with host callbacks */
+   573→TclInterp* tclInterpNew(const TclHost *host, void *hostCtx);
+   574→void       tclInterpFree(TclInterp *interp);
+   575→
+   576→/* Evaluate script */
+   577→TclResult tclEval(TclInterp *interp, TclObj *script);
+   578→TclResult tclEvalStr(TclInterp *interp, const char *script, size_t len);
+   579→
+   580→/* Get/set result */
+   581→TclObj*   tclGetResult(TclInterp *interp);
+   582→void      tclSetResult(TclInterp *interp, TclObj *result);
+   583→void      tclSetResultStr(TclInterp *interp, const char *s, size_t len);
+   584→
+   585→/* Error handling */
+   586→void      tclSetError(TclInterp *interp, const char *msg, size_t len);
+   587→void      tclSetErrorCode(TclInterp *interp, TclObj *code);
+   588→void      tclAddErrorInfo(TclInterp *interp, const char *info, size_t len);
+   589→
+   590→/* Coroutine support */
+   591→void*     tclCoroCreate(TclInterp *interp, TclObj *name, TclObj *cmd);
+   592→TclResult tclCoroResume(TclInterp *interp, void *coro, TclObj *value);
+   593→TclResult tclCoroYield(TclInterp *interp, TclObj *value);
+   594→void      tclCoroDestroy(TclInterp *interp, void *coro);
+   595→int       tclCoroExists(TclInterp *interp, TclObj *name);
+   596→
+   597→/* Child interpreter support */
+   598→TclInterp* tclInterpCreateChild(TclInterp *parent, const char *name, int safe);
+   599→TclResult  tclInterpEval(TclInterp *child, TclObj *script);
+   600→void       tclInterpAlias(TclInterp *child, const char *childCmd,
+   601→                          TclInterp *target, const char *targetCmd,
+   602→                          int objc, TclObj **prefixObjs);
+   603→
+   604→/* Expression evaluation (for expr command) */
+   605→TclResult tclExprEval(TclInterp *interp, TclObj *expr, TclObj **resultOut);
+   606→TclResult tclExprBool(TclInterp *interp, TclObj *expr, int *resultOut);
+   607→
+   608→/* Builtin command enumeration (for info commands) */
+   609→int tclBuiltinCount(void);
+   610→const char *tclBuiltinName(int index);
+   611→
+   612→/* Substitution (for subst command) */
+   613→TclResult tclSubst(TclInterp *interp, TclObj *str, int flags, TclObj **resultOut);
+   614→
+   615→typedef enum TclSubstFlag {
+   616→    TCL_SUBST_COMMANDS  = (1 << 0),
+   617→    TCL_SUBST_VARIABLES = (1 << 1),
+   618→    TCL_SUBST_BACKSLASH = (1 << 2),
+   619→    TCL_SUBST_ALL       = (TCL_SUBST_COMMANDS | TCL_SUBST_VARIABLES | TCL_SUBST_BACKSLASH),
+   620→} TclSubstFlag;
+   621→
+   622→#ifdef __cplusplus
+   623→}
+   624→#endif
+   625→
+   626→#endif /* TCLC_H */
+   627→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

@@ -1,0 +1,124 @@
+after(n)                     Tcl Built-In Commands                    after(n)
+
+______________________________________________________________________________
+
+NNAAMMEE
+       after - Execute a command after a time delay
+
+SSYYNNOOPPSSIISS
+       aafftteerr _m_s
+       aafftteerr _m_s ?_s_c_r_i_p_t _s_c_r_i_p_t _s_c_r_i_p_t _._._.?
+       aafftteerr ccaanncceell _i_d
+       aafftteerr ccaanncceell _s_c_r_i_p_t _s_c_r_i_p_t _s_c_r_i_p_t _._._.
+       aafftteerr iiddllee ?_s_c_r_i_p_t _s_c_r_i_p_t _s_c_r_i_p_t _._._.?
+       aafftteerr iinnffoo ?_i_d?
+______________________________________________________________________________
+
+DDEESSCCRRIIPPTTIIOONN
+       This command is used to delay execution of the program or to execute a
+       command in background sometime in the future.  It has several forms,
+       depending on the first argument to the command:
+
+       aafftteerr _m_s
+              _M_s must be an integer giving a time in milliseconds.  A negative
+              number is treated as 0.  The command sleeps for _m_s milliseconds
+              and then returns.  While the command is sleeping the application
+              does not respond to events.
+
+       aafftteerr _m_s ?_s_c_r_i_p_t _s_c_r_i_p_t _s_c_r_i_p_t _._._.?
+              In this form the command returns immediately, but it arranges
+              for a Tcl command to be executed _m_s milliseconds later as an
+              event handler.  The command will be executed exactly once, at
+              the given time.  The delayed command is formed by concatenating
+              all the _s_c_r_i_p_t arguments in the same fashion as the ccoonnccaatt
+              command.  The command will be executed at global level (outside
+              the context of any Tcl procedure).  If an error occurs while
+              executing the delayed command then the background error will be
+              reported by the command registered with iinntteerrpp bbggeerrrroorr.  The
+              aafftteerr command returns an identifier that can be used to cancel
+              the delayed command using aafftteerr ccaanncceell.  A _m_s value of 0 (or
+              negative) queues the event immediately with priority over other
+              event types (if not installed with an event proc, which will
+              wait for next round of events).
+
+       aafftteerr ccaanncceell _i_d
+              Cancels the execution of a delayed command that was previously
+              scheduled.  _I_d indicates which command should be canceled;  it
+              must have been the return value from a previous aafftteerr command.
+              If the command given by _i_d has already been executed then the
+              aafftteerr ccaanncceell command has no effect.
+
+       aafftteerr ccaanncceell _s_c_r_i_p_t _s_c_r_i_p_t _._._.
+              This command also cancels the execution of a delayed command.
+              The _s_c_r_i_p_t arguments are concatenated together with space
+              separators (just as in the ccoonnccaatt command).  If there is a
+              pending command that matches the string, it is canceled and will
+              never be executed;  if no such command is currently pending then
+              the aafftteerr ccaanncceell command has no effect.
+
+       aafftteerr iiddllee _s_c_r_i_p_t ?_s_c_r_i_p_t _s_c_r_i_p_t _._._.?
+              Concatenates the _s_c_r_i_p_t arguments together with space separators
+              (just as in the ccoonnccaatt command), and arranges for the resulting
+              script to be evaluated later as an idle callback.  The script
+              will be run exactly once, the next time the event loop is
+              entered and there are no events to process.  The command returns
+              an identifier that can be used to cancel the delayed command
+              using aafftteerr ccaanncceell.  If an error occurs while executing the
+              script then the background error will be reported by the command
+              registered with iinntteerrpp bbggeerrrroorr.
+
+       aafftteerr iinnffoo ?_i_d?
+              This command returns information about existing event handlers.
+              If no _i_d argument is supplied, the command returns a list of the
+              identifiers for all existing event handlers created by the aafftteerr
+              command for this interpreter.  If _i_d is supplied, it specifies
+              an existing handler; _i_d must have been the return value from
+              some previous call to aafftteerr and it must not have triggered yet
+              or been canceled.  In this case the command returns a list with
+              two elements.  The first element of the list is the script
+              associated with _i_d, and the second element is either iiddllee or
+              ttiimmeerr to indicate what kind of event handler it is.
+
+       The aafftteerr _m_s and aafftteerr iiddllee forms of the command assume that the
+       application is event driven:  the delayed commands will not be executed
+       unless the application enters the event loop.  In applications that are
+       not normally event-driven, such as ttccllsshh, the event loop can be entered
+       with the vvwwaaiitt and uuppddaattee commands.
+
+EEXXAAMMPPLLEESS
+       This defines a command to make Tcl do nothing at all for _N seconds:
+
+              proc sleep {N} {
+                  aafftteerr [expr {int($N * 1000)}]
+              }
+
+       This arranges for the command _w_a_k_e___u_p to be run in eight hours
+       (providing the event loop is active at that time):
+
+              aafftteerr [expr {1000 * 60 * 60 * 8}] wake_up
+
+       The following command can be used to do long-running calculations (as
+       represented here by _:_:_m_y___c_a_l_c_:_:_o_n_e___s_t_e_p, which is assumed to return a
+       boolean indicating whether another step should be performed) in a step-
+       by-step fashion, though the calculation itself needs to be arranged so
+       it can work step-wise.  This technique is extra careful to ensure that
+       the event loop is not starved by the rescheduling of processing steps
+       (arranging for the next step to be done using an already-triggered
+       timer event only when the event queue has been drained) and is useful
+       when you want to ensure that a Tk GUI remains responsive during a slow
+       task.
+
+              proc doOneStep {} {
+                  if {[::my_calc::one_step]} {
+                      aafftteerr iiddllee [list aafftteerr 0 doOneStep]
+                  }
+              }
+              doOneStep
+
+SSEEEE AALLSSOO
+       concat(n), interp(n), update(n), vwait(n)
+
+KKEEYYWWOORRDDSS
+       cancel, delay, idle callback, sleep, time
+
+Tcl                                   7.5                             after(n)

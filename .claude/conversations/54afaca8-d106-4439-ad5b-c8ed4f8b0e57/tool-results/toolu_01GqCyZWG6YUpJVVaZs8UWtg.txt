@@ -1,0 +1,60 @@
+update(n)                    Tcl Built-In Commands                   update(n)
+
+______________________________________________________________________________
+
+NNAAMMEE
+       update - Process pending events and idle callbacks
+
+SSYYNNOOPPSSIISS
+       uuppddaattee ?iiddlleettaasskkss?
+______________________________________________________________________________
+
+DDEESSCCRRIIPPTTIIOONN
+       This command is used to bring the application “up to date” by entering
+       the event loop repeatedly until all pending events (including idle
+       callbacks) have been processed.
+
+       If the iiddlleettaasskkss keyword is specified as an argument to the command,
+       then no new events or errors are processed;  only idle callbacks are
+       invoked.  This causes operations that are normally deferred, such as
+       display updates and window layout calculations, to be performed
+       immediately.
+
+       The uuppddaattee iiddlleettaasskkss command is useful in scripts where changes have
+       been made to the application's state and you want those changes to
+       appear on the display immediately, rather than waiting for the script
+       to complete.  Most display updates are performed as idle callbacks, so
+       uuppddaattee iiddlleettaasskkss will cause them to run.  However, there are some kinds
+       of updates that only happen in response to events, such as those
+       triggered by window size changes; these updates will not occur in
+       uuppddaattee iiddlleettaasskkss.
+
+       The uuppddaattee command with no options is useful in scripts where you are
+       performing a long-running computation but you still want the
+       application to respond to events such as user interactions;  if you
+       occasionally call uuppddaattee then user input will be processed during the
+       next call to uuppddaattee.
+
+EEXXAAMMPPLLEE
+       Run computations for about a second and then finish:
+
+              set x 1000
+              set done 0
+              after 1000 set done 1
+              while {!$done} {
+                  # A very silly example!
+                  set x [expr {log($x) ** 2.8}]
+
+                  # Test to see if our time-limit has been hit.  This would
+                  # also give a chance for serving network sockets and, if
+                  # the Tk package is loaded, updating a user interface.
+                  uuppddaattee
+              }
+
+SSEEEE AALLSSOO
+       after(n), interp(n)
+
+KKEEYYWWOORRDDSS
+       asynchronous I/O, event, flush, handler, idle, update
+
+Tcl                                   7.5                            update(n)

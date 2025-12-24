@@ -1,0 +1,36 @@
+The file /Users/dhamidi/projects/tclc/src/tclc.h has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
+   904→ *   \x - matches x literally (escape)
+   905→ *
+   906→ * Returns 1 if string matches pattern, 0 otherwise.
+   907→ */
+   908→int tcl_glob_match(const char *pattern, size_t pattern_len,
+   909→                   const char *string, size_t string_len);
+   910→
+   911→/**
+   912→ * tcl_is_qualified returns 1 if name contains "::", 0 otherwise.
+   913→ */
+   914→int tcl_is_qualified(const char *name, size_t len);
+   915→
+   916→/**
+   917→ * tcl_resolve_variable resolves a variable name to namespace + local parts.
+   918→ *
+   919→ * Three cases:
+   920→ *   1. Unqualified ("x") - no "::" in name
+   921→ *      -> ns_out = nil, local_out = "x"
+   922→ *      -> Caller uses var.get for frame-local lookup
+   923→ *
+   924→ *   2. Absolute ("::foo::x") - starts with "::"
+   925→ *      -> ns_out = "::foo", local_out = "x"
+   926→ *
+   927→ *   3. Relative ("foo::x") - contains "::" but doesn't start with it
+   928→ *      -> Prepends current namespace from ops->ns.current()
+   929→ *      -> If current is "::bar", resolves to ns="::bar::foo", local="x"
+   930→ *
+   931→ * Returns TCL_OK on success.
+   932→ */
+   933→TclResult tcl_resolve_variable(const TclHostOps *ops, TclInterp interp,
+   934→                               const char *name, size_t len,
+   935→                               TclObj *ns_out, TclObj *local_out);
+   936→
+   937→#endif
+   938→

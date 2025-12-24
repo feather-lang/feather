@@ -1,0 +1,21 @@
+total 0
+drwxr-xr-x@  20 dhamidi  staff   640 Dec 19 22:52 .
+drwxr-xr-x@   4 dhamidi  staff   128 Dec 20 00:25 ..
+drwxr-xr-x@  25 dhamidi  staff   800 Dec 19 22:46 array
+drwxr-xr-x@  33 dhamidi  staff  1056 Dec 19 22:49 chan
+drwxr-xr-x@  14 dhamidi  staff   448 Dec 19 17:18 control
+drwxr-xr-x@  74 dhamidi  staff  2368 Dec 19 21:03 dict
+drwxr-xr-x@  15 dhamidi  staff   480 Dec 19 19:46 error
+drwxr-xr-x@  29 dhamidi  staff   928 Dec 19 22:53 exec
+drwxr-xr-x@  70 dhamidi  staff  2240 Dec 19 22:19 expr
+drwxr-xr-x@  69 dhamidi  staff  2208 Dec 19 22:53 file
+drwxr-xr-x@  65 dhamidi  staff  2080 Dec 19 21:11 info
+drwxr-xr-x@   9 dhamidi  staff   288 Dec 19 15:05 lexer
+drwxr-xr-x@ 134 dhamidi  staff  4288 Dec 19 18:46 lists
+drwxr-xr-x@  17 dhamidi  staff   544 Dec 19 15:45 parser
+drwxr-xr-x@  14 dhamidi  staff   448 Dec 19 17:12 proc
+drwxr-xr-x@  31 dhamidi  staff   992 Dec 19 20:31 scope
+drwxr-xr-x@  47 dhamidi  staff  1504 Dec 19 21:10 string
+drwxr-xr-x@  25 dhamidi  staff   800 Dec 19 19:40 subst
+drwxr-xr-x@  14 dhamidi  staff   448 Dec 19 17:37 trycatch
+drwxr-xr-x@  22 dhamidi  staff   704 Dec 19 17:28 variables

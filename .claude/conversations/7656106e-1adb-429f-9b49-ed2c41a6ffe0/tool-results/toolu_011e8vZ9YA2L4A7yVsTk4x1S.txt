@@ -1,0 +1,586 @@
+     1→/*
+     2→ * eval.c - TCL Evaluation Trampoline
+     3→ *
+     4→ * Non-recursive command evaluation state machine.
+     5→ * Supports suspend/resume for coroutines.
+     6→ */
+     7→
+     8→#include "internal.h"
+     9→
+    10→/* ========================================================================
+    11→ * Interpreter Creation and Destruction
+    12→ * ======================================================================== */
+    13→
+    14→TclInterp *tclInterpNew(const TclHost *host, void *hostCtx) {
+    15→    /* Allocate interpreter struct using host arena temporarily */
+    16→    void *arena = host->arenaPush(hostCtx);
+    17→    TclInterp *interp = host->arenaAlloc(arena, sizeof(TclInterp), sizeof(void*));
+    18→    if (!interp) {
+    19→        host->arenaPop(hostCtx, arena);
+    20→        return NULL;
+    21→    }
+    22→
+    23→    /* Copy to permanent storage (we need interp to outlive arena) */
+    24→    /* For now, use a simple static pool approach */
+    25→    static TclInterp interpPool[8];
+    26→    static int interpCount = 0;
+    27→    if (interpCount >= 8) {
+    28→        host->arenaPop(hostCtx, arena);
+    29→        return NULL;
+    30→    }
+    31→
+    32→    host->arenaPop(hostCtx, arena);
+    33→    interp = &interpPool[interpCount++];
+    34→
+    35→    /* Initialize */
+    36→    interp->host = host;
+    37→    interp->hostCtx = hostCtx;
+    38→    interp->result = NULL;
+    39→    interp->resultCode = TCL_OK;
+    40→    interp->errorInfo = NULL;
+    41→    interp->errorCode = NULL;
+    42→    interp->errorLine = 0;
+    43→    interp->returnCode = TCL_OK;
+    44→    interp->returnLevel = 1;
+    45→    interp->currentCoro = NULL;
+    46→    interp->scriptFile = NULL;
+    47→    interp->scriptLine = 0;
+    48→    interp->parent = NULL;
+    49→    interp->isSafe = 0;
+    50→
+    51→    /* Create global frame */
+    52→    interp->globalFrame = host->frameAlloc(hostCtx);
+    53→    if (!interp->globalFrame) {
+    54→        return NULL;
+    55→    }
+    56→    interp->globalFrame->parent = NULL;
+    57→    interp->globalFrame->level = 0;
+    58→    interp->globalFrame->flags = TCL_FRAME_GLOBAL;
+    59→    interp->globalFrame->procName = NULL;
+    60→    interp->globalFrame->invocationObjs = NULL;
+    61→    interp->globalFrame->invocationCount = 0;
+    62→
+    63→    interp->currentFrame = interp->globalFrame;
+    64→
+    65→    return interp;
+    66→}
+    67→
+    68→void tclInterpFree(TclInterp *interp) {
+    69→    if (!interp) return;
+    70→
+    71→    const TclHost *host = interp->host;
+    72→    void *ctx = interp->hostCtx;
+    73→
+    74→    /* Free global frame */
+    75→    if (interp->globalFrame) {
+    76→        host->frameFree(ctx, interp->globalFrame);
+    77→    }
+    78→
+    79→    /* Note: interp itself is from static pool, not freed */
+    80→}
+    81→
+    82→/* ========================================================================
+    83→ * Result and Error Handling
+    84→ * ======================================================================== */
+    85→
+    86→TclObj *tclGetResult(TclInterp *interp) {
+    87→    return interp->result;
+    88→}
+    89→
+    90→void tclSetResult(TclInterp *interp, TclObj *result) {
+    91→    interp->result = result;
+    92→    interp->resultCode = TCL_OK;
+    93→}
+    94→
+    95→void tclSetResultStr(TclInterp *interp, const char *s, size_t len) {
+    96→    if (len == (size_t)-1) {
+    97→        len = tclStrlen(s);
+    98→    }
+    99→    interp->result = interp->host->newString(s, len);
+   100→    interp->resultCode = TCL_OK;
+   101→}
+   102→
+   103→void tclSetError(TclInterp *interp, const char *msg, size_t len) {
+   104→    if (len == (size_t)-1) {
+   105→        len = tclStrlen(msg);
+   106→    }
+   107→    interp->result = interp->host->newString(msg, len);
+   108→    interp->resultCode = TCL_ERROR;
+   109→}
+   110→
+   111→void tclSetErrorCode(TclInterp *interp, TclObj *code) {
+   112→    interp->errorCode = code;
+   113→}
+   114→
+   115→void tclAddErrorInfo(TclInterp *interp, const char *info, size_t len) {
+   116→    if (len == (size_t)-1) {
+   117→        len = tclStrlen(info);
+   118→    }
+   119→
+   120→    const TclHost *host = interp->host;
+   121→
+   122→    if (!interp->errorInfo) {
+   123→        interp->errorInfo = host->newString(info, len);
+   124→    } else {
+   125→        /* Append to existing error info */
+   126→        size_t existingLen;
+   127→        const char *existing = host->getStringPtr(interp->errorInfo, &existingLen);
+   128→
+   129→        void *arena = host->arenaPush(interp->hostCtx);
+   130→        char *buf = host->arenaAlloc(arena, existingLen + len + 1, 1);
+   131→
+   132→        for (size_t i = 0; i < existingLen; i++) {
+   133→            buf[i] = existing[i];
+   134→        }
+   135→        for (size_t i = 0; i < len; i++) {
+   136→            buf[existingLen + i] = info[i];
+   137→        }
+   138→        buf[existingLen + len] = '\0';
+   139→
+   140→        interp->errorInfo = host->newString(buf, existingLen + len);
+   141→        host->arenaPop(interp->hostCtx, arena);
+   142→    }
+   143→}
+   144→
+   145→/* ========================================================================
+   146→ * Eval State Management
+   147→ * ======================================================================== */
+   148→
+   149→void tclEvalStateInit(TclEvalState *state, TclInterp *interp,
+   150→                      const char *script, size_t len) {
+   151→    tclParserInit(&state->parser, interp, script, len);
+   152→    state->phase = EVAL_PHASE_PARSE;
+   153→    state->substWords = NULL;
+   154→    state->substCount = 0;
+   155→    state->wordIndex = 0;
+   156→    state->currentCmd.words = NULL;
+   157→    state->currentCmd.wordCount = 0;
+   158→}
+   159→
+   160→void tclEvalStateCleanup(TclEvalState *state, TclInterp *interp) {
+   161→    (void)interp;
+   162→    tclParserCleanup(&state->parser);
+   163→}
+   164→
+   165→/* ========================================================================
+   166→ * Trampoline Evaluation
+   167→ * ======================================================================== */
+   168→
+   169→TclEvalStatus tclEvalStep(TclInterp *interp, TclEvalState *state) {
+   170→    const TclHost *host = interp->host;
+   171→
+   172→    switch (state->phase) {
+   173→        case EVAL_PHASE_PARSE: {
+   174→            /* Parse next command */
+   175→            int result = tclParserNextCommand(&state->parser, &state->currentCmd);
+   176→
+   177→            if (result < 0) {
+   178→                /* Error */
+   179→                state->phase = EVAL_PHASE_DONE;
+   180→                return EVAL_DONE;
+   181→            }
+   182→
+   183→            if (result > 0 || state->currentCmd.wordCount == 0) {
+   184→                /* EOF or empty command */
+   185→                state->phase = EVAL_PHASE_DONE;
+   186→                return EVAL_DONE;
+   187→            }
+   188→
+   189→            /* Prepare for substitution */
+   190→            state->substWords = host->arenaAlloc(state->parser.arena,
+   191→                                                  state->currentCmd.wordCount * sizeof(TclObj*),
+   192→                                                  sizeof(void*));
+   193→            state->substCount = 0;
+   194→            state->wordIndex = 0;
+   195→            state->phase = EVAL_PHASE_SUBST;
+   196→            return EVAL_CONTINUE;
+   197→        }
+   198→
+   199→        case EVAL_PHASE_SUBST: {
+   200→            /* Substitute each word, handling {*} expansion */
+   201→            /* Use a separate output index since expansion can produce more words */
+   202→            int outIndex = state->substCount;  /* Where to write next */
+   203→            int maxWords = state->currentCmd.wordCount * 8;  /* Allow some expansion */
+   204→
+   205→            while (state->wordIndex < state->currentCmd.wordCount) {
+   206→                TclWord *word = &state->currentCmd.words[state->wordIndex];
+   207→
+   208→                /* Check for {*} expansion prefix */
+   209→                int isExpansion = 0;
+   210→                const char *wordStart = word->start;
+   211→                size_t wordLen = word->len;
+   212→
+   213→                if (word->type == TCL_WORD_BARE && wordLen >= 3 &&
+   214→                    wordStart[0] == '{' && wordStart[1] == '*' && wordStart[2] == '}') {
+   215→                    isExpansion = 1;
+   216→                    wordStart += 3;
+   217→                    wordLen -= 3;
+   218→                }
+   219→
+   220→                if (isExpansion) {
+   221→                    /* Substitute the part after {*} */
+   222→                    TclWord expandWord = *word;
+   223→                    expandWord.start = wordStart;
+   224→                    expandWord.len = wordLen;
+   225→                    TclObj *substed = tclSubstWord(interp, &expandWord, TCL_SUBST_ALL);
+   226→
+   227→                    if (!substed) {
+   228→                        state->phase = EVAL_PHASE_DONE;
+   229→                        interp->resultCode = TCL_ERROR;
+   230→                        return EVAL_DONE;
+   231→                    }
+   232→
+   233→                    /* Get list length and expand each element */
+   234→                    size_t elemCount = host->listLength(substed);
+   235→
+   236→                    /* Ensure we have enough space */
+   237→                    if (outIndex + (int)elemCount > maxWords) {
+   238→                        /* Reallocate */
+   239→                        maxWords = (outIndex + (int)elemCount) * 2;
+   240→                        TclObj **newWords = host->arenaAlloc(state->parser.arena,
+   241→                                                              maxWords * sizeof(TclObj*),
+   242→                                                              sizeof(void*));
+   243→                        for (int i = 0; i < outIndex; i++) {
+   244→                            newWords[i] = state->substWords[i];
+   245→                        }
+   246→                        state->substWords = newWords;
+   247→                    }
+   248→
+   249→                    /* Add each list element */
+   250→                    for (size_t i = 0; i < elemCount; i++) {
+   251→                        TclObj *elem = host->listIndex(substed, i);
+   252→                        if (elem) {
+   253→                            state->substWords[outIndex++] = elem;
+   254→                        }
+   255→                    }
+   256→                } else {
+   257→                    /* Normal substitution */
+   258→                    TclObj *substed = tclSubstWord(interp, word, TCL_SUBST_ALL);
+   259→
+   260→                    if (!substed) {
+   261→                        state->phase = EVAL_PHASE_DONE;
+   262→                        interp->resultCode = TCL_ERROR;
+   263→                        return EVAL_DONE;
+   264→                    }
+   265→
+   266→                    /* Ensure we have space */
+   267→                    if (outIndex >= maxWords) {
+   268→                        maxWords = maxWords * 2;
+   269→                        TclObj **newWords = host->arenaAlloc(state->parser.arena,
+   270→                                                              maxWords * sizeof(TclObj*),
+   271→                                                              sizeof(void*));
+   272→                        for (int i = 0; i < outIndex; i++) {
+   273→                            newWords[i] = state->substWords[i];
+   274→                        }
+   275→                        state->substWords = newWords;
+   276→                    }
+   277→
+   278→                    state->substWords[outIndex++] = substed;
+   279→                }
+   280→
+   281→                state->wordIndex++;
+   282→            }
+   283→
+   284→            state->substCount = outIndex;
+   285→            state->phase = EVAL_PHASE_LOOKUP;
+   286→            return EVAL_CONTINUE;
+   287→        }
+   288→
+   289→        case EVAL_PHASE_LOOKUP: {
+   290→            /* Look up command */
+   291→            if (state->substCount == 0) {
+   292→                /* Empty command after substitution - skip */
+   293→                state->phase = EVAL_PHASE_PARSE;
+   294→                return EVAL_CONTINUE;
+   295→            }
+   296→
+   297→            size_t cmdNameLen;
+   298→            const char *cmdName = host->getStringPtr(state->substWords[0], &cmdNameLen);
+   299→
+   300→            /* Check builtins first */
+   301→            int builtinIdx = tclBuiltinLookup(cmdName, cmdNameLen);
+   302→            if (builtinIdx >= 0) {
+   303→                state->cmdInfo.type = TCL_CMD_BUILTIN;
+   304→                state->cmdInfo.u.builtinId = builtinIdx;
+   305→            } else {
+   306→                /* Try host command lookup */
+   307→                if (host->cmdLookup(interp->hostCtx, cmdName, cmdNameLen, &state->cmdInfo) != 0) {
+   308→                    state->cmdInfo.type = TCL_CMD_NOT_FOUND;
+   309→                }
+   310→            }
+   311→
+   312→            state->phase = EVAL_PHASE_DISPATCH;
+   313→            return EVAL_CONTINUE;
+   314→        }
+   315→
+   316→        case EVAL_PHASE_DISPATCH: {
+   317→            /* Dispatch command */
+   318→            TclResult result = TCL_OK;
+   319→
+   320→            switch (state->cmdInfo.type) {
+   321→                case TCL_CMD_BUILTIN: {
+   322→                    const TclBuiltinEntry *entry = tclBuiltinGet(state->cmdInfo.u.builtinId);
+   323→                    if (entry) {
+   324→                        result = entry->proc(interp, state->substCount, state->substWords);
+   325→                    } else {
+   326→                        tclSetError(interp, "internal error: invalid builtin", -1);
+   327→                        result = TCL_ERROR;
+   328→                    }
+   329→                    break;
+   330→                }
+   331→
+   332→                case TCL_CMD_PROC: {
+   333→                    /* Get proc definition from host */
+   334→                    TclObj *argList = NULL;
+   335→                    TclObj *body = NULL;
+   336→                    if (host->procGetDef(state->cmdInfo.u.procHandle, &argList, &body) != 0) {
+   337→                        tclSetError(interp, "proc definition not found", -1);
+   338→                        result = TCL_ERROR;
+   339→                        break;
+   340→                    }
+   341→
+   342→                    /* Parse argument specification */
+   343→                    TclObj **argSpecs = NULL;
+   344→                    size_t argCount = 0;
+   345→                    if (host->asList(argList, &argSpecs, &argCount) != 0) {
+   346→                        tclSetError(interp, "invalid argument list", -1);
+   347→                        result = TCL_ERROR;
+   348→                        break;
+   349→                    }
+   350→
+   351→                    /* Create new frame for proc execution */
+   352→                    TclFrame *procFrame = host->frameAlloc(interp->hostCtx);
+   353→                    if (!procFrame) {
+   354→                        tclSetError(interp, "out of memory", -1);
+   355→                        result = TCL_ERROR;
+   356→                        break;
+   357→                    }
+   358→                    procFrame->parent = interp->currentFrame;
+   359→                    procFrame->level = interp->currentFrame->level + 1;
+   360→                    procFrame->flags = TCL_FRAME_PROC;
+   361→
+   362→                    /* Get proc name for stack traces */
+   363→                    size_t procNameLen;
+   364→                    procFrame->procName = host->getStringPtr(state->substWords[0], &procNameLen);
+   365→
+   366→                    /* Store invocation for info level */
+   367→                    procFrame->invocationObjs = state->substWords;
+   368→                    procFrame->invocationCount = state->substCount;
+   369→
+   370→                    /* Bind arguments to local variables */
+   371→                    int actualArgs = state->substCount - 1;  /* Exclude command name */
+   372→                    int hasArgs = 0;  /* Whether last param is 'args' */
+   373→
+   374→                    /* Check if last arg is 'args' for varargs */
+   375→                    if (argCount > 0) {
+   376→                        size_t lastArgLen;
+   377→                        const char *lastArg = host->getStringPtr(argSpecs[argCount - 1], &lastArgLen);
+   378→                        if (lastArgLen == 4 && tclStrncmp(lastArg, "args", 4) == 0) {
+   379→                            hasArgs = 1;
+   380→                        }
+   381→                    }
+   382→
+   383→                    /* Check argument count */
+   384→                    int requiredArgs = (int)argCount - (hasArgs ? 1 : 0);
+   385→
+   386→                    /* Handle default arguments - count how many have defaults */
+   387→                    int minArgs = 0;
+   388→                    for (size_t i = 0; i < (size_t)requiredArgs; i++) {
+   389→                        /* Check if arg has a default value (is a 2-element list) */
+   390→                        size_t listLen = host->listLength(argSpecs[i]);
+   391→                        if (listLen < 2) {
+   392→                            minArgs++;  /* Required argument */
+   393→                        }
+   394→                    }
+   395→
+   396→                    if (actualArgs < minArgs || (!hasArgs && actualArgs > requiredArgs)) {
+   397→                        tclSetError(interp, "wrong # args", -1);
+   398→                        host->frameFree(interp->hostCtx, procFrame);
+   399→                        result = TCL_ERROR;
+   400→                        break;
+   401→                    }
+   402→
+   403→                    /* Bind each argument */
+   404→                    for (size_t i = 0; i < (size_t)requiredArgs; i++) {
+   405→                        TclObj *argSpec = argSpecs[i];
+   406→                        size_t argNameLen;
+   407→                        const char *argName;
+   408→                        TclObj *value = NULL;
+   409→
+   410→                        /* Check if arg has a default */
+   411→                        size_t listLen = host->listLength(argSpec);
+   412→                        if (listLen >= 2) {
+   413→                            /* Has default: {name default} */
+   414→                            TclObj *nameObj = host->listIndex(argSpec, 0);
+   415→                            argName = host->getStringPtr(nameObj, &argNameLen);
+   416→
+   417→                            if ((int)i < actualArgs) {
+   418→                                value = state->substWords[i + 1];
+   419→                            } else {
+   420→                                value = host->listIndex(argSpec, 1);
+   421→                            }
+   422→                        } else {
+   423→                            /* Simple argument name */
+   424→                            argName = host->getStringPtr(argSpec, &argNameLen);
+   425→                            if ((int)i < actualArgs) {
+   426→                                value = state->substWords[i + 1];
+   427→                            }
+   428→                        }
+   429→
+   430→                        if (value) {
+   431→                            host->varSet(procFrame->varsHandle, argName, argNameLen, host->dup(value));
+   432→                        }
+   433→                    }
+   434→
+   435→                    /* Bind 'args' if present */
+   436→                    if (hasArgs) {
+   437→                        /* Collect remaining arguments into a list */
+   438→                        int argsStart = requiredArgs;
+   439→                        int argsCount = actualArgs - argsStart;
+   440→                        if (argsCount < 0) argsCount = 0;
+   441→
+   442→                        TclObj *argsList;
+   443→                        if (argsCount > 0) {
+   444→                            argsList = host->newList(&state->substWords[argsStart + 1], argsCount);
+   445→                        } else {
+   446→                            argsList = host->newString("", 0);
+   447→                        }
+   448→                        host->varSet(procFrame->varsHandle, "args", 4, argsList);
+   449→                    }
+   450→
+   451→                    /* Switch to proc frame and execute body */
+   452→                    TclFrame *savedFrame = interp->currentFrame;
+   453→                    interp->currentFrame = procFrame;
+   454→
+   455→                    size_t bodyLen;
+   456→                    const char *bodyStr = host->getStringPtr(body, &bodyLen);
+   457→                    result = tclEvalScript(interp, bodyStr, bodyLen);
+   458→
+   459→                    /* Handle return */
+   460→                    if (result == TCL_RETURN) {
+   461→                        /* Convert TCL_RETURN to TCL_OK for proc caller */
+   462→                        result = TCL_OK;
+   463→                    }
+   464→
+   465→                    /* Restore frame and cleanup */
+   466→                    interp->currentFrame = savedFrame;
+   467→                    host->frameFree(interp->hostCtx, procFrame);
+   468→                    break;
+   469→                }
+   470→
+   471→                case TCL_CMD_EXTENSION:
+   472→                    result = host->extInvoke(interp, state->cmdInfo.u.extHandle,
+   473→                                             state->substCount, state->substWords);
+   474→                    break;
+   475→
+   476→                case TCL_CMD_NOT_FOUND:
+   477→                default: {
+   478→                    size_t nameLen;
+   479→                    const char *name = host->getStringPtr(state->substWords[0], &nameLen);
+   480→
+   481→                    /* Build error message */
+   482→                    void *arena = host->arenaPush(interp->hostCtx);
+   483→                    char *msg = host->arenaAlloc(arena, nameLen + 30, 1);
+   484→                    char *p = msg;
+   485→                    const char *prefix = "invalid command name \"";
+   486→                    while (*prefix) *p++ = *prefix++;
+   487→                    for (size_t i = 0; i < nameLen; i++) *p++ = name[i];
+   488→                    *p++ = '"';
+   489→                    *p = '\0';
+   490→
+   491→                    tclSetError(interp, msg, p - msg);
+   492→                    host->arenaPop(interp->hostCtx, arena);
+   493→                    result = TCL_ERROR;
+   494→                    break;
+   495→                }
+   496→            }
+   497→
+   498→            interp->resultCode = result;
+   499→            state->phase = EVAL_PHASE_RESULT;
+   500→            return EVAL_CONTINUE;
+   501→        }
+   502→
+   503→        case EVAL_PHASE_RESULT: {
+   504→            /* Handle result code */
+   505→            if (interp->resultCode == TCL_ERROR) {
+   506→                state->phase = EVAL_PHASE_DONE;
+   507→                return EVAL_DONE;
+   508→            }
+   509→
+   510→            if (interp->resultCode == TCL_RETURN ||
+   511→                interp->resultCode == TCL_BREAK ||
+   512→                interp->resultCode == TCL_CONTINUE) {
+   513→                state->phase = EVAL_PHASE_DONE;
+   514→                return EVAL_DONE;
+   515→            }
+   516→
+   517→            /* Continue to next command */
+   518→            state->phase = EVAL_PHASE_PARSE;
+   519→            return EVAL_CONTINUE;
+   520→        }
+   521→
+   522→        case EVAL_PHASE_DONE:
+   523→        default:
+   524→            return EVAL_DONE;
+   525→    }
+   526→}
+   527→
+   528→/* ========================================================================
+   529→ * High-Level Eval Functions
+   530→ * ======================================================================== */
+   531→
+   532→TclResult tclEvalScript(TclInterp *interp, const char *script, size_t len) {
+   533→    TclEvalState state;
+   534→    tclEvalStateInit(&state, interp, script, len);
+   535→
+   536→    TclEvalStatus status;
+   537→    while ((status = tclEvalStep(interp, &state)) == EVAL_CONTINUE) {
+   538→        /* Continue */
+   539→    }
+   540→
+   541→    tclEvalStateCleanup(&state, interp);
+   542→    return interp->resultCode;
+   543→}
+   544→
+   545→TclResult tclEvalBracketed(TclInterp *interp, const char *cmd, size_t len) {
+   546→    /* Save current result */
+   547→    TclObj *savedResult = interp->result;
+   548→    TclResult savedCode = interp->resultCode;
+   549→
+   550→    /* Evaluate bracketed command */
+   551→    TclResult result = tclEvalScript(interp, cmd, len);
+   552→
+   553→    if (result != TCL_OK) {
+   554→        /* Keep error result */
+   555→        return result;
+   556→    }
+   557→
+   558→    /* Command succeeded - result is in interp->result */
+   559→    /* Restore saved code but keep new result */
+   560→    (void)savedResult;
+   561→    (void)savedCode;
+   562→
+   563→    return TCL_OK;
+   564→}
+   565→
+   566→/* ========================================================================
+   567→ * Public API (from tclc.h)
+   568→ * ======================================================================== */
+   569→
+   570→TclResult tclEval(TclInterp *interp, TclObj *script) {
+   571→    size_t len;
+   572→    const char *str = interp->host->getStringPtr(script, &len);
+   573→    return tclEvalScript(interp, str, len);
+   574→}
+   575→
+   576→TclResult tclEvalStr(TclInterp *interp, const char *script, size_t len) {
+   577→    if (len == (size_t)-1) {
+   578→        len = tclStrlen(script);
+   579→    }
+   580→    return tclEvalScript(interp, script, len);
+   581→}
+   582→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

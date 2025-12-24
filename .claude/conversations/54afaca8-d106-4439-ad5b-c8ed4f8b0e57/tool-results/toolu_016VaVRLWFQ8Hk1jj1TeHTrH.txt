@@ -1,0 +1,513 @@
+event(n)                     Tk Built-In Commands                     event(n)
+
+______________________________________________________________________________
+
+NNAAMMEE
+       event - Miscellaneous event facilities: define virtual events and
+       generate events
+
+SSYYNNOOPPSSIISS
+       eevveenntt _o_p_t_i_o_n ?_a_r_g _._._.?
+______________________________________________________________________________
+
+DDEESSCCRRIIPPTTIIOONN
+       The eevveenntt command provides several facilities for dealing with window
+       system events, such as defining virtual events and synthesizing events.
+       The command has several different forms, determined by the first
+       argument.  The following forms are currently supported:
+
+       eevveenntt aadddd <<<<_v_i_r_t_u_a_l>>>> _s_e_q_u_e_n_c_e ?_s_e_q_u_e_n_c_e _._._.?
+              Associates the virtual event _v_i_r_t_u_a_l with the physical event
+              sequence(s) given by the _s_e_q_u_e_n_c_e arguments, so that the virtual
+              event will trigger whenever any one of the _s_e_q_u_e_n_c_es occurs.
+              _V_i_r_t_u_a_l may be any string value and _s_e_q_u_e_n_c_e may have any of the
+              values allowed for the _s_e_q_u_e_n_c_e argument to the bbiinndd command.
+              If _v_i_r_t_u_a_l is already defined, the new physical event sequences
+              add to the existing sequences for the event.
+
+       eevveenntt ddeelleettee <<<<_v_i_r_t_u_a_l>>>> ?_s_e_q_u_e_n_c_e _s_e_q_u_e_n_c_e _._._.?
+              Deletes each of the _s_e_q_u_e_n_c_es from those associated with the
+              virtual event given by _v_i_r_t_u_a_l.  _V_i_r_t_u_a_l may be any string value
+              and _s_e_q_u_e_n_c_e may have any of the values allowed for the _s_e_q_u_e_n_c_e
+              argument to the bbiinndd command.  Any _s_e_q_u_e_n_c_es not currently
+              associated with _v_i_r_t_u_a_l are ignored.  If no _s_e_q_u_e_n_c_e argument is
+              provided, all physical event sequences are removed for _v_i_r_t_u_a_l,
+              so that the virtual event will not trigger anymore.
+
+       eevveenntt ggeenneerraattee _w_i_n_d_o_w _e_v_e_n_t ?_o_p_t_i_o_n _v_a_l_u_e _o_p_t_i_o_n _v_a_l_u_e _._._.?
+              Generates a window event and arranges for it to be processed
+              just as if it had come from the window system.  _W_i_n_d_o_w gives the
+              path name of the window for which the event will be generated;
+              it may also be an identifier (such as returned by wwiinnffoo iidd) as
+              long as it is for a window in the current application.  _E_v_e_n_t
+              provides a basic description of the event, such as <<SShhiifftt--
+              BBuuttttoonn--22>> or <<<<PPaassttee>>>>.  If _W_i_n_d_o_w is empty the whole screen is
+              meant, and coordinates are relative to the screen.  _E_v_e_n_t may
+              have any of the forms allowed for the _s_e_q_u_e_n_c_e argument of the
+              bbiinndd command except that it must consist of a single event
+              pattern, not a sequence.  _O_p_t_i_o_n_-_v_a_l_u_e pairs may be used to
+              specify additional attributes of the event, such as the x and y
+              mouse position;  see EEVVEENNTT FFIIEELLDDSS below.  If the --wwhheenn option is
+              not specified, the event is processed immediately:  all of the
+              handlers for the event will complete before the eevveenntt ggeenneerraattee
+              command returns.  If the --wwhheenn option is specified then it
+              determines when the event is processed.  Certain events, such as
+              key events, require that the window has focus to receive the
+              event properly.
+
+       eevveenntt iinnffoo ?<<<<_v_i_r_t_u_a_l>>>>?
+              Returns information about virtual events.  If the <<<<_v_i_r_t_u_a_l>>>>
+              argument is omitted, the return value is a list of all the
+              virtual events that are currently defined.  If <<<<_v_i_r_t_u_a_l>>>> is
+              specified then the return value is a list whose elements are the
+              physical event sequences currently defined for the given virtual
+              event;  if the virtual event is not defined then an empty string
+              is returned.
+
+              Note that virtual events that are not bound to physical event
+              sequences are _n_o_t returned by eevveenntt iinnffoo.
+
+EEVVEENNTT FFIIEELLDDSS
+       The following options are supported for the eevveenntt ggeenneerraattee command.
+       These correspond to the “%” expansions allowed in binding scripts for
+       the bbiinndd command.
+
+       --aabboovvee _w_i_n_d_o_w
+              _W_i_n_d_o_w specifies the _a_b_o_v_e field for the event, either as a
+              window path name or as an integer window id.  Valid for
+              CCoonnffiigguurree events.  Corresponds to the %%aa substitution for
+              binding scripts.
+
+       --bboorrddeerrwwiiddtthh _s_i_z_e
+              _S_i_z_e must be a screen distance;  it specifies the _b_o_r_d_e_r___w_i_d_t_h
+              field for the event.  Valid for CCoonnffiigguurree events.  Corresponds
+              to the %%BB substitution for binding scripts.
+
+       --bbuuttttoonn _n_u_m_b_e_r
+              _N_u_m_b_e_r must be an integer;  it specifies the _d_e_t_a_i_l field for a
+              BBuuttttoonn or BBuuttttoonnRReelleeaassee event, overriding any button  number
+              provided in the base _e_v_e_n_t argument.  Corresponds to the %%bb
+              substitution for binding scripts.
+
+       --ccoouunntt _n_u_m_b_e_r
+              _N_u_m_b_e_r must be an integer;  it specifies the _c_o_u_n_t field for the
+              event.  Valid for EExxppoossee events.  Corresponds to the %%cc
+              substitution for binding scripts.
+
+       --ddaattaa _s_t_r_i_n_g
+              _S_t_r_i_n_g may be any value; it specifies the _u_s_e_r___d_a_t_a field for
+              the event.  Only valid for virtual events.  Corresponds to the
+              %%dd substitution for virtual events in binding scripts.
+
+       --ddeellttaa _n_u_m_b_e_r
+              _N_u_m_b_e_r must be an integer;  it specifies the _d_e_l_t_a field for the
+              MMoouusseeWWhheeeell event.  The _d_e_l_t_a refers to the direction and
+              magnitude the mouse wheel was rotated.  Note the value is not a
+              screen distance but are units of motion in the mouse wheel.
+              Typically these values are multiples of 120.  For example, 120
+              should scroll the text widget up 4 lines and -240 would scroll
+              the text widget down 8 lines.  Of course, other widgets may
+              define different behaviors for mouse wheel motion.  This field
+              corresponds to the %%DD substitution for binding scripts.
+
+       --ddeettaaiill _d_e_t_a_i_l
+              _D_e_t_a_i_l specifies the _d_e_t_a_i_l field for the event and must be one
+              of the following:
+
+                     NNoottiiffyyAAnncceessttoorr          NNoottiiffyyNNoonnlliinneeaarrVViirrttuuaall
+                     NNoottiiffyyDDeettaaiillNNoonnee        NNoottiiffyyPPooiinntteerr
+                     NNoottiiffyyIInnffeerriioorr          NNoottiiffyyPPooiinntteerrRRoooott
+                     NNoottiiffyyNNoonnlliinneeaarr         NNoottiiffyyVViirrttuuaall
+
+              Valid for EEnntteerr, LLeeaavvee, FFooccuussIInn and FFooccuussOOuutt events.
+              Corresponds to the %%dd substitution for binding scripts.
+
+       --ffooccuuss _b_o_o_l_e_a_n
+              _B_o_o_l_e_a_n must be a boolean value;  it specifies the _f_o_c_u_s field
+              for the event.  Valid for EEnntteerr and LLeeaavvee events.  Corresponds
+              to the %%ff substitution for binding scripts.
+
+       --hheeiigghhtt _s_i_z_e
+              _S_i_z_e must be a screen distance;  it specifies the _h_e_i_g_h_t field
+              for the event.  Valid for CCoonnffiigguurree events.  Corresponds to the
+              %%hh substitution for binding scripts.
+
+       --kkeeyyccooddee _n_u_m_b_e_r
+              _N_u_m_b_e_r  must be an integer;  it specifies the _k_e_y_c_o_d_e field for
+              the event.  Valid for KKeeyy and KKeeyyRReelleeaassee events.  Corresponds to
+              the %%kk substitution for binding scripts.
+
+       --kkeeyyssyymm _n_a_m_e
+              _N_a_m_e must be the name of a valid keysym, such as gg, ssppaaccee, or
+              RReettuurrnn;  its corresponding keycode value is used as the _k_e_y_c_o_d_e
+              field for event, overriding any detail specified in the base
+              _e_v_e_n_t argument.  Valid for KKeeyy and KKeeyyRReelleeaassee events.
+              Corresponds to the %%KK substitution for binding scripts.
+
+       --mmooddee _n_o_t_i_f_y
+              _N_o_t_i_f_y specifies the _m_o_d_e field for the event and must be one of
+              NNoottiiffyyNNoorrmmaall, NNoottiiffyyGGrraabb, NNoottiiffyyUUnnggrraabb, or NNoottiiffyyWWhhiilleeGGrraabbbbeedd.
+              Valid for EEnntteerr, LLeeaavvee, FFooccuussIInn, and FFooccuussOOuutt events.
+              Corresponds to the %%mm substitution for binding scripts.
+
+       --oovveerrrriiddee _b_o_o_l_e_a_n
+              _B_o_o_l_e_a_n must be a boolean value;  it specifies the
+              _o_v_e_r_r_i_d_e___r_e_d_i_r_e_c_t field for the event.  Valid for MMaapp, RReeppaarreenntt,
+              and CCoonnffiigguurree events.  Corresponds to the %%oo substitution for
+              binding scripts.
+
+       --ppllaaccee _w_h_e_r_e
+              _W_h_e_r_e specifies the _p_l_a_c_e field for the event;  it must be
+              either PPllaacceeOOnnTToopp or PPllaacceeOOnnBBoottttoomm.  Valid for CCiirrccuullaattee events.
+              Corresponds to the %%pp substitution for binding scripts.
+
+       --rroooott _w_i_n_d_o_w
+              _W_i_n_d_o_w must be either a window path name or an integer window
+              identifier;  it specifies the _r_o_o_t field for the event.  Valid
+              for KKeeyy, KKeeyyRReelleeaassee, BBuuttttoonn, BBuuttttoonnRReelleeaassee, EEnntteerr, LLeeaavvee, and
+              MMoottiioonn events.  Corresponds to the %%RR substitution for binding
+              scripts.
+
+       --rroooottxx _c_o_o_r_d
+              _C_o_o_r_d must be a screen distance;  it specifies the _x___r_o_o_t field
+              for the event.  Valid for KKeeyy, KKeeyyRReelleeaassee, BBuuttttoonn,
+              BBuuttttoonnRReelleeaassee, EEnntteerr, LLeeaavvee, and MMoottiioonn events.  Corresponds to
+              the %%XX substitution for binding scripts.
+
+       --rroooottyy _c_o_o_r_d
+              _C_o_o_r_d must be a screen distance;  it specifies the _y___r_o_o_t field
+              for the event.  Valid for KKeeyy, KKeeyyRReelleeaassee, BBuuttttoonn,
+              BBuuttttoonnRReelleeaassee, EEnntteerr, LLeeaavvee, and MMoottiioonn events.  Corresponds to
+              the %%YY substitution for binding scripts.
+
+       --sseennddeevveenntt _b_o_o_l_e_a_n
+              _B_o_o_l_e_a_n must be a boolean value;  it specifies the _s_e_n_d___e_v_e_n_t
+              field for the event.  Valid for all events.  Corresponds to the
+              %%EE substitution for binding scripts.
+
+       --sseerriiaall _n_u_m_b_e_r
+              _N_u_m_b_e_r must be an integer;  it specifies the _s_e_r_i_a_l field for
+              the event.  Valid for all events.  Corresponds to the %%##
+              substitution for binding scripts.
+
+       --ssttaattee _s_t_a_t_e
+              _S_t_a_t_e specifies the _s_t_a_t_e field for the event.  For KKeeyy,
+              KKeeyyRReelleeaassee, BBuuttttoonnss, BBuuttttoonnRReelleeaassee, EEnntteerr, LLeeaavvee, and MMoottiioonn
+              events it must be an integer value.  For VViissiibbiilliittyy events it
+              must be one of VViissiibbiilliittyyUUnnoobbssccuurreedd,
+              VViissiibbiilliittyyPPaarrttiiaallllyyOObbssccuurreedd, or VViissiibbiilliittyyFFuullllyyOObbssccuurreedd.  This
+              option overrides any modifiers such as MMeettaa or CCoonnttrrooll specified
+              in the base _e_v_e_n_t.  Corresponds to the %%ss substitution for
+              binding scripts.
+
+       --ssuubbwwiinnddooww _w_i_n_d_o_w
+              _W_i_n_d_o_w specifies the _s_u_b_w_i_n_d_o_w field for the event, either as a
+              path name for a Tk widget or as an integer window identifier.
+              Valid for KKeeyy, KKeeyyRReelleeaassee, BBuuttttoonn, BBuuttttoonnRReelleeaassee, EEnntteerr, LLeeaavvee,
+              and MMoottiioonn events.  Similar to %%SS substitution for binding
+              scripts.
+
+       --ttiimmee _i_n_t_e_g_e_r
+              _I_n_t_e_g_e_r must be an integer value;  it specifies the _t_i_m_e field
+              for the event. Additionally, the special value ccuurrrreenntt is
+              allowed; this value will be substituted by the current event
+              time.  Valid for KKeeyy, KKeeyyRReelleeaassee, BBuuttttoonn, BBuuttttoonnRReelleeaassee, EEnntteerr,
+              LLeeaavvee, MMoottiioonn, and PPrrooppeerrttyy events.  Corresponds to the %%tt
+              substitution for binding scripts.
+
+       --wwaarrpp _b_o_o_l_e_a_n
+              _b_o_o_l_e_a_n must be a boolean value;  it specifies whether the
+              screen pointer should be warped as well.  Valid for KKeeyy,
+              KKeeyyRReelleeaassee, BBuuttttoonn, BBuuttttoonnRReelleeaassee, and MMoottiioonn events.  The
+              pointer will only warp to a window if it is mapped.
+
+       --wwiiddtthh _s_i_z_e
+              _S_i_z_e must be a screen distance;  it specifies the _w_i_d_t_h field
+              for the event.  Valid for CCoonnffiigguurree events.  Corresponds to the
+              %%ww substitution for binding scripts.
+
+       --wwhheenn _w_h_e_n
+              _W_h_e_n determines when the event will be processed;  it must have
+              one of the following values:
+
+              nnooww       Process the event immediately, before the command
+                        returns.  This also happens if the --wwhheenn option is
+                        omitted.
+
+              ttaaiill      Place the event on Tcl's event queue behind any events
+                        already queued for this application.
+
+              hheeaadd      Place the event at the front of Tcl's event queue, so
+                        that it will be handled before any other events
+                        already queued.
+
+              mmaarrkk      Place the event at the front of Tcl's event queue but
+                        behind any other events already queued with --wwhheenn
+                        mmaarrkk.  This option is useful when generating a series
+                        of events that should be processed in order but at the
+                        front of the queue.
+
+       --xx _c_o_o_r_d
+              _C_o_o_r_d must be a screen distance;  it specifies the _x field for
+              the event.  Valid for KKeeyy, KKeeyyRReelleeaassee, BBuuttttoonn, BBuuttttoonnRReelleeaassee,
+              MMoottiioonn, EEnntteerr, LLeeaavvee, EExxppoossee, CCoonnffiigguurree, GGrraavviittyy, and RReeppaarreenntt
+              events.  Corresponds to the %%xx substitution for binding scripts.
+              If _W_i_n_d_o_w is empty the coordinate is relative to the screen, and
+              this option corresponds to the %%XX substitution for binding
+              scripts.
+
+       --yy _c_o_o_r_d
+              _C_o_o_r_d must be a screen distance;  it specifies the _y field for
+              the event.  Valid for KKeeyy, KKeeyyRReelleeaassee, BBuuttttoonn, BBuuttttoonnRReelleeaassee,
+              MMoottiioonn, EEnntteerr, LLeeaavvee, EExxppoossee, CCoonnffiigguurree, GGrraavviittyy, and RReeppaarreenntt
+              events.  Corresponds to the %%yy substitution for binding scripts.
+              If _W_i_n_d_o_w is empty the coordinate is relative to the screen, and
+              this option corresponds to the %%YY substitution for binding
+              scripts.
+
+       Any options that are not specified when generating an event are filled
+       with the value 0, except for _s_e_r_i_a_l, which is filled with the next X
+       event serial number.
+
+PPRREEDDEEFFIINNEEDD VVIIRRTTUUAALL EEVVEENNTTSS
+       Tk defines the following virtual events for the purposes of
+       notification:
+
+       <<<<AAllttUUnnddeerrlliinneedd>>>>
+              This is sent to widget to notify it that the letter it has
+              underlined (as an accelerator indicator) with the --uunnddeerrlliinnee
+              option has been pressed in combination with the Alt key. The
+              usual response to this is to either focus into the widget (or
+              some related widget) or to invoke the widget.
+
+       <<<<IInnvvookkee>>>>
+              This can be sent to some widgets (e.g. button, listbox, menu) as
+              an alternative to <space>.
+
+       <<<<LLiissttbbooxxSSeelleecctt>>>>
+              This is sent to a listbox when the set of selected item(s) in
+              the listbox is updated.
+
+       <<<<MMeennuuSSeelleecctt>>>>
+              This is sent to a menu when the currently selected item in the
+              menu changes. It is intended for use with context-sensitive help
+              systems.
+
+       <<<<MMooddiiffiieedd>>>>
+              This is sent to a text widget when the contents of the widget
+              are changed.
+
+       <<<<SSeelleeccttiioonn>>>>
+              This is sent to a text widget when the selection in the widget
+              is changed.
+
+       <<<<TThheemmeeCChhaannggeedd>>>>
+              This is sent to all widgets when the ttk theme changed. The ttk
+              widgets listen to this event and redisplay themselves when it
+              fires.  The legacy widgets ignore this event.
+
+       <<<<TTkkWWoorrllddCChhaannggeedd>>>>
+              This event is sent to all widgets when a font is changed, for
+              example, by the use of [font configure].  The user_data field
+              (%d) will have the value "FontChanged".  For other system wide
+              changes, this event will be sent to all widgets, and the
+              user_data field will indicate the cause of the change.  NOTE:
+              all tk and ttk widgets already handle this event internally.
+
+       <<<<TTrraavveerrsseeIInn>>>>
+              This is sent to a widget when the focus enters the widget
+              because of a user-driven “tab to widget” action.
+
+       <<<<TTrraavveerrsseeOOuutt>>>>
+              This is sent to a widget when the focus leaves the widget
+              because of a user-driven “tab to widget” action.
+
+       <<<<UUnnddooSSttaacckk>>>>
+              This is sent to a text widget when its undo stack or redo stack
+              becomes empty or unempty.
+
+       <<<<WWiiddggeettVViieewwSSyynncc>>>>
+              This is sent to a text widget when its internal data become
+              obsolete, and again when these internal data are back in sync
+              with the widget view. The detail field (%d substitution) is
+              either true (when the widget is in sync) or false (when it is
+              not).
+
+       Tk defines the following virtual events for the purposes of unifying
+       bindings across multiple platforms. Users expect them to behave in the
+       following way:
+
+       <<<<CClleeaarr>>>>
+              Delete the currently selected widget contents.
+
+       <<<<CCooppyy>>>>
+              Copy the currently selected widget contents to the clipboard.
+
+       <<<<CCuutt>>>>
+              Move the currently selected widget contents to the clipboard.
+
+       <<<<LLiinneeEEnndd>>>>
+              Move to the end of the line in the current widget while
+              deselecting any selected contents.
+
+       <<<<LLiinneeSSttaarrtt>>>>
+              Move to the start of the line in the current widget while
+              deselecting any selected contents.
+
+       <<<<NNeexxttCChhaarr>>>>
+              Move to the next item (i.e., visible character) in the current
+              widget while deselecting any selected contents.
+
+       <<<<NNeexxttLLiinnee>>>>
+              Move to the next line in the current widget while deselecting
+              any selected contents.
+
+       <<<<NNeexxttPPaarraa>>>>
+              Move to the next paragraph in the current widget while
+              deselecting any selected contents.
+
+       <<<<NNeexxttWWoorrdd>>>>
+              Move to the next group of items (i.e., visible word) in the
+              current widget while deselecting any selected contents.
+
+       <<<<PPaassttee>>>>
+              Replace the currently selected widget contents with the contents
+              of the clipboard.
+
+       <<<<PPaasstteeSSeelleeccttiioonn>>>>
+              Insert the contents of the selection at the mouse location.
+              (This event has meaningful %%xx and %%yy substitutions).
+
+       <<<<PPrreevvCChhaarr>>>>
+              Move to the previous item (i.e., visible character) in the
+              current widget while deselecting any selected contents.
+
+       <<<<PPrreevvLLiinnee>>>>
+              Move to the previous line in the current widget while
+              deselecting any selected contents.
+
+       <<<<PPrreevvPPaarraa>>>>
+              Move to the previous paragraph in the current widget while
+              deselecting any selected contents.
+
+       <<<<PPrreevvWWiinnddooww>>>>
+              Traverse to the previous window.
+
+       <<<<PPrreevvWWoorrdd>>>>
+              Move to the previous group of items (i.e., visible word) in the
+              current widget while deselecting any selected contents.
+
+       <<<<RReeddoo>>>>
+              Redo one undone action.
+
+       <<<<SSeelleeccttAAllll>>>>
+              Set the range of selected contents to the complete widget.
+
+       <<<<SSeelleeccttLLiinneeEEnndd>>>>
+              Move to the end of the line in the current widget while
+              extending the range of selected contents.
+
+       <<<<SSeelleeccttLLiinneeSSttaarrtt>>>>
+              Move to the start of the line in the current widget while
+              extending the range of selected contents.
+
+       <<<<SSeelleeccttNNeexxttCChhaarr>>>>
+              Move to the next item (i.e., visible character) in the current
+              widget while extending the range of selected contents.
+
+       <<<<SSeelleeccttNNeexxttLLiinnee>>>>
+              Move to the next line in the current widget while extending the
+              range of selected contents.
+
+       <<<<SSeelleeccttNNeexxttPPaarraa>>>>
+              Move to the next paragraph in the current widget while extending
+              the range of selected contents.
+
+       <<<<SSeelleeccttNNeexxttWWoorrdd>>>>
+              Move to the next group of items (i.e., visible word) in the
+              current widget while extending the range of selected contents.
+
+       <<<<SSeelleeccttNNoonnee>>>>
+              Reset the range of selected contents to be empty.
+
+       <<<<SSeelleeccttPPrreevvCChhaarr>>>>
+              Move to the previous item (i.e., visible character) in the
+              current widget while extending the range of selected contents.
+
+       <<<<SSeelleeccttPPrreevvLLiinnee>>>>
+              Move to the previous line in the current widget while extending
+              the range of selected contents.
+
+       <<<<SSeelleeccttPPrreevvPPaarraa>>>>
+              Move to the previous paragraph in the current widget while
+              extending the range of selected contents.
+
+       <<<<SSeelleeccttPPrreevvWWoorrdd>>>>
+              Move to the previous group of items (i.e., visible word) in the
+              current widget while extending the range of selected contents.
+
+       <<<<TToogggglleeSSeelleeccttiioonn>>>>
+              Toggle the selection.
+
+       <<<<UUnnddoo>>>>
+              Undo the last action.
+
+EEXXAAMMPPLLEESS
+   MMAAPPPPIINNGG KKEEYYSS TTOO VVIIRRTTUUAALL EEVVEENNTTSS
+       In order for a virtual event binding to trigger, two things must
+       happen.  First, the virtual event must be defined with the eevveenntt aadddd
+       command.  Second, a binding must be created for the virtual event with
+       the bbiinndd command.  Consider the following virtual event definitions:
+
+              eevveenntt aadddd <<Paste>> <Control-y>
+              eevveenntt aadddd <<Paste>> <Button-2>
+              eevveenntt aadddd <<Save>> <Control-X><Control-S>
+              eevveenntt aadddd <<Save>> <Shift-F12>
+              if {[tk windowingsystem] eq "aqua"} {
+                  eevveenntt aadddd <<Save>> <Command-s>
+              }
+
+       In the bbiinndd command, a virtual event can be bound like any other
+       builtin event type as follows:
+
+              bind Entry <<Paste>> {%W insert [selection get]}
+
+       The double angle brackets are used to specify that a virtual event is
+       being bound.  If the user types Control-y or presses button 2, or if a
+       <<<<PPaassttee>>>> virtual event is synthesized with eevveenntt ggeenneerraattee, then the
+       <<<<PPaassttee>>>> binding will be invoked.
+
+       If a virtual binding has the exact same sequence as a separate physical
+       binding, then the physical binding will take precedence.  Consider the
+       following example:
+
+              eevveenntt aadddd <<Paste>> <Control-y> <Meta-Control-y>
+              bind Entry <Control-y> {puts Control-y}
+              bind Entry <<Paste>> {puts Paste}
+
+       When the user types Control-y the <<CCoonnttrrooll--yy>> binding will be invoked,
+       because a physical event is considered more specific than a virtual
+       event, all other things being equal.  However, when the user types
+       Meta-Control-y the <<<<PPaassttee>>>> binding will be invoked, because the MMeettaa
+       modifier in the physical pattern associated with the virtual binding is
+       more specific than the <<CCoonnttrrooll--yy> sequence for the physical event.
+
+       Bindings on a virtual event may be created before the virtual event
+       exists.  Indeed, the virtual event never actually needs to be defined,
+       for instance, on platforms where the specific virtual event would be
+       meaningless or ungeneratable.
+
+       When a definition of a virtual event changes at run time, all windows
+       will respond immediately to the new definition.  Starting from the
+       preceding example, if the following code is executed:
+
+              bind Entry <Control-y> {}
+              eevveenntt aadddd <<Paste>> <F6>
+
+       the behavior will change such in two ways.  First, the shadowed
+       <<<<PPaassttee>>>> binding will emerge.  Typing Control-y will no longer invoke
+       the <<CCoonnttrrooll--yy>> binding, but instead invoke the virtual event
+       <<<<PPaassttee>>>>.  Second, pressing the F6 key will now also invoke the
+       <<<<P
+
+... [26 lines truncated] ...

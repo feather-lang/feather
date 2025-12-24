@@ -1,0 +1,56 @@
+     1→#include "tclc.h"
+     2→
+     3→TclResult tcl_builtin_set(const TclHostOps *ops, TclInterp interp,
+     4→                          TclObj cmd, TclObj args) {
+     5→  size_t argc = ops->list.length(interp, args);
+     6→
+     7→  if (argc == 0) {
+     8→    // No arguments - error
+     9→    TclObj msg = ops->string.intern(interp, "wrong # args: should be \"set varName ?newValue?\"", 48);
+    10→    ops->interp.set_result(interp, msg);
+    11→    return TCL_ERROR;
+    12→  }
+    13→
+    14→  // Get the variable name (first argument)
+    15→  TclObj varName = ops->list.shift(interp, args);
+    16→
+    17→  if (argc == 1) {
+    18→    // One argument: get variable value
+    19→    TclObj value = ops->var.get(interp, varName);
+    20→    if (ops->list.is_nil(interp, value)) {
+    21→      // Variable doesn't exist - build error message
+    22→      size_t nameLen;
+    23→      const char *nameStr = ops->string.get(interp, varName, &nameLen);
+    24→
+    25→      // Build: can't read "X": no such variable
+    26→      // We need to concatenate strings
+    27→      TclObj part1 = ops->string.intern(interp, "can't read \"", 12);
+    28→      TclObj part2 = ops->string.intern(interp, nameStr, nameLen);
+    29→      TclObj part3 = ops->string.intern(interp, "\": no such variable", 19);
+    30→
+    31→      TclObj msg = ops->string.concat(interp, part1, part2);
+    32→      msg = ops->string.concat(interp, msg, part3);
+    33→
+    34→      ops->interp.set_result(interp, msg);
+    35→      return TCL_ERROR;
+    36→    }
+    37→    ops->interp.set_result(interp, value);
+    38→    return TCL_OK;
+    39→  }
+    40→
+    41→  // Two arguments: set variable value
+    42→  if (argc > 2) {
+    43→    TclObj msg = ops->string.intern(interp, "wrong # args: should be \"set varName ?newValue?\"", 48);
+    44→    ops->interp.set_result(interp, msg);
+    45→    return TCL_ERROR;
+    46→  }
+    47→  TclObj value = ops->list.shift(interp, args);
+    48→  ops->var.set(interp, varName, value);
+    49→  ops->interp.set_result(interp, value);
+    50→  return TCL_OK;
+    51→}
+    52→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

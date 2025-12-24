@@ -1,0 +1,285 @@
+     1→# TCL Core Feature Queue
+     2→# Features are ordered by dependency - implement in order
+     3→
+     4→features:
+     5→  # Phase 1: Core Language
+     6→  - id: lexer
+     7→    description: "Tokenize TCL source into words, respecting quoting rules"
+     8→    depends: []
+     9→    phase: 1
+    10→    status: complete
+    11→    tests: ["lexer-*"]
+    12→    source_files:
+    13→      - path: core/lexer.c
+    14→        description: Lexer implementation
+    15→
+    16→  - id: parser
+    17→    description: "Parse token stream into command structure"
+    18→    depends: [lexer]
+    19→    phase: 1
+    20→    status: in_progress
+    21→    tests: ["parser-*"]
+    22→    source_files:
+    23→      - path: core/parser.c
+    24→        description: Parser implementation
+    25→
+    26→  - id: subst
+    27→    description: "Variable, command, and backslash substitution"
+    28→    depends: [lexer, parser]
+    29→    phase: 1
+    30→    status: complete
+    31→    tests: ["subst-*"]
+    32→    source_files:
+    33→      - path: core/subst.c
+    34→        description: Substitution implementation
+    35→
+    36→  - id: variables
+    37→    description: "Variable storage and retrieval (set, unset)"
+    38→    depends: [lexer, parser]
+    39→    phase: 1
+    40→    status: complete
+    41→    tests: ["var-*"]
+    42→    source_files:
+    43→      - path: core/builtins.c
+    44→        description: Built-in commands
+    45→
+    46→  - id: commands
+    47→    description: "Command dispatch infrastructure"
+    48→    depends: [lexer, parser]
+    49→    phase: 1
+    50→    status: complete
+    51→    tests: ["cmd-*"]
+    52→    source_files:
+    53→      - path: core/eval.c
+    54→        description: Evaluation loop
+    55→
+    56→  - id: eval
+    57→    description: "Command evaluation trampoline"
+    58→    depends: [subst, variables, commands]
+    59→    phase: 1
+    60→    status: complete
+    61→    tests: ["eval-*"]
+    62→    source_files:
+    63→      - path: core/eval.c
+    64→        description: Evaluation loop
+    65→
+    66→  # Phase 2: Control Flow and Procedures
+    67→  - id: expr
+    68→    description: "Expression parser and evaluator"
+    69→    depends: [eval]
+    70→    phase: 2
+    71→    status: complete
+    72→    tests: ["expr-*"]
+    73→    source_files:
+    74→      - path: core/expr.c
+    75→        description: Expression evaluator
+    76→
+    77→  - id: control
+    78→    description: "Control flow commands (if, while, for, foreach, switch)"
+    79→    depends: [eval, expr]
+    80→    phase: 2
+    81→    status: complete
+    82→    tests:
+    83→      [
+    84→        "if-*",
+    85→        "while-*",
+    86→        "for-*",
+    87→        "foreach-*",
+    88→        "switch-*",
+    89→        "break-*",
+    90→        "continue-*",
+    91→      ]
+    92→    source_files:
+    93→      - path: core/builtins.c
+    94→        description: Built-in commands
+    95→
+    96→  - id: proc
+    97→    description: "Procedure definition and invocation"
+    98→    depends: [eval]
+    99→    phase: 2
+   100→    status: complete
+   101→    tests: ["proc-*"]
+   102→    source_files:
+   103→      - path: core/builtins.c
+   104→        description: Built-in commands
+   105→      - path: core/eval.c
+   106→        description: Evaluation loop
+   107→
+   108→  - id: scope
+   109→    description: "Scope manipulation (upvar, uplevel, global)"
+   110→    depends: [proc]
+   111→    phase: 2
+   112→    status: pending
+   113→    tests: ["upvar-*", "uplevel-*", "global-*"]
+   114→    source_files:
+   115→      - path: core/builtins.c
+   116→        description: Built-in commands
+   117→
+   118→  # Phase 3: Data Structures
+   119→  - id: list
+   120→    description: "List manipulation commands"
+   121→    depends: [eval]
+   122→    phase: 3
+   123→    status: complete
+   124→    tests: ["list-*"]
+   125→    source_files:
+   126→      - path: core/builtins.c
+   127→        description: Built-in commands
+   128→
+   129→  - id: string
+   130→    description: "String manipulation commands"
+   131→    depends: [eval]
+   132→    phase: 3
+   133→    status: pending
+   134→    tests: ["string-*", "format-*", "scan-*"]
+   135→    source_files:
+   136→      - path: core/builtins.c
+   137→        description: Built-in commands
+   138→      - path: core/format.c
+   139→        description: Format/scan implementation
+   140→
+   141→  - id: dict
+   142→    description: "Dictionary manipulation commands"
+   143→    depends: [eval]
+   144→    phase: 3
+   145→    status: pending
+   146→    tests: ["dict-*"]
+   147→    source_files:
+   148→      - path: core/builtins.c
+   149→        description: Built-in commands
+   150→
+   151→  - id: array
+   152→    description: "Array manipulation commands"
+   153→    depends: [variables]
+   154→    phase: 3
+   155→    status: pending
+   156→    tests: ["array-*"]
+   157→    source_files:
+   158→      - path: core/builtins.c
+   159→        description: Built-in commands
+   160→
+   161→  # Phase 4: Error Handling and I/O
+   162→  - id: error
+   163→    description: "Error handling (catch, try, throw, error)"
+   164→    depends: [eval]
+   165→    phase: 4
+   166→    status: complete
+   167→    tests: ["catch-*", "try-*", "error-*", "throw-*"]
+   168→    source_files:
+   169→      - path: core/builtins.c
+   170→        description: Built-in commands
+   171→      - path: core/eval.c
+   172→        description: Evaluation loop
+   173→
+   174→  - id: io
+   175→    description: "I/O commands (puts, gets, open, close, read)"
+   176→    depends: [eval]
+   177→    phase: 4
+   178→    status: pending
+   179→    tests: ["io-*", "chan-*"]
+   180→    source_files:
+   181→      - path: core/builtins.c
+   182→        description: Built-in commands
+   183→
+   184→  # Phase 5: Advanced Features
+   185→  - id: event
+   186→    description: "Event loop (after, vwait, fileevent)"
+   187→    depends: [io]
+   188→    phase: 5
+   189→    status: pending
+   190→    tests: ["after-*", "vwait-*", "fileevent-*"]
+   191→    source_files:
+   192→      - path: core/builtins.c
+   193→        description: Built-in commands
+   194→
+   195→  - id: interp
+   196→    description: "Multiple interpreter support"
+   197→    depends: [eval]
+   198→    phase: 5
+   199→    status: pending
+   200→    tests: ["interp-*"]
+   201→    source_files:
+   202→      - path: core/interp.c
+   203→        description: Interpreter management
+   204→      - path: core/builtins.c
+   205→        description: Built-in commands
+   206→
+   207→  - id: coroutine
+   208→    description: "Coroutine support (coroutine, yield, yieldto)"
+   209→    depends: [eval, proc]
+   210→    phase: 5
+   211→    status: pending
+   212→    tests: ["coro-*"]
+   213→    source_files:
+   214→      - path: core/coro.c
+   215→        description: Coroutine management
+   216→      - path: core/eval.c
+   217→        description: Evaluation loop
+   218→
+   219→  # Phase 6: System Integration
+   220→  - id: exec
+   221→    description: "Subprocess execution"
+   222→    depends: [io]
+   223→    phase: 6
+   224→    status: pending
+   225→    tests: ["exec-*"]
+   226→    source_files:
+   227→      - path: core/builtins.c
+   228→        description: Built-in commands
+   229→
+   230→  - id: file
+   231→    description: "File system commands"
+   232→    depends: [io]
+   233→    phase: 6
+   234→    status: pending
+   235→    tests: ["file-*"]
+   236→    source_files:
+   237→      - path: core/builtins.c
+   238→        description: Built-in commands
+   239→
+   240→  - id: socket
+   241→    description: "Network socket support"
+   242→    depends: [io, event]
+   243→    phase: 6
+   244→    status: pending
+   245→    tests: ["socket-*"]
+   246→    source_files:
+   247→      - path: core/builtins.c
+   248→        description: Built-in commands
+   249→
+   250→  - id: regex
+   251→    description: "Regular expression support (regexp, regsub)"
+   252→    depends: [eval]
+   253→    phase: 6
+   254→    status: pending
+   255→    tests: ["regexp-*", "regsub-*"]
+   256→    source_files:
+   257→      - path: core/builtins.c
+   258→        description: Built-in commands
+   259→
+   260→  - id: info
+   261→    description: "Introspection commands"
+   262→    depends: [eval, proc, variables]
+   263→    phase: 6
+   264→    status: pending
+   265→    tests: ["info-*"]
+   266→    source_files:
+   267→      - path: core/builtins.c
+   268→        description: Built-in commands
+   269→
+   270→  - id: namespace
+   271→    description: "Namespace support"
+   272→    depends: [eval, proc, variables]
+   273→    phase: 6
+   274→    status: pending
+   275→    tests: ["namespace-*"]
+   276→    source_files:
+   277→      - path: core/namespace.c
+   278→        description: Namespace implementation
+   279→      - path: core/eval.c
+   280→        description: Evaluation loop
+   281→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

@@ -1,0 +1,7 @@
+/Users/dhamidi/projects/tclc/harness/types.go
+/Users/dhamidi/projects/tclc/harness/features.go
+/Users/dhamidi/projects/tclc/harness/oracle.go
+/Users/dhamidi/projects/tclc/harness/loop.go
+/Users/dhamidi/projects/tclc/harness/main.go
+/Users/dhamidi/projects/tclc/harness/prompt.go
+/Users/dhamidi/projects/tclc/harness/diff.go

@@ -1,0 +1,19 @@
+gets(n)                      Tcl Built-In Commands                     gets(n)
+
+______________________________________________________________________________
+
+NNAAMMEE
+       gets - Read a line from a channel
+
+SSYYNNOOPPSSIISS
+       ggeettss _c_h_a_n_n_e_l ?_v_a_r_N_a_m_e?
+______________________________________________________________________________
+
+DDEESSCCRRIIPPTTIIOONN
+       The ggeettss command has been superceded by the cchhaann ggeettss command which
+       supports the same syntax and options.
+
+SSEEEE AALLSSOO
+       chan(n)
+
+Tcl                                   7.5                              gets(n)

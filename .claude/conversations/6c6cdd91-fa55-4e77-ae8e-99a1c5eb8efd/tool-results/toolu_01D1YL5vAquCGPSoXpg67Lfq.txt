@@ -1,0 +1,240 @@
+     1→/*
+     2→ * internal.h - TCL Core Internal Declarations
+     3→ *
+     4→ * This header defines types and functions shared between TCL core modules.
+     5→ * It is NOT part of the public API - use tclc.h for the host interface.
+     6→ */
+     7→
+     8→#ifndef TCLC_INTERNAL_H
+     9→#define TCLC_INTERNAL_H
+    10→
+    11→#include "tclc.h"
+    12→
+    13→/* ========================================================================
+    14→ * Word Types and Token Representation
+    15→ * ======================================================================== */
+    16→
+    17→typedef enum TclWordType {
+    18→    TCL_WORD_BARE,      /* Unquoted word */
+    19→    TCL_WORD_BRACES,    /* {braced} - no substitution */
+    20→    TCL_WORD_QUOTES,    /* "quoted" - substitution enabled */
+    21→} TclWordType;
+    22→
+    23→/* A single word/token in a command */
+    24→typedef struct TclWord {
+    25→    const char  *start;     /* Pointer into source buffer */
+    26→    size_t       len;       /* Length in bytes */
+    27→    TclWordType  type;      /* Quoting type */
+    28→    int          line;      /* Source line number */
+    29→} TclWord;
+    30→
+    31→/* A parsed command (array of words) */
+    32→typedef struct TclParsedCmd {
+    33→    TclWord    *words;      /* Array of words (arena-allocated) */
+    34→    int         wordCount;  /* Number of words */
+    35→    int         lineStart;  /* Line where command starts */
+    36→    int         lineEnd;    /* Line where command ends */
+    37→} TclParsedCmd;
+    38→
+    39→/* ========================================================================
+    40→ * Lexer State
+    41→ * ======================================================================== */
+    42→
+    43→typedef struct TclLexer {
+    44→    const char *script;     /* Full script being parsed */
+    45→    const char *pos;        /* Current position */
+    46→    const char *end;        /* End of script */
+    47→    int         line;       /* Current line number */
+    48→} TclLexer;
+    49→
+    50→/* ========================================================================
+    51→ * Parser State
+    52→ * ======================================================================== */
+    53→
+    54→typedef struct TclParser {
+    55→    TclLexer    lex;        /* Embedded lexer */
+    56→    TclInterp  *interp;     /* Interpreter for error reporting */
+    57→    void       *arena;      /* Arena for temporary allocations */
+    58→    size_t      arenaMark;  /* Mark for resetting arena */
+    59→} TclParser;
+    60→
+    61→/* ========================================================================
+    62→ * Substitution Flags (use values from tclc.h)
+    63→ * ======================================================================== */
+    64→
+    65→/* Use the TclSubstFlag enum from tclc.h:
+    66→ * TCL_SUBST_COMMANDS  (1 << 0)
+    67→ * TCL_SUBST_VARIABLES (1 << 1)
+    68→ * TCL_SUBST_BACKSLASH (1 << 2)
+    69→ * TCL_SUBST_ALL       (TCL_SUBST_COMMANDS | TCL_SUBST_VARIABLES | TCL_SUBST_BACKSLASH)
+    70→ */
+    71→
+    72→/* ========================================================================
+    73→ * Eval State Machine (Trampoline)
+    74→ * ======================================================================== */
+    75→
+    76→typedef enum TclEvalPhase {
+    77→    EVAL_PHASE_PARSE,       /* Get next command */
+    78→    EVAL_PHASE_SUBST,       /* Substitute words */
+    79→    EVAL_PHASE_LOOKUP,      /* Find command */
+    80→    EVAL_PHASE_DISPATCH,    /* Call command */
+    81→    EVAL_PHASE_RESULT,      /* Handle return code */
+    82→    EVAL_PHASE_DONE,        /* Script complete */
+    83→} TclEvalPhase;
+    84→
+    85→typedef enum TclEvalStatus {
+    86→    EVAL_CONTINUE,          /* More work to do */
+    87→    EVAL_DONE,              /* Result ready */
+    88→    EVAL_YIELD,             /* Coroutine yielding */
+    89→} TclEvalStatus;
+    90→
+    91→typedef struct TclEvalState {
+    92→    TclParser       parser;         /* Parser state */
+    93→    TclParsedCmd    currentCmd;     /* Current command being executed */
+    94→    TclObj        **substWords;     /* Substituted word values */
+    95→    int             substCount;     /* Number of substituted words */
+    96→    TclEvalPhase    phase;          /* Current phase */
+    97→    TclCmdInfo      cmdInfo;        /* Looked-up command info */
+    98→    int             wordIndex;      /* Current word being substituted */
+    99→} TclEvalState;
+   100→
+   101→/* ========================================================================
+   102→ * Builtin Command Entry
+   103→ * ======================================================================== */
+   104→
+   105→typedef TclResult (*TclBuiltinProc)(TclInterp *interp, int objc, TclObj **objv);
+   106→
+   107→typedef struct TclBuiltinEntry {
+   108→    const char     *name;
+   109→    TclBuiltinProc  proc;
+   110→} TclBuiltinEntry;
+   111→
+   112→/* ========================================================================
+   113→ * Lexer Functions (lexer.c)
+   114→ * ======================================================================== */
+   115→
+   116→/* Initialize lexer state */
+   117→void tclLexerInit(TclLexer *lex, const char *script, size_t len);
+   118→
+   119→/* Skip whitespace (not newlines), handle backslash-newline */
+   120→void tclLexerSkipSpace(TclLexer *lex);
+   121→
+   122→/* Skip to end of line (for comments) */
+   123→void tclLexerSkipLine(TclLexer *lex);
+   124→
+   125→/* Check if at command terminator (newline, semicolon, EOF) */
+   126→int tclLexerAtCommandEnd(TclLexer *lex);
+   127→
+   128→/* Check if at comment start (# at command start) */
+   129→int tclLexerAtComment(TclLexer *lex);
+   130→
+   131→/* Check if at end of input */
+   132→int tclLexerAtEnd(TclLexer *lex);
+   133→
+   134→/* Parse a single word, returns 0 on success, -1 on error */
+   135→int tclLexerNextWord(TclLexer *lex, TclWord *word, TclInterp *interp);
+   136→
+   137→/* ========================================================================
+   138→ * Parser Functions (parser.c)
+   139→ * ======================================================================== */
+   140→
+   141→/* Initialize parser state */
+   142→void tclParserInit(TclParser *parser, TclInterp *interp,
+   143→                   const char *script, size_t len);
+   144→
+   145→/* Clean up parser state */
+   146→void tclParserCleanup(TclParser *parser);
+   147→
+   148→/* Parse next command, returns 0 on success, -1 on error, 1 on EOF */
+   149→int tclParserNextCommand(TclParser *parser, TclParsedCmd *cmd);
+   150→
+   151→/* ========================================================================
+   152→ * Substitution Functions (subst.c)
+   153→ * ======================================================================== */
+   154→
+   155→/* Perform substitution on a word, returns substituted TclObj */
+   156→TclObj *tclSubstWord(TclInterp *interp, TclWord *word, int flags);
+   157→
+   158→/* Perform substitution on raw string */
+   159→TclObj *tclSubstString(TclInterp *interp, const char *str, size_t len, int flags);
+   160→
+   161→/* Process backslash escape, returns number of input chars consumed */
+   162→int tclSubstBackslashChar(const char *src, const char *end, char *out);
+   163→
+   164→/* ========================================================================
+   165→ * Eval Functions (eval.c)
+   166→ * ======================================================================== */
+   167→
+   168→/* Initialize eval state for a script */
+   169→void tclEvalStateInit(TclEvalState *state, TclInterp *interp,
+   170→                      const char *script, size_t len);
+   171→
+   172→/* Clean up eval state */
+   173→void tclEvalStateCleanup(TclEvalState *state, TclInterp *interp);
+   174→
+   175→/* Execute one step of evaluation */
+   176→TclEvalStatus tclEvalStep(TclInterp *interp, TclEvalState *state);
+   177→
+   178→/* Execute a complete script (wrapper around trampoline) */
+   179→TclResult tclEvalScript(TclInterp *interp, const char *script, size_t len);
+   180→
+   181→/* Execute command substitution [cmd] */
+   182→TclResult tclEvalBracketed(TclInterp *interp, const char *cmd, size_t len);
+   183→
+   184→/* ========================================================================
+   185→ * Builtin Functions (builtins.c)
+   186→ * ======================================================================== */
+   187→
+   188→/* Look up builtin command by name, returns index or -1 */
+   189→int tclBuiltinLookup(const char *name, size_t len);
+   190→
+   191→/* Get builtin table entry */
+   192→const TclBuiltinEntry *tclBuiltinGet(int index);
+   193→
+   194→/* Get number of builtins */
+   195→int tclBuiltinCount(void);
+   196→
+   197→/* Individual builtin implementations */
+   198→TclResult tclCmdPuts(TclInterp *interp, int objc, TclObj **objv);
+   199→TclResult tclCmdSet(TclInterp *interp, int objc, TclObj **objv);
+   200→TclResult tclCmdString(TclInterp *interp, int objc, TclObj **objv);
+   201→TclResult tclCmdExpr(TclInterp *interp, int objc, TclObj **objv);
+   202→TclResult tclCmdSubst(TclInterp *interp, int objc, TclObj **objv);
+   203→
+   204→/* Scope commands (builtin_global.c, builtin_upvar.c, builtin_uplevel.c) */
+   205→TclResult tclCmdGlobal(TclInterp *interp, int objc, TclObj **objv);
+   206→TclResult tclCmdUpvar(TclInterp *interp, int objc, TclObj **objv);
+   207→TclResult tclCmdUplevel(TclInterp *interp, int objc, TclObj **objv);
+   208→
+   209→/* ========================================================================
+   210→ * Interpreter Functions (from tclc.h, implemented in eval.c)
+   211→ * ======================================================================== */
+   212→
+   213→/* These are declared in tclc.h but we note them here for reference:
+   214→ *
+   215→ * TclInterp* tclInterpNew(const TclHost *host, void *hostCtx);
+   216→ * void tclInterpFree(TclInterp *interp);
+   217→ * TclResult tclEval(TclInterp *interp, TclObj *script);
+   218→ * TclResult tclEvalStr(TclInterp *interp, const char *script, size_t len);
+   219→ * TclObj* tclGetResult(TclInterp *interp);
+   220→ * void tclSetResult(TclInterp *interp, TclObj *result);
+   221→ */
+   222→
+   223→/* ========================================================================
+   224→ * Helper Macros
+   225→ * ======================================================================== */
+   226→
+   227→/* String comparison helpers for command lookup */
+   228→#define TCL_STREQ(a, alen, b) \
+   229→    ((alen) == sizeof(b) - 1 && tclStrncmp((a), (b), (alen)) == 0)
+   230→
+   231→/* Internal string comparison (no libc) */
+   232→int tclStrncmp(const char *a, const char *b, size_t n);
+   233→size_t tclStrlen(const char *s);
+   234→
+   235→#endif /* TCLC_INTERNAL_H */
+   236→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

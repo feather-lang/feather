@@ -1,0 +1,19 @@
+close(n)                     Tcl Built-In Commands                    close(n)
+
+______________________________________________________________________________
+
+NNAAMMEE
+       close - Close an open channel
+
+SSYYNNOOPPSSIISS
+       cclloossee _c_h_a_n_n_e_l ?rr(eeaadd)|ww(rriittee)?
+______________________________________________________________________________
+
+DDEESSCCRRIIPPTTIIOONN
+       The cclloossee command has been superceded by the cchhaann cclloossee command which
+       supports the same syntax and options.
+
+SSEEEE AALLSSOO
+       chan(n)
+
+Tcl                                   7.5                             close(n)

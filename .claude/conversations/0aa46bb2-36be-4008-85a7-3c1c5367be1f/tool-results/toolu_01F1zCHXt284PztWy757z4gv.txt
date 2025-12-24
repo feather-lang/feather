@@ -1,0 +1,112 @@
+The file /Users/dhamidi/projects/tclc/src/tclc.h has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
+   701→   */
+   702→  TclObj (*at)(TclInterp interp, TclObj list, size_t index);
+   703→} TclListOps;
+   704→
+   705→/**
+   706→ * TclNamespaceOps provides operations on the namespace hierarchy.
+   707→ *
+   708→ * Namespaces are containers for commands and persistent variables.
+   709→ * The global namespace "::" always exists and is the root.
+   710→ * Namespace paths use "::" as separator (e.g., "::foo::bar").
+   711→ */
+   712→typedef struct TclNamespaceOps {
+   713→  /**
+   714→   * create ensures a namespace exists, creating it and parents as needed.
+   715→   *
+   716→   * Returns TCL_OK on success.
+   717→   * Creating "::" is a no-op (always exists).
+   718→   */
+   719→  TclResult (*create)(TclInterp interp, TclObj path);
+   720→
+   721→  /**
+   722→   * delete removes a namespace and all its children.
+   723→   *
+   724→   * Variables and commands in the namespace are destroyed.
+   725→   * Returns TCL_ERROR if path is "::" (cannot delete global).
+   726→   * Returns TCL_ERROR if namespace doesn't exist.
+   727→   */
+   728→  TclResult (*delete)(TclInterp interp, TclObj path);
+   729→
+   730→  /**
+   731→   * exists checks if a namespace exists.
+   732→   *
+   733→   * Returns 1 if it exists, 0 if not.
+   734→   */
+   735→  int (*exists)(TclInterp interp, TclObj path);
+   736→
+   737→  /**
+   738→   * current returns the namespace path of the current call frame.
+   739→   *
+   740→   * Returns a string like "::" or "::foo::bar".
+   741→   */
+   742→  TclObj (*current)(TclInterp interp);
+   743→
+   744→  /**
+   745→   * parent returns the parent namespace path.
+   746→   *
+   747→   * For "::", returns empty string.
+   748→   * For "::foo::bar", returns "::foo".
+   749→   * Returns TCL_ERROR if namespace doesn't exist.
+   750→   */
+   751→  TclResult (*parent)(TclInterp interp, TclObj ns, TclObj *result);
+   752→
+   753→  /**
+   754→   * children returns a list of child namespace paths.
+   755→   *
+   756→   * Returns full paths (e.g., "::foo::bar" for child "bar" of "::foo").
+   757→   * Returns empty list if no children.
+   758→   */
+   759→  TclObj (*children)(TclInterp interp, TclObj ns);
+   760→
+   761→  /**
+   762→   * get_var retrieves a variable from namespace storage.
+   763→   *
+   764→   * Returns nil if variable doesn't exist.
+   765→   * The 'name' parameter must be unqualified (just "x", not "::foo::x").
+   766→   * The namespace path must be absolute.
+   767→   */
+   768→  TclObj (*get_var)(TclInterp interp, TclObj ns, TclObj name);
+   769→
+   770→  /**
+   771→   * set_var sets a variable in namespace storage.
+   772→   *
+   773→   * Creates the variable if it doesn't exist.
+   774→   * Creates the namespace if it doesn't exist.
+   775→   * The 'name' parameter must be unqualified.
+   776→   */
+   777→  void (*set_var)(TclInterp interp, TclObj ns, TclObj name, TclObj value);
+   778→
+   779→  /**
+   780→   * var_exists checks if a variable exists in namespace storage.
+   781→   *
+   782→   * Returns 1 if exists, 0 if not.
+   783→   */
+   784→  int (*var_exists)(TclInterp interp, TclObj ns, TclObj name);
+   785→
+   786→  /**
+   787→   * unset_var removes a variable from namespace storage.
+   788→   *
+   789→   * No-op if variable doesn't exist.
+   790→   */
+   791→  void (*unset_var)(TclInterp interp, TclObj ns, TclObj name);
+   792→} TclNamespaceOps;
+   793→
+   794→/**
+   795→ * TclBindOps defines the operations for host <> interpreter interop.
+   796→ */
+   797→typedef struct TclBindOpts {
+   798→  /**
+   799→   * unknown is invoked when the interpreter tries to invoke an undefined
+   800→   * procedure and gives the host a chance to react to this.
+   801→   *
+   802→   * If the host returns TCL_ERROR, the interpreter considers the procedure
+   803→   * lookup to have failed for good.
+   804→   */
+   805→  TclResult (*unknown)(TclInterp interp, TclObj cmd, TclObj args,
+   806→                       TclObj *value);
+   807→} TclBindOpts;
+   808→
+   809→/**
+   810→ * TclHostOps contains the aggregation of all operations necessary
+   811→ * for interpreter to work.

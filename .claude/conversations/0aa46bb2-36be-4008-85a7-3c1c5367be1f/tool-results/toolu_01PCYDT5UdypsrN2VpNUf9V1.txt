@@ -1,0 +1,21 @@
+The file /Users/dhamidi/projects/tclc/src/tclc.h has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
+   838→/**
+   839→ * TclHostOps contains the aggregation of all operations necessary
+   840→ * for interpreter to work.
+   841→ */
+   842→typedef struct TclHostOps {
+   843→  TclFrameOps frame;
+   844→  TclVarOps var;
+   845→  TclProcOps proc;
+   846→  TclNamespaceOps ns;
+   847→  TclStringOps string;
+   848→  TclListOps list;
+   849→  TclIntOps integer;
+   850→  TclDoubleOps dbl;
+   851→  TclInterpOps interp;
+   852→  TclBindOpts bind;
+   853→} TclHostOps;
+   854→
+   855→/**
+   856→ * tcl_interp_init registers all builtin commands with the interpreter.
+   857→ *

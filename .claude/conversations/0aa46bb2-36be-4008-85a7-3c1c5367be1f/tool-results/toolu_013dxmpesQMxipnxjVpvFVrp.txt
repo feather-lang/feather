@@ -1,0 +1,50 @@
+[test]   expected: "2"
+[test]   actual:   "invalid command name \"namespace\""
+[test]   exit code mismatch:
+[test]   expected: 0
+[test]   actual:   1
+[test]   return mismatch:
+[test]   expected: "TCL_OK"
+[test]   actual:   "TCL_ERROR"
+[test] FAIL: testcases/m10/namespace.html: proc defined in namespace eval
+[test]   stdout mismatch:
+[test]   expected: "10"
+[test]   actual:   "invalid command name \"namespace\""
+[test]   exit code mismatch:
+[test]   expected: 0
+[test]   actual:   1
+[test]   return mismatch:
+[test]   expected: "TCL_OK"
+[test]   actual:   "TCL_ERROR"
+[test] FAIL: testcases/m10/namespace.html: qualified proc call from global
+[test]   stdout mismatch:
+[test]   expected: "hello world"
+[test]   actual:   "invalid command name \"namespace\""
+[test]   exit code mismatch:
+[test]   expected: 0
+[test]   actual:   1
+[test]   return mismatch:
+[test]   expected: "TCL_OK"
+[test]   actual:   "TCL_ERROR"
+[test] FAIL: testcases/m10/namespace.html: proc defined with qualified name
+[test]   stdout mismatch:
+[test]   expected: "baz"
+[test]   actual:   "invalid command name \"foo::bar::baz\""
+[test]   exit code mismatch:
+[test]   expected: 0
+[test]   actual:   1
+[test]   return mismatch:
+[test]   expected: "TCL_OK"
+[test]   actual:   "TCL_ERROR"
+[test] FAIL: testcases/m10/namespace.html: namespace unknown subcommand
+[test]   error mismatch:
+[test]   expected: "bad option \"nosuchsubcmd\": must be children, current, delete, eval, exists, or parent"
+[test]   actual:   "invalid command name \"namespace\""
+[test] FAIL: testcases/m10/namespace.html: namespace no args
+[test]   error mismatch:
+[test]   expected: "wrong # args: should be \"namespace subcommand ?arg ...?\""
+[test]   actual:   "invalid command name \"namespace\""
+[test] 
+[test] 603 tests, 563 passed, 40 failed
+Finished in 6.40s
+[test] ERROR task failed

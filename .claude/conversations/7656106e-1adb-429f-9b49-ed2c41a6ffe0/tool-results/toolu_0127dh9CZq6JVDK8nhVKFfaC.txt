@@ -1,0 +1,145 @@
+     1→/*
+     2→ * builtins.c - TCL Built-in Commands
+     3→ *
+     4→ * Static table of built-in commands and their implementations.
+     5→ */
+     6→
+     7→#include "internal.h"
+     8→
+     9→
+    10→/* ========================================================================
+    11→ * string Command - Implementation in builtin_string.c
+    12→ * ======================================================================== */
+    13→
+    14→/* tclCmdString is defined in builtin_string.c */
+    15→
+    16→/* ========================================================================
+    17→ * expr Command - Implementation in builtin_expr.c
+    18→ * ======================================================================== */
+    19→
+    20→/* tclCmdExpr is defined in builtin_expr.c */
+    21→
+    22→
+    23→
+    24→/* ========================================================================
+    25→ * Builtin Table
+    26→ * ======================================================================== */
+    27→
+    28→/* Sorted alphabetically for binary search */
+    29→static const TclBuiltinEntry builtinTable[] = {
+    30→    {"after",    tclCmdAfter},
+    31→    {"append",   tclCmdAppend},
+    32→    {"array",    tclCmdArray},
+    33→    {"break",    tclCmdBreak},
+    34→    {"catch",    tclCmdCatch},
+    35→    {"chan",     tclCmdChan},
+    36→    {"close",    tclCmdClose},
+    37→    {"continue", tclCmdContinue},
+    38→    {"dict",     tclCmdDict},
+    39→    {"error",    tclCmdError},
+    40→    {"exec",     tclCmdExec},
+    41→    {"expr",     tclCmdExpr},
+    42→    {"file",     tclCmdFile},
+    43→    {"fileevent", tclCmdFileevent},
+    44→    {"for",      tclCmdFor},
+    45→    {"foreach",  tclCmdForeach},
+    46→    {"gets",     tclCmdGets},
+    47→    {"global",   tclCmdGlobal},
+    48→    {"if",       tclCmdIf},
+    49→    {"incr",     tclCmdIncr},
+    50→    {"info",     tclCmdInfo},
+    51→    {"join",     tclCmdJoin},
+    52→    {"lappend",  tclCmdLappend},
+    53→    {"lassign",  tclCmdLassign},
+    54→    {"ledit",    tclCmdLedit},
+    55→    {"lindex",   tclCmdLindex},
+    56→    {"linsert",  tclCmdLinsert},
+    57→    {"list",     tclCmdList},
+    58→    {"llength",  tclCmdLlength},
+    59→    {"lmap",     tclCmdLmap},
+    60→    {"lpop",     tclCmdLpop},
+    61→    {"lrange",   tclCmdLrange},
+    62→    {"lremove",  tclCmdLremove},
+    63→    {"lrepeat",  tclCmdLrepeat},
+    64→    {"lreplace", tclCmdLreplace},
+    65→    {"lreverse", tclCmdLreverse},
+    66→    {"lsearch",  tclCmdLsearch},
+    67→    {"lseq",     tclCmdLseq},
+    68→    {"lset",     tclCmdLset},
+    69→    {"lsort",    tclCmdLsort},
+    70→    {"open",     tclCmdOpen},
+    71→    {"proc",     tclCmdProc},
+    72→    {"puts",     tclCmdPuts},
+    73→    {"read",     tclCmdRead},
+    74→    {"regexp",   tclCmdRegexp},
+    75→    {"regsub",   tclCmdRegsub},
+    76→    {"return",   tclCmdReturn},
+    77→    {"set",      tclCmdSet},
+    78→    {"split",    tclCmdSplit},
+    79→    {"string",   tclCmdString},
+    80→    {"subst",    tclCmdSubst},
+    81→    {"throw",    tclCmdThrow},
+    82→    {"try",      tclCmdTry},
+    83→    {"unset",    tclCmdUnset},
+    84→    {"update",   tclCmdUpdate},
+    85→    {"uplevel",  tclCmdUplevel},
+    86→    {"upvar",    tclCmdUpvar},
+    87→    {"vwait",    tclCmdVwait},
+    88→    {"while",    tclCmdWhile},
+    89→};
+    90→
+    91→static const int builtinCount = sizeof(builtinTable) / sizeof(builtinTable[0]);
+    92→
+    93→/* Binary search for builtin command */
+    94→int tclBuiltinLookup(const char *name, size_t len) {
+    95→    int lo = 0;
+    96→    int hi = builtinCount - 1;
+    97→
+    98→    while (lo <= hi) {
+    99→        int mid = (lo + hi) / 2;
+   100→        const char *midName = builtinTable[mid].name;
+   101→        size_t midLen = tclStrlen(midName);
+   102→
+   103→        /* Compare */
+   104→        int cmp;
+   105→        size_t minLen = len < midLen ? len : midLen;
+   106→        cmp = tclStrncmp(name, midName, minLen);
+   107→        if (cmp == 0) {
+   108→            if (len < midLen) cmp = -1;
+   109→            else if (len > midLen) cmp = 1;
+   110→        }
+   111→
+   112→        if (cmp < 0) {
+   113→            hi = mid - 1;
+   114→        } else if (cmp > 0) {
+   115→            lo = mid + 1;
+   116→        } else {
+   117→            return mid;
+   118→        }
+   119→    }
+   120→
+   121→    return -1;  /* Not found */
+   122→}
+   123→
+   124→const TclBuiltinEntry *tclBuiltinGet(int index) {
+   125→    if (index < 0 || index >= builtinCount) {
+   126→        return NULL;
+   127→    }
+   128→    return &builtinTable[index];
+   129→}
+   130→
+   131→int tclBuiltinCount(void) {
+   132→    return builtinCount;
+   133→}
+   134→
+   135→const char *tclBuiltinName(int index) {
+   136→    if (index < 0 || index >= builtinCount) {
+   137→        return NULL;
+   138→    }
+   139→    return builtinTable[index].name;
+   140→}
+   141→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

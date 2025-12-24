@@ -1,0 +1,1687 @@
+     1→/*
+     2→ * builtin_expr.c - TCL expr Command Implementation
+     3→ *
+     4→ * Recursive descent parser for Tcl expressions with proper operator precedence.
+     5→ *
+     6→ * Precedence (lowest to highest):
+     7→ *   1. ?: (ternary, right-to-left)
+     8→ *   2. || (logical or)
+     9→ *   3. && (logical and)
+    10→ *   4. | (bitwise or)
+    11→ *   5. ^ (bitwise xor)
+    12→ *   6. & (bitwise and)
+    13→ *   7. == != eq ne (equality)
+    14→ *   8. < > <= >= lt gt le ge in ni (relational)
+    15→ *   9. << >> (shift)
+    16→ *  10. + - (additive)
+    17→ *  11. * / % (multiplicative)
+    18→ *  12. ** (exponentiation, right-to-left)
+    19→ *  13. unary - + ! ~
+    20→ */
+    21→
+    22→#include "internal.h"
+    23→
+    24→/* ========================================================================
+    25→ * Expression Value Type
+    26→ * ======================================================================== */
+    27→
+    28→typedef enum {
+    29→    EXPR_INT,
+    30→    EXPR_DOUBLE,
+    31→    EXPR_STRING,
+    32→} ExprValueType;
+    33→
+    34→typedef struct {
+    35→    ExprValueType type;
+    36→    union {
+    37→        int64_t i;
+    38→        double d;
+    39→        struct {
+    40→            const char *s;
+    41→            size_t len;
+    42→        } str;
+    43→    } v;
+    44→} ExprValue;
+    45→
+    46→/* ========================================================================
+    47→ * Expression Parser State
+    48→ * ======================================================================== */
+    49→
+    50→typedef struct {
+    51→    TclInterp *interp;
+    52→    const TclHost *host;
+    53→    const char *pos;
+    54→    const char *end;
+    55→    const char *exprStart;  /* Original expression start for error messages */
+    56→    size_t exprLen;         /* Original expression length */
+    57→    void *arena;
+    58→    int error;
+    59→} ExprParser;
+    60→
+    61→/* ========================================================================
+    62→ * Error Formatting Helpers
+    63→ * ======================================================================== */
+    64→
+    65→/* Format error with position marker: "message at _@_\nin expression \"expr_@_\"" */
+    66→static void setExprError(ExprParser *p, const char *msg) {
+    67→    size_t msgLen = 0;
+    68→    while (msg[msgLen]) msgLen++;
+    69→
+    70→    /* Calculate position in expression */
+    71→    size_t errorPos = p->pos - p->exprStart;
+    72→    if (errorPos > p->exprLen) errorPos = p->exprLen;
+    73→
+    74→    /* Build: "msg at _@_\nin expression \"before_@_after\"" */
+    75→    size_t bufLen = msgLen + 20 + p->exprLen + 30;
+    76→    char *buf = p->host->arenaAlloc(p->arena, bufLen, 1);
+    77→    char *bp = buf;
+    78→
+    79→    /* Copy message */
+    80→    for (size_t i = 0; i < msgLen; i++) *bp++ = msg[i];
+    81→
+    82→    /* Add " at _@_" */
+    83→    const char *atMarker = " at _@_";
+    84→    while (*atMarker) *bp++ = *atMarker++;
+    85→
+    86→    /* Add newline and "in expression \"" */
+    87→    *bp++ = '\n';
+    88→    const char *inExpr = "in expression \"";
+    89→    while (*inExpr) *bp++ = *inExpr++;
+    90→
+    91→    /* Copy expression with _@_ at error position */
+    92→    for (size_t i = 0; i < errorPos; i++) *bp++ = p->exprStart[i];
+    93→    *bp++ = '_'; *bp++ = '@'; *bp++ = '_';
+    94→    for (size_t i = errorPos; i < p->exprLen; i++) *bp++ = p->exprStart[i];
+    95→
+    96→    *bp++ = '"';
+    97→    *bp = '\0';
+    98→
+    99→    tclSetError(p->interp, buf, bp - buf);
+   100→    p->error = 1;
+   101→}
+   102→
+   103→/* Format error for invalid character: "invalid character \"c\"\nin expression \"...\"" */
+   104→static void setExprErrorChar(ExprParser *p, char c) {
+   105→    size_t bufLen = 50 + p->exprLen + 30;
+   106→    char *buf = p->host->arenaAlloc(p->arena, bufLen, 1);
+   107→    char *bp = buf;
+   108→
+   109→    const char *prefix = "invalid character \"";
+   110→    while (*prefix) *bp++ = *prefix++;
+   111→    *bp++ = c;
+   112→    *bp++ = '"';
+   113→    *bp++ = '\n';
+   114→
+   115→    const char *inExpr = "in expression \"";
+   116→    while (*inExpr) *bp++ = *inExpr++;
+   117→    for (size_t i = 0; i < p->exprLen; i++) *bp++ = p->exprStart[i];
+   118→    *bp++ = '"';
+   119→    *bp = '\0';
+   120→
+   121→    tclSetError(p->interp, buf, bp - buf);
+   122→    p->error = 1;
+   123→}
+   124→
+   125→/* Format error for non-numeric string: "cannot use non-numeric string \"val\" as operand of \"op\"" */
+   126→static void setExprErrorString(ExprParser *p, ExprValue v, const char *op, int isLeft) {
+   127→    const char *valStr = v.v.str.s;
+   128→    size_t valLen = v.v.str.len;
+   129→
+   130→    size_t opLen = 0;
+   131→    while (op[opLen]) opLen++;
+   132→
+   133→    size_t bufLen = 60 + valLen + opLen;
+   134→    char *buf = p->host->arenaAlloc(p->arena, bufLen, 1);
+   135→    char *bp = buf;
+   136→
+   137→    const char *prefix = "cannot use non-numeric string \"";
+   138→    while (*prefix) *bp++ = *prefix++;
+   139→    for (size_t i = 0; i < valLen; i++) *bp++ = valStr[i];
+   140→    *bp++ = '"';
+   141→
+   142→    const char *asOp = isLeft ? " as left operand of \"" : " as operand of \"";
+   143→    while (*asOp) *bp++ = *asOp++;
+   144→    for (size_t i = 0; i < opLen; i++) *bp++ = op[i];
+   145→    *bp++ = '"';
+   146→    *bp = '\0';
+   147→
+   148→    tclSetError(p->interp, buf, bp - buf);
+   149→    p->error = 1;
+   150→}
+   151→
+   152→/* Format error for type mismatch: "cannot use floating-point value \"val\" as operand of \"op\"" */
+   153→static void setExprErrorFloat(ExprParser *p, ExprValue v, const char *op, int isLeft) {
+   154→    /* Get string representation of value */
+   155→    const char *valStr;
+   156→    size_t valLen;
+   157→    char valBuf[32];
+   158→    if (v.type == EXPR_DOUBLE) {
+   159→        /* Format double */
+   160→        int len = 0;
+   161→        double d = v.v.d;
+   162→        int neg = 0;
+   163→        if (d < 0) { neg = 1; d = -d; }
+   164→        if (neg) valBuf[len++] = '-';
+   165→        int64_t intPart = (int64_t)d;
+   166→        double fracPart = d - (double)intPart;
+   167→
+   168→        /* Integer part */
+   169→        char tmp[20];
+   170→        int ti = 0;
+   171→        int64_t n = intPart;
+   172→        do { tmp[ti++] = '0' + (n % 10); n /= 10; } while (n > 0);
+   173→        while (ti > 0) valBuf[len++] = tmp[--ti];
+   174→
+   175→        valBuf[len++] = '.';
+   176→        /* One decimal place is enough for the error message */
+   177→        int digit = (int)(fracPart * 10);
+   178→        valBuf[len++] = '0' + digit;
+   179→        valBuf[len] = '\0';
+   180→        valStr = valBuf;
+   181→        valLen = len;
+   182→    } else {
+   183→        valStr = "?";
+   184→        valLen = 1;
+   185→    }
+   186→
+   187→    size_t opLen = 0;
+   188→    while (op[opLen]) opLen++;
+   189→
+   190→    size_t bufLen = 60 + valLen + opLen;
+   191→    char *buf = p->host->arenaAlloc(p->arena, bufLen, 1);
+   192→    char *bp = buf;
+   193→
+   194→    const char *prefix = "cannot use floating-point value \"";
+   195→    while (*prefix) *bp++ = *prefix++;
+   196→    for (size_t i = 0; i < valLen; i++) *bp++ = valStr[i];
+   197→    *bp++ = '"';
+   198→
+   199→    const char *asOp = isLeft ? " as left operand of \"" : " as operand of \"";
+   200→    while (*asOp) *bp++ = *asOp++;
+   201→    for (size_t i = 0; i < opLen; i++) *bp++ = op[i];
+   202→    *bp++ = '"';
+   203→    *bp = '\0';
+   204→
+   205→    tclSetError(p->interp, buf, bp - buf);
+   206→    p->error = 1;
+   207→}
+   208→
+   209→/* Format error for simple message with expression: "msg\nin expression \"...\"" */
+   210→static void setExprErrorSimple(ExprParser *p, const char *msg) {
+   211→    size_t msgLen = 0;
+   212→    while (msg[msgLen]) msgLen++;
+   213→
+   214→    size_t bufLen = msgLen + 20 + p->exprLen;
+   215→    char *buf = p->host->arenaAlloc(p->arena, bufLen, 1);
+   216→    char *bp = buf;
+   217→
+   218→    for (size_t i = 0; i < msgLen; i++) *bp++ = msg[i];
+   219→    *bp++ = '\n';
+   220→
+   221→    const char *inExpr = "in expression \"";
+   222→    while (*inExpr) *bp++ = *inExpr++;
+   223→    for (size_t i = 0; i < p->exprLen; i++) *bp++ = p->exprStart[i];
+   224→    *bp++ = '"';
+   225→    *bp = '\0';
+   226→
+   227→    tclSetError(p->interp, buf, bp - buf);
+   228→    p->error = 1;
+   229→}
+   230→
+   231→/* Forward declarations */
+   232→static ExprValue parseExpr(ExprParser *p);
+   233→static ExprValue parseTernary(ExprParser *p);
+   234→static ExprValue parseLogicalOr(ExprParser *p);
+   235→static ExprValue parseLogicalAnd(ExprParser *p);
+   236→static ExprValue parseBitwiseOr(ExprParser *p);
+   237→static ExprValue parseBitwiseXor(ExprParser *p);
+   238→static ExprValue parseBitwiseAnd(ExprParser *p);
+   239→static ExprValue parseEquality(ExprParser *p);
+   240→static ExprValue parseRelational(ExprParser *p);
+   241→static ExprValue parseShift(ExprParser *p);
+   242→static ExprValue parseAdditive(ExprParser *p);
+   243→static ExprValue parseMultiplicative(ExprParser *p);
+   244→static ExprValue parseExponentiation(ExprParser *p);
+   245→static ExprValue parseUnary(ExprParser *p);
+   246→static ExprValue parsePrimary(ExprParser *p);
+   247→
+   248→/* ========================================================================
+   249→ * Helper Functions
+   250→ * ======================================================================== */
+   251→
+   252→static void skipWhitespace(ExprParser *p) {
+   253→    while (p->pos < p->end && (*p->pos == ' ' || *p->pos == '\t' ||
+   254→           *p->pos == '\n' || *p->pos == '\r')) {
+   255→        p->pos++;
+   256→    }
+   257→}
+   258→
+   259→static int isDigit(char c) {
+   260→    return c >= '0' && c <= '9';
+   261→}
+   262→
+   263→static int isAlpha(char c) {
+   264→    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
+   265→}
+   266→
+   267→static int isAlnum(char c) {
+   268→    return isDigit(c) || isAlpha(c);
+   269→}
+   270→
+   271→static int isHexDigit(char c) {
+   272→    return isDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+   273→}
+   274→
+   275→static int hexValue(char c) {
+   276→    if (c >= '0' && c <= '9') return c - '0';
+   277→    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+   278→    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+   279→    return 0;
+   280→}
+   281→
+   282→static int matchKeyword(ExprParser *p, const char *kw, size_t kwLen) {
+   283→    if ((size_t)(p->end - p->pos) >= kwLen &&
+   284→        tclStrncmp(p->pos, kw, kwLen) == 0 &&
+   285→        (p->pos + kwLen >= p->end || !isAlnum(p->pos[kwLen]))) {
+   286→        return 1;
+   287→    }
+   288→    return 0;
+   289→}
+   290→
+   291→static ExprValue makeInt(int64_t i) {
+   292→    ExprValue v;
+   293→    v.type = EXPR_INT;
+   294→    v.v.i = i;
+   295→    return v;
+   296→}
+   297→
+   298→static ExprValue makeDouble(double d) {
+   299→    ExprValue v;
+   300→    v.type = EXPR_DOUBLE;
+   301→    v.v.d = d;
+   302→    return v;
+   303→}
+   304→
+   305→static ExprValue makeString(const char *s, size_t len) {
+   306→    ExprValue v;
+   307→    v.type = EXPR_STRING;
+   308→    v.v.str.s = s;
+   309→    v.v.str.len = len;
+   310→    return v;
+   311→}
+   312→
+   313→static double toDouble(ExprValue v) {
+   314→    if (v.type == EXPR_INT) return (double)v.v.i;
+   315→    if (v.type == EXPR_DOUBLE) return v.v.d;
+   316→    return 0.0;
+   317→}
+   318→
+   319→/* Currently unused but may be needed for future math functions
+   320→static int64_t toInt(ExprValue v) {
+   321→    if (v.type == EXPR_INT) return v.v.i;
+   322→    if (v.type == EXPR_DOUBLE) return (int64_t)v.v.d;
+   323→    return 0;
+   324→}
+   325→*/
+   326→
+   327→static int toBool(ExprValue v) {
+   328→    if (v.type == EXPR_INT) return v.v.i != 0;
+   329→    if (v.type == EXPR_DOUBLE) return v.v.d != 0.0;
+   330→    if (v.type == EXPR_STRING) {
+   331→        if (v.v.str.len == 0) return 0;
+   332→        /* Check for boolean strings */
+   333→        if (v.v.str.len == 1) {
+   334→            if (v.v.str.s[0] == '0') return 0;
+   335→            if (v.v.str.s[0] == '1') return 1;
+   336→        }
+   337→        if (v.v.str.len == 4 && tclStrncmp(v.v.str.s, "true", 4) == 0) return 1;
+   338→        if (v.v.str.len == 5 && tclStrncmp(v.v.str.s, "false", 5) == 0) return 0;
+   339→        if (v.v.str.len == 3 && tclStrncmp(v.v.str.s, "yes", 3) == 0) return 1;
+   340→        if (v.v.str.len == 2 && tclStrncmp(v.v.str.s, "no", 2) == 0) return 0;
+   341→        if (v.v.str.len == 2 && tclStrncmp(v.v.str.s, "on", 2) == 0) return 1;
+   342→        if (v.v.str.len == 3 && tclStrncmp(v.v.str.s, "off", 3) == 0) return 0;
+   343→        return 1; /* Non-empty string is true */
+   344→    }
+   345→    return 0;
+   346→}
+   347→
+   348→static int strncmpLen(const char *a, size_t alen, const char *b, size_t blen) {
+   349→    size_t minLen = alen < blen ? alen : blen;
+   350→    for (size_t i = 0; i < minLen; i++) {
+   351→        if ((unsigned char)a[i] < (unsigned char)b[i]) return -1;
+   352→        if ((unsigned char)a[i] > (unsigned char)b[i]) return 1;
+   353→    }
+   354→    if (alen < blen) return -1;
+   355→    if (alen > blen) return 1;
+   356→    return 0;
+   357→}
+   358→
+   359→/* Get string representation of value */
+   360→static void getStringRep(ExprParser *p, ExprValue v, const char **s, size_t *len) {
+   361→    if (v.type == EXPR_STRING) {
+   362→        *s = v.v.str.s;
+   363→        *len = v.v.str.len;
+   364→    } else if (v.type == EXPR_INT) {
+   365→        /* Convert int to string in arena */
+   366→        char *buf = p->host->arenaAlloc(p->arena, 32, 1);
+   367→        int64_t n = v.v.i;
+   368→        int neg = 0;
+   369→        if (n < 0) { neg = 1; n = -n; }
+   370→        char *ep = buf + 31;
+   371→        *ep = '\0';
+   372→        do {
+   373→            *--ep = '0' + (n % 10);
+   374→            n /= 10;
+   375→        } while (n > 0);
+   376→        if (neg) *--ep = '-';
+   377→        *s = ep;
+   378→        *len = (buf + 31) - ep;
+   379→    } else {
+   380→        /* Double - simplified conversion */
+   381→        char *buf = p->host->arenaAlloc(p->arena, 64, 1);
+   382→        double d = v.v.d;
+   383→        int neg = 0;
+   384→        if (d < 0) { neg = 1; d = -d; }
+   385→        int64_t intPart = (int64_t)d;
+   386→        double fracPart = d - (double)intPart;
+   387→
+   388→        char *bp = buf;
+   389→        if (neg) *bp++ = '-';
+   390→
+   391→        /* Integer part */
+   392→        char tmp[32];
+   393→        char *tp = tmp + 31;
+   394→        *tp = '\0';
+   395→        int64_t n = intPart;
+   396→        do {
+   397→            *--tp = '0' + (n % 10);
+   398→            n /= 10;
+   399→        } while (n > 0);
+   400→        while (*tp) *bp++ = *tp++;
+   401→
+   402→        /* Fractional part */
+   403→        *bp++ = '.';
+   404→        for (int i = 0; i < 6; i++) {
+   405→            fracPart *= 10;
+   406→            int digit = (int)fracPart;
+   407→            *bp++ = '0' + digit;
+   408→            fracPart -= digit;
+   409→        }
+   410→        *bp = '\0';
+   411→        *s = buf;
+   412→        *len = bp - buf;
+   413→    }
+   414→}
+   415→
+   416→/* ========================================================================
+   417→ * Number Parsing
+   418→ * ======================================================================== */
+   419→
+   420→static ExprValue parseNumber(ExprParser *p) {
+   421→    int neg = 0;
+   422→
+   423→    /* Handle leading sign for unary context */
+   424→    if (*p->pos == '-') {
+   425→        neg = 1;
+   426→        p->pos++;
+   427→    } else if (*p->pos == '+') {
+   428→        p->pos++;
+   429→    }
+   430→
+   431→    /* Skip underscores between digits */
+   432→    #define SKIP_UNDERSCORE() while (p->pos < p->end && *p->pos == '_') p->pos++
+   433→
+   434→    /* Check for radix prefix */
+   435→    if (p->pos + 1 < p->end && p->pos[0] == '0') {
+   436→        if (p->pos[1] == 'x' || p->pos[1] == 'X') {
+   437→            /* Hexadecimal */
+   438→            p->pos += 2;
+   439→            int64_t val = 0;
+   440→            while (p->pos < p->end && (isHexDigit(*p->pos) || *p->pos == '_')) {
+   441→                if (*p->pos != '_') {
+   442→                    val = val * 16 + hexValue(*p->pos);
+   443→                }
+   444→                p->pos++;
+   445→            }
+   446→            return makeInt(neg ? -val : val);
+   447→        } else if (p->pos[1] == 'b' || p->pos[1] == 'B') {
+   448→            /* Binary */
+   449→            p->pos += 2;
+   450→            int64_t val = 0;
+   451→            while (p->pos < p->end && (*p->pos == '0' || *p->pos == '1' || *p->pos == '_')) {
+   452→                if (*p->pos != '_') {
+   453→                    val = val * 2 + (*p->pos - '0');
+   454→                }
+   455→                p->pos++;
+   456→            }
+   457→            return makeInt(neg ? -val : val);
+   458→        } else if (p->pos[1] == 'o' || p->pos[1] == 'O') {
+   459→            /* Octal */
+   460→            p->pos += 2;
+   461→            int64_t val = 0;
+   462→            while (p->pos < p->end && ((*p->pos >= '0' && *p->pos <= '7') || *p->pos == '_')) {
+   463→                if (*p->pos != '_') {
+   464→                    val = val * 8 + (*p->pos - '0');
+   465→                }
+   466→                p->pos++;
+   467→            }
+   468→            return makeInt(neg ? -val : val);
+   469→        }
+   470→    }
+   471→
+   472→    /* Decimal integer or floating point */
+   473→    int64_t intVal = 0;
+   474→    while (p->pos < p->end && (isDigit(*p->pos) || *p->pos == '_')) {
+   475→        if (*p->pos != '_') {
+   476→            intVal = intVal * 10 + (*p->pos - '0');
+   477→        }
+   478→        p->pos++;
+   479→    }
+   480→
+   481→    /* Check for floating point */
+   482→    int isFloat = 0;
+   483→    double floatVal = (double)intVal;
+   484→
+   485→    if (p->pos < p->end && *p->pos == '.') {
+   486→        isFloat = 1;
+   487→        p->pos++;
+   488→        double frac = 0.1;
+   489→        while (p->pos < p->end && (isDigit(*p->pos) || *p->pos == '_')) {
+   490→            if (*p->pos != '_') {
+   491→                floatVal += (*p->pos - '0') * frac;
+   492→                frac *= 0.1;
+   493→            }
+   494→            p->pos++;
+   495→        }
+   496→    }
+   497→
+   498→    /* Check for exponent */
+   499→    if (p->pos < p->end && (*p->pos == 'e' || *p->pos == 'E')) {
+   500→        isFloat = 1;
+   501→        p->pos++;
+   502→        int expNeg = 0;
+   503→        if (p->pos < p->end && *p->pos == '-') {
+   504→            expNeg = 1;
+   505→            p->pos++;
+   506→        } else if (p->pos < p->end && *p->pos == '+') {
+   507→            p->pos++;
+   508→        }
+   509→        int exp = 0;
+   510→        while (p->pos < p->end && (isDigit(*p->pos) || *p->pos == '_')) {
+   511→            if (*p->pos != '_') {
+   512→                exp = exp * 10 + (*p->pos - '0');
+   513→            }
+   514→            p->pos++;
+   515→        }
+   516→        if (expNeg) exp = -exp;
+   517→        /* Apply exponent */
+   518→        double mult = 1.0;
+   519→        int absExp = exp < 0 ? -exp : exp;
+   520→        for (int i = 0; i < absExp; i++) mult *= 10.0;
+   521→        if (exp < 0) floatVal /= mult;
+   522→        else floatVal *= mult;
+   523→    }
+   524→
+   525→    if (isFloat) {
+   526→        return makeDouble(neg ? -floatVal : floatVal);
+   527→    }
+   528→    return makeInt(neg ? -intVal : intVal);
+   529→}
+   530→
+   531→/* ========================================================================
+   532→ * String Parsing
+   533→ * ======================================================================== */
+   534→
+   535→static ExprValue parseString(ExprParser *p, char quote) {
+   536→    p->pos++; /* Skip opening quote */
+   537→    const char *start = p->pos;
+   538→
+   539→    /* Find end, handling escapes */
+   540→    while (p->pos < p->end && *p->pos != quote) {
+   541→        if (*p->pos == '\\' && p->pos + 1 < p->end) {
+   542→            p->pos += 2;
+   543→        } else {
+   544→            p->pos++;
+   545→        }
+   546→    }
+   547→
+   548→    size_t len = p->pos - start;
+   549→    if (p->pos < p->end) p->pos++; /* Skip closing quote */
+   550→
+   551→    return makeString(start, len);
+   552→}
+   553→
+   554→/* ========================================================================
+   555→ * Braced String Parsing
+   556→ * ======================================================================== */
+   557→
+   558→static ExprValue parseBraced(ExprParser *p) {
+   559→    p->pos++; /* Skip opening brace */
+   560→    const char *start = p->pos;
+   561→    int depth = 1;
+   562→
+   563→    while (p->pos < p->end && depth > 0) {
+   564→        if (*p->pos == '{') depth++;
+   565→        else if (*p->pos == '}') depth--;
+   566→        if (depth > 0) p->pos++;
+   567→    }
+   568→
+   569→    size_t len = p->pos - start;
+   570→    if (p->pos < p->end) p->pos++; /* Skip closing brace */
+   571→
+   572→    return makeString(start, len);
+   573→}
+   574→
+   575→/* ========================================================================
+   576→ * Variable and Command Substitution
+   577→ * ======================================================================== */
+   578→
+   579→/* Helper to set variable read error with name */
+   580→static void setVarReadError(ExprParser *p, const char *name, size_t nameLen) {
+   581→    /* Format: can't read "varname": no such variable */
+   582→    char *buf = p->host->arenaAlloc(p->arena, nameLen + 50, 1);
+   583→    char *bp = buf;
+   584→    const char *prefix = "can't read \"";
+   585→    while (*prefix) *bp++ = *prefix++;
+   586→    for (size_t i = 0; i < nameLen; i++) *bp++ = name[i];
+   587→    const char *suffix = "\": no such variable";
+   588→    while (*suffix) *bp++ = *suffix++;
+   589→    *bp = '\0';
+   590→    tclSetError(p->interp, buf, bp - buf);
+   591→}
+   592→
+   593→static ExprValue parseVariable(ExprParser *p) {
+   594→    p->pos++; /* Skip $ */
+   595→    const char *start = p->pos;
+   596→
+   597→    /* Handle ${name} form */
+   598→    if (p->pos < p->end && *p->pos == '{') {
+   599→        p->pos++;
+   600→        start = p->pos;
+   601→        while (p->pos < p->end && *p->pos != '}') p->pos++;
+   602→        size_t nameLen = p->pos - start;
+   603→        if (p->pos < p->end) p->pos++;
+   604→
+   605→        TclObj *val = p->host->varGet(p->interp->hostCtx, start, nameLen);
+   606→        if (!val) {
+   607→            setVarReadError(p, start, nameLen);
+   608→            p->error = 1;
+   609→            return makeInt(0);
+   610→        }
+   611→        size_t len;
+   612→        const char *s = p->host->getStringPtr(val, &len);
+   613→
+   614→        /* Try to parse as number */
+   615→        int64_t ival;
+   616→        if (p->host->asInt(val, &ival) == 0) {
+   617→            return makeInt(ival);
+   618→        }
+   619→        double dval;
+   620→        if (p->host->asDouble(val, &dval) == 0) {
+   621→            return makeDouble(dval);
+   622→        }
+   623→        return makeString(s, len);
+   624→    }
+   625→
+   626→    /* Simple variable name */
+   627→    while (p->pos < p->end && (isAlnum(*p->pos) || *p->pos == ':')) {
+   628→        if (*p->pos == ':' && p->pos + 1 < p->end && p->pos[1] == ':') {
+   629→            p->pos += 2; /* namespace separator */
+   630→        } else if (*p->pos == ':') {
+   631→            break;
+   632→        } else {
+   633→            p->pos++;
+   634→        }
+   635→    }
+   636→
+   637→    size_t nameLen = p->pos - start;
+   638→    TclObj *val = p->host->varGet(p->interp->hostCtx, start, nameLen);
+   639→    if (!val) {
+   640→        setVarReadError(p, start, nameLen);
+   641→        p->error = 1;
+   642→        return makeInt(0);
+   643→    }
+   644→
+   645→    size_t len;
+   646→    const char *s = p->host->getStringPtr(val, &len);
+   647→
+   648→    /* Try to parse as number */
+   649→    int64_t ival;
+   650→    if (p->host->asInt(val, &ival) == 0) {
+   651→        return makeInt(ival);
+   652→    }
+   653→    double dval;
+   654→    if (p->host->asDouble(val, &dval) == 0) {
+   655→        return makeDouble(dval);
+   656→    }
+   657→    return makeString(s, len);
+   658→}
+   659→
+   660→static ExprValue parseCommand(ExprParser *p) {
+   661→    p->pos++; /* Skip [ */
+   662→    const char *start = p->pos;
+   663→    int depth = 1;
+   664→
+   665→    while (p->pos < p->end && depth > 0) {
+   666→        if (*p->pos == '[') depth++;
+   667→        else if (*p->pos == ']') depth--;
+   668→        if (depth > 0) p->pos++;
+   669→    }
+   670→
+   671→    size_t cmdLen = p->pos - start;
+   672→    if (p->pos < p->end) p->pos++; /* Skip ] */
+   673→
+   674→    /* Evaluate the command */
+   675→    TclResult res = tclEvalBracketed(p->interp, start, cmdLen);
+   676→    if (res != TCL_OK) {
+   677→        p->error = 1;
+   678→        return makeInt(0);
+   679→    }
+   680→
+   681→    TclObj *result = tclGetResult(p->interp);
+   682→    size_t len;
+   683→    const char *s = p->host->getStringPtr(result, &len);
+   684→
+   685→    /* Try to parse as number */
+   686→    int64_t ival;
+   687→    if (p->host->asInt(result, &ival) == 0) {
+   688→        return makeInt(ival);
+   689→    }
+   690→    double dval;
+   691→    if (p->host->asDouble(result, &dval) == 0) {
+   692→        return makeDouble(dval);
+   693→    }
+   694→    return makeString(s, len);
+   695→}
+   696→
+   697→/* ========================================================================
+   698→ * Primary Expression
+   699→ * ======================================================================== */
+   700→
+   701→static ExprValue parsePrimary(ExprParser *p) {
+   702→    skipWhitespace(p);
+   703→
+   704→    if (p->pos >= p->end) {
+   705→        setExprError(p, "missing operand");
+   706→        return makeInt(0);
+   707→    }
+   708→
+   709→    char c = *p->pos;
+   710→
+   711→    /* Parenthesized expression */
+   712→    if (c == '(') {
+   713→        p->pos++;
+   714→        ExprValue v = parseExpr(p);
+   715→        skipWhitespace(p);
+   716→        if (p->pos < p->end && *p->pos == ')') {
+   717→            p->pos++;
+   718→        } else if (!p->error) {
+   719→            setExprErrorSimple(p, "unbalanced open paren");
+   720→        }
+   721→        return v;
+   722→    }
+   723→
+   724→    /* Number */
+   725→    if (isDigit(c) || (c == '.' && p->pos + 1 < p->end && isDigit(p->pos[1]))) {
+   726→        return parseNumber(p);
+   727→    }
+   728→
+   729→    /* String literals */
+   730→    if (c == '"') {
+   731→        return parseString(p, '"');
+   732→    }
+   733→
+   734→    /* Braced string */
+   735→    if (c == '{') {
+   736→        return parseBraced(p);
+   737→    }
+   738→
+   739→    /* Variable */
+   740→    if (c == '$') {
+   741→        return parseVariable(p);
+   742→    }
+   743→
+   744→    /* Command substitution */
+   745→    if (c == '[') {
+   746→        return parseCommand(p);
+   747→    }
+   748→
+   749→    /* Boolean/special literals */
+   750→    if (matchKeyword(p, "true", 4)) {
+   751→        p->pos += 4;
+   752→        return makeInt(1);
+   753→    }
+   754→    if (matchKeyword(p, "false", 5)) {
+   755→        p->pos += 5;
+   756→        return makeInt(0);
+   757→    }
+   758→    if (matchKeyword(p, "yes", 3)) {
+   759→        p->pos += 3;
+   760→        return makeInt(1);
+   761→    }
+   762→    if (matchKeyword(p, "no", 2)) {
+   763→        p->pos += 2;
+   764→        return makeInt(0);
+   765→    }
+   766→
+   767→    /* Inf and NaN */
+   768→    if (matchKeyword(p, "Inf", 3) || matchKeyword(p, "inf", 3) || matchKeyword(p, "INF", 3)) {
+   769→        p->pos += 3;
+   770→        return makeDouble(1.0 / 0.0); /* Infinity */
+   771→    }
+   772→    if (matchKeyword(p, "NaN", 3) || matchKeyword(p, "nan", 3) || matchKeyword(p, "NAN", 3)) {
+   773→        p->pos += 3;
+   774→        return makeDouble(0.0 / 0.0); /* NaN */
+   775→    }
+   776→
+   777→    /* Function call - identifier followed by ( */
+   778→    if (isAlpha(c)) {
+   779→        const char *start = p->pos;
+   780→        while (p->pos < p->end && (isAlnum(*p->pos) || *p->pos == ':')) {
+   781→            p->pos++;
+   782→        }
+   783→        size_t nameLen = p->pos - start;
+   784→        skipWhitespace(p);
+   785→
+   786→        if (p->pos < p->end && *p->pos == '(') {
+   787→            /* It's a function call - for now, report as unsupported */
+   788→            tclSetError(p->interp, "math functions not yet supported", -1);
+   789→            p->error = 1;
+   790→            return makeInt(0);
+   791→        }
+   792→
+   793→        /* Not a function - treat as bareword string */
+   794→        return makeString(start, nameLen);
+   795→    }
+   796→
+   797→    /* Check if it's a binary operator - if so, report missing operand */
+   798→    if (c == '*' || c == '/' || c == '%' || c == '&' || c == '|' ||
+   799→        c == '^' || c == '?' || c == ':' || c == ')') {
+   800→        setExprError(p, "missing operand");
+   801→        return makeInt(0);
+   802→    }
+   803→
+   804→    /* Unknown character - report as invalid */
+   805→    setExprErrorChar(p, c);
+   806→    return makeInt(0);
+   807→}
+   808→
+   809→/* ========================================================================
+   810→ * Unary Operators
+   811→ * ======================================================================== */
+   812→
+   813→static ExprValue parseUnary(ExprParser *p) {
+   814→    skipWhitespace(p);
+   815→
+   816→    if (p->pos >= p->end) {
+   817→        return parsePrimary(p);
+   818→    }
+   819→
+   820→    char c = *p->pos;
+   821→
+   822→    /* Unary minus */
+   823→    if (c == '-') {
+   824→        p->pos++;
+   825→        ExprValue v = parseUnary(p);
+   826→        if (p->error) return v;
+   827→        if (v.type == EXPR_INT) return makeInt(-v.v.i);
+   828→        if (v.type == EXPR_DOUBLE) return makeDouble(-v.v.d);
+   829→        tclSetError(p->interp, "can't use non-numeric value as operand of \"-\"", -1);
+   830→        p->error = 1;
+   831→        return makeInt(0);
+   832→    }
+   833→
+   834→    /* Unary plus */
+   835→    if (c == '+') {
+   836→        p->pos++;
+   837→        ExprValue v = parseUnary(p);
+   838→        if (p->error) return v;
+   839→        if (v.type == EXPR_INT || v.type == EXPR_DOUBLE) return v;
+   840→        tclSetError(p->interp, "can't use non-numeric value as operand of \"+\"", -1);
+   841→        p->error = 1;
+   842→        return makeInt(0);
+   843→    }
+   844→
+   845→    /* Logical NOT */
+   846→    if (c == '!') {
+   847→        p->pos++;
+   848→        ExprValue v = parseUnary(p);
+   849→        if (p->error) return v;
+   850→        return makeInt(!toBool(v));
+   851→    }
+   852→
+   853→    /* Bitwise NOT */
+   854→    if (c == '~') {
+   855→        p->pos++;
+   856→        ExprValue v = parseUnary(p);
+   857→        if (p->error) return v;
+   858→        if (v.type != EXPR_INT) {
+   859→            setExprErrorFloat(p, v, "~", 0);
+   860→            return makeInt(0);
+   861→        }
+   862→        return makeInt(~v.v.i);
+   863→    }
+   864→
+   865→    return parsePrimary(p);
+   866→}
+   867→
+   868→/* ========================================================================
+   869→ * Exponentiation (right-to-left associative)
+   870→ * ======================================================================== */
+   871→
+   872→static ExprValue parseExponentiation(ExprParser *p) {
+   873→    ExprValue left = parseUnary(p);
+   874→    if (p->error) return left;
+   875→
+   876→    skipWhitespace(p);
+   877→
+   878→    if (p->pos + 1 < p->end && p->pos[0] == '*' && p->pos[1] == '*') {
+   879→        p->pos += 2;
+   880→        ExprValue right = parseExponentiation(p); /* Right-to-left */
+   881→        if (p->error) return left;
+   882→
+   883→        double base = toDouble(left);
+   884→        double exp = toDouble(right);
+   885→        double result = 1.0;
+   886→
+   887→        /* Simple power implementation */
+   888→        if (exp == 0) {
+   889→            result = 1.0;
+   890→        } else if (exp > 0 && exp == (int64_t)exp) {
+   891→            int64_t e = (int64_t)exp;
+   892→            result = 1.0;
+   893→            double b = base;
+   894→            while (e > 0) {
+   895→                if (e & 1) result *= b;
+   896→                b *= b;
+   897→                e >>= 1;
+   898→            }
+   899→        } else {
+   900→            /* Use exp and log for non-integer exponents */
+   901→            /* Simplified: just do repeated multiplication for small positive ints */
+   902→            tclSetError(p->interp, "non-integer exponent not yet supported", -1);
+   903→            p->error = 1;
+   904→            return makeInt(0);
+   905→        }
+   906→
+   907→        /* Return int if both operands were int and result fits */
+   908→        if (left.type == EXPR_INT && right.type == EXPR_INT &&
+   909→            result == (double)(int64_t)result) {
+   910→            return makeInt((int64_t)result);
+   911→        }
+   912→        return makeDouble(result);
+   913→    }
+   914→
+   915→    return left;
+   916→}
+   917→
+   918→/* ========================================================================
+   919→ * Multiplicative
+   920→ * ======================================================================== */
+   921→
+   922→static ExprValue parseMultiplicative(ExprParser *p) {
+   923→    ExprValue left = parseExponentiation(p);
+   924→    if (p->error) return left;
+   925→
+   926→    while (!p->error) {
+   927→        skipWhitespace(p);
+   928→        if (p->pos >= p->end) break;
+   929→
+   930→        char c = *p->pos;
+   931→
+   932→        /* Make sure it's not ** */
+   933→        if (c == '*' && p->pos + 1 < p->end && p->pos[1] == '*') break;
+   934→
+   935→        if (c == '*') {
+   936→            p->pos++;
+   937→            ExprValue right = parseExponentiation(p);
+   938→            if (p->error) return left;
+   939→
+   940→            if (left.type == EXPR_INT && right.type == EXPR_INT) {
+   941→                left = makeInt(left.v.i * right.v.i);
+   942→            } else {
+   943→                left = makeDouble(toDouble(left) * toDouble(right));
+   944→            }
+   945→        } else if (c == '/') {
+   946→            p->pos++;
+   947→            ExprValue right = parseExponentiation(p);
+   948→            if (p->error) return left;
+   949→
+   950→            if (left.type == EXPR_INT && right.type == EXPR_INT) {
+   951→                if (right.v.i == 0) {
+   952→                    tclSetError(p->interp, "divide by zero", -1);
+   953→                    p->error = 1;
+   954→                    return makeInt(0);
+   955→                }
+   956→                /* Tcl uses floor division (toward negative infinity) */
+   957→                int64_t a = left.v.i;
+   958→                int64_t b = right.v.i;
+   959→                int64_t q = a / b;
+   960→                int64_t r = a % b;
+   961→                /* Adjust for floor division: if remainder != 0 and signs differ, subtract 1 */
+   962→                if (r != 0 && ((a < 0) != (b < 0))) {
+   963→                    q -= 1;
+   964→                }
+   965→                left = makeInt(q);
+   966→            } else {
+   967→                double d = toDouble(right);
+   968→                if (d == 0.0) {
+   969→                    /* Float division by zero returns Inf */
+   970→                    left = makeDouble(toDouble(left) / d);
+   971→                } else {
+   972→                    left = makeDouble(toDouble(left) / d);
+   973→                }
+   974→            }
+   975→        } else if (c == '%') {
+   976→            p->pos++;
+   977→            ExprValue right = parseExponentiation(p);
+   978→            if (p->error) return left;
+   979→
+   980→            if (left.type != EXPR_INT || right.type != EXPR_INT) {
+   981→                ExprValue badVal = (left.type != EXPR_INT) ? left : right;
+   982→                setExprErrorFloat(p, badVal, "%", left.type != EXPR_INT);
+   983→                return makeInt(0);
+   984→            }
+   985→            if (right.v.i == 0) {
+   986→                tclSetError(p->interp, "divide by zero", -1);
+   987→                p->error = 1;
+   988→                return makeInt(0);
+   989→            }
+   990→            /* Tcl remainder has same sign as divisor */
+   991→            int64_t rem = left.v.i % right.v.i;
+   992→            if (rem != 0 && (rem < 0) != (right.v.i < 0)) {
+   993→                rem += right.v.i;
+   994→            }
+   995→            left = makeInt(rem);
+   996→        } else {
+   997→            break;
+   998→        }
+   999→    }
+  1000→
+  1001→    return left;
+  1002→}
+  1003→
+  1004→/* ========================================================================
+  1005→ * Additive
+  1006→ * ======================================================================== */
+  1007→
+  1008→static ExprValue parseAdditive(ExprParser *p) {
+  1009→    ExprValue left = parseMultiplicative(p);
+  1010→    if (p->error) return left;
+  1011→
+  1012→    while (!p->error) {
+  1013→        skipWhitespace(p);
+  1014→        if (p->pos >= p->end) break;
+  1015→
+  1016→        char c = *p->pos;
+  1017→
+  1018→        if (c == '+') {
+  1019→            p->pos++;
+  1020→            ExprValue right = parseMultiplicative(p);
+  1021→            if (p->error) return left;
+  1022→
+  1023→            /* Check for string operands */
+  1024→            if (left.type == EXPR_STRING) {
+  1025→                setExprErrorString(p, left, "+", 1);
+  1026→                return makeInt(0);
+  1027→            }
+  1028→            if (right.type == EXPR_STRING) {
+  1029→                setExprErrorString(p, right, "+", 0);
+  1030→                return makeInt(0);
+  1031→            }
+  1032→
+  1033→            if (left.type == EXPR_INT && right.type == EXPR_INT) {
+  1034→                left = makeInt(left.v.i + right.v.i);
+  1035→            } else {
+  1036→                left = makeDouble(toDouble(left) + toDouble(right));
+  1037→            }
+  1038→        } else if (c == '-') {
+  1039→            p->pos++;
+  1040→            ExprValue right = parseMultiplicative(p);
+  1041→            if (p->error) return left;
+  1042→
+  1043→            /* Check for string operands */
+  1044→            if (left.type == EXPR_STRING) {
+  1045→                setExprErrorString(p, left, "-", 1);
+  1046→                return makeInt(0);
+  1047→            }
+  1048→            if (right.type == EXPR_STRING) {
+  1049→                setExprErrorString(p, right, "-", 0);
+  1050→                return makeInt(0);
+  1051→            }
+  1052→
+  1053→            if (left.type == EXPR_INT && right.type == EXPR_INT) {
+  1054→                left = makeInt(left.v.i - right.v.i);
+  1055→            } else {
+  1056→                left = makeDouble(toDouble(left) - toDouble(right));
+  1057→            }
+  1058→        } else {
+  1059→            break;
+  1060→        }
+  1061→    }
+  1062→
+  1063→    return left;
+  1064→}
+  1065→
+  1066→/* ========================================================================
+  1067→ * Shift
+  1068→ * ======================================================================== */
+  1069→
+  1070→static ExprValue parseShift(ExprParser *p) {
+  1071→    ExprValue left = parseAdditive(p);
+  1072→    if (p->error) return left;
+  1073→
+  1074→    while (!p->error) {
+  1075→        skipWhitespace(p);
+  1076→        if (p->pos + 1 >= p->end) break;
+  1077→
+  1078→        if (p->pos[0] == '<' && p->pos[1] == '<') {
+  1079→            p->pos += 2;
+  1080→            ExprValue right = parseAdditive(p);
+  1081→            if (p->error) return left;
+  1082→
+  1083→            if (left.type != EXPR_INT || right.type != EXPR_INT) {
+  1084→                ExprValue badVal = (left.type != EXPR_INT) ? left : right;
+  1085→                setExprErrorFloat(p, badVal, "<<", left.type != EXPR_INT);
+  1086→                return makeInt(0);
+  1087→            }
+  1088→            left = makeInt(left.v.i << right.v.i);
+  1089→        } else if (p->pos[0] == '>' && p->pos[1] == '>') {
+  1090→            p->pos += 2;
+  1091→            ExprValue right = parseAdditive(p);
+  1092→            if (p->error) return left;
+  1093→
+  1094→            if (left.type != EXPR_INT || right.type != EXPR_INT) {
+  1095→                ExprValue badVal = (left.type != EXPR_INT) ? left : right;
+  1096→                setExprErrorFloat(p, badVal, ">>", left.type != EXPR_INT);
+  1097→                return makeInt(0);
+  1098→            }
+  1099→            /* Arithmetic right shift (preserves sign) */
+  1100→            left = makeInt(left.v.i >> right.v.i);
+  1101→        } else {
+  1102→            break;
+  1103→        }
+  1104→    }
+  1105→
+  1106→    return left;
+  1107→}
+  1108→
+  1109→/* ========================================================================
+  1110→ * Relational
+  1111→ * ======================================================================== */
+  1112→
+  1113→static ExprValue parseRelational(ExprParser *p) {
+  1114→    ExprValue left = parseShift(p);
+  1115→    if (p->error) return left;
+  1116→
+  1117→    while (!p->error) {
+  1118→        skipWhitespace(p);
+  1119→        if (p->pos >= p->end) break;
+  1120→
+  1121→        /* Check for two-char operators first */
+  1122→        if (p->pos + 1 < p->end) {
+  1123→            if (p->pos[0] == '<' && p->pos[1] == '=') {
+  1124→                p->pos += 2;
+  1125→                ExprValue right = parseShift(p);
+  1126→                if (p->error) return left;
+  1127→
+  1128→                if (left.type == EXPR_STRING || right.type == EXPR_STRING) {
+  1129→                    const char *ls, *rs;
+  1130→                    size_t ll, rl;
+  1131→                    getStringRep(p, left, &ls, &ll);
+  1132→                    getStringRep(p, right, &rs, &rl);
+  1133→                    left = makeInt(strncmpLen(ls, ll, rs, rl) <= 0);
+  1134→                } else {
+  1135→                    left = makeInt(toDouble(left) <= toDouble(right));
+  1136→                }
+  1137→                continue;
+  1138→            }
+  1139→            if (p->pos[0] == '>' && p->pos[1] == '=') {
+  1140→                p->pos += 2;
+  1141→                ExprValue right = parseShift(p);
+  1142→                if (p->error) return left;
+  1143→
+  1144→                if (left.type == EXPR_STRING || right.type == EXPR_STRING) {
+  1145→                    const char *ls, *rs;
+  1146→                    size_t ll, rl;
+  1147→                    getStringRep(p, left, &ls, &ll);
+  1148→                    getStringRep(p, right, &rs, &rl);
+  1149→                    left = makeInt(strncmpLen(ls, ll, rs, rl) >= 0);
+  1150→                } else {
+  1151→                    left = makeInt(toDouble(left) >= toDouble(right));
+  1152→                }
+  1153→                continue;
+  1154→            }
+  1155→        }
+  1156→
+  1157→        /* String comparison operators */
+  1158→        if (matchKeyword(p, "lt", 2)) {
+  1159→            p->pos += 2;
+  1160→            ExprValue right = parseShift(p);
+  1161→            if (p->error) return left;
+  1162→            const char *ls, *rs;
+  1163→            size_t ll, rl;
+  1164→            getStringRep(p, left, &ls, &ll);
+  1165→            getStringRep(p, right, &rs, &rl);
+  1166→            left = makeInt(strncmpLen(ls, ll, rs, rl) < 0);
+  1167→            continue;
+  1168→        }
+  1169→        if (matchKeyword(p, "gt", 2)) {
+  1170→            p->pos += 2;
+  1171→            ExprValue right = parseShift(p);
+  1172→            if (p->error) return left;
+  1173→            const char *ls, *rs;
+  1174→            size_t ll, rl;
+  1175→            getStringRep(p, left, &ls, &ll);
+  1176→            getStringRep(p, right, &rs, &rl);
+  1177→            left = makeInt(strncmpLen(ls, ll, rs, rl) > 0);
+  1178→            continue;
+  1179→        }
+  1180→        if (matchKeyword(p, "le", 2)) {
+  1181→            p->pos += 2;
+  1182→            ExprValue right = parseShift(p);
+  1183→            if (p->error) return left;
+  1184→            const char *ls, *rs;
+  1185→            size_t ll, rl;
+  1186→            getStringRep(p, left, &ls, &ll);
+  1187→            getStringRep(p, right, &rs, &rl);
+  1188→            left = makeInt(strncmpLen(ls, ll, rs, rl) <= 0);
+  1189→            continue;
+  1190→        }
+  1191→        if (matchKeyword(p, "ge", 2)) {
+  1192→            p->pos += 2;
+  1193→            ExprValue right = parseShift(p);
+  1194→            if (p->error) return left;
+  1195→            const char *ls, *rs;
+  1196→            size_t ll, rl;
+  1197→            getStringRep(p, left, &ls, &ll);
+  1198→            getStringRep(p, right, &rs, &rl);
+  1199→            left = makeInt(strncmpLen(ls, ll, rs, rl) >= 0);
+  1200→            continue;
+  1201→        }
+  1202→
+  1203→        /* in / ni operators */
+  1204→        if (matchKeyword(p, "in", 2)) {
+  1205→            p->pos += 2;
+  1206→            ExprValue right = parseShift(p);
+  1207→            if (p->error) return left;
+  1208→
+  1209→            /* Get needle string */
+  1210→            const char *needle;
+  1211→            size_t needleLen;
+  1212→            getStringRep(p, left, &needle, &needleLen);
+  1213→
+  1214→            /* Get list string */
+  1215→            const char *list;
+  1216→            size_t listLen;
+  1217→            getStringRep(p, right, &list, &listLen);
+  1218→
+  1219→            /* Parse list and search */
+  1220→            TclObj *listObj = p->host->newString(list, listLen);
+  1221→            size_t count = p->host->listLength(listObj);
+  1222→            int found = 0;
+  1223→            for (size_t i = 0; i < count; i++) {
+  1224→                TclObj *elem = p->host->listIndex(listObj, i);
+  1225→                size_t elemLen;
+  1226→                const char *elemStr = p->host->getStringPtr(elem, &elemLen);
+  1227→                if (elemLen == needleLen && tclStrncmp(elemStr, needle, needleLen) == 0) {
+  1228→                    found = 1;
+  1229→                    break;
+  1230→                }
+  1231→            }
+  1232→            left = makeInt(found);
+  1233→            continue;
+  1234→        }
+  1235→        if (matchKeyword(p, "ni", 2)) {
+  1236→            p->pos += 2;
+  1237→            ExprValue right = parseShift(p);
+  1238→            if (p->error) return left;
+  1239→
+  1240→            const char *needle;
+  1241→            size_t needleLen;
+  1242→            getStringRep(p, left, &needle, &needleLen);
+  1243→
+  1244→            const char *list;
+  1245→            size_t listLen;
+  1246→            getStringRep(p, right, &list, &listLen);
+  1247→
+  1248→            TclObj *listObj = p->host->newString(list, listLen);
+  1249→            size_t count = p->host->listLength(listObj);
+  1250→            int found = 0;
+  1251→            for (size_t i = 0; i < count; i++) {
+  1252→                TclObj *elem = p->host->listIndex(listObj, i);
+  1253→                size_t elemLen;
+  1254→                const char *elemStr = p->host->getStringPtr(elem, &elemLen);
+  1255→                if (elemLen == needleLen && tclStrncmp(elemStr, needle, needleLen) == 0) {
+  1256→                    found = 1;
+  1257→                    break;
+  1258→                }
+  1259→            }
+  1260→            left = makeInt(!found);
+  1261→            continue;
+  1262→        }
+  1263→
+  1264→        /* Single char < > */
+  1265→        if (*p->pos == '<' && (p->pos + 1 >= p->end || p->pos[1] != '<')) {
+  1266→            p->pos++;
+  1267→            ExprValue right = parseShift(p);
+  1268→            if (p->error) return left;
+  1269→
+  1270→            if (left.type == EXPR_STRING || right.type == EXPR_STRING) {
+  1271→                const char *ls, *rs;
+  1272→                size_t ll, rl;
+  1273→                getStringRep(p, left, &ls, &ll);
+  1274→                getStringRep(p, right, &rs, &rl);
+  1275→                left = makeInt(strncmpLen(ls, ll, rs, rl) < 0);
+  1276→            } else {
+  1277→                left = makeInt(toDouble(left) < toDouble(right));
+  1278→            }
+  1279→            continue;
+  1280→        }
+  1281→        if (*p->pos == '>' && (p->pos + 1 >= p->end || p->pos[1] != '>')) {
+  1282→            p->pos++;
+  1283→            ExprValue right = parseShift(p);
+  1284→            if (p->error) return left;
+  1285→
+  1286→            if (left.type == EXPR_STRING || right.type == EXPR_STRING) {
+  1287→                const char *ls, *rs;
+  1288→                size_t ll, rl;
+  1289→                getStringRep(p, left, &ls, &ll);
+  1290→                getStringRep(p, right, &rs, &rl);
+  1291→                left = makeInt(strncmpLen(ls, ll, rs, rl) > 0);
+  1292→            } else {
+  1293→                left = makeInt(toDouble(left) > toDouble(right));
+  1294→            }
+  1295→            continue;
+  1296→        }
+  1297→
+  1298→        break;
+  1299→    }
+  1300→
+  1301→    return left;
+  1302→}
+  1303→
+  1304→/* ========================================================================
+  1305→ * Equality
+  1306→ * ======================================================================== */
+  1307→
+  1308→static ExprValue parseEquality(ExprParser *p) {
+  1309→    ExprValue left = parseRelational(p);
+  1310→    if (p->error) return left;
+  1311→
+  1312→    while (!p->error) {
+  1313→        skipWhitespace(p);
+  1314→        if (p->pos >= p->end) break;
+  1315→
+  1316→        if (p->pos + 1 < p->end && p->pos[0] == '=' && p->pos[1] == '=') {
+  1317→            p->pos += 2;
+  1318→            ExprValue right = parseRelational(p);
+  1319→            if (p->error) return left;
+  1320→
+  1321→            if (left.type == EXPR_STRING || right.type == EXPR_STRING) {
+  1322→                const char *ls, *rs;
+  1323→                size_t ll, rl;
+  1324→                getStringRep(p, left, &ls, &ll);
+  1325→                getStringRep(p, right, &rs, &rl);
+  1326→                left = makeInt(strncmpLen(ls, ll, rs, rl) == 0);
+  1327→            } else if (left.type == EXPR_INT && right.type == EXPR_INT) {
+  1328→                left = makeInt(left.v.i == right.v.i);
+  1329→            } else {
+  1330→                left = makeInt(toDouble(left) == toDouble(right));
+  1331→            }
+  1332→            continue;
+  1333→        }
+  1334→        if (p->pos + 1 < p->end && p->pos[0] == '!' && p->pos[1] == '=') {
+  1335→            p->pos += 2;
+  1336→            ExprValue right = parseRelational(p);
+  1337→            if (p->error) return left;
+  1338→
+  1339→            if (left.type == EXPR_STRING || right.type == EXPR_STRING) {
+  1340→                const char *ls, *rs;
+  1341→                size_t ll, rl;
+  1342→                getStringRep(p, left, &ls, &ll);
+  1343→                getStringRep(p, right, &rs, &rl);
+  1344→                left = makeInt(strncmpLen(ls, ll, rs, rl) != 0);
+  1345→            } else if (left.type == EXPR_INT && right.type == EXPR_INT) {
+  1346→                left = makeInt(left.v.i != right.v.i);
+  1347→            } else {
+  1348→                left = makeInt(toDouble(left) != toDouble(right));
+  1349→            }
+  1350→            continue;
+  1351→        }
+  1352→
+  1353→        /* String equality operators */
+  1354→        if (matchKeyword(p, "eq", 2)) {
+  1355→            p->pos += 2;
+  1356→            ExprValue right = parseRelational(p);
+  1357→            if (p->error) return left;
+  1358→            const char *ls, *rs;
+  1359→            size_t ll, rl;
+  1360→            getStringRep(p, left, &ls, &ll);
+  1361→            getStringRep(p, right, &rs, &rl);
+  1362→            left = makeInt(strncmpLen(ls, ll, rs, rl) == 0);
+  1363→            continue;
+  1364→        }
+  1365→        if (matchKeyword(p, "ne", 2)) {
+  1366→            p->pos += 2;
+  1367→            ExprValue right = parseRelational(p);
+  1368→            if (p->error) return left;
+  1369→            const char *ls, *rs;
+  1370→            size_t ll, rl;
+  1371→            getStringRep(p, left, &ls, &ll);
+  1372→            getStringRep(p, right, &rs, &rl);
+  1373→            left = makeInt(strncmpLen(ls, ll, rs, rl) != 0);
+  1374→            continue;
+  1375→        }
+  1376→
+  1377→        break;
+  1378→    }
+  1379→
+  1380→    return left;
+  1381→}
+  1382→
+  1383→/* ========================================================================
+  1384→ * Bitwise AND
+  1385→ * ======================================================================== */
+  1386→
+  1387→static ExprValue parseBitwiseAnd(ExprParser *p) {
+  1388→    ExprValue left = parseEquality(p);
+  1389→    if (p->error) return left;
+  1390→
+  1391→    while (!p->error) {
+  1392→        skipWhitespace(p);
+  1393→        if (p->pos >= p->end) break;
+  1394→
+  1395→        /* Make sure it's not && */
+  1396→        if (*p->pos == '&' && (p->pos + 1 >= p->end || p->pos[1] != '&')) {
+  1397→            p->pos++;
+  1398→            ExprValue right = parseEquality(p);
+  1399→            if (p->error) return left;
+  1400→
+  1401→            if (left.type != EXPR_INT || right.type != EXPR_INT) {
+  1402→                ExprValue badVal = (left.type != EXPR_INT) ? left : right;
+  1403→                setExprErrorFloat(p, badVal, "&", left.type != EXPR_INT);
+  1404→                return makeInt(0);
+  1405→            }
+  1406→            left = makeInt(left.v.i & right.v.i);
+  1407→        } else {
+  1408→            break;
+  1409→        }
+  1410→    }
+  1411→
+  1412→    return left;
+  1413→}
+  1414→
+  1415→/* ========================================================================
+  1416→ * Bitwise XOR
+  1417→ * ======================================================================== */
+  1418→
+  1419→static ExprValue parseBitwiseXor(ExprParser *p) {
+  1420→    ExprValue left = parseBitwiseAnd(p);
+  1421→    if (p->error) return left;
+  1422→
+  1423→    while (!p->error) {
+  1424→        skipWhitespace(p);
+  1425→        if (p->pos >= p->end) break;
+  1426→
+  1427→        if (*p->pos == '^') {
+  1428→            p->pos++;
+  1429→            ExprValue right = parseBitwiseAnd(p);
+  1430→            if (p->error) return left;
+  1431→
+  1432→            if (left.type != EXPR_INT || right.type != EXPR_INT) {
+  1433→                ExprValue badVal = (left.type != EXPR_INT) ? left : right;
+  1434→                setExprErrorFloat(p, badVal, "^", left.type != EXPR_INT);
+  1435→                return makeInt(0);
+  1436→            }
+  1437→            left = makeInt(left.v.i ^ right.v.i);
+  1438→        } else {
+  1439→            break;
+  1440→        }
+  1441→    }
+  1442→
+  1443→    return left;
+  1444→}
+  1445→
+  1446→/* ========================================================================
+  1447→ * Bitwise OR
+  1448→ * ======================================================================== */
+  1449→
+  1450→static ExprValue parseBitwiseOr(ExprParser *p) {
+  1451→    ExprValue left = parseBitwiseXor(p);
+  1452→    if (p->error) return left;
+  1453→
+  1454→    while (!p->error) {
+  1455→        skipWhitespace(p);
+  1456→        if (p->pos >= p->end) break;
+  1457→
+  1458→        /* Make sure it's not || */
+  1459→        if (*p->pos == '|' && (p->pos + 1 >= p->end || p->pos[1] != '|')) {
+  1460→            p->pos++;
+  1461→            ExprValue right = parseBitwiseXor(p);
+  1462→            if (p->error) return left;
+  1463→
+  1464→            if (left.type != EXPR_INT || right.type != EXPR_INT) {
+  1465→                ExprValue badVal = (left.type != EXPR_INT) ? left : right;
+  1466→                setExprErrorFloat(p, badVal, "|", left.type != EXPR_INT);
+  1467→                return makeInt(0);
+  1468→            }
+  1469→            left = makeInt(left.v.i | right.v.i);
+  1470→        } else {
+  1471→            break;
+  1472→        }
+  1473→    }
+  1474→
+  1475→    return left;
+  1476→}
+  1477→
+  1478→/* ========================================================================
+  1479→ * Logical AND
+  1480→ * ======================================================================== */
+  1481→
+  1482→static ExprValue parseLogicalAnd(ExprParser *p) {
+  1483→    ExprValue left = parseBitwiseOr(p);
+  1484→    if (p->error) return left;
+  1485→
+  1486→    while (!p->error) {
+  1487→        skipWhitespace(p);
+  1488→        if (p->pos + 1 >= p->end) break;
+  1489→
+  1490→        if (p->pos[0] == '&' && p->pos[1] == '&') {
+  1491→            p->pos += 2;
+  1492→
+  1493→            /* Short-circuit: if left is false, don't evaluate right */
+  1494→            if (!toBool(left)) {
+  1495→                /* Still need to parse right side for syntax, but skip evaluation */
+  1496→                ExprValue right = parseBitwiseOr(p);
+  1497→                (void)right;
+  1498→                left = makeInt(0);
+  1499→            } else {
+  1500→                ExprValue right = parseBitwiseOr(p);
+  1501→                if (p->error) return left;
+  1502→                left = makeInt(toBool(right));
+  1503→            }
+  1504→        } else {
+  1505→            break;
+  1506→        }
+  1507→    }
+  1508→
+  1509→    return left;
+  1510→}
+  1511→
+  1512→/* ========================================================================
+  1513→ * Logical OR
+  1514→ * ======================================================================== */
+  1515→
+  1516→static ExprValue parseLogicalOr(ExprParser *p) {
+  1517→    ExprValue left = parseLogicalAnd(p);
+  1518→    if (p->error) return left;
+  1519→
+  1520→    while (!p->error) {
+  1521→        skipWhitespace(p);
+  1522→        if (p->pos + 1 >= p->end) break;
+  1523→
+  1524→        if (p->pos[0] == '|' && p->pos[1] == '|') {
+  1525→            p->pos += 2;
+  1526→
+  1527→            /* Short-circuit: if left is true, don't evaluate right */
+  1528→            if (toBool(left)) {
+  1529→                ExprValue right = parseLogicalAnd(p);
+  1530→                (void)right;
+  1531→                left = makeInt(1);
+  1532→            } else {
+  1533→                ExprValue right = parseLogicalAnd(p);
+  1534→                if (p->error) return left;
+  1535→                left = makeInt(toBool(right));
+  1536→            }
+  1537→        } else {
+  1538→            break;
+  1539→        }
+  1540→    }
+  1541→
+  1542→    return left;
+  1543→}
+  1544→
+  1545→/* ========================================================================
+  1546→ * Ternary (right-to-left associative)
+  1547→ * ======================================================================== */
+  1548→
+  1549→static ExprValue parseTernary(ExprParser *p) {
+  1550→    ExprValue cond = parseLogicalOr(p);
+  1551→    if (p->error) return cond;
+  1552→
+  1553→    skipWhitespace(p);
+  1554→
+  1555→    if (p->pos < p->end && *p->pos == '?') {
+  1556→        p->pos++;
+  1557→        ExprValue trueVal = parseTernary(p); /* Right-to-left for nesting */
+  1558→        if (p->error) return cond;
+  1559→
+  1560→        skipWhitespace(p);
+  1561→        if (p->pos >= p->end || *p->pos != ':') {
+  1562→            setExprError(p, "missing operator \":\"");
+  1563→            return cond;
+  1564→        }
+  1565→        p->pos++;
+  1566→
+  1567→        ExprValue falseVal = parseTernary(p);
+  1568→        if (p->error) return cond;
+  1569→
+  1570→        return toBool(cond) ? trueVal : falseVal;
+  1571→    }
+  1572→
+  1573→    return cond;
+  1574→}
+  1575→
+  1576→/* ========================================================================
+  1577→ * Top-level Expression
+  1578→ * ======================================================================== */
+  1579→
+  1580→static ExprValue parseExpr(ExprParser *p) {
+  1581→    return parseTernary(p);
+  1582→}
+  1583→
+  1584→/* ========================================================================
+  1585→ * expr Command Entry Point
+  1586→ * ======================================================================== */
+  1587→
+  1588→TclResult tclCmdExpr(TclInterp *interp, int objc, TclObj **objv) {
+  1589→    const TclHost *host = interp->host;
+  1590→
+  1591→    if (objc < 2) {
+  1592→        tclSetError(interp, "wrong # args: should be \"expr arg ?arg ...?\"", -1);
+  1593→        return TCL_ERROR;
+  1594→    }
+  1595→
+  1596→    /* Concatenate all args with spaces */
+  1597→    void *arena = host->arenaPush(interp->hostCtx);
+  1598→    size_t totalLen = 0;
+  1599→    for (int i = 1; i < objc; i++) {
+  1600→        size_t len;
+  1601→        host->getStringPtr(objv[i], &len);
+  1602→        totalLen += len + 1;
+  1603→    }
+  1604→
+  1605→    char *exprStr = host->arenaAlloc(arena, totalLen + 1, 1);
+  1606→    char *p = exprStr;
+  1607→    for (int i = 1; i < objc; i++) {
+  1608→        size_t len;
+  1609→        const char *s = host->getStringPtr(objv[i], &len);
+  1610→        if (i > 1) *p++ = ' ';
+  1611→        for (size_t j = 0; j < len; j++) {
+  1612→            *p++ = s[j];
+  1613→        }
+  1614→    }
+  1615→    *p = '\0';
+  1616→    size_t exprLen = p - exprStr;
+  1617→
+  1618→    /* Perform substitution on the expression */
+  1619→    TclObj *substResult = tclSubstString(interp, exprStr, exprLen, TCL_SUBST_ALL);
+  1620→    if (!substResult) {
+  1621→        host->arenaPop(interp->hostCtx, arena);
+  1622→        return TCL_ERROR;
+  1623→    }
+  1624→
+  1625→    size_t substLen;
+  1626→    const char *substStr = host->getStringPtr(substResult, &substLen);
+  1627→
+  1628→    /* Initialize parser */
+  1629→    ExprParser parser;
+  1630→    parser.interp = interp;
+  1631→    parser.host = host;
+  1632→    parser.pos = substStr;
+  1633→    parser.end = substStr + substLen;
+  1634→    parser.exprStart = substStr;
+  1635→    parser.exprLen = substLen;
+  1636→    parser.arena = arena;
+  1637→    parser.error = 0;
+  1638→
+  1639→    /* Check for empty expression (only whitespace) */
+  1640→    skipWhitespace(&parser);
+  1641→    if (parser.pos >= parser.end) {
+  1642→        /* Empty expression */
+  1643→        setExprErrorSimple(&parser, "empty expression");
+  1644→        host->arenaPop(interp->hostCtx, arena);
+  1645→        return TCL_ERROR;
+  1646→    }
+  1647→    parser.pos = substStr; /* Reset position for parsing */
+  1648→
+  1649→    /* Parse and evaluate */
+  1650→    ExprValue result = parseExpr(&parser);
+  1651→
+  1652→    /* Check for trailing garbage */
+  1653→    if (!parser.error) {
+  1654→        skipWhitespace(&parser);
+  1655→        if (parser.pos < parser.end) {
+  1656→            if (*parser.pos == ')') {
+  1657→                setExprErrorSimple(&parser, "unbalanced close paren");
+  1658→            } else {
+  1659→                setExprErrorChar(&parser, *parser.pos);
+  1660→            }
+  1661→        }
+  1662→    }
+  1663→
+  1664→    if (parser.error) {
+  1665→        host->arenaPop(interp->hostCtx, arena);
+  1666→        return TCL_ERROR;
+  1667→    }
+  1668→
+  1669→    /* Convert result to TclObj */
+  1670→    TclObj *resultObj;
+  1671→    if (result.type == EXPR_INT) {
+  1672→        resultObj = host->newInt(result.v.i);
+  1673→    } else if (result.type == EXPR_DOUBLE) {
+  1674→        resultObj = host->newDouble(result.v.d);
+  1675→    } else {
+  1676→        resultObj = host->newString(result.v.str.s, result.v.str.len);
+  1677→    }
+  1678→
+  1679→    host->arenaPop(interp->hostCtx, arena);
+  1680→    tclSetResult(interp, resultObj);
+  1681→    return TCL_OK;
+  1682→}
+  1683→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

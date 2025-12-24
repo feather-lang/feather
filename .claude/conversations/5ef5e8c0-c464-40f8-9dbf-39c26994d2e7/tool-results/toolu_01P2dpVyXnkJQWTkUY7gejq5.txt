@@ -1,0 +1,430 @@
+     1→/*
+     2→ * vars.c - Variable Table Implementation for C Host
+     3→ *
+     4→ * Simple hash table for variable storage.
+     5→ */
+     6→
+     7→#include "../../core/tclc.h"
+     8→#include <stdlib.h>
+     9→#include <string.h>
+    10→
+    11→/* External object functions from object.c */
+    12→extern TclObj *hostNewString(const char *s, size_t len);
+    13→extern void hostFreeObj(TclObj *obj);
+    14→extern const char *hostGetStringPtr(TclObj *obj, size_t *lenOut);
+    15→
+    16→/* Forward declaration */
+    17→typedef struct VarTable VarTable;
+    18→
+    19→/* Hash table entry */
+    20→typedef struct VarEntry {
+    21→    char            *name;      /* Variable name */
+    22→    size_t           nameLen;   /* Name length */
+    23→    TclObj          *value;     /* Variable value (NULL if linked) */
+    24→    struct VarEntry *next;      /* Next in chain */
+    25→    /* Link information for upvar/global */
+    26→    VarTable        *linkTable; /* Target table (NULL if not linked) */
+    27→    char            *linkName;  /* Target variable name */
+    28→    size_t           linkNameLen;
+    29→} VarEntry;
+    30→
+    31→/* Hash table */
+    32→#define VAR_TABLE_SIZE 256
+    33→
+    34→struct VarTable {
+    35→    VarEntry *buckets[VAR_TABLE_SIZE];
+    36→};
+    37→
+    38→/* Simple hash function */
+    39→static unsigned int hashName(const char *name, size_t len) {
+    40→    unsigned int hash = 0;
+    41→    for (size_t i = 0; i < len; i++) {
+    42→        hash = hash * 31 + (unsigned char)name[i];
+    43→    }
+    44→    return hash % VAR_TABLE_SIZE;
+    45→}
+    46→
+    47→/* Create new variable table */
+    48→void *hostVarsNew(void *ctx) {
+    49→    (void)ctx;
+    50→    VarTable *table = calloc(1, sizeof(VarTable));
+    51→    return table;
+    52→}
+    53→
+    54→/* Free variable table */
+    55→void hostVarsFree(void *ctx, void *vars) {
+    56→    (void)ctx;
+    57→    VarTable *table = vars;
+    58→    if (!table) return;
+    59→
+    60→    for (int i = 0; i < VAR_TABLE_SIZE; i++) {
+    61→        VarEntry *entry = table->buckets[i];
+    62→        while (entry) {
+    63→            VarEntry *next = entry->next;
+    64→            free(entry->name);
+    65→            if (entry->value) hostFreeObj(entry->value);
+    66→            if (entry->linkName) free(entry->linkName);
+    67→            free(entry);
+    68→            entry = next;
+    69→        }
+    70→    }
+    71→    free(table);
+    72→}
+    73→
+    74→/* Find entry by name */
+    75→static VarEntry *findEntry(VarTable *table, const char *name, size_t len) {
+    76→    unsigned int h = hashName(name, len);
+    77→    VarEntry *entry = table->buckets[h];
+    78→
+    79→    while (entry) {
+    80→        if (entry->nameLen == len && memcmp(entry->name, name, len) == 0) {
+    81→            return entry;
+    82→        }
+    83→        entry = entry->next;
+    84→    }
+    85→    return NULL;
+    86→}
+    87→
+    88→/* Get variable value (follows links) */
+    89→TclObj *hostVarGet(void *vars, const char *name, size_t len) {
+    90→    VarTable *table = vars;
+    91→    if (!table) return NULL;
+    92→
+    93→    VarEntry *entry = findEntry(table, name, len);
+    94→    if (!entry) return NULL;
+    95→
+    96→    /* Follow link if this is a linked variable */
+    97→    if (entry->linkTable) {
+    98→        return hostVarGet(entry->linkTable, entry->linkName, entry->linkNameLen);
+    99→    }
+   100→
+   101→    return entry->value;
+   102→}
+   103→
+   104→/* Set variable value (follows links) */
+   105→void hostVarSet(void *vars, const char *name, size_t len, TclObj *val) {
+   106→    VarTable *table = vars;
+   107→    if (!table) return;
+   108→
+   109→    VarEntry *entry = findEntry(table, name, len);
+   110→    if (entry) {
+   111→        /* Follow link if this is a linked variable */
+   112→        if (entry->linkTable) {
+   113→            hostVarSet(entry->linkTable, entry->linkName, entry->linkNameLen, val);
+   114→            return;
+   115→        }
+   116→        /* Replace existing value */
+   117→        if (entry->value) hostFreeObj(entry->value);
+   118→        entry->value = val;
+   119→    } else {
+   120→        /* Create new entry */
+   121→        entry = malloc(sizeof(VarEntry));
+   122→        if (!entry) return;
+   123→
+   124→        entry->name = malloc(len + 1);
+   125→        if (!entry->name) {
+   126→            free(entry);
+   127→            return;
+   128→        }
+   129→        memcpy(entry->name, name, len);
+   130→        entry->name[len] = '\0';
+   131→        entry->nameLen = len;
+   132→        entry->value = val;
+   133→        entry->linkTable = NULL;
+   134→        entry->linkName = NULL;
+   135→        entry->linkNameLen = 0;
+   136→
+   137→        /* Insert at head of bucket */
+   138→        unsigned int h = hashName(name, len);
+   139→        entry->next = table->buckets[h];
+   140→        table->buckets[h] = entry;
+   141→    }
+   142→}
+   143→
+   144→/* Unset variable */
+   145→void hostVarUnset(void *vars, const char *name, size_t len) {
+   146→    VarTable *table = vars;
+   147→    if (!table) return;
+   148→
+   149→    unsigned int h = hashName(name, len);
+   150→    VarEntry **pp = &table->buckets[h];
+   151→
+   152→    while (*pp) {
+   153→        VarEntry *entry = *pp;
+   154→        if (entry->nameLen == len && memcmp(entry->name, name, len) == 0) {
+   155→            *pp = entry->next;
+   156→            free(entry->name);
+   157→            hostFreeObj(entry->value);
+   158→            free(entry);
+   159→            return;
+   160→        }
+   161→        pp = &entry->next;
+   162→    }
+   163→}
+   164→
+   165→/* Check if variable exists (follows links) */
+   166→int hostVarExists(void *vars, const char *name, size_t len) {
+   167→    VarTable *table = vars;
+   168→    if (!table) return 0;
+   169→
+   170→    VarEntry *entry = findEntry(table, name, len);
+   171→    if (!entry) return 0;
+   172→
+   173→    /* Follow link if this is a linked variable */
+   174→    if (entry->linkTable) {
+   175→        return hostVarExists(entry->linkTable, entry->linkName, entry->linkNameLen);
+   176→    }
+   177→
+   178→    return entry->value != NULL;
+   179→}
+   180→
+   181→/* Get list of variable names matching pattern (NULL for all) */
+   182→TclObj *hostVarNames(void *vars, const char *pattern) {
+   183→    VarTable *table = vars;
+   184→    if (!table) return hostNewString("", 0);
+   185→
+   186→    /* Count and collect names */
+   187→    size_t totalLen = 0;
+   188→    int count = 0;
+   189→
+   190→    for (int i = 0; i < VAR_TABLE_SIZE; i++) {
+   191→        VarEntry *entry = table->buckets[i];
+   192→        while (entry) {
+   193→            if (!pattern || pattern[0] == '*') {
+   194→                totalLen += entry->nameLen + 1; /* +1 for space */
+   195→                count++;
+   196→            }
+   197→            entry = entry->next;
+   198→        }
+   199→    }
+   200→
+   201→    if (count == 0) {
+   202→        return hostNewString("", 0);
+   203→    }
+   204→
+   205→    char *buf = malloc(totalLen);
+   206→    if (!buf) return hostNewString("", 0);
+   207→
+   208→    char *p = buf;
+   209→    int first = 1;
+   210→    for (int i = 0; i < VAR_TABLE_SIZE; i++) {
+   211→        VarEntry *entry = table->buckets[i];
+   212→        while (entry) {
+   213→            if (!pattern || pattern[0] == '*') {
+   214→                if (!first) *p++ = ' ';
+   215→                memcpy(p, entry->name, entry->nameLen);
+   216→                p += entry->nameLen;
+   217→                first = 0;
+   218→            }
+   219→            entry = entry->next;
+   220→        }
+   221→    }
+   222→
+   223→    TclObj *result = hostNewString(buf, p - buf);
+   224→    free(buf);
+   225→    return result;
+   226→}
+   227→
+   228→/* Link a local variable to another variable */
+   229→void hostVarLink(void *localVars, const char *localName, size_t localLen,
+   230→                 void *targetVars, const char *targetName, size_t targetLen) {
+   231→    VarTable *table = localVars;
+   232→    if (!table || !targetVars) return;
+   233→
+   234→    /* Find or create the local entry */
+   235→    VarEntry *entry = findEntry(table, localName, localLen);
+   236→    if (!entry) {
+   237→        /* Create new entry */
+   238→        entry = malloc(sizeof(VarEntry));
+   239→        if (!entry) return;
+   240→
+   241→        entry->name = malloc(localLen + 1);
+   242→        if (!entry->name) {
+   243→            free(entry);
+   244→            return;
+   245→        }
+   246→        memcpy(entry->name, localName, localLen);
+   247→        entry->name[localLen] = '\0';
+   248→        entry->nameLen = localLen;
+   249→        entry->value = NULL;
+   250→        entry->next = NULL;
+   251→        entry->linkTable = NULL;
+   252→        entry->linkName = NULL;
+   253→        entry->linkNameLen = 0;
+   254→
+   255→        /* Insert at head of bucket */
+   256→        unsigned int h = hashName(localName, localLen);
+   257→        entry->next = table->buckets[h];
+   258→        table->buckets[h] = entry;
+   259→    }
+   260→
+   261→    /* Clear any existing value (we're now a link) */
+   262→    if (entry->value) {
+   263→        hostFreeObj(entry->value);
+   264→        entry->value = NULL;
+   265→    }
+   266→
+   267→    /* Clear any existing link name */
+   268→    if (entry->linkName) {
+   269→        free(entry->linkName);
+   270→    }
+   271→
+   272→    /* Set up the link */
+   273→    entry->linkTable = targetVars;
+   274→    entry->linkName = malloc(targetLen + 1);
+   275→    if (entry->linkName) {
+   276→        memcpy(entry->linkName, targetName, targetLen);
+   277→        entry->linkName[targetLen] = '\0';
+   278→        entry->linkNameLen = targetLen;
+   279→    }
+   280→}
+   281→
+   282→/* Array operations - store as varName(key) in same table */
+   283→
+   284→void hostArraySet(void *vars, const char *arr, size_t arrLen,
+   285→                  const char *key, size_t keyLen, TclObj *val) {
+   286→    /* Build name: arr(key) */
+   287→    size_t nameLen = arrLen + 1 + keyLen + 1;
+   288→    char *name = malloc(nameLen + 1);
+   289→    if (!name) return;
+   290→
+   291→    memcpy(name, arr, arrLen);
+   292→    name[arrLen] = '(';
+   293→    memcpy(name + arrLen + 1, key, keyLen);
+   294→    name[arrLen + 1 + keyLen] = ')';
+   295→    name[nameLen] = '\0';
+   296→
+   297→    hostVarSet(vars, name, nameLen, val);
+   298→    free(name);
+   299→}
+   300→
+   301→TclObj *hostArrayGet(void *vars, const char *arr, size_t arrLen,
+   302→                     const char *key, size_t keyLen) {
+   303→    /* Build name: arr(key) */
+   304→    size_t nameLen = arrLen + 1 + keyLen + 1;
+   305→    char *name = malloc(nameLen + 1);
+   306→    if (!name) return NULL;
+   307→
+   308→    memcpy(name, arr, arrLen);
+   309→    name[arrLen] = '(';
+   310→    memcpy(name + arrLen + 1, key, keyLen);
+   311→    name[arrLen + 1 + keyLen] = ')';
+   312→    name[nameLen] = '\0';
+   313→
+   314→    TclObj *result = hostVarGet(vars, name, nameLen);
+   315→    free(name);
+   316→    return result;
+   317→}
+   318→
+   319→int hostArrayExists(void *vars, const char *arr, size_t arrLen,
+   320→                    const char *key, size_t keyLen) {
+   321→    size_t nameLen = arrLen + 1 + keyLen + 1;
+   322→    char *name = malloc(nameLen + 1);
+   323→    if (!name) return 0;
+   324→
+   325→    memcpy(name, arr, arrLen);
+   326→    name[arrLen] = '(';
+   327→    memcpy(name + arrLen + 1, key, keyLen);
+   328→    name[arrLen + 1 + keyLen] = ')';
+   329→    name[nameLen] = '\0';
+   330→
+   331→    int result = hostVarExists(vars, name, nameLen);
+   332→    free(name);
+   333→    return result;
+   334→}
+   335→
+   336→TclObj *hostArrayNames(void *vars, const char *arr, size_t arrLen,
+   337→                       const char *pattern) {
+   338→    VarTable *table = vars;
+   339→    if (!table) return hostNewString("", 0);
+   340→
+   341→    /* Find all entries starting with arr( */
+   342→    size_t totalLen = 0;
+   343→    int count = 0;
+   344→
+   345→    for (int i = 0; i < VAR_TABLE_SIZE; i++) {
+   346→        VarEntry *entry = table->buckets[i];
+   347→        while (entry) {
+   348→            if (entry->nameLen > arrLen + 2 &&
+   349→                memcmp(entry->name, arr, arrLen) == 0 &&
+   350→                entry->name[arrLen] == '(') {
+   351→                /* Extract key length (without parentheses) */
+   352→                size_t keyLen = entry->nameLen - arrLen - 2;
+   353→                totalLen += keyLen + 1;
+   354→                count++;
+   355→            }
+   356→            entry = entry->next;
+   357→        }
+   358→    }
+   359→
+   360→    if (count == 0) {
+   361→        return hostNewString("", 0);
+   362→    }
+   363→
+   364→    char *buf = malloc(totalLen);
+   365→    if (!buf) return hostNewString("", 0);
+   366→
+   367→    char *p = buf;
+   368→    int first = 1;
+   369→    for (int i = 0; i < VAR_TABLE_SIZE; i++) {
+   370→        VarEntry *entry = table->buckets[i];
+   371→        while (entry) {
+   372→            if (entry->nameLen > arrLen + 2 &&
+   373→                memcmp(entry->name, arr, arrLen) == 0 &&
+   374→                entry->name[arrLen] == '(') {
+   375→                if (!first) *p++ = ' ';
+   376→                /* Copy key (between parentheses) */
+   377→                size_t keyLen = entry->nameLen - arrLen - 2;
+   378→                memcpy(p, entry->name + arrLen + 1, keyLen);
+   379→                p += keyLen;
+   380→                first = 0;
+   381→            }
+   382→            entry = entry->next;
+   383→        }
+   384→    }
+   385→
+   386→    TclObj *result = hostNewString(buf, p - buf);
+   387→    free(buf);
+   388→    (void)pattern; /* TODO: pattern matching */
+   389→    return result;
+   390→}
+   391→
+   392→void hostArrayUnset(void *vars, const char *arr, size_t arrLen,
+   393→                    const char *key, size_t keyLen) {
+   394→    size_t nameLen = arrLen + 1 + keyLen + 1;
+   395→    char *name = malloc(nameLen + 1);
+   396→    if (!name) return;
+   397→
+   398→    memcpy(name, arr, arrLen);
+   399→    name[arrLen] = '(';
+   400→    memcpy(name + arrLen + 1, key, keyLen);
+   401→    name[arrLen + 1 + keyLen] = ')';
+   402→    name[nameLen] = '\0';
+   403→
+   404→    hostVarUnset(vars, name, nameLen);
+   405→    free(name);
+   406→}
+   407→
+   408→size_t hostArraySize(void *vars, const char *arr, size_t arrLen) {
+   409→    VarTable *table = vars;
+   410→    if (!table) return 0;
+   411→
+   412→    size_t count = 0;
+   413→    for (int i = 0; i < VAR_TABLE_SIZE; i++) {
+   414→        VarEntry *entry = table->buckets[i];
+   415→        while (entry) {
+   416→            if (entry->nameLen > arrLen + 2 &&
+   417→                memcmp(entry->name, arr, arrLen) == 0 &&
+   418→                entry->name[arrLen] == '(') {
+   419→                count++;
+   420→            }
+   421→            entry = entry->next;
+   422→        }
+   423→    }
+   424→    return count;
+   425→}
+   426→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

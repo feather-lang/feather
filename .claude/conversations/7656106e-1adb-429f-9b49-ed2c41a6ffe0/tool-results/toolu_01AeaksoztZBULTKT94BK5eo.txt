@@ -1,0 +1,121 @@
+     1→/*
+     2→ * builtin_proc.c - TCL Procedure Command Implementations
+     3→ *
+     4→ * Procedure commands: proc, return
+     5→ */
+     6→
+     7→#include "internal.h"
+     8→
+     9→/* ========================================================================
+    10→ * proc Command
+    11→ * ======================================================================== */
+    12→
+    13→TclResult tclCmdProc(TclInterp *interp, int objc, TclObj **objv) {
+    14→    const TclHost *host = interp->host;
+    15→
+    16→    if (objc != 4) {
+    17→        tclSetError(interp, "wrong # args: should be \"proc name args body\"", -1);
+    18→        return TCL_ERROR;
+    19→    }
+    20→
+    21→    size_t nameLen;
+    22→    const char *name = host->getStringPtr(objv[1], &nameLen);
+    23→
+    24→    /* Register the procedure with the host */
+    25→    void *handle = host->procRegister(interp->hostCtx, name, nameLen, objv[2], objv[3]);
+    26→    if (!handle) {
+    27→        tclSetError(interp, "failed to register procedure", -1);
+    28→        return TCL_ERROR;
+    29→    }
+    30→
+    31→    tclSetResult(interp, host->newString("", 0));
+    32→    return TCL_OK;
+    33→}
+    34→
+    35→/* ========================================================================
+    36→ * return Command
+    37→ * ======================================================================== */
+    38→
+    39→TclResult tclCmdReturn(TclInterp *interp, int objc, TclObj **objv) {
+    40→    const TclHost *host = interp->host;
+    41→
+    42→    /* Default return value is empty string */
+    43→    TclObj *result = host->newString("", 0);
+    44→    int code = TCL_OK;
+    45→    int level = 1;
+    46→
+    47→    /* Parse options: return ?-code code? ?-level level? ?result? */
+    48→    int i = 1;
+    49→    while (i < objc) {
+    50→        size_t len;
+    51→        const char *arg = host->getStringPtr(objv[i], &len);
+    52→
+    53→        if (len >= 1 && arg[0] == '-') {
+    54→            if (len == 5 && tclStrncmp(arg, "-code", 5) == 0) {
+    55→                if (i + 1 >= objc) {
+    56→                    tclSetError(interp, "wrong # args: should be \"-code code\"", -1);
+    57→                    return TCL_ERROR;
+    58→                }
+    59→                i++;
+    60→                size_t codeLen;
+    61→                const char *codeStr = host->getStringPtr(objv[i], &codeLen);
+    62→
+    63→                /* Parse code value */
+    64→                if (codeLen == 2 && tclStrncmp(codeStr, "ok", 2) == 0) {
+    65→                    code = TCL_OK;
+    66→                } else if (codeLen == 5 && tclStrncmp(codeStr, "error", 5) == 0) {
+    67→                    code = TCL_ERROR;
+    68→                } else if (codeLen == 6 && tclStrncmp(codeStr, "return", 6) == 0) {
+    69→                    code = TCL_RETURN;
+    70→                } else if (codeLen == 5 && tclStrncmp(codeStr, "break", 5) == 0) {
+    71→                    code = TCL_BREAK;
+    72→                } else if (codeLen == 8 && tclStrncmp(codeStr, "continue", 8) == 0) {
+    73→                    code = TCL_CONTINUE;
+    74→                } else {
+    75→                    /* Try as integer */
+    76→                    int64_t val;
+    77→                    if (host->asInt(objv[i], &val) == 0) {
+    78→                        code = (int)val;
+    79→                    } else {
+    80→                        tclSetError(interp, "bad completion code", -1);
+    81→                        return TCL_ERROR;
+    82→                    }
+    83→                }
+    84→                i++;
+    85→            } else if (len == 6 && tclStrncmp(arg, "-level", 6) == 0) {
+    86→                if (i + 1 >= objc) {
+    87→                    tclSetError(interp, "wrong # args: should be \"-level level\"", -1);
+    88→                    return TCL_ERROR;
+    89→                }
+    90→                i++;
+    91→                int64_t val;
+    92→                if (host->asInt(objv[i], &val) != 0 || val < 0) {
+    93→                    tclSetError(interp, "bad level", -1);
+    94→                    return TCL_ERROR;
+    95→                }
+    96→                level = (int)val;
+    97→                i++;
+    98→            } else {
+    99→                /* Unknown option - treat as result value */
+   100→                result = objv[i];
+   101→                i++;
+   102→            }
+   103→        } else {
+   104→            /* Result value */
+   105→            result = objv[i];
+   106→            i++;
+   107→        }
+   108→    }
+   109→
+   110→    /* Set interpreter state for return */
+   111→    interp->result = result;
+   112→    interp->returnCode = code;
+   113→    interp->returnLevel = level;
+   114→
+   115→    return TCL_RETURN;
+   116→}
+   117→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

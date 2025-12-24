@@ -1,0 +1,499 @@
+open(n)                      Tcl Built-In Commands                     open(n)
+
+______________________________________________________________________________
+
+NNAAMMEE
+       open - Open a file-based or command pipeline channel
+
+SSYYNNOOPPSSIISS
+       ooppeenn _f_i_l_e_N_a_m_e
+       ooppeenn _f_i_l_e_N_a_m_e _a_c_c_e_s_s
+       ooppeenn _f_i_l_e_N_a_m_e _a_c_c_e_s_s _p_e_r_m_i_s_s_i_o_n_s
+______________________________________________________________________________
+
+DDEESSCCRRIIPPTTIIOONN
+       This command opens a file, serial port, or command pipeline and returns
+       a channel identifier that may be used in future invocations of commands
+       like rreeaadd, ppuuttss, and cclloossee.  If the first character of _f_i_l_e_N_a_m_e is not
+       || then the command opens a file: _f_i_l_e_N_a_m_e gives the name of the file to
+       open, and it must conform to the conventions described in the ffiilleennaammee
+       manual entry.
+
+       The _a_c_c_e_s_s argument, if present, indicates the way in which the file
+       (or command pipeline) is to be accessed.  In the first form _a_c_c_e_s_s may
+       have any of the following values:
+
+       rr      Open the file for reading only; the file must already exist.
+              This is the default value if _a_c_c_e_s_s is not specified.
+
+       rr++     Open the file for both reading and writing; the file must
+              already exist.
+
+       ww      Open the file for writing only.  Truncate it if it exists.  If
+              it does not exist, create a new file.
+
+       ww++     Open the file for reading and writing.  Truncate it if it
+              exists.  If it does not exist, create a new file.
+
+       aa      Open the file for writing only.  If the file does not exist,
+              create a new empty file.  Set the file pointer to the end of the
+              file prior to each write.
+
+       aa++     Open the file for reading and writing.  If the file does not
+              exist, create a new empty file.  Set the initial access position
+              to the end of the file.
+
+       All of the legal _a_c_c_e_s_s values above may have the character bb added as
+       the second or third character in the value to indicate that the opened
+       channel should be configured as if with the ffccoonnffiigguurree --ttrraannssllaattiioonn
+       bbiinnaarryy option, making the channel suitable for reading or writing of
+       binary data.
+
+       In the second form, _a_c_c_e_s_s consists of a list of any of the following
+       flags, most of which have the standard POSIX meanings.  One of the
+       flags must be either RRDDOONNLLYY, WWRROONNLLYY or RRDDWWRR.
+
+       RRDDOONNLLYY Open the file for reading only.
+
+       WWRROONNLLYY Open the file for writing only.
+
+       RRDDWWRR   Open the file for both reading and writing.
+
+       AAPPPPEENNDD Set the file pointer to the end of the file prior to each write.
+
+       BBIINNAARRYY Configure the opened channel with the --ttrraannssllaattiioonn bbiinnaarryy
+              option.
+
+       CCRREEAATT  Create the file if it does not already exist (without this flag
+              it is an error for the file not to exist).
+
+       EEXXCCLL   If CCRREEAATT is also specified, an error is returned if the file
+              already exists.
+
+       NNOOCCTTTTYY If the file is a terminal device, this flag prevents the file
+              from becoming the controlling terminal of the process.
+
+       NNOONNBBLLOOCCKK
+              Prevents the process from blocking while opening the file, and
+              possibly in subsequent I/O operations.  The exact behavior of
+              this flag is system- and device-dependent;  its use is
+              discouraged (it is better to use the ffccoonnffiigguurree command to put a
+              file in nonblocking mode).  For details refer to your system
+              documentation on the ooppeenn system call's OO__NNOONNBBLLOOCCKK flag.
+
+       TTRRUUNNCC  If the file exists it is truncated to zero length.
+
+       If a new file is created as part of opening it, _p_e_r_m_i_s_s_i_o_n_s (an
+       integer) is used to set the permissions for the new file in conjunction
+       with the process's file mode creation mask.  _P_e_r_m_i_s_s_i_o_n_s defaults to
+       0666.
+
+       When the file opened is an ordinary disk file, the cchhaann ccoonnffiigguurree and   │
+       ffccoonnffiigguurree commands can be used to query this additional configuration  │
+       option:                                                                 │
+
+       --ssttaatt  This option, when read, returns a dictionary of values much as   │
+              is obtained from the ffiillee ssttaatt command, where that stat          │
+              information relates to the real opened file. Keys in the         │
+              dictionary may include aattiimmee, ccttiimmee, ddeevv, ggiidd, iinnoo, mmooddee, mmttiimmee, │
+              nnlliinnkk, ssiizzee, ttyyppee, and uuiidd among others; the mmttiimmee, ssiizzee and     │
+              ttyyppee fields are guaranteed to be present and meaningful on all   │
+              platforms; other keys may be present too.                        │
+
+              _I_m_p_l_e_m_e_n_t_a_t_i_o_n _n_o_t_e_: This option maps to a call to ffssttaatt(()) on    │
+              POSIX platforms, and to a call to GGeettFFiilleeIInnffoorrmmaattiioonnBByyHHaannddllee(())   │
+              on Windows; the information reported is what those system calls  │
+              produce.                                                         │
+
+CCOOMMMMAANNDD PPIIPPEELLIINNEESS
+       If the first character of _f_i_l_e_N_a_m_e is “||” then the remaining characters
+       of _f_i_l_e_N_a_m_e are treated as a list of arguments that describe a command
+       pipeline to invoke, in the same style as the arguments for eexxeecc.  In
+       this case, the channel identifier returned by ooppeenn may be used to write
+       to the command's input pipe or read from its output pipe, depending on
+       the value of _a_c_c_e_s_s.  If write-only access is used (e.g. _a_c_c_e_s_s is
+       “ww”), then standard output for the pipeline is directed to the current
+       standard output unless overridden by the command.  If read-only access
+       is used (e.g. _a_c_c_e_s_s is “rr”), standard input for the pipeline is taken
+       from the current standard input unless overridden by the command.  The
+       id of the spawned process is accessible through the ppiidd command, using
+       the channel id returned by ooppeenn as argument.
+
+       If the command (or one of the commands) executed in the command
+       pipeline returns an error (according to the definition in eexxeecc), a Tcl
+       error is generated when cclloossee is called on the channel unless the
+       pipeline is in non-blocking mode then no exit status is returned (a
+       silent cclloossee with -blocking 0).
+
+       It is often useful to use the ffiilleeeevveenntt command with pipelines so other
+       processing may happen at the same time as running the command in the
+       background.
+
+SSEERRIIAALL CCOOMMMMUUNNIICCAATTIIOONNSS
+       If _f_i_l_e_N_a_m_e refers to a serial port, then the specified serial port is
+       opened and initialized in a platform-dependent manner.  Acceptable
+       values for the _f_i_l_e_N_a_m_e to use to open a serial port are described in
+       the PORTABILITY ISSUES section.
+
+       The cchhaann ccoonnffiigguurree and ffccoonnffiigguurree commands can be used to query and set
+       additional configuration options specific to serial ports (where
+       supported):
+
+       --mmooddee _b_a_u_d,,_p_a_r_i_t_y,,_d_a_t_a,,_s_t_o_p
+              This option is a set of 4 comma-separated values: the baud rate,
+              parity, number of data bits, and number of stop bits for this
+              serial port.  The _b_a_u_d rate is a simple integer that specifies
+              the connection speed.  _P_a_r_i_t_y is one of the following letters:
+              nn, oo, ee, mm, ss; respectively signifying the parity options of
+              “none”, “odd”, “even”, “mark”, or “space”.  _D_a_t_a is the number
+              of data bits and should be an integer from 5 to 8, while _s_t_o_p is
+              the number of stop bits and should be the integer 1 or 2.
+
+       --hhaannddsshhaakkee _t_y_p_e
+              (Windows and Unix). This option is used to setup automatic
+              handshake control. Note that not all handshake types maybe
+              supported by your operating system. The _t_y_p_e parameter is case-
+              independent.
+
+              If _t_y_p_e is nnoonnee then any handshake is switched off.  rrttssccttss
+              activates hardware handshake. Hardware handshake signals are
+              described below.  For software handshake xxoonnxxooffff the handshake
+              characters can be redefined with --xxcchhaarr.  An additional hardware
+              handshake ddttrrddssrr is available only under Windows.  There is no
+              default handshake configuration, the initial value depends on
+              your operating system settings.  The --hhaannddsshhaakkee option cannot be
+              queried.
+
+       --qquueeuuee (Windows and Unix). The --qquueeuuee option can only be queried.  It
+              returns a list of two integers representing the current number
+              of bytes in the input and output queue respectively.
+
+       --ttiimmeeoouutt _m_s_e_c
+              (Windows and Unix). This option is used to set the timeout for
+              blocking read operations. It specifies the maximum interval
+              between the reception of two bytes in milliseconds.  For Unix
+              systems the granularity is 100 milliseconds.  The --ttiimmeeoouutt
+              option does not affect write operations or nonblocking reads.
+              This option cannot be queried.
+
+       --ttttyyccoonnttrrooll _{_s_i_g_n_a_l _b_o_o_l_e_a_n _s_i_g_n_a_l _b_o_o_l_e_a_n _._._._}
+              (Windows and Unix). This option is used to setup the handshake
+              output lines (see below) permanently or to send a BREAK over the
+              serial line.  The _s_i_g_n_a_l names are case-independent.  {{RRTTSS 11 DDTTRR
+              00}} sets the RTS output to high and the DTR output to low.  The
+              BREAK condition (see below) is enabled and disabled with {{BBRREEAAKK
+              11}} and {{BBRREEAAKK 00}} respectively.  It is not a good idea to change
+              the RRTTSS (or DDTTRR) signal with active hardware handshake rrttssccttss
+              (or ddttrrddssrr).  The result is unpredictable.  The --ttttyyccoonnttrrooll
+              option cannot be queried.
+
+       --ttttyyssttaattuuss
+              (Windows and Unix). The --ttttyyssttaattuuss option can only be queried.
+              It returns the current modem status and handshake input signals
+              (see below).  The result is a list of signal,value pairs with a
+              fixed order, e.g. {{CCTTSS 11 DDSSRR 00 RRIINNGG 11 DDCCDD 00}}.  The _s_i_g_n_a_l names
+              are returned upper case.
+
+       --xxcchhaarr _{_x_o_n_C_h_a_r _x_o_f_f_C_h_a_r_}
+              (Windows and Unix). This option is used to query or change the
+              software handshake characters. Normally the operating system
+              default should be DC1 (0x11) and DC3 (0x13) representing the
+              ASCII standard XON and XOFF characters.
+
+       --cclloosseemmooddee _c_l_o_s_e_M_o_d_e
+              (Windows and Unix). This option is used to query or change the   │
+              close mode of the serial channel, which defines how pending      │
+              output in operating system buffers is handled when the channel   │
+              is closed. The following values for _c_l_o_s_e_M_o_d_e are supported:     │
+
+              ddeeffaauulltt                                                          │
+                     indicates that a system default operation should be used; │
+                     all serial channels default to this.                      │
+
+              ddiissccaarrdd                                                          │
+                     indicates that the contents of the OS buffers should be   │
+                     discarded.  Note that this is _n_o_t _r_e_c_o_m_m_e_n_d_e_d when        │
+                     writing to a POSIX terminal, as it can interact           │
+                     unexpectedly with handling of ssttddeerrrr.                     │
+
+              ddrraaiinn  indicates that Tcl should wait when closing the channel   │
+                     until all output has been consumed. This may slow down    │
+                     cclloossee noticeably.                                         │
+
+       --iinnppuuttmmooddee _i_n_p_u_t_M_o_d_e
+              (Unix only; Windows has the equivalent option on console         │
+              channels). This option is used to query or change the input mode │
+              of the serial channel under the assumption that it is talking to │
+              a terminal, which controls how interactive input from users is   │
+              handled. The following values for _i_n_p_u_t_M_o_d_e are supported:       │
+
+              nnoorrmmaall indicates that normal line-oriented input should be used, │
+                     with standard terminal editing capabilities enabled.      │
+
+              ppaasssswwoorrdd                                                         │
+                     indicates that non-echoing input should be used, with     │
+                     standard terminal editing capabilities enabled but no     │
+                     writing of typed characters to the terminal (except for   │
+                     newlines). Some terminals may indicate this specially.    │
+
+              rraaww    indicates that all keyboard input should be given         │
+                     directly to Tcl with the terminal doing no processing at  │
+                     all. It does not echo the keys, leaving it up to the Tcl  │
+                     script to interpret what to do.                           │
+
+              rreesseett (set only)                                                 │
+                     indicates that the terminal should be reset to what state │
+                     it was in when the terminal was opened.                   │
+
+              Note that setting this option (technically, anything that        │
+              changes the terminal state from its initial value _v_i_a _t_h_i_s       │
+              _o_p_t_i_o_n) will cause the channel to turn on an automatic reset of  │
+              the terminal when the channel is closed.                         │
+
+       --wwiinnssiizzee                                                                │
+              (Unix only; Windows has the equivalent option on console         │
+              channels). This option is query only. It retrieves a two-element │
+              list with the the current width and height of the terminal.
+
+       --ppoolllliinntteerrvvaall _m_s_e_c
+              (Windows only). This option is used to set the maximum time
+              between polling for fileevents.  This affects the time interval
+              between checking for events throughout the Tcl interpreter (the
+              smallest value always wins).  Use this option only if you want
+              to poll the serial port more or less often than 10 msec (the
+              default).
+
+       --ssyyssbbuuffffeerr _i_n_S_i_z_e
+
+       --ssyyssbbuuffffeerr _{_i_n_S_i_z_e _o_u_t_S_i_z_e_}
+              (Windows only). This option is used to change the size of
+              Windows system buffers for a serial channel. Especially at
+              higher communication rates the default input buffer size of 4096
+              bytes can overrun for latent systems. The first form specifies
+              the input buffer size, in the second form both input and output
+              buffers are defined.
+
+       --llaasstteerrrroorr
+              (Windows only). This option is query only.  In case of a serial
+              communication error, rreeaadd or ppuuttss returns a general Tcl file I/O
+              error.  ffccoonnffiigguurree --llaasstteerrrroorr can be called to get a list of
+              error details.  See below for an explanation of the various
+              error codes.
+
+   SSEERRIIAALL PPOORRTT SSIIGGNNAALLSS
+       RS-232 is the most commonly used standard electrical interface for
+       serial communications. A negative voltage (-3V..-12V) define a mark
+       (on=1) bit and a positive voltage (+3..+12V) define a space (off=0) bit
+       (RS-232C).  The following signals are specified for incoming and
+       outgoing data, status lines and handshaking. Here we are using the
+       terms _w_o_r_k_s_t_a_t_i_o_n for your computer and _m_o_d_e_m for the external device,
+       because some signal names (DCD, RI) come from modems. Of course your
+       external device may use these signal lines for other purposes.
+
+       TTXXDD (output)
+              TTrraannssmmiitttteedd DDaattaa:: Outgoing serial data.
+
+       RRXXDD (input)
+              RReecceeiivveedd DDaattaa::Incoming serial data.
+
+       RRTTSS (output)
+              RReeqquueesstt TToo SSeenndd:: This hardware handshake line informs the modem
+              that your workstation is ready to receive data. Your workstation
+              may automatically reset this signal to indicate that the input
+              buffer is full.
+
+       CCTTSS (input)
+              CClleeaarr TToo SSeenndd:: The complement to RTS. Indicates that the modem
+              is ready to receive data.
+
+       DDTTRR (output)
+              DDaattaa TTeerrmmiinnaall RReeaaddyy:: This signal tells the modem that the
+              workstation is ready to establish a link. DTR is often enabled
+              automatically whenever a serial port is opened.
+
+       DDSSRR (input)
+              DDaattaa SSeett RReeaaddyy:: The complement to DTR. Tells the workstation
+              that the modem is ready to establish a link.
+
+       DDCCDD (input)
+              DDaattaa CCaarrrriieerr DDeetteecctt:: This line becomes active when a modem
+              detects a “Carrier” signal.
+
+       RRII (input)
+              RRiinngg IInnddiiccaattoorr:: Goes active when the modem detects an incoming
+              call.
+
+       BBRREEAAKK  A BREAK condition is not a hardware signal line, but a logical
+              zero on the TXD or RXD lines for a long period of time, usually
+              250 to 500 milliseconds.  Normally a receive or transmit data
+              signal stays at the mark (on=1) voltage until the next character
+              is transferred. A BREAK is sometimes used to reset the
+              communications line or change the operating mode of
+              communications hardware.
+
+   EERRRROORR CCOODDEESS ((WWiinnddoowwss oonnllyy))
+       A lot of different errors may occur during serial read operations or
+       during event polling in background. The external device may have been
+       switched off, the data lines may be noisy, system buffers may overrun
+       or your mode settings may be wrong.  That is why a reliable software
+       should always ccaattcchh serial read operations.  In cases of an error Tcl
+       returns a general file I/O error.  Then ffccoonnffiigguurree --llaasstteerrrroorr may help
+       to locate the problem.  The following error codes may be returned.
+
+       RRXXOOVVEERR Windows input buffer overrun. The data comes faster than your
+              scripts reads it or your system is overloaded. Use ffccoonnffiigguurree
+              --ssyyssbbuuffffeerr to avoid a temporary bottleneck and/or make your
+              script faster.
+
+       TTXXFFUULLLL Windows output buffer overrun. Complement to RXOVER. This error
+              should practically not happen, because Tcl cares about the
+              output buffer status.
+
+       OOVVEERRRRUUNN
+              UART buffer overrun (hardware) with data lost.  The data comes
+              faster than the system driver receives it.  Check your advanced
+              serial port settings to enable the FIFO (16550) buffer and/or
+              setup a lower(1) interrupt threshold value.
+
+       RRXXPPAARRIITTYY
+              A parity error has been detected by your UART.  Wrong parity
+              settings with ffccoonnffiigguurree --mmooddee or a noisy data line (RXD) may
+              cause this error.
+
+       FFRRAAMMEE  A stop-bit error has been detected by your UART.  Wrong mode
+              settings with ffccoonnffiigguurree --mmooddee or a noisy data line (RXD) may
+              cause this error.
+
+       BBRREEAAKK  A BREAK condition has been detected by your UART (see above).
+
+   PPOORRTTAABBIILLIITTYY IISSSSUUEESS
+       WWiinnddoowwss
+              Valid values for _f_i_l_e_N_a_m_e to open a serial port are of the form
+              ccoomm_X, where _X is a number, generally from 1 to 9.  A legacy form
+              accepted as well is ccoomm_X::. This notation only works for serial
+              ports from 1 to 9.  An attempt to open a serial port that does
+              not exist or has a number greater than 9 will fail.  An
+              alternate form of opening serial ports is to use the filename
+              ////..//ccoommXX, where X is any number that corresponds to a serial
+              port.
+
+              When running Tcl interactively, there may be some strange
+              interactions between the real console, if one is present, and a
+              command pipeline that uses standard input or output.  If a
+              command pipeline is opened for reading, some of the lines
+              entered at the console will be sent to the command pipeline and
+              some will be sent to the Tcl evaluator.  If a command pipeline
+              is opened for writing, keystrokes entered into the console are
+              not visible until the pipe is closed.  These problems only occur
+              because both Tcl and the child application are competing for the
+              console at the same time.  If the command pipeline is started
+              from a script, so that Tcl is not accessing the console, or if
+              the command pipeline does not use standard input or output, but
+              is redirected from or to a file, then the above problems do not
+              occur.
+
+              Files opened in the “aa” mode or with the AAPPPPEENNDD flag set are
+              implemented by seeking immediately before each write, which is
+              not an atomic operation and does not carry the guarantee of
+              strict appending that is present on POSIX platforms.
+
+       UUnniixx   Valid values for _f_i_l_e_N_a_m_e to open a serial port are generally of
+              the form //ddeevv//ttttyy_X, where _X is aa or bb, but the name of any
+              pseudo-file that maps to a serial port may be used.  Advanced
+              configuration options are only supported for serial ports when
+              Tcl is built to use the POSIX serial interface.
+
+              When running Tcl interactively, there may be some strange
+              interactions between the console, if one is present, and a
+              command pipeline that uses standard input.  If a command
+              pipeline is opened for reading, some of the lines entered at the
+              console will be sent to the command pipeline and some will be
+              sent to the Tcl evaluator.  This problem only occurs because
+              both Tcl and the child application are competing for the console
+              at the same time.  If the command pipeline is started from a
+              script, so that Tcl is not accessing the console, or if the
+              command pipeline does not use standard input, but is redirected
+              from a file, then the above problem does not occur.
+
+       See the PPOORRTTAABBIILLIITTYY IISSSSUUEESS section of the eexxeecc command for additional
+       information not specific to command pipelines about executing
+       applications on the various platforms
+
+CCOONNSSOOLLEE CCHHAANNNNEELLSS
+       On Windows only, console channels (usually ssttddiinn or ssttddoouutt) support the │
+       following options:                                                      │
+
+       --iinnppuuttmmooddee _i_n_p_u_t_M_o_d_e                                                    │
+              This option is used to query or change the input mode of the     │
+              console channel, which controls how interactive input from users │
+              is handled. The following values for _i_n_p_u_t_M_o_d_e are supported:    │
+
+              nnoorrmmaall indicates that normal line-oriented input should be used, │
+                     with standard console editing capabilities enabled.       │
+
+              ppaasssswwoorrdd                                                         │
+                     indicates that non-echoing input should be used, with     │
+                     standard console editing capabilities enabled but no      │
+                     writing of typed characters to the terminal (except for   │
+                     newlines).                                                │
+
+              rraaww    indicates that all keyboard input should be given         │
+                     directly to Tcl with the console doing no processing at   │
+                     all. It does not echo the keys, leaving it up to the Tcl  │
+                     script to interpret what to do.                           │
+
+              rreesseett (set only)                                                 │
+                     indicates that the console should be reset to what state  │
+                     it was in when the console channel was opened.            │
+
+              Note that setting this option (technically, anything that        │
+              changes the console state from its default _v_i_a _t_h_i_s _o_p_t_i_o_n) will │
+              cause the channel to turn on an automatic reset of the console   │
+              when the channel is closed.                                      │
+
+       --wwiinnssiizzee                                                                │
+              This option is query only.  It retrieves a two-element list with │
+              the current width and height of the console that this channel is │
+              talking to.                                                      │
+
+       Note that the equivalent options exist on Unix, but are on the serial   │
+       channel type.
+
+EEXXAAMMPPLLEESS
+       Open a file for writing, forcing it to be created and raising an error
+       if it already exists.
+
+              set myNewFile [ooppeenn filename.txt {WRONLY CREAT EXCL}]
+
+       Open a file for writing as a log file.
+
+              set myLogFile [ooppeenn filename.log "a"]
+              fconfigure $myLogFile -buffering line
+
+       Open a command pipeline and catch any errors:
+
+              set fl [ooppeenn "| ls this_file_does_not_exist"]
+              set data [read $fl]
+              if {[catch {close $fl} err]} {
+                  puts "ls command failed: $err"
+              }
+
+       Open a command pipeline and read binary data from it. Note the unusual
+       form with “|[list” that handles non-trivial edge cases with arguments
+       that potentially have spaces in.
+
+              set fl [ooppeenn |[list create_image_data $input] "rb"]
+              set binData [read $fl]
+              close $fl
+
+       Read a password securely from the user (assuming that the script is     │
+       being run interactively):                                               │
+
+              chan configure stdin --iinnppuuttmmooddee ppaasssswwoorrdd                         │
+              try {                                                            │
+                  chan puts -nonewline "Password: "                            │
+                  chan flush stdout                                            │
+                  set thePassword [chan gets stdin]                            │
+              } finally {      
+
+... [13 lines truncated] ...

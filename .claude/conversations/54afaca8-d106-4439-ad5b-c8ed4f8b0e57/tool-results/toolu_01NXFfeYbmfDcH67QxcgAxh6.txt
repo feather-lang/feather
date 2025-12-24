@@ -1,0 +1,17 @@
+total 152
+drwxr-xr-x@ 16 dhamidi  staff    512 Dec 20 00:21 .
+drwxr-xr-x@ 14 dhamidi  staff    448 Dec 20 00:45 ..
+-rw-r--r--@  1 dhamidi  staff   2938 Dec 19 20:49 AGENT_PROMPT.md
+-rw-r--r--@  1 dhamidi  staff   5885 Dec 20 00:21 diff.go
+-rw-r--r--@  1 dhamidi  staff   1536 Dec 19 15:09 features.go
+-rw-r--r--@  1 dhamidi  staff  16290 Dec 19 14:51 FEATURES.md
+-rw-r--r--@  1 dhamidi  staff     81 Dec 19 15:09 go.mod
+-rw-r--r--@  1 dhamidi  staff    360 Dec 19 15:28 go.sum
+-rw-r--r--@  1 dhamidi  staff   2882 Dec 19 15:11 loop.go
+-rw-r--r--@  1 dhamidi  staff   2183 Dec 19 20:03 main.go
+drwxr-xr-x@ 20 dhamidi  staff    640 Dec 19 22:54 oracle
+-rw-r--r--@  1 dhamidi  staff   3512 Dec 19 15:10 oracle.go
+-rw-r--r--@  1 dhamidi  staff   4707 Dec 19 20:58 prompt.go
+-rw-r--r--@  1 dhamidi  staff   8864 Dec 19 15:12 README.md
+drwxr-xr-x@  2 dhamidi  staff     64 Dec 20 00:28 results
+-rw-r--r--@  1 dhamidi  staff   2173 Dec 19 15:09 types.go

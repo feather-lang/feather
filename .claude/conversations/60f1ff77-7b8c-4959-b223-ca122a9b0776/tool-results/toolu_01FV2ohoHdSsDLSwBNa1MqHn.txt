@@ -1,0 +1,18 @@
+The file /Users/dhamidi/projects/tclc/Makefile has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
+     2→# TCL Core Implementation - Build and Test Orchestration
+     3→
+     4→.PHONY: all clean test test-c test-integration oracle oracle-all diff diff-all loop prompt help features deps check-tools harness libs build build-all build-go
+     5→
+     6→# Configuration
+     7→CC ?= clang
+     8→CFLAGS = -Wall -Wextra -Werror -std=c11 -g -O2
+     9→GO = go
+    10→TCLSH ?= tclsh
+    11→
+    12→# GLib-2.0 flags (for C host)
+    13→GLIB_CFLAGS := $(shell pkg-config --cflags glib-2.0 2>/dev/null)
+    14→GLIB_LIBS := $(shell pkg-config --libs glib-2.0 2>/dev/null)
+    15→
+    16→# Directories
+    17→CORE_DIR = core
+    18→HOST_C_DIR = hosts/c

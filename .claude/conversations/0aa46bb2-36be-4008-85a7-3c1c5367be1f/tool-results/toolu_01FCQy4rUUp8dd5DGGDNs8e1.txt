@@ -1,0 +1,262 @@
+     1→<test-suite>
+     2→  <!--
+     3→    M9: The unknown handler and rename command
+     4→
+     5→    When a command is not found, TCL calls the user-defined 'unknown'
+     6→    procedure with the original command and arguments. This enables
+     7→    auto-loading, abbreviation expansion, and domain-specific command
+     8→    resolution.
+     9→
+    10→    rename oldName newName
+    11→      Renames a command. If newName is empty, deletes the command.
+    12→      This is needed to replace or wrap the 'unknown' procedure.
+    13→  -->
+    14→
+    15→  <!-- ============================================= -->
+    16→  <!-- rename: Basic command renaming               -->
+    17→  <!-- ============================================= -->
+    18→
+    19→  <test-case name="rename renames a user-defined procedure">
+    20→    <script>proc greet {name} {
+    21→    return "hello $name"
+    22→}
+    23→rename greet say_hello
+    24→say_hello world</script>
+    25→    <return>TCL_OK</return>
+    26→    <error></error>
+    27→    <stdout>hello world</stdout>
+    28→    <stderr></stderr>
+    29→    <exit-code>0</exit-code>
+    30→  </test-case>
+    31→
+    32→  <test-case name="rename makes old name unavailable">
+    33→    <script>proc greet {name} {
+    34→    return "hello $name"
+    35→}
+    36→rename greet say_hello
+    37→greet world</script>
+    38→    <return>TCL_ERROR</return>
+    39→    <error>invalid command name "greet"</error>
+    40→    <stderr></stderr>
+    41→    <exit-code>1</exit-code>
+    42→  </test-case>
+    43→
+    44→  <test-case name="rename with empty newName deletes command">
+    45→    <script>proc greet {name} {
+    46→    return "hello $name"
+    47→}
+    48→rename greet {}
+    49→greet world</script>
+    50→    <return>TCL_ERROR</return>
+    51→    <error>invalid command name "greet"</error>
+    52→    <stderr></stderr>
+    53→    <exit-code>1</exit-code>
+    54→  </test-case>
+    55→
+    56→  <test-case name="rename nonexistent command is error">
+    57→    <script>rename nosuchcmd newname</script>
+    58→    <return>TCL_ERROR</return>
+    59→    <error>can't rename "nosuchcmd": command doesn't exist</error>
+    60→    <stderr></stderr>
+    61→    <exit-code>1</exit-code>
+    62→  </test-case>
+    63→
+    64→  <test-case name="rename with wrong argument count is error">
+    65→    <script>rename foo</script>
+    66→    <return>TCL_ERROR</return>
+    67→    <error>wrong # args: should be "rename oldName newName"</error>
+    68→    <stderr></stderr>
+    69→    <exit-code>1</exit-code>
+    70→  </test-case>
+    71→
+    72→  <test-case name="rename to existing name is error">
+    73→    <script>proc foo {} { return "foo" }
+    74→proc bar {} { return "bar" }
+    75→rename foo bar</script>
+    76→    <return>TCL_ERROR</return>
+    77→    <error>can't rename to "bar": command already exists</error>
+    78→    <stderr></stderr>
+    79→    <exit-code>1</exit-code>
+    80→  </test-case>
+    81→
+    82→  <test-case name="rename can rename builtin commands">
+    83→    <script>rename incr my_incr
+    84→set x 5
+    85→my_incr x
+    86→set x</script>
+    87→    <return>TCL_OK</return>
+    88→    <error></error>
+    89→    <stdout>6</stdout>
+    90→    <stderr></stderr>
+    91→    <exit-code>0</exit-code>
+    92→  </test-case>
+    93→
+    94→  <test-case name="rename builtin makes old name unavailable">
+    95→    <script>rename incr my_incr
+    96→incr x</script>
+    97→    <return>TCL_ERROR</return>
+    98→    <error>invalid command name "incr"</error>
+    99→    <stderr></stderr>
+   100→    <exit-code>1</exit-code>
+   101→  </test-case>
+   102→
+   103→  <!-- ============================================= -->
+   104→  <!-- unknown: Default error handling              -->
+   105→  <!-- ============================================= -->
+   106→
+   107→  <test-case name="unknown command without unknown handler gives error">
+   108→    <script>nosuchcommand arg1 arg2</script>
+   109→    <return>TCL_ERROR</return>
+   110→    <error>invalid command name "nosuchcommand"</error>
+   111→    <stderr></stderr>
+   112→    <exit-code>1</exit-code>
+   113→  </test-case>
+   114→
+   115→  <!-- ============================================= -->
+   116→  <!-- unknown: User-defined handler                -->
+   117→  <!-- ============================================= -->
+   118→
+   119→  <test-case name="unknown procedure is called for missing commands">
+   120→    <script>proc unknown {cmd args} {
+   121→    return "caught: $cmd"
+   122→}
+   123→nosuchcmd</script>
+   124→    <return>TCL_OK</return>
+   125→    <error></error>
+   126→    <stdout>caught: nosuchcmd</stdout>
+   127→    <stderr></stderr>
+   128→    <exit-code>0</exit-code>
+   129→  </test-case>
+   130→
+   131→  <test-case name="unknown receives command arguments">
+   132→    <script>proc unknown {cmd args} {
+   133→    return "cmd=$cmd args=$args"
+   134→}
+   135→nosuchcmd a b c</script>
+   136→    <return>TCL_OK</return>
+   137→    <error></error>
+   138→    <stdout>cmd=nosuchcmd args=a b c</stdout>
+   139→    <stderr></stderr>
+   140→    <exit-code>0</exit-code>
+   141→  </test-case>
+   142→
+   143→  <test-case name="unknown can return error">
+   144→    <script>proc unknown {cmd args} {
+   145→    error "unknown command: $cmd"
+   146→}
+   147→nosuchcmd</script>
+   148→    <return>TCL_ERROR</return>
+   149→    <error>unknown command: nosuchcmd</error>
+   150→    <stderr></stderr>
+   151→    <exit-code>1</exit-code>
+   152→  </test-case>
+   153→
+   154→  <test-case name="unknown can call actual command after lookup">
+   155→    <script>proc unknown {cmd args} {
+   156→    if {$cmd eq "greet"} {
+   157→        return "hello [lindex $args 0]"
+   158→    }
+   159→    error "invalid command name \"$cmd\""
+   160→}
+   161→greet world</script>
+   162→    <return>TCL_OK</return>
+   163→    <error></error>
+   164→    <stdout>hello world</stdout>
+   165→    <stderr></stderr>
+   166→    <exit-code>0</exit-code>
+   167→  </test-case>
+   168→
+   169→  <test-case name="unknown can implement command abbreviation">
+   170→    <script>proc say_hello {name} {
+   171→    return "hello $name"
+   172→}
+   173→proc unknown {cmd args} {
+   174→    # Simple abbreviation: "say" matches "say_hello"
+   175→    if {$cmd eq "say"} {
+   176→        return [say_hello {*}$args]
+   177→    }
+   178→    error "invalid command name \"$cmd\""
+   179→}
+   180→say Alice</script>
+   181→    <return>TCL_OK</return>
+   182→    <error></error>
+   183→    <stdout>hello Alice</stdout>
+   184→    <stderr></stderr>
+   185→    <exit-code>0</exit-code>
+   186→  </test-case>
+   187→
+   188→  <test-case name="unknown with renamed wrapper">
+   189→    <script>proc unknown {cmd args} {
+   190→    return "default: $cmd"
+   191→}
+   192→rename unknown original_unknown
+   193→proc unknown {cmd args} {
+   194→    if {$cmd eq "special"} {
+   195→        return "handled specially"
+   196→    }
+   197→    return [original_unknown $cmd {*}$args]
+   198→}
+   199→special</script>
+   200→    <return>TCL_OK</return>
+   201→    <error></error>
+   202→    <stdout>handled specially</stdout>
+   203→    <stderr></stderr>
+   204→    <exit-code>0</exit-code>
+   205→  </test-case>
+   206→
+   207→  <test-case name="unknown wrapper falls back to original">
+   208→    <script>proc unknown {cmd args} {
+   209→    return "default: $cmd"
+   210→}
+   211→rename unknown original_unknown
+   212→proc unknown {cmd args} {
+   213→    if {$cmd eq "special"} {
+   214→        return "handled specially"
+   215→    }
+   216→    return [original_unknown $cmd {*}$args]
+   217→}
+   218→other</script>
+   219→    <return>TCL_OK</return>
+   220→    <error></error>
+   221→    <stdout>default: other</stdout>
+   222→    <stderr></stderr>
+   223→    <exit-code>0</exit-code>
+   224→  </test-case>
+   225→
+   226→  <!-- ============================================= -->
+   227→  <!-- unknown: Edge cases                          -->
+   228→  <!-- ============================================= -->
+   229→
+   230→  <test-case name="unknown not called for existing commands">
+   231→    <script>proc unknown {cmd args} {
+   232→    return "from unknown"
+   233→}
+   234→proc existing {} {
+   235→    return "from existing"
+   236→}
+   237→existing</script>
+   238→    <return>TCL_OK</return>
+   239→    <error></error>
+   240→    <stdout>from existing</stdout>
+   241→    <stderr></stderr>
+   242→    <exit-code>0</exit-code>
+   243→  </test-case>
+   244→
+   245→  <test-case name="deleting unknown restores default error">
+   246→    <script>proc unknown {cmd args} {
+   247→    return "caught: $cmd"
+   248→}
+   249→rename unknown {}
+   250→nosuchcmd</script>
+   251→    <return>TCL_ERROR</return>
+   252→    <error>invalid command name "nosuchcmd"</error>
+   253→    <stderr></stderr>
+   254→    <exit-code>1</exit-code>
+   255→  </test-case>
+   256→
+   257→</test-suite>
+   258→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

@@ -1,0 +1,159 @@
+     1→/*
+     2→ * arena.c - Arena Allocator for C Host
+     3→ *
+     4→ * Simple bump-pointer arena with LIFO push/pop semantics.
+     5→ */
+     6→
+     7→#include "../../core/tclc.h"
+     8→#include <stdlib.h>
+     9→#include <string.h>
+    10→
+    11→/* Arena chunk size */
+    12→#define ARENA_CHUNK_SIZE (64 * 1024)
+    13→
+    14→/* Arena chunk */
+    15→typedef struct ArenaChunk {
+    16→    struct ArenaChunk *next;
+    17→    size_t             used;
+    18→    size_t             size;
+    19→    char               data[];
+    20→} ArenaChunk;
+    21→
+    22→/* Arena state */
+    23→typedef struct Arena {
+    24→    ArenaChunk *current;    /* Current chunk */
+    25→    ArenaChunk *chunks;     /* List of all chunks */
+    26→} Arena;
+    27→
+    28→/* Arena stack for push/pop */
+    29→#define MAX_ARENA_DEPTH 32
+    30→
+    31→typedef struct ArenaStack {
+    32→    Arena *arenas[MAX_ARENA_DEPTH];
+    33→    int    top;
+    34→} ArenaStack;
+    35→
+    36→/* Global arena stack (one per context, but we use a simple global for now) */
+    37→static ArenaStack globalArenaStack = {0};
+    38→
+    39→/* Allocate a new chunk */
+    40→static ArenaChunk *newChunk(size_t minSize) {
+    41→    size_t size = minSize > ARENA_CHUNK_SIZE ? minSize : ARENA_CHUNK_SIZE;
+    42→    ArenaChunk *chunk = malloc(sizeof(ArenaChunk) + size);
+    43→    if (!chunk) return NULL;
+    44→
+    45→    chunk->next = NULL;
+    46→    chunk->used = 0;
+    47→    chunk->size = size;
+    48→    return chunk;
+    49→}
+    50→
+    51→/* Push a new arena onto the stack */
+    52→void *hostArenaPush(void *ctx) {
+    53→    (void)ctx;
+    54→
+    55→    if (globalArenaStack.top >= MAX_ARENA_DEPTH) {
+    56→        return NULL;
+    57→    }
+    58→
+    59→    Arena *arena = calloc(1, sizeof(Arena));
+    60→    if (!arena) return NULL;
+    61→
+    62→    globalArenaStack.arenas[globalArenaStack.top++] = arena;
+    63→    return arena;
+    64→}
+    65→
+    66→/* Pop arena from stack and free all memory */
+    67→void hostArenaPop(void *ctx, void *arenaPtr) {
+    68→    (void)ctx;
+    69→
+    70→    Arena *arena = arenaPtr;
+    71→    if (!arena) return;
+    72→
+    73→    /* Free all chunks */
+    74→    ArenaChunk *chunk = arena->chunks;
+    75→    while (chunk) {
+    76→        ArenaChunk *next = chunk->next;
+    77→        free(chunk);
+    78→        chunk = next;
+    79→    }
+    80→
+    81→    /* Remove from stack */
+    82→    for (int i = globalArenaStack.top - 1; i >= 0; i--) {
+    83→        if (globalArenaStack.arenas[i] == arena) {
+    84→            /* Shift remaining elements down */
+    85→            for (int j = i; j < globalArenaStack.top - 1; j++) {
+    86→                globalArenaStack.arenas[j] = globalArenaStack.arenas[j + 1];
+    87→            }
+    88→            globalArenaStack.top--;
+    89→            break;
+    90→        }
+    91→    }
+    92→
+    93→    free(arena);
+    94→}
+    95→
+    96→/* Allocate from arena with alignment */
+    97→void *hostArenaAlloc(void *arenaPtr, size_t size, size_t align) {
+    98→    Arena *arena = arenaPtr;
+    99→    if (!arena || size == 0) return NULL;
+   100→
+   101→    /* Get or create current chunk */
+   102→    ArenaChunk *chunk = arena->current;
+   103→    if (!chunk) {
+   104→        chunk = newChunk(size);
+   105→        if (!chunk) return NULL;
+   106→        arena->chunks = chunk;
+   107→        arena->current = chunk;
+   108→    }
+   109→
+   110→    /* Align the current position */
+   111→    size_t aligned = (chunk->used + align - 1) & ~(align - 1);
+   112→
+   113→    /* Check if we need a new chunk */
+   114→    if (aligned + size > chunk->size) {
+   115→        chunk = newChunk(size);
+   116→        if (!chunk) return NULL;
+   117→        chunk->next = arena->chunks;
+   118→        arena->chunks = chunk;
+   119→        arena->current = chunk;
+   120→        aligned = 0;
+   121→    }
+   122→
+   123→    void *ptr = chunk->data + aligned;
+   124→    chunk->used = aligned + size;
+   125→    return ptr;
+   126→}
+   127→
+   128→/* Duplicate string into arena */
+   129→char *hostArenaStrdup(void *arena, const char *s, size_t len) {
+   130→    char *dup = hostArenaAlloc(arena, len + 1, 1);
+   131→    if (dup) {
+   132→        memcpy(dup, s, len);
+   133→        dup[len] = '\0';
+   134→    }
+   135→    return dup;
+   136→}
+   137→
+   138→/* Get current position (mark) for reset */
+   139→size_t hostArenaMark(void *arenaPtr) {
+   140→    Arena *arena = arenaPtr;
+   141→    if (!arena || !arena->current) return 0;
+   142→    return arena->current->used;
+   143→}
+   144→
+   145→/* Reset to a previous mark */
+   146→void hostArenaReset(void *arenaPtr, size_t mark) {
+   147→    Arena *arena = arenaPtr;
+   148→    if (!arena || !arena->current) return;
+   149→
+   150→    /* Only reset if mark is in current chunk */
+   151→    if (mark <= arena->current->used) {
+   152→        arena->current->used = mark;
+   153→    }
+   154→}
+   155→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

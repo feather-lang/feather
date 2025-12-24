@@ -1,0 +1,19 @@
+puts(n)                      Tcl Built-In Commands                     puts(n)
+
+______________________________________________________________________________
+
+NNAAMMEE
+       puts - Write to a channel
+
+SSYYNNOOPPSSIISS
+       ppuuttss ?--nnoonneewwlliinnee? ?_c_h_a_n_n_e_l? _s_t_r_i_n_g
+______________________________________________________________________________
+
+DDEESSCCRRIIPPTTIIOONN
+       The ppuuttss command has been superceded by the cchhaann ppuuttss command which
+       supports the same syntax and options.
+
+SSEEEE AALLSSOO
+       chan(n)
+
+Tcl                                   7.5                              puts(n)

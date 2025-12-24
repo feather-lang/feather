@@ -1,0 +1,20 @@
+total 488
+drwxr-xr-x@ 20 dhamidi  staff    640 Dec 19 22:54 .
+drwxr-xr-x@ 16 dhamidi  staff    512 Dec 20 00:21 ..
+-rw-r--r--@  1 dhamidi  staff   8277 Dec 19 22:46 array.json
+-rw-r--r--@  1 dhamidi  staff  11342 Dec 19 22:49 chan.json
+-rw-r--r--@  1 dhamidi  staff   3647 Dec 19 17:18 control.json
+-rw-r--r--@  1 dhamidi  staff  23777 Dec 19 21:03 dict.json
+-rw-r--r--@  1 dhamidi  staff   4311 Dec 19 19:46 error.json
+-rw-r--r--@  1 dhamidi  staff   8366 Dec 19 22:53 exec.json
+-rw-r--r--@  1 dhamidi  staff  21937 Dec 19 22:19 expr.json
+-rw-r--r--@  1 dhamidi  staff  19994 Dec 19 22:54 file.json
+-rw-r--r--@  1 dhamidi  staff  19091 Dec 19 21:11 info.json
+-rw-r--r--@  1 dhamidi  staff   2776 Dec 19 15:28 lexer.json
+-rw-r--r--@  1 dhamidi  staff  34908 Dec 19 18:53 lists.json
+-rw-r--r--@  1 dhamidi  staff   5004 Dec 19 15:45 parser.json
+-rw-r--r--@  1 dhamidi  staff   4088 Dec 19 17:12 proc.json
+-rw-r--r--@  1 dhamidi  staff  10428 Dec 19 20:31 scope.json
+-rw-r--r--@  1 dhamidi  staff  17786 Dec 19 21:10 string.json
+-rw-r--r--@  1 dhamidi  staff   8462 Dec 19 19:41 subst.json
+-rw-r--r--@  1 dhamidi  staff   3577 Dec 19 17:38 trycatch.json

@@ -1,0 +1,689 @@
+     1→/*
+     2→ * tree_eval.c - Tree-Walking TCL Evaluator
+     3→ *
+     4→ * Evaluates AST nodes by walking the tree structure.
+     5→ * Uses an explicit state stack for non-recursive evaluation,
+     6→ * enabling coroutine suspend/resume by saving the stack state.
+     7→ */
+     8→
+     9→#include "internal.h"
+    10→#include "ast.h"
+    11→
+    12→/* ========================================================================
+    13→ * Evaluation State
+    14→ *
+    15→ * The evaluator maintains an explicit stack of states instead of using
+    16→ * C recursion. This allows the evaluation to be suspended (for yield)
+    17→ * and resumed later by saving/restoring the state stack.
+    18→ * ======================================================================== */
+    19→
+    20→typedef enum {
+    21→    TREE_EVAL_SCRIPT,      /* Evaluating a script node */
+    22→    TREE_EVAL_COMMAND,     /* Evaluating a command node */
+    23→    TREE_EVAL_WORD,        /* Evaluating a word node */
+    24→    TREE_EVAL_VAR,         /* Looking up a variable */
+    25→    TREE_EVAL_CMD_SUBST,   /* Evaluating command substitution */
+    26→} TreeEvalPhase;
+    27→
+    28→typedef struct TreeEvalFrame {
+    29→    TreeEvalPhase phase;
+    30→    TclAstNode *node;           /* Current node being evaluated */
+    31→    int index;                  /* Current child index */
+    32→    TclObj **args;              /* Accumulated arguments (for commands) */
+    33→    int argCount;               /* Number of accumulated arguments */
+    34→    int argCapacity;            /* Capacity of args array */
+    35→    TclObj *result;             /* Partial result for words */
+    36→    struct TreeEvalFrame *parent;
+    37→} TreeEvalFrame;
+    38→
+    39→/* Maximum stack depth */
+    40→enum { MAX_EVAL_DEPTH = 256 };
+    41→
+    42→typedef struct TreeEvalState {
+    43→    TreeEvalFrame *top;         /* Top of evaluation stack */
+    44→    void *arena;                /* Arena for allocation */
+    45→    int suspended;              /* Was evaluation suspended (yield)? */
+    46→    TclObj *yieldValue;         /* Value passed to yield */
+    47→} TreeEvalState;
+    48→
+    49→/* ========================================================================
+    50→ * State Management
+    51→ * ======================================================================== */
+    52→
+    53→static TreeEvalFrame *pushFrame(TclInterp *interp, TreeEvalState *state, TreeEvalPhase phase, TclAstNode *node) {
+    54→    const TclHost *host = interp->host;
+    55→
+    56→    TreeEvalFrame *frame = host->arenaAlloc(state->arena, sizeof(TreeEvalFrame), sizeof(void*));
+    57→    if (!frame) return NULL;
+    58→
+    59→    frame->phase = phase;
+    60→    frame->node = node;
+    61→    frame->index = 0;
+    62→    frame->args = NULL;
+    63→    frame->argCount = 0;
+    64→    frame->argCapacity = 0;
+    65→    frame->result = NULL;
+    66→    frame->parent = state->top;
+    67→
+    68→    state->top = frame;
+    69→    return frame;
+    70→}
+    71→
+    72→static void popFrame(TreeEvalState *state) {
+    73→    if (state->top) {
+    74→        state->top = state->top->parent;
+    75→    }
+    76→}
+    77→
+    78→/* Add argument to command frame */
+    79→static int addArg(TclInterp *interp, TreeEvalState *state, TreeEvalFrame *frame, TclObj *arg) {
+    80→    const TclHost *host = interp->host;
+    81→
+    82→    if (frame->argCount >= frame->argCapacity) {
+    83→        int newCap = frame->argCapacity == 0 ? 8 : frame->argCapacity * 2;
+    84→        TclObj **newArgs = host->arenaAlloc(state->arena, newCap * sizeof(TclObj*), sizeof(void*));
+    85→        if (!newArgs) return -1;
+    86→
+    87→        for (int i = 0; i < frame->argCount; i++) {
+    88→            newArgs[i] = frame->args[i];
+    89→        }
+    90→        frame->args = newArgs;
+    91→        frame->argCapacity = newCap;
+    92→    }
+    93→
+    94→    frame->args[frame->argCount++] = arg;
+    95→    return 0;
+    96→}
+    97→
+    98→/* Concatenate result for word building */
+    99→static int appendResult(TclInterp *interp, TreeEvalState *state, TreeEvalFrame *frame, TclObj *part) {
+   100→    const TclHost *host = interp->host;
+   101→
+   102→    if (!frame->result) {
+   103→        frame->result = part;
+   104→        return 0;
+   105→    }
+   106→
+   107→    /* Concatenate strings */
+   108→    size_t len1, len2;
+   109→    const char *s1 = host->getStringPtr(frame->result, &len1);
+   110→    const char *s2 = host->getStringPtr(part, &len2);
+   111→
+   112→    char *buf = host->arenaAlloc(state->arena, len1 + len2 + 1, 1);
+   113→    if (!buf) return -1;
+   114→
+   115→    for (size_t i = 0; i < len1; i++) buf[i] = s1[i];
+   116→    for (size_t i = 0; i < len2; i++) buf[len1 + i] = s2[i];
+   117→    buf[len1 + len2] = '\0';
+   118→
+   119→    frame->result = host->newString(buf, len1 + len2);
+   120→    return 0;
+   121→}
+   122→
+   123→/* ========================================================================
+   124→ * Variable Lookup
+   125→ * ======================================================================== */
+   126→
+   127→static TclObj *lookupVar(TclInterp *interp, const char *name, size_t len) {
+   128→    const TclHost *host = interp->host;
+   129→
+   130→    /* Try current frame first */
+   131→    TclObj *val = host->varGet(interp->currentFrame->varsHandle, name, len);
+   132→    if (val) return val;
+   133→
+   134→    /* Try global frame if different */
+   135→    if (interp->currentFrame != interp->globalFrame) {
+   136→        val = host->varGet(interp->globalFrame->varsHandle, name, len);
+   137→    }
+   138→
+   139→    return val;
+   140→}
+   141→
+   142→/* ========================================================================
+   143→ * Command Dispatch
+   144→ * ======================================================================== */
+   145→
+   146→static TclResult dispatchCommand(TclInterp *interp, int objc, TclObj **objv) {
+   147→    const TclHost *host = interp->host;
+   148→
+   149→    if (objc == 0) {
+   150→        tclSetResult(interp, host->newString("", 0));
+   151→        return TCL_OK;
+   152→    }
+   153→
+   154→    size_t cmdLen;
+   155→    const char *cmdName = host->getStringPtr(objv[0], &cmdLen);
+   156→
+   157→    /* Check builtins first */
+   158→    int builtinIdx = tclBuiltinLookup(cmdName, cmdLen);
+   159→    if (builtinIdx >= 0) {
+   160→        const TclBuiltinEntry *entry = tclBuiltinGet(builtinIdx);
+   161→        if (entry) {
+   162→            return entry->proc(interp, objc, objv);
+   163→        }
+   164→    }
+   165→
+   166→    /* Try host command lookup (procs, extensions) */
+   167→    TclCmdInfo cmdInfo;
+   168→    if (host->cmdLookup(interp->hostCtx, cmdName, cmdLen, &cmdInfo) == 0) {
+   169→        switch (cmdInfo.type) {
+   170→            case TCL_CMD_PROC: {
+   171→                TclObj *argList = NULL;
+   172→                TclObj *body = NULL;
+   173→                if (host->procGetDef(cmdInfo.u.procHandle, &argList, &body) != 0) {
+   174→                    tclSetError(interp, "proc definition not found", -1);
+   175→                    return TCL_ERROR;
+   176→                }
+   177→
+   178→                /* Parse argument specification */
+   179→                TclObj **argSpecs = NULL;
+   180→                size_t argCount = 0;
+   181→                if (host->asList(argList, &argSpecs, &argCount) != 0) {
+   182→                    tclSetError(interp, "invalid argument list", -1);
+   183→                    return TCL_ERROR;
+   184→                }
+   185→
+   186→                /* Create proc frame */
+   187→                TclFrame *procFrame = host->frameAlloc(interp->hostCtx);
+   188→                if (!procFrame) {
+   189→                    tclSetError(interp, "out of memory", -1);
+   190→                    return TCL_ERROR;
+   191→                }
+   192→                procFrame->parent = interp->currentFrame;
+   193→                procFrame->level = interp->currentFrame->level + 1;
+   194→                procFrame->flags = TCL_FRAME_PROC;
+   195→                procFrame->procName = cmdName;
+   196→                procFrame->invocationObjs = objv;
+   197→                procFrame->invocationCount = objc;
+   198→
+   199→                /* Check for 'args' parameter */
+   200→                int hasArgs = 0;
+   201→                if (argCount > 0) {
+   202→                    size_t lastLen;
+   203→                    const char *lastName = host->getStringPtr(argSpecs[argCount - 1], &lastLen);
+   204→                    if (lastLen == 4 && tclStrncmp(lastName, "args", 4) == 0) {
+   205→                        hasArgs = 1;
+   206→                    }
+   207→                }
+   208→
+   209→                int requiredArgs = (int)argCount - (hasArgs ? 1 : 0);
+   210→                int actualArgs = objc - 1;
+   211→
+   212→                /* Count args with defaults */
+   213→                int minArgs = 0;
+   214→                for (size_t i = 0; i < (size_t)requiredArgs; i++) {
+   215→                    if (host->listLength(argSpecs[i]) < 2) {
+   216→                        minArgs++;
+   217→                    }
+   218→                }
+   219→
+   220→                if (actualArgs < minArgs || (!hasArgs && actualArgs > requiredArgs)) {
+   221→                    tclSetError(interp, "wrong # args", -1);
+   222→                    host->frameFree(interp->hostCtx, procFrame);
+   223→                    return TCL_ERROR;
+   224→                }
+   225→
+   226→                /* Bind arguments */
+   227→                for (size_t i = 0; i < (size_t)requiredArgs; i++) {
+   228→                    TclObj *argSpec = argSpecs[i];
+   229→                    size_t argNameLen;
+   230→                    const char *argName;
+   231→                    TclObj *value = NULL;
+   232→
+   233→                    size_t listLen = host->listLength(argSpec);
+   234→                    if (listLen >= 2) {
+   235→                        TclObj *nameObj = host->listIndex(argSpec, 0);
+   236→                        argName = host->getStringPtr(nameObj, &argNameLen);
+   237→                        if ((int)i < actualArgs) {
+   238→                            value = objv[i + 1];
+   239→                        } else {
+   240→                            value = host->listIndex(argSpec, 1);
+   241→                        }
+   242→                    } else {
+   243→                        argName = host->getStringPtr(argSpec, &argNameLen);
+   244→                        if ((int)i < actualArgs) {
+   245→                            value = objv[i + 1];
+   246→                        }
+   247→                    }
+   248→
+   249→                    if (value) {
+   250→                        host->varSet(procFrame->varsHandle, argName, argNameLen, host->dup(value));
+   251→                    }
+   252→                }
+   253→
+   254→                if (hasArgs) {
+   255→                    int argsStart = requiredArgs;
+   256→                    int argsCount = actualArgs - argsStart;
+   257→                    if (argsCount < 0) argsCount = 0;
+   258→
+   259→                    TclObj *argsList;
+   260→                    if (argsCount > 0) {
+   261→                        argsList = host->newList(&objv[argsStart + 1], argsCount);
+   262→                    } else {
+   263→                        argsList = host->newString("", 0);
+   264→                    }
+   265→                    host->varSet(procFrame->varsHandle, "args", 4, argsList);
+   266→                }
+   267→
+   268→                /* Execute body */
+   269→                TclFrame *savedFrame = interp->currentFrame;
+   270→                interp->currentFrame = procFrame;
+   271→
+   272→                size_t bodyLen;
+   273→                const char *bodyStr = host->getStringPtr(body, &bodyLen);
+   274→
+   275→                /* Use AST-based evaluation */
+   276→                TclResult result = tclTreeEvalStr(interp, bodyStr, bodyLen);
+   277→
+   278→                if (result == TCL_RETURN) {
+   279→                    result = TCL_OK;
+   280→                }
+   281→
+   282→                interp->currentFrame = savedFrame;
+   283→                host->frameFree(interp->hostCtx, procFrame);
+   284→                return result;
+   285→            }
+   286→
+   287→            case TCL_CMD_EXTENSION:
+   288→                return host->extInvoke(interp, cmdInfo.u.extHandle, objc, objv);
+   289→
+   290→            default:
+   291→                break;
+   292→        }
+   293→    }
+   294→
+   295→    /* Check coroutines */
+   296→    TclCoroutine *coro = tclCoroLookup(cmdName, cmdLen);
+   297→    if (coro) {
+   298→        return tclCoroInvoke(interp, coro, objc, objv);
+   299→    }
+   300→
+   301→    /* Command not found */
+   302→    void *arena = host->arenaPush(interp->hostCtx);
+   303→    char *msg = host->arenaAlloc(arena, cmdLen + 30, 1);
+   304→    char *p = msg;
+   305→    const char *prefix = "invalid command name \"";
+   306→    while (*prefix) *p++ = *prefix++;
+   307→    for (size_t i = 0; i < cmdLen; i++) *p++ = cmdName[i];
+   308→    *p++ = '"';
+   309→    *p = '\0';
+   310→    tclSetError(interp, msg, p - msg);
+   311→    host->arenaPop(interp->hostCtx, arena);
+   312→    return TCL_ERROR;
+   313→}
+   314→
+   315→/* ========================================================================
+   316→ * Tree-Walking Evaluation Step
+   317→ *
+   318→ * Processes one step of evaluation. Returns:
+   319→ * - TCL_OK: Evaluation complete
+   320→ * - TCL_ERROR: Error occurred
+   321→ * - TCL_CONTINUE: More work to do (internal use)
+   322→ * ======================================================================== */
+   323→
+   324→static TclResult evalStep(TclInterp *interp, TreeEvalState *state) {
+   325→    const TclHost *host = interp->host;
+   326→
+   327→    if (!state->top) {
+   328→        return TCL_OK; /* Stack empty, done */
+   329→    }
+   330→
+   331→    TreeEvalFrame *frame = state->top;
+   332→
+   333→    switch (frame->phase) {
+   334→        case TREE_EVAL_SCRIPT: {
+   335→            TclAstNode *script = frame->node;
+   336→
+   337→            if (frame->index >= script->u.script.count) {
+   338→                /* Script done */
+   339→                popFrame(state);
+   340→                return TCL_CONTINUE;
+   341→            }
+   342→
+   343→            /* Push frame for next command */
+   344→            TclAstNode *cmd = script->u.script.cmds[frame->index++];
+   345→            if (!pushFrame(interp, state, TREE_EVAL_COMMAND, cmd)) {
+   346→                tclSetError(interp, "out of memory", -1);
+   347→                return TCL_ERROR;
+   348→            }
+   349→            return TCL_CONTINUE;
+   350→        }
+   351→
+   352→        case TREE_EVAL_COMMAND: {
+   353→            TclAstNode *cmd = frame->node;
+   354→
+   355→            if (frame->index >= cmd->u.command.count) {
+   356→                /* All words evaluated, dispatch command */
+   357→                TclResult result = dispatchCommand(interp, frame->argCount, frame->args);
+   358→
+   359→                /* Handle control flow */
+   360→                if (result == TCL_ERROR || result == TCL_RETURN ||
+   361→                    result == TCL_BREAK || result == TCL_CONTINUE) {
+   362→                    return result;
+   363→                }
+   364→
+   365→                /* Check for yield */
+   366→                if (tclCoroYieldPending()) {
+   367→                    state->suspended = 1;
+   368→                    return TCL_OK;
+   369→                }
+   370→
+   371→                popFrame(state);
+   372→                return TCL_CONTINUE;
+   373→            }
+   374→
+   375→            /* Push frame for next word */
+   376→            TclAstNode *wordNode = cmd->u.command.words[frame->index++];
+   377→
+   378→            /* Handle expand nodes */
+   379→            if (wordNode->type == TCL_NODE_EXPAND) {
+   380→                /* Push word evaluation for inner node */
+   381→                if (!pushFrame(interp, state, TREE_EVAL_WORD, wordNode->u.expand.word)) {
+   382→                    tclSetError(interp, "out of memory", -1);
+   383→                    return TCL_ERROR;
+   384→                }
+   385→                /* Mark that we need to expand the result */
+   386→                state->top->phase = TREE_EVAL_WORD;
+   387→                /* TODO: Handle expansion after word evaluation */
+   388→            } else if (wordNode->type == TCL_NODE_LITERAL) {
+   389→                /* Literal - just add as argument */
+   390→                TclObj *arg = host->newString(wordNode->u.literal.value, wordNode->u.literal.len);
+   391→                if (addArg(interp, state, frame, arg) != 0) {
+   392→                    tclSetError(interp, "out of memory", -1);
+   393→                    return TCL_ERROR;
+   394→                }
+   395→            } else if (wordNode->type == TCL_NODE_VAR_SIMPLE) {
+   396→                /* Variable reference */
+   397→                TclObj *val = lookupVar(interp, wordNode->u.varSimple.name, wordNode->u.varSimple.len);
+   398→                if (!val) {
+   399→                    void *arena = host->arenaPush(interp->hostCtx);
+   400→                    char *msg = host->arenaAlloc(arena, wordNode->u.varSimple.len + 30, 1);
+   401→                    char *p = msg;
+   402→                    const char *prefix = "can't read \"";
+   403→                    while (*prefix) *p++ = *prefix++;
+   404→                    for (size_t i = 0; i < wordNode->u.varSimple.len; i++) *p++ = wordNode->u.varSimple.name[i];
+   405→                    const char *suffix = "\": no such variable";
+   406→                    while (*suffix) *p++ = *suffix++;
+   407→                    *p = '\0';
+   408→                    tclSetError(interp, msg, p - msg);
+   409→                    host->arenaPop(interp->hostCtx, arena);
+   410→                    return TCL_ERROR;
+   411→                }
+   412→                if (addArg(interp, state, frame, val) != 0) {
+   413→                    tclSetError(interp, "out of memory", -1);
+   414→                    return TCL_ERROR;
+   415→                }
+   416→            } else {
+   417→                /* Complex word - push word frame */
+   418→                if (!pushFrame(interp, state, TREE_EVAL_WORD, wordNode)) {
+   419→                    tclSetError(interp, "out of memory", -1);
+   420→                    return TCL_ERROR;
+   421→                }
+   422→            }
+   423→            return TCL_CONTINUE;
+   424→        }
+   425→
+   426→        case TREE_EVAL_WORD: {
+   427→            TclAstNode *word = frame->node;
+   428→
+   429→            if (word->type == TCL_NODE_LITERAL) {
+   430→                /* Simple literal */
+   431→                frame->result = host->newString(word->u.literal.value, word->u.literal.len);
+   432→                goto word_done;
+   433→            }
+   434→
+   435→            if (word->type == TCL_NODE_BACKSLASH) {
+   436→                /* Backslash escape */
+   437→                frame->result = host->newString(word->u.backslash.value, word->u.backslash.len);
+   438→                goto word_done;
+   439→            }
+   440→
+   441→            if (word->type == TCL_NODE_VAR_SIMPLE) {
+   442→                TclObj *val = lookupVar(interp, word->u.varSimple.name, word->u.varSimple.len);
+   443→                if (!val) {
+   444→                    void *arena = host->arenaPush(interp->hostCtx);
+   445→                    char *msg = host->arenaAlloc(arena, word->u.varSimple.len + 30, 1);
+   446→                    char *p = msg;
+   447→                    const char *prefix = "can't read \"";
+   448→                    while (*prefix) *p++ = *prefix++;
+   449→                    for (size_t i = 0; i < word->u.varSimple.len; i++) *p++ = word->u.varSimple.name[i];
+   450→                    const char *suffix = "\": no such variable";
+   451→                    while (*suffix) *p++ = *suffix++;
+   452→                    *p = '\0';
+   453→                    tclSetError(interp, msg, p - msg);
+   454→                    host->arenaPop(interp->hostCtx, arena);
+   455→                    return TCL_ERROR;
+   456→                }
+   457→                frame->result = val;
+   458→                goto word_done;
+   459→            }
+   460→
+   461→            if (word->type == TCL_NODE_VAR_ARRAY) {
+   462→                /* Array reference - first evaluate index */
+   463→                if (frame->index == 0) {
+   464→                    frame->index = 1;
+   465→                    if (word->u.varArray.index) {
+   466→                        if (!pushFrame(interp, state, TREE_EVAL_WORD, word->u.varArray.index)) {
+   467→                            tclSetError(interp, "out of memory", -1);
+   468→                            return TCL_ERROR;
+   469→                        }
+   470→                        return TCL_CONTINUE;
+   471→                    }
+   472→                }
+   473→
+   474→                /* Index evaluated, look up array element */
+   475→                const char *arrName = word->u.varArray.name;
+   476→                size_t arrLen = word->u.varArray.nameLen;
+   477→                size_t indexLen;
+   478→                const char *indexStr = "";
+   479→                if (frame->result) {
+   480→                    indexStr = host->getStringPtr(frame->result, &indexLen);
+   481→                } else {
+   482→                    indexLen = 0;
+   483→                }
+   484→
+   485→                /* Build array(index) key */
+   486→                char *key = host->arenaAlloc(state->arena, arrLen + indexLen + 3, 1);
+   487→                char *p = key;
+   488→                for (size_t i = 0; i < arrLen; i++) *p++ = arrName[i];
+   489→                *p++ = '(';
+   490→                for (size_t i = 0; i < indexLen; i++) *p++ = indexStr[i];
+   491→                *p++ = ')';
+   492→                *p = '\0';
+   493→
+   494→                TclObj *val = lookupVar(interp, key, p - key);
+   495→                if (!val) {
+   496→                    void *arena = host->arenaPush(interp->hostCtx);
+   497→                    char *msg = host->arenaAlloc(arena, (p - key) + 30, 1);
+   498→                    char *mp = msg;
+   499→                    const char *prefix = "can't read \"";
+   500→                    while (*prefix) *mp++ = *prefix++;
+   501→                    for (char *k = key; k < p; k++) *mp++ = *k;
+   502→                    const char *suffix = "\": no such variable";
+   503→                    while (*suffix) *mp++ = *suffix++;
+   504→                    *mp = '\0';
+   505→                    tclSetError(interp, msg, mp - msg);
+   506→                    host->arenaPop(interp->hostCtx, arena);
+   507→                    return TCL_ERROR;
+   508→                }
+   509→                frame->result = val;
+   510→                goto word_done;
+   511→            }
+   512→
+   513→            if (word->type == TCL_NODE_CMD_SUBST) {
+   514→                /* Command substitution */
+   515→                if (frame->index == 0) {
+   516→                    frame->index = 1;
+   517→                    if (word->u.cmdSubst.script) {
+   518→                        if (!pushFrame(interp, state, TREE_EVAL_SCRIPT, word->u.cmdSubst.script)) {
+   519→                            tclSetError(interp, "out of memory", -1);
+   520→                            return TCL_ERROR;
+   521→                        }
+   522→                        return TCL_CONTINUE;
+   523→                    }
+   524→                }
+   525→                /* Script evaluated, result is in interp->result */
+   526→                frame->result = interp->result ? interp->result : host->newString("", 0);
+   527→                goto word_done;
+   528→            }
+   529→
+   530→            if (word->type == TCL_NODE_WORD) {
+   531→                /* Composite word - evaluate parts */
+   532→                if (frame->index >= word->u.word.count) {
+   533→                    /* All parts done */
+   534→                    if (!frame->result) {
+   535→                        frame->result = host->newString("", 0);
+   536→                    }
+   537→                    goto word_done;
+   538→                }
+   539→
+   540→                TclAstNode *part = word->u.word.parts[frame->index++];
+   541→
+   542→                /* Handle simple parts inline */
+   543→                if (part->type == TCL_NODE_LITERAL) {
+   544→                    TclObj *lit = host->newString(part->u.literal.value, part->u.literal.len);
+   545→                    if (appendResult(interp, state, frame, lit) != 0) {
+   546→                        tclSetError(interp, "out of memory", -1);
+   547→                        return TCL_ERROR;
+   548→                    }
+   549→                    return TCL_CONTINUE;
+   550→                }
+   551→
+   552→                if (part->type == TCL_NODE_BACKSLASH) {
+   553→                    TclObj *bs = host->newString(part->u.backslash.value, part->u.backslash.len);
+   554→                    if (appendResult(interp, state, frame, bs) != 0) {
+   555→                        tclSetError(interp, "out of memory", -1);
+   556→                        return TCL_ERROR;
+   557→                    }
+   558→                    return TCL_CONTINUE;
+   559→                }
+   560→
+   561→                /* Complex part - push frame */
+   562→                if (!pushFrame(interp, state, TREE_EVAL_WORD, part)) {
+   563→                    tclSetError(interp, "out of memory", -1);
+   564→                    return TCL_ERROR;
+   565→                }
+   566→                return TCL_CONTINUE;
+   567→            }
+   568→
+   569→            /* Unknown node type */
+   570→            tclSetError(interp, "internal error: unknown node type", -1);
+   571→            return TCL_ERROR;
+   572→
+   573→        word_done:
+   574→            /* Word evaluation complete */
+   575→            popFrame(state);
+   576→
+   577→            /* If parent is a command, add as argument */
+   578→            if (state->top && state->top->phase == TREE_EVAL_COMMAND) {
+   579→                if (addArg(interp, state, state->top, frame->result) != 0) {
+   580→                    tclSetError(interp, "out of memory", -1);
+   581→                    return TCL_ERROR;
+   582→                }
+   583→            }
+   584→            /* If parent is a word, append to result */
+   585→            else if (state->top && state->top->phase == TREE_EVAL_WORD) {
+   586→                if (appendResult(interp, state, state->top, frame->result) != 0) {
+   587→                    tclSetError(interp, "out of memory", -1);
+   588→                    return TCL_ERROR;
+   589→                }
+   590→            }
+   591→            return TCL_CONTINUE;
+   592→        }
+   593→
+   594→        default:
+   595→            tclSetError(interp, "internal error: invalid eval phase", -1);
+   596→            return TCL_ERROR;
+   597→    }
+   598→}
+   599→
+   600→/* ========================================================================
+   601→ * Public API
+   602→ * ======================================================================== */
+   603→
+   604→TclResult tclTreeEvalAst(TclInterp *interp, TclAstNode *ast) {
+   605→    const TclHost *host = interp->host;
+   606→
+   607→    if (!ast) {
+   608→        tclSetResult(interp, host->newString("", 0));
+   609→        return TCL_OK;
+   610→    }
+   611→
+   612→    /* Initialize state */
+   613→    void *arena = host->arenaPush(interp->hostCtx);
+   614→    TreeEvalState state;
+   615→    state.top = NULL;
+   616→    state.arena = arena;
+   617→    state.suspended = 0;
+   618→    state.yieldValue = NULL;
+   619→
+   620→    /* Push initial frame */
+   621→    if (ast->type == TCL_NODE_SCRIPT) {
+   622→        if (!pushFrame(interp, &state, TREE_EVAL_SCRIPT, ast)) {
+   623→            host->arenaPop(interp->hostCtx, arena);
+   624→            tclSetError(interp, "out of memory", -1);
+   625→            return TCL_ERROR;
+   626→        }
+   627→    } else {
+   628→        /* Single node - wrap in evaluation */
+   629→        if (!pushFrame(interp, &state, TREE_EVAL_WORD, ast)) {
+   630→            host->arenaPop(interp->hostCtx, arena);
+   631→            tclSetError(interp, "out of memory", -1);
+   632→            return TCL_ERROR;
+   633→        }
+   634→    }
+   635→
+   636→    /* Set default result */
+   637→    tclSetResult(interp, host->newString("", 0));
+   638→
+   639→    /* Run evaluation loop */
+   640→    TclResult result;
+   641→    while (1) {
+   642→        result = evalStep(interp, &state);
+   643→
+   644→        if (result == TCL_CONTINUE) {
+   645→            continue;
+   646→        }
+   647→
+   648→        if (state.suspended) {
+   649→            /* Yield occurred - need to save state for resume */
+   650→            /* For now, just return */
+   651→            break;
+   652→        }
+   653→
+   654→        break;
+   655→    }
+   656→
+   657→    host->arenaPop(interp->hostCtx, arena);
+   658→    return result == TCL_CONTINUE ? TCL_OK : result;
+   659→}
+   660→
+   661→TclResult tclTreeEvalStr(TclInterp *interp, const char *script, size_t len) {
+   662→    const TclHost *host = interp->host;
+   663→
+   664→    if (len == 0 || !script) {
+   665→        tclSetResult(interp, host->newString("", 0));
+   666→        return TCL_OK;
+   667→    }
+   668→
+   669→    /* Parse script to AST */
+   670→    void *arena = host->arenaPush(interp->hostCtx);
+   671→    TclAstNode *ast = tclAstParse(interp, arena, script, len);
+   672→
+   673→    if (!ast) {
+   674→        host->arenaPop(interp->hostCtx, arena);
+   675→        tclSetError(interp, "parse error", -1);
+   676→        return TCL_ERROR;
+   677→    }
+   678→
+   679→    /* Evaluate AST */
+   680→    TclResult result = tclTreeEvalAst(interp, ast);
+   681→
+   682→    host->arenaPop(interp->hostCtx, arena);
+   683→    return result;
+   684→}
+   685→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

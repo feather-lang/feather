@@ -1,0 +1,3 @@
+27-            $(CORE_DIR)/eval.c $(CORE_DIR)/builtins.c $(CORE_DIR)/ast.c \
+28:            $(CORE_DIR)/tree_eval.c $(CORE_DIR)/builtin_expr.c \
+29-            $(CORE_DIR)/builtin_global.c $(CORE_DIR)/builtin_upvar.c $(CORE_DIR)/builtin_uplevel.c \

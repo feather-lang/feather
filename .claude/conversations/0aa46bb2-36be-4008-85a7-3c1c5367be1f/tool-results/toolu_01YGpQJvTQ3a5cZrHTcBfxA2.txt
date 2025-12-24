@@ -1,0 +1,797 @@
+     1→#ifndef INCLUDE_TCLC
+     2→#define INCLUDE_TCLC
+     3→
+     4→#include <stddef.h>
+     5→#include <stdint.h>
+     6→
+     7→/**
+     8→ * tclc is an embeddable implementation of the core TCL language.
+     9→ *
+    10→ * TCL was conceived at a time when most networked software was written
+    11→ * in C at the core, the internet was young, user expectations were looser.
+    12→ *
+    13→ * It is a tiny language full of great ideas, but features that were useful
+    14→ * 20 years ago are a hindrance today:
+    15→ *
+    16→ * - I/O in the language is an obstacle, as the host is more than likely
+    17→ *   to already have taken a stance on how it wants to handle I/O,
+    18→ * - a built-in event loop for multiplexing I/O and orchestrating timers
+    19→ *   was useful when no host could easily provide this, but event loops
+    20→ *   are widespread and having to integrate multiple event loops in one
+    21→ * application is error-prone.
+    22→ * - reference counting with lots of calls to malloc and free works great for
+    23→ *   standalone TCL, but the emergence of zig and wasm incentivizes being in
+    24→ *   control of allocations.
+    25→ *
+    26→ * So what ideas are worth preserving?
+    27→ *
+    28→ * A pure form of metaprogramming, syntax moldable like clay, with meaning
+    29→ * to be added at a time and in a form that is convenient for that particular
+    30→ * use case.
+    31→ *
+    32→ * A transparent execution environment: every aspect of a running TCL program
+    33→ * can be inspected from within that program, and often even modified.
+    34→ *
+    35→ * A focus on expressing computation in the form of instructions to carry out.
+    36→ *
+    37→ * The latter point is key: agentic coding benefits from an inspectable and
+    38→ * moldable environment.  Having the agent talk to your running program gives it
+    39→ * highly valuable feedback for a small amount of tokens.
+    40→ *
+    41→ * The browser is one example of this model being successful, but what about all
+    42→ * the other applications? Your job runner, web server, database, your desktop
+    43→ * or mobile app.
+    44→ *
+    45→ * tclc wants to be the thin glue layer that's easy to embed into your programs,
+    46→ * so that you can talk to them while they are running.
+    47→ *
+    48→ * Another way to look at TCL is this: it is a Lisp-2 with fexprs that extend
+    49→ * to the lexical syntax level.  Maybe that is more exciting.
+    50→ *
+    51→ * Here you will find a faithful implementation of:
+    52→ *
+    53→ * - control flow and execution primitives: proc, foreach, for, while, if,
+    54→ * return, break, continue, error, tailcall, try, throw, catch, switch
+    55→ * - introspection capabilities: info, errorCode, errorInfo, trace
+    56→ * - values and expressions: expr, incr, set, unset, global, variable
+    57→ * - metaprogramming: upvar, uplevel, rename, unknown, namespace
+    58→ * - data structures: list, dict, string, apply
+    59→ * - string manipulation: split, subst, concat, append, regexp, regsub, join
+    60→ *
+    61→ * Notable omissions (all to be covered by the host):
+    62→ *
+    63→ * - I/O: chan, puts, gets, refchan, transchan, after, vwait, update
+    64→ *   These are better provided by the host in the form of exposed commands.
+    65→ *
+    66→ * - OO: tclc intended use case is short, interactive programs
+    67→ * similar to bash. Programming in the large is explicitly not supported.
+    68→ *
+    69→ * - Coroutines: tclc interpreter objects are small and lightweight so you can
+    70→ * have of them if you need something like coroutines.
+    71→ *
+    72→ * Notables qualities of the implementation:
+    73→ *
+    74→ * This implementation is pure: it does not directly perform I/O or allocation
+    75→ * or interact with the kernel at all. It only provides TCL parsing and
+    76→ * semantics.
+    77→ *
+    78→ * All memory is allocated, accessed, and released by the embedding host.
+    79→ * The embedding host is highly likely to already have all the building blocks
+    80→ * we care about in the implementation and there is little value in building
+    81→ * our own version of regular expressions, lists, dictionaries, etc.
+    82→ *
+    83→ *
+    84→ * While this requires the host to implement a large number of functions, the
+    85→ * implementation is largely mechanical, which makes it a prime candidate
+    86→ * for delegating to agentic coding tools.
+    87→ */
+    88→
+    89→/** An opaque handle type, used by the host to identify objects */
+    90→typedef uintptr_t TclHandle;
+    91→
+    92→/** A handle to an interpreter instance */
+    93→typedef TclHandle TclInterp;
+    94→
+    95→/** A handle to an object */
+    96→typedef TclHandle TclObj;
+    97→
+    98→/**
+    99→ * TclHostOps contains all operations that the host needs to support for
+   100→ * this interpreter to work.
+   101→ */
+   102→typedef struct TclHostOps TclHostOps;
+   103→
+   104→/**
+   105→ * The return code of a function informs the TCL interpreter about how to
+   106→ * procede with execution.
+   107→ *
+   108→ * See `man n return` for the full semantics.
+   109→ */
+   110→typedef enum {
+   111→  /**
+   112→   * Proceed as usual to the next instruction.
+   113→   */
+   114→  TCL_OK = 0,
+   115→
+   116→  /**
+   117→   * An error occurred during execution and should be communicated to the user.
+   118→   */
+   119→  TCL_ERROR = 1,
+   120→
+   121→  /**
+   122→   * Return from the caller (used by custom return-like functions).
+   123→   */
+   124→  TCL_RETURN = 2,
+   125→
+   126→  /**
+   127→   * Break in the caller's frame (used by custom break-like functions).
+   128→   */
+   129→  TCL_BREAK = 3,
+   130→
+   131→  /**
+   132→   * Continue in the caller's frame (used by custom continue-like functions).
+   133→   */
+   134→  TCL_CONTINUE = 4,
+   135→} TclResult;
+   136→
+   137→/**
+   138→ * TclBuiltinCmd is the signature for builtin command implementations.
+   139→ *
+   140→ * Builtin commands receive the host operations, interpreter, command name,
+   141→ * and argument list. They return a result code and set the interpreter's
+   142→ * result via ops->interp.set_result.
+   143→ */
+   144→typedef TclResult (*TclBuiltinCmd)(const TclHostOps *ops, TclInterp interp,
+   145→                                   TclObj cmd, TclObj args);
+   146→
+   147→/**
+   148→ * TclTokenType encodes the types of tokens returned by the parser.
+   149→ *
+   150→ * During parsing, the parser creates tagged spans of text and stores
+   151→ * them in a TCL list.
+   152→ *
+   153→ * Since the host owns all the memory, the parser only needs to communicate
+   154→ * positions back.
+   155→ */
+   156→typedef enum {
+   157→  TCL_TOKEN_LITERAL = 0,          // expr
+   158→  TCL_TOKEN_VAR = 1,              // $errorInfo
+   159→  TCL_TOKEN_VAR_BRACED = 2,       // ${errorInfo}
+   160→  TCL_TOKEN_COMMAND = 3,          // [lindex $words 1]
+   161→  TCL_TOKEN_QUOTED = 4,           // "hello world"
+   162→  TCL_TOKEN_BRACED = 5,           // {hello world}
+   163→  TCL_TOKEN_COMMAND_SEPARATOR = 6 // newline, end of input
+   164→} TclTokenType;
+   165→
+   166→/**
+   167→ * TclParseStatus informs the caller about whether and how the parser
+   168→ * can be invoked again on the same input.
+   169→ */
+   170→typedef enum {
+   171→  // parsing finished successfully, result contains parsed command
+   172→  TCL_PARSE_OK = 0,
+   173→  // the parser needs more input
+   174→  TCL_PARSE_INCOMPLETE = 1,
+   175→  // the parser could not process the input successfully
+   176→  TCL_PARSE_ERROR = 2,
+   177→  // no more commands in the script
+   178→  TCL_PARSE_DONE = 3
+   179→} TclParseStatus;
+   180→
+   181→/**
+   182→ * TclParseContext holds the state for iterating over commands in a script.
+   183→ */
+   184→typedef struct {
+   185→  const char *script;  // Original script
+   186→  size_t len;          // Total length
+   187→  size_t pos;          // Current position
+   188→} TclParseContext;
+   189→
+   190→/**
+   191→ * tcl_parse_init initializes a parse context for iterating over commands.
+   192→ */
+   193→void tcl_parse_init(TclParseContext *ctx, const char *script, size_t len);
+   194→
+   195→/**
+   196→ * tcl_parse_command parses the next command from the script.
+   197→ *
+   198→ * Returns TCL_PARSE_OK when a command was parsed successfully.
+   199→ * The parsed command (list of words) is in the interpreter's result slot.
+   200→ *
+   201→ * Returns TCL_PARSE_DONE when the script is exhausted.
+   202→ *
+   203→ * Returns TCL_PARSE_INCOMPLETE or TCL_PARSE_ERROR on failure,
+   204→ * with error information in the interpreter's result slot.
+   205→ */
+   206→TclParseStatus tcl_parse_command(const TclHostOps *ops, TclInterp interp,
+   207→                                  TclParseContext *ctx);
+   208→
+   209→typedef enum {
+   210→  // Evaluate in the current scope of the interpreter
+   211→  TCL_EVAL_LOCAL = 0,
+   212→  // Evaluate in the interpreter's global scope
+   213→  TCL_EVAL_GLOBAL = 1,
+   214→} TclEvalFlags;
+   215→
+   216→/*
+   217→ * EVALUATION API
+   218→ *
+   219→ * TCL has two distinct representations that can be "evaluated":
+   220→ *
+   221→ * Script  - Source code as a string. May contain multiple commands
+   222→ *           separated by newlines or semicolons.
+   223→ *           Analogous to: Lisp source text before READ
+   224→ *
+   225→ * Command - A parsed command: a list [name, arg1, arg2, ...] where
+   226→ *           each element is a word (string/object). Arguments are
+   227→ *           NOT recursively parsed - they're strings that may contain
+   228→ *           source code for later evaluation.
+   229→ *           Analogous to: A single Lisp form, but with string leaves
+   230→ *
+   231→ * The key insight: TCL command arguments are strings, not nested ASTs.
+   232→ * When you write:
+   233→ *
+   234→ *   if {$x > 0} {puts yes}
+   235→ *
+   236→ * The `if` command receives two STRING arguments: "$x > 0" and "puts yes".
+   237→ * It decides when/whether to parse and evaluate them. This is like Lisp
+   238→ * fexprs, not regular functions.
+   239→ *
+   240→ * The braces { } produce string literals - they are NOT parsed until
+   241→ * a command explicitly evaluates them. This enables:
+   242→ *   - if/while to avoid evaluating unused branches
+   243→ *   - proc to store the body for later execution
+   244→ *   - catch to trap errors from the body
+   245→ */
+   246→
+   247→/**
+   248→ * tcl_command_exec executes a single parsed command.
+   249→ *
+   250→ * The command must be a list [name, arg1, arg2, ...].
+   251→ * Looks up 'name' and invokes it with the argument list.
+   252→ * Arguments are NOT evaluated - the command receives them as-is.
+   253→ *
+   254→ * Lisp equivalent: (APPLY fn args), but args are not evaluated.
+   255→ * More precisely: like calling a fexpr/macro.
+   256→ *
+   257→ * The result of execution is in the interpreter's result slot.
+   258→ */
+   259→TclResult tcl_command_exec(const TclHostOps *ops, TclInterp interp,
+   260→                           TclObj command, TclEvalFlags flags);
+   261→
+   262→/**
+   263→ * tcl_script_eval evaluates a script string.
+   264→ *
+   265→ * Parses each command and executes it. Stops on error or when
+   266→ * a command returns a non-OK code (break/continue/return).
+   267→ *
+   268→ * Lisp equivalent: (PROGN (EVAL (READ s)) ...) for each command in s,
+   269→ * but commands are executed as they're parsed, not batched.
+   270→ *
+   271→ * The result of the last command is in the interpreter's result slot.
+   272→ */
+   273→TclResult tcl_script_eval(const TclHostOps *ops, TclInterp interp,
+   274→                          const char *source, size_t len, TclEvalFlags flags);
+   275→
+   276→/**
+   277→ * tcl_script_eval_obj evaluates a script object.
+   278→ *
+   279→ * Gets the string representation of the object and evaluates it
+   280→ * as a script. This is what control structures (if, while, catch, proc)
+   281→ * use to evaluate their body arguments.
+   282→ *
+   283→ * Lisp equivalent: (EVAL obj) where obj is expected to contain source code.
+   284→ *
+   285→ * The result is in the interpreter's result slot.
+   286→ */
+   287→TclResult tcl_script_eval_obj(const TclHostOps *ops, TclInterp interp,
+   288→                              TclObj script, TclEvalFlags flags);
+   289→
+   290→/**
+   291→ * Flags for tcl_subst controlling which substitutions to perform.
+   292→ */
+   293→typedef enum {
+   294→  TCL_SUBST_BACKSLASHES = 1,
+   295→  TCL_SUBST_VARIABLES = 2,
+   296→  TCL_SUBST_COMMANDS = 4,
+   297→  TCL_SUBST_ALL = 7
+   298→} TclSubstFlags;
+   299→
+   300→/**
+   301→ * tcl_subst performs substitutions on a string.
+   302→ *
+   303→ * Performs backslash, variable, and/or command substitution on the input
+   304→ * string according to the flags parameter. The result is placed in the
+   305→ * interpreter's result slot.
+   306→ *
+   307→ * This is the core substitution engine used by quoted strings in both
+   308→ * the main parser and expression evaluator, and implements the `subst`
+   309→ * command.
+   310→ *
+   311→ * Returns TCL_OK on success, TCL_ERROR on failure.
+   312→ */
+   313→TclResult tcl_subst(const TclHostOps *ops, TclInterp interp,
+   314→                    const char *str, size_t len, int flags);
+   315→
+   316→/**
+   317→ * The heart of the implementation.  An embedder needs to provide all of the
+   318→ * following operations.
+   319→ *
+   320→ * The rest of the interpreter is implemented in terms of these.
+   321→ */
+   322→
+   323→/**
+   324→ * TclFrameOps describe the operations on execution frames.
+   325→ *
+   326→ * Frames contain:
+   327→ * - the variable environment in which expressions are evaluated,
+   328→ * - the command currently being evaluated,
+   329→ * - the return code of that command,
+   330→ * - the result object for holding the result of the evaluation,
+   331→ * - the error object in case of an error,
+   332→ * - their index on the call stack.
+   333→ */
+   334→typedef struct TclFrameOps {
+   335→  /**
+   336→   * push adds a new call frame to the stack for the evaluation of cmd and args.
+   337→   */
+   338→  TclResult (*push)(TclInterp interp, TclObj cmd, TclObj args);
+   339→
+   340→  /**
+   341→   * pop removes the topmost frame from the callstack.
+   342→   */
+   343→  TclResult (*pop)(TclInterp interp);
+   344→
+   345→  /**
+   346→   * level returns the current level of the call stack.
+   347→   */
+   348→  size_t (*level)(TclInterp interp);
+   349→
+   350→  /**
+   351→   * set_active makes the provided frame the active frame on the call stack.
+   352→   */
+   353→  TclResult (*set_active)(TclInterp interp, size_t level);
+   354→
+   355→  /**
+   356→   * size returns the size of the call stack.
+   357→   *
+   358→   * This is important because the level reported by level can
+   359→   * be less than the size because of a prior call to set_active.
+   360→   */
+   361→  size_t (*size)(TclInterp interp);
+   362→
+   363→  /**
+   364→   * info returns information about a frame at the given level.
+   365→   *
+   366→   * Sets *cmd and *args to the command and arguments at that level.
+   367→   * Returns TCL_ERROR if the level is out of bounds.
+   368→   */
+   369→  TclResult (*info)(TclInterp interp, size_t level, TclObj *cmd, TclObj *args);
+   370→} TclFrameOps;
+   371→
+   372→/**
+   373→ * TclStringOps describes the string operations the host needs to support.
+   374→ *
+   375→ * Strings are sequences of Unicode codepoints (runes).
+   376→ *
+   377→ * tclc is encoding neutral, as strings are managed by the host and all
+   378→ * characters with special meaning to the parser are part of ASCII.
+   379→ */
+   380→typedef struct TclStringOps {
+   381→  /**
+   382→   * intern returns a cached value for the given string s,
+   383→   * caching it if not present yet.
+   384→   */
+   385→  TclObj (*intern)(TclInterp interp, const char *s, size_t len);
+   386→
+   387→  /**
+   388→   * get returns the string representation of an object.
+   389→   */
+   390→  const char *(*get)(TclInterp interp, TclObj obj, size_t *len);
+   391→
+   392→  /**
+   393→   * concat returns a new object whose string value is
+   394→   * the concatenation of two objects.
+   395→   */
+   396→  TclObj (*concat)(TclInterp interp, TclObj a, TclObj b);
+   397→
+   398→  /**
+   399→   * compare compares two strings using Unicode ordering.
+   400→   * Returns <0 if a < b, 0 if a == b, >0 if a > b.
+   401→   */
+   402→  int (*compare)(TclInterp interp, TclObj a, TclObj b);
+   403→} TclStringOps;
+   404→
+   405→/**
+   406→ * TclIntOps gives access to integers from the host.
+   407→ */
+   408→typedef struct TclIntOps {
+   409→  /**
+   410→   * create requests a possibly new integer from the host.
+   411→   */
+   412→  TclObj (*create)(TclInterp interp, int64_t val);
+   413→
+   414→  /**
+   415→   * get extracts the integer value from an object.
+   416→   *
+   417→   * This can cause a conversion of the object's internal representation to an
+   418→   * integer.
+   419→   */
+   420→  TclResult (*get)(TclInterp interp, TclObj obj, int64_t *out);
+   421→} TclIntOps;
+   422→
+   423→/**
+   424→ * TclDoubleOps gives access to floating-point numbers from the host.
+   425→ */
+   426→typedef struct TclDoubleOps {
+   427→  /**
+   428→   * create requests a possibly new double from the host.
+   429→   */
+   430→  TclObj (*create)(TclInterp interp, double val);
+   431→
+   432→  /**
+   433→   * get extracts the double value from an object.
+   434→   *
+   435→   * This can cause a conversion of the object's internal representation to a
+   436→   * double.
+   437→   */
+   438→  TclResult (*get)(TclInterp interp, TclObj obj, double *out);
+   439→} TclDoubleOps;
+   440→
+   441→/**
+   442→ * TclInterpOps holds the operations on the state of the
+   443→ * interpreter instance.
+   444→ *
+   445→ * @see https://www.tcl-lang.org/man/tcl9.0/TclLib/AddErrInfo.html
+   446→ * @see https://www.tcl-lang.org/man/tcl9.0/TclLib/SetResult.html
+   447→ */
+   448→typedef struct TclInterpOps {
+   449→  /**
+   450→   * set_result sets the interpreter's result object.
+   451→   */
+   452→  TclResult (*set_result)(TclInterp interp, TclObj result);
+   453→
+   454→  /**
+   455→   * get_result returns the interpreter's result object.
+   456→   */
+   457→  TclObj (*get_result)(TclInterp interp);
+   458→
+   459→  /**
+   460→   * reset_result clears the interpreters evaluation state
+   461→   * like the current evaluation result and error information.
+   462→   */
+   463→  TclResult (*reset_result)(TclInterp interp, TclObj result);
+   464→
+   465→  /**
+   466→   * set_return_options corresponds to the options passed to return.
+   467→   *
+   468→   * Sets the return options of interp to be options.
+   469→   * If options contains any invalid value for any key, TCL_ERROR will be
+   470→   * returned, and the interp result will be set to an appropriate error
+   471→   * message. Otherwise, a completion code in agreement with the -code and
+   472→   * -level keys in options will be returned.
+   473→   */
+   474→  TclResult (*set_return_options)(TclInterp interp, TclObj options);
+   475→
+   476→  /**
+   477→   * get_return_options returns the options passed to the return command.
+   478→   *
+   479→   * Retrieves the dictionary of return options from an interpreter following a
+   480→   * script evaluation.
+   481→   *
+   482→   * Routines such as tcl_eval are called to evaluate a
+   483→   * script in an interpreter.
+   484→   *
+   485→   * These routines return an integer completion code.
+   486→   *
+   487→   * These routines also leave in the interpreter both a result and a dictionary
+   488→   * of return options generated by script evaluation.
+   489→   */
+   490→  TclObj (*get_return_options)(TclInterp interp, TclResult code);
+   491→} TclInterpOps;
+   492→
+   493→/**
+   494→ * TclVarOps provide access to the interpreter's symbol table.
+   495→ *
+   496→ * Note that the results depend on the currently active evaluation frame.
+   497→ */
+   498→typedef struct TclVarOps {
+   499→  /**
+   500→   * get returns the value of the variable identified by name
+   501→   * in the current evaluation frame.
+   502→   */
+   503→  TclObj (*get)(TclInterp interp, TclObj name);
+   504→
+   505→  /**
+   506→   * set sets the value of the variable name to value in
+   507→   * the current evaluation frame.
+   508→   */
+   509→  void (*set)(TclInterp interp, TclObj name, TclObj value);
+   510→
+   511→  /**
+   512→   * unset removes the given variable from the current evaluation frame's
+   513→   * environment.
+   514→   *
+   515→   *
+   516→   */
+   517→  void (*unset)(TclInterp interp, TclObj name);
+   518→
+   519→  /**
+   520→   * exists returns TCL_OK when the given variable exists
+   521→   * in the current evaluation frame.
+   522→   */
+   523→  TclResult (*exists)(TclInterp interp, TclObj name);
+   524→
+   525→  /**
+   526→   * link creates a connection between the variable local
+   527→   * in the current evaluation frame and the variable target
+   528→   * in the frame indicated by target_level.
+   529→   *
+   530→   * The link affects get, set, unset, and exists.
+   531→   */
+   532→  void (*link)(TclInterp interp, TclObj local, size_t target_level,
+   533→               TclObj target);
+   534→
+   535→} TclVarOps;
+   536→
+   537→/**
+   538→ * TclCommandType indicates the type of a command in the unified command table.
+   539→ */
+   540→typedef enum {
+   541→  TCL_CMD_NONE = 0,    // command doesn't exist
+   542→  TCL_CMD_BUILTIN = 1, // it's a builtin command
+   543→  TCL_CMD_PROC = 2,    // it's a user-defined procedure
+   544→} TclCommandType;
+   545→
+   546→/**
+   547→ * TclProcOps define operations on the interpreter's symbol table.
+   548→ *
+   549→ * Variables and procs exist in separate namespaces, so having a variable xyz
+   550→ * and a proc named xyz at the same time is perfectly valid.
+   551→ *
+   552→ * Procs are collected in namespaces, of which there is presently only one,
+   553→ * the global namespace called "::".
+   554→ *
+   555→ * The global namespace need not be explicitly stated when referring to entries
+   556→ * in the symbol table through this API.
+   557→ */
+   558→typedef struct TclProcOps {
+   559→  /**
+   560→   * define overwrites the symbol table entry with the given procedure.
+   561→   *
+   562→   * Nested namespaces are created automatically.
+   563→   */
+   564→  void (*define)(TclInterp interp, TclObj name, TclObj params, TclObj body);
+   565→
+   566→  /**
+   567→   * exists reports whether a procedure entry with the given name exists.
+   568→   */
+   569→  int (*exists)(TclInterp interp, TclObj name);
+   570→
+   571→  /**
+   572→   * params returns the parameter list associated with a procedure.
+   573→   *
+   574→   * Trying to retrieve the parameter list of a non-existing procedure
+   575→   * puts the interpreter into an error state as indicated by the result.
+   576→   */
+   577→  TclResult (*params)(TclInterp interp, TclObj name, TclObj *result);
+   578→
+   579→  /**
+   580→   * body returns the body list associated with a procedure.
+   581→   *
+   582→   * Trying to retrieve the body list of a non-existing procedure
+   583→   * puts the interpreter into an error state as indicated by the result.
+   584→   */
+   585→  TclResult (*body)(TclInterp interp, TclObj name, TclObj *result);
+   586→
+   587→  /**
+   588→   * names returns a list of all command names visible in the given namespace.
+   589→   *
+   590→   * If namespace is nil (0), uses the global namespace.
+   591→   * This includes builtins, user-defined procs, and host-registered commands.
+   592→   */
+   593→  TclObj (*names)(TclInterp interp, TclObj namespace);
+   594→
+   595→  /**
+   596→   * resolve_namespace resolves a namespace path and returns the namespace object.
+   597→   *
+   598→   * If path is nil or empty, returns the global namespace object.
+   599→   * Returns TCL_ERROR if the namespace does not exist.
+   600→   */
+   601→  TclResult (*resolve_namespace)(TclInterp interp, TclObj path, TclObj *result);
+   602→
+   603→  /**
+   604→   * register_builtin records a builtin command with its implementation.
+   605→   *
+   606→   * Used by tcl_interp_init to register builtin commands with the host.
+   607→   * The host stores the function pointer for later dispatch.
+   608→   */
+   609→  void (*register_builtin)(TclInterp interp, TclObj name, TclBuiltinCmd fn);
+   610→
+   611→  /**
+   612→   * lookup checks if a command exists and returns its type.
+   613→   *
+   614→   * For builtins, sets *fn to the function pointer.
+   615→   * For procs, *fn is set to NULL.
+   616→   * For non-existent commands, returns TCL_CMD_NONE and *fn is NULL.
+   617→   */
+   618→  TclCommandType (*lookup)(TclInterp interp, TclObj name, TclBuiltinCmd *fn);
+   619→
+   620→  /**
+   621→   * rename changes a command's name in the unified command table.
+   622→   *
+   623→   * If newName is empty (zero-length string), the command is deleted.
+   624→   * Returns TCL_ERROR if oldName doesn't exist or newName already exists.
+   625→   */
+   626→  TclResult (*rename)(TclInterp interp, TclObj oldName, TclObj newName);
+   627→} TclProcOps;
+   628→
+   629→/**
+   630→ * TclListOps define the operations necessary for the interpreter to work with
+   631→ * lists.
+   632→ *
+   633→ * It is up to the host to decide whether lists are implemented as linked lists
+   634→ * or contiguous, dynamically growing arrays.  The internal lists the
+   635→ * interpreter uses are small.
+   636→ */
+   637→typedef struct TclListOps {
+   638→  /**
+   639→   * is_nil return true if the given object is the special nil object.
+   640→   */
+   641→  int (*is_nil)(TclInterp interp, TclObj obj);
+   642→
+   643→  /**
+   644→   * create returns an empty, mutable list.
+   645→   */
+   646→  TclObj (*create)(TclInterp interp);
+   647→
+   648→  /**
+   649→   * from returns a new list initialized from the given object.
+   650→   */
+   651→  TclObj (*from)(TclInterp interp, TclObj obj);
+   652→
+   653→  /**
+   654→   * push appends an item to the end of list and returns the new list head.
+   655→   *
+   656→   * If the host decides to mutate the underlying list, returning the list
+   657→   * object is expected.
+   658→   */
+   659→  TclObj (*push)(TclInterp interp, TclObj list, TclObj item);
+   660→
+   661→  /**
+   662→   * pop removes the rightmost item from the list and returns it.
+   663→   *
+   664→   * If the host decides to mutate the underlying list, returning the list
+   665→   * object is expected.
+   666→   *
+   667→   * popping the nil object returns nil.
+   668→   */
+   669→  TclObj (*pop)(TclInterp interp, TclObj list);
+   670→
+   671→  /**
+   672→   * unshift prepends an item to the beginning of list and returns the new list
+   673→   * head.
+   674→   *
+   675→   * If the host decides to mutate the underlying list, returning the list
+   676→   * object is expected.
+   677→   */
+   678→  TclObj (*unshift)(TclInterp interp, TclObj list, TclObj item);
+   679→
+   680→  /**
+   681→   * shift removes the leftmost item from the list and returns it.
+   682→   *
+   683→   * If the host decides to mutate the underlying list, returning the list
+   684→   * object is expected.
+   685→   *
+   686→   * shifting the nil object returns nil.
+   687→   */
+   688→  TclObj (*shift)(TclInterp interp, TclObj list);
+   689→
+   690→  /**
+   691→   * length returns the length of the list.
+   692→   *
+   693→   * The length of the nil object is 0.
+   694→   */
+   695→  size_t (*length)(TclInterp interp, TclObj list);
+   696→
+   697→  /**
+   698→   * at returns the element of list at the given index.
+   699→   *
+   700→   * If the index is out of bounds, the nil object is returned.
+   701→   */
+   702→  TclObj (*at)(TclInterp interp, TclObj list, size_t index);
+   703→} TclListOps;
+   704→
+   705→/**
+   706→ * TclBindOps defines the operations for host <> interpreter interop.
+   707→ */
+   708→typedef struct TclBindOpts {
+   709→  /**
+   710→   * unknown is invoked when the interpreter tries to invoke an undefined
+   711→   * procedure and gives the host a chance to react to this.
+   712→   *
+   713→   * If the host returns TCL_ERROR, the interpreter considers the procedure
+   714→   * lookup to have failed for good.
+   715→   */
+   716→  TclResult (*unknown)(TclInterp interp, TclObj cmd, TclObj args,
+   717→                       TclObj *value);
+   718→} TclBindOpts;
+   719→
+   720→/**
+   721→ * TclHostOps contains the aggregation of all operations necessary
+   722→ * for interpreter to work.
+   723→ */
+   724→typedef struct TclHostOps {
+   725→  TclFrameOps frame;
+   726→  TclVarOps var;
+   727→  TclProcOps proc;
+   728→  TclStringOps string;
+   729→  TclListOps list;
+   730→  TclIntOps integer;
+   731→  TclDoubleOps dbl;
+   732→  TclInterpOps interp;
+   733→  TclBindOpts bind;
+   734→} TclHostOps;
+   735→
+   736→/**
+   737→ * tcl_interp_init registers all builtin commands with the interpreter.
+   738→ *
+   739→ * This should be called once after creating the interpreter and before
+   740→ * evaluating any scripts.
+   741→ */
+   742→void tcl_interp_init(const TclHostOps *ops, TclInterp interp);
+   743→
+   744→/**
+   745→ * tcl_builtin_set implements the TCL 'set' command.
+   746→ *
+   747→ * Usage:
+   748→ *   set varName ?value?
+   749→ *
+   750→ * With two arguments, sets varName to value and returns value.
+   751→ * With one argument, returns the current value of varName.
+   752→ * Errors if varName does not exist (one-argument form).
+   753→ */
+   754→TclResult tcl_builtin_set(const TclHostOps *ops, TclInterp interp,
+   755→                          TclObj cmd, TclObj args);
+   756→
+   757→/**
+   758→ * tcl_builtin_expr implements the TCL 'expr' command.
+   759→ *
+   760→ * Usage:
+   761→ *   expr arg ?arg ...?
+   762→ *
+   763→ * Concatenates arguments with spaces and evaluates as an expression.
+   764→ * Supports comparison (<, <=, >, >=, ==, !=), bitwise (&, |),
+   765→ * and logical (&&, ||) operators on integers.
+   766→ */
+   767→TclResult tcl_builtin_expr(const TclHostOps *ops, TclInterp interp,
+   768→                           TclObj cmd, TclObj args);
+   769→
+   770→/**
+   771→ * tcl_strlen counts bytes in a null-terminated C string, excluding the null.
+   772→ *
+   773→ * This is equivalent to strlen but avoids stdlib dependency.
+   774→ */
+   775→size_t tcl_strlen(const char *s);
+   776→
+   777→/**
+   778→ * tcl_glob_match performs glob pattern matching.
+   779→ *
+   780→ * Supports:
+   781→ *   * - matches any sequence of characters (including empty)
+   782→ *   ? - matches any single character
+   783→ *   [...] - matches any character in the set
+   784→ *   [^...] or [!...] - matches any character NOT in the set
+   785→ *   \x - matches x literally (escape)
+   786→ *
+   787→ * Returns 1 if string matches pattern, 0 otherwise.
+   788→ */
+   789→int tcl_glob_match(const char *pattern, size_t pattern_len,
+   790→                   const char *string, size_t string_len);
+   791→
+   792→#endif
+   793→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>

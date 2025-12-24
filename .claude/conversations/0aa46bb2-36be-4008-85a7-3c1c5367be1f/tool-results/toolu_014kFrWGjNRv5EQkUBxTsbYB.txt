@@ -1,0 +1,618 @@
+     1→package interp
+     2→
+     3→/*
+     4→#cgo CFLAGS: -I${SRCDIR}/../src
+     5→#include "tclc.h"
+     6→#include <stdlib.h>
+     7→*/
+     8→import "C"
+     9→
+    10→import (
+    11→	"fmt"
+    12→	"runtime/cgo"
+    13→	"strconv"
+    14→	"strings"
+    15→	"sync"
+    16→	"unsafe"
+    17→)
+    18→
+    19→type TclResult uint
+    20→
+    21→// Result codes matching TclResult enum
+    22→const (
+    23→	ResultOK       TclResult = C.TCL_OK
+    24→	ResultError    TclResult = C.TCL_ERROR
+    25→	ResultReturn   TclResult = C.TCL_RETURN
+    26→	ResultBreak    TclResult = C.TCL_BREAK
+    27→	ResultContinue TclResult = C.TCL_CONTINUE
+    28→)
+    29→
+    30→// EvalFlags matching TclEvalFlags enum
+    31→const (
+    32→	EvalLocal  = C.TCL_EVAL_LOCAL
+    33→	EvalGlobal = C.TCL_EVAL_GLOBAL
+    34→)
+    35→
+    36→// ParseStatus matching TclParseStatus enum
+    37→type ParseStatus uint
+    38→
+    39→const (
+    40→	ParseOK         ParseStatus = C.TCL_PARSE_OK
+    41→	ParseIncomplete ParseStatus = C.TCL_PARSE_INCOMPLETE
+    42→	ParseError      ParseStatus = C.TCL_PARSE_ERROR
+    43→)
+    44→
+    45→// ParseResult holds the result of parsing a script
+    46→type ParseResult struct {
+    47→	Status       ParseStatus
+    48→	Result       string // The interpreter's result string (e.g., "{INCOMPLETE 5 20}")
+    49→	ErrorMessage string // For ParseError, the error message from the result list
+    50→}
+    51→
+    52→// Handle is the Go type for TclHandle
+    53→type Handle = uintptr
+    54→
+    55→// TclInterp is a handle to an interpreter instance
+    56→type TclInterp Handle
+    57→
+    58→// TclObj is a handle to an object
+    59→type TclObj Handle
+    60→
+    61→// CommandFunc is the signature for host command implementations.
+    62→// Commands receive the interpreter, the command name and a list of argument objects.
+    63→//
+    64→// # In case of an error, the command should set the interpreter's error information and return ResultError
+    65→//
+    66→// To return a value, the command should set the interpreter's result value and return ResultOK
+    67→type CommandFunc func(i *Interp, cmd TclObj, args []TclObj) TclResult
+    68→
+    69→// varLink represents a link to a variable in another frame (for upvar)
+    70→type varLink struct {
+    71→	targetLevel int    // frame level where the target variable lives
+    72→	targetName  string // name of the variable in the target frame
+    73→}
+    74→
+    75→// CallFrame represents an execution frame on the call stack.
+    76→// Each frame has its own variable environment.
+    77→type CallFrame struct {
+    78→	cmd   TclObj            // command being evaluated
+    79→	args  TclObj            // arguments to the command
+    80→	vars  map[string]TclObj // local variable storage
+    81→	links map[string]varLink // upvar links: local name -> target variable
+    82→	level int               // frame index on the call stack
+    83→}
+    84→
+    85→// Procedure represents a user-defined procedure
+    86→type Procedure struct {
+    87→	name   TclObj
+    88→	params TclObj
+    89→	body   TclObj
+    90→}
+    91→
+    92→// CommandType indicates the type of a command
+    93→type CommandType int
+    94→
+    95→const (
+    96→	CmdNone    CommandType = 0 // command doesn't exist
+    97→	CmdBuiltin CommandType = 1 // it's a builtin command
+    98→	CmdProc    CommandType = 2 // it's a user-defined procedure
+    99→)
+   100→
+   101→// Command represents an entry in the unified command table
+   102→type Command struct {
+   103→	cmdType CommandType      // type of command
+   104→	builtin C.TclBuiltinCmd  // function pointer (only for CmdBuiltin)
+   105→	proc    *Procedure       // procedure info (only for CmdProc)
+   106→}
+   107→
+   108→// Interp represents a TCL interpreter instance
+   109→type Interp struct {
+   110→	handle         TclInterp
+   111→	objects        map[TclObj]*Object
+   112→	commands       map[string]*Command // unified command table
+   113→	globalNS       TclObj              // global namespace object
+   114→	nextID         TclObj
+   115→	result         TclObj
+   116→	returnOptions  TclObj       // options from the last return command
+   117→	frames         []*CallFrame // call stack (frame 0 is global)
+   118→	active         int          // currently active frame index
+   119→	recursionLimit int          // maximum call stack depth (0 means use default)
+   120→	mu             sync.Mutex
+   121→
+   122→	// UnknownHandler is called when an unknown command is invoked.
+   123→	UnknownHandler CommandFunc
+   124→}
+   125→
+   126→// Object represents a TCL object
+   127→type Object struct {
+   128→	stringVal string
+   129→	cstr      *C.char // cached C string for passing to C code
+   130→	intVal    int64
+   131→	isInt     bool
+   132→	dblVal    float64
+   133→	isDouble  bool
+   134→	listItems []TclObj
+   135→	isList    bool
+   136→}
+   137→
+   138→// NewInterp creates a new interpreter
+   139→func NewInterp() *Interp {
+   140→	interp := &Interp{
+   141→		objects:  make(map[TclObj]*Object),
+   142→		commands: make(map[string]*Command),
+   143→		nextID:   1,
+   144→	}
+   145→	// Initialize the global frame (frame 0)
+   146→	globalFrame := &CallFrame{
+   147→		vars:  make(map[string]TclObj),
+   148→		links: make(map[string]varLink),
+   149→		level: 0,
+   150→	}
+   151→	interp.frames = []*CallFrame{globalFrame}
+   152→	interp.active = 0
+   153→	// Use cgo.Handle to allow C callbacks to find this interpreter
+   154→	interp.handle = TclInterp(cgo.NewHandle(interp))
+   155→	// Create the global namespace object
+   156→	interp.globalNS = interp.internString("::")
+   157→	// Initialize the C interpreter (registers builtins)
+   158→	callCInterpInit(interp.handle)
+   159→	return interp
+   160→}
+   161→
+   162→// Close releases resources associated with the interpreter.
+   163→// Must be called when the interpreter is no longer needed.
+   164→func (i *Interp) Close() {
+   165→	cgo.Handle(i.handle).Delete()
+   166→}
+   167→
+   168→// DefaultRecursionLimit is the default maximum call stack depth.
+   169→const DefaultRecursionLimit = 1000
+   170→
+   171→// SetRecursionLimit sets the maximum call stack depth.
+   172→// If limit is 0 or negative, the default limit (1000) is used.
+   173→func (i *Interp) SetRecursionLimit(limit int) {
+   174→	i.mu.Lock()
+   175→	defer i.mu.Unlock()
+   176→	if limit <= 0 {
+   177→		i.recursionLimit = DefaultRecursionLimit
+   178→	} else {
+   179→		i.recursionLimit = limit
+   180→	}
+   181→}
+   182→
+   183→// getRecursionLimit returns the effective recursion limit.
+   184→func (i *Interp) getRecursionLimit() int {
+   185→	if i.recursionLimit <= 0 {
+   186→		return DefaultRecursionLimit
+   187→	}
+   188→	return i.recursionLimit
+   189→}
+   190→
+   191→// Handle returns the interpreter's handle
+   192→func (i *Interp) Handle() TclInterp {
+   193→	return i.handle
+   194→}
+   195→
+   196→// Parse parses a script string and returns the parse status and result.
+   197→func (i *Interp) Parse(script string) ParseResult {
+   198→	scriptHandle := i.internString(script)
+   199→
+   200→	// Call the C parser
+   201→	status := callCParse(i.handle, scriptHandle)
+   202→
+   203→	var resultStr string
+   204→	var errorMsg string
+   205→	if obj := i.getObject(i.result); obj != nil {
+   206→		resultStr = i.listToString(obj)
+   207→		// For parse errors, extract the error message (4th element) directly from the list
+   208→		if ParseStatus(status) == ParseError && obj.isList && len(obj.listItems) >= 4 {
+   209→			if msgObj := i.getObject(obj.listItems[3]); msgObj != nil {
+   210→				errorMsg = msgObj.stringVal
+   211→			}
+   212→		}
+   213→	}
+   214→
+   215→	return ParseResult{
+   216→		Status:       ParseStatus(status),
+   217→		Result:       resultStr,
+   218→		ErrorMessage: errorMsg,
+   219→	}
+   220→}
+   221→
+   222→// listToString converts a list object to its TCL string representation for display.
+   223→// This includes outer braces for non-empty lists (used for parse result display).
+   224→func (i *Interp) listToString(obj *Object) string {
+   225→	if obj == nil {
+   226→		return ""
+   227→	}
+   228→	if !obj.isList {
+   229→		if obj.isInt {
+   230→			return fmt.Sprintf("%d", obj.intVal)
+   231→		}
+   232→		return obj.stringVal
+   233→	}
+   234→	// Build TCL list representation: {elem1 elem2 ...}
+   235→	var result string
+   236→	for idx, itemHandle := range obj.listItems {
+   237→		itemObj := i.getObject(itemHandle)
+   238→		if itemObj == nil {
+   239→			continue
+   240→		}
+   241→		if idx > 0 {
+   242→			result += " "
+   243→		}
+   244→		// Handle different object types
+   245→		if itemObj.isInt {
+   246→			result += fmt.Sprintf("%d", itemObj.intVal)
+   247→		} else if itemObj.isList {
+   248→			result += i.listToString(itemObj)
+   249→		} else {
+   250→			// Quote strings that contain spaces
+   251→			if strings.ContainsAny(itemObj.stringVal, " \t\n") {
+   252→				result += "{" + itemObj.stringVal + "}"
+   253→			} else {
+   254→				result += itemObj.stringVal
+   255→			}
+   256→		}
+   257→	}
+   258→	if len(obj.listItems) > 0 {
+   259→		result = "{" + result + "}"
+   260→	}
+   261→	return result
+   262→}
+   263→
+   264→// listToValue converts a list object to its TCL value string representation.
+   265→// This does NOT include outer braces (used when returning list as a value).
+   266→func (i *Interp) listToValue(obj *Object) string {
+   267→	if obj == nil {
+   268→		return ""
+   269→	}
+   270→	if !obj.isList {
+   271→		if obj.isInt {
+   272→			return fmt.Sprintf("%d", obj.intVal)
+   273→		}
+   274→		return obj.stringVal
+   275→	}
+   276→	// Build TCL list value: elem1 elem2 ...
+   277→	// Elements with spaces are braced, but the list itself is not wrapped
+   278→	var result string
+   279→	for idx, itemHandle := range obj.listItems {
+   280→		itemObj := i.getObject(itemHandle)
+   281→		if itemObj == nil {
+   282→			continue
+   283→		}
+   284→		if idx > 0 {
+   285→			result += " "
+   286→		}
+   287→		// Handle different object types
+   288→		if itemObj.isInt {
+   289→			result += fmt.Sprintf("%d", itemObj.intVal)
+   290→		} else if itemObj.isList {
+   291→			// Nested lists need to be braced
+   292→			nested := i.listToValue(itemObj)
+   293→			if len(itemObj.listItems) > 0 || strings.ContainsAny(nested, " \t\n") {
+   294→				result += "{" + nested + "}"
+   295→			} else {
+   296→				result += nested
+   297→			}
+   298→		} else {
+   299→			// Quote strings that contain spaces or special chars
+   300→			if strings.ContainsAny(itemObj.stringVal, " \t\n{}") {
+   301→				result += "{" + itemObj.stringVal + "}"
+   302→			} else {
+   303→				result += itemObj.stringVal
+   304→			}
+   305→		}
+   306→	}
+   307→	return result
+   308→}
+   309→
+   310→// Eval evaluates a script string using the C interpreter
+   311→func (i *Interp) Eval(script string) (string, error) {
+   312→	scriptHandle := i.internString(script)
+   313→
+   314→	// Call the C interpreter
+   315→	result := callCEval(i.handle, scriptHandle)
+   316→
+   317→	if result == C.TCL_OK {
+   318→		return i.GetString(i.result), nil
+   319→	}
+   320→
+   321→	// Handle TCL_RETURN at top level - apply the return options
+   322→	if result == C.TCL_RETURN {
+   323→		// Get return options and apply the code
+   324→		var code C.TclResult = C.TCL_OK
+   325→		if i.returnOptions != 0 {
+   326→			items, err := i.GetList(i.returnOptions)
+   327→			if err == nil {
+   328→				for j := 0; j+1 < len(items); j += 2 {
+   329→					key := i.GetString(items[j])
+   330→					if key == "-code" {
+   331→						if codeVal, err := i.GetInt(items[j+1]); err == nil {
+   332→							code = C.TclResult(codeVal)
+   333→						}
+   334→					}
+   335→				}
+   336→			}
+   337→		}
+   338→		// Apply the extracted code
+   339→		if code == C.TCL_OK {
+   340→			return i.GetString(i.result), nil
+   341→		}
+   342→		if code == C.TCL_ERROR {
+   343→			return "", &EvalError{Message: i.GetString(i.result)}
+   344→		}
+   345→		if code == C.TCL_BREAK {
+   346→			return "", &EvalError{Message: "invoked \"break\" outside of a loop"}
+   347→		}
+   348→		if code == C.TCL_CONTINUE {
+   349→			return "", &EvalError{Message: "invoked \"continue\" outside of a loop"}
+   350→		}
+   351→		// For other codes, treat as ok
+   352→		return i.GetString(i.result), nil
+   353→	}
+   354→
+   355→	// Convert break/continue outside loop to errors at the top level
+   356→	if result == C.TCL_BREAK {
+   357→		return "", &EvalError{Message: "invoked \"break\" outside of a loop"}
+   358→	}
+   359→	if result == C.TCL_CONTINUE {
+   360→		return "", &EvalError{Message: "invoked \"continue\" outside of a loop"}
+   361→	}
+   362→
+   363→	return "", &EvalError{Message: i.GetString(i.result)}
+   364→}
+   365→
+   366→// Result returns the current result string
+   367→func (i *Interp) Result() string {
+   368→	return i.GetString(i.result)
+   369→}
+   370→
+   371→// EvalError represents an evaluation error
+   372→type EvalError struct {
+   373→	Message string
+   374→}
+   375→
+   376→func (e *EvalError) Error() string {
+   377→	return e.Message
+   378→}
+   379→
+   380→// internString stores a string and returns its handle
+   381→func (i *Interp) internString(s string) TclObj {
+   382→	i.mu.Lock()
+   383→	defer i.mu.Unlock()
+   384→
+   385→	id := i.nextID
+   386→	i.nextID++
+   387→	i.objects[id] = &Object{stringVal: s}
+   388→	return id
+   389→}
+   390→
+   391→// InternString stores a string and returns its handle.
+   392→func (i *Interp) InternString(s string) TclObj {
+   393→	return i.internString(s)
+   394→}
+   395→
+   396→// getObject retrieves an object by handle
+   397→func (i *Interp) getObject(h TclObj) *Object {
+   398→	i.mu.Lock()
+   399→	defer i.mu.Unlock()
+   400→	return i.objects[h]
+   401→}
+   402→
+   403→// GetString returns the string representation of an object.
+   404→// Performs shimmering: converts int/double/list representations to string as needed.
+   405→func (i *Interp) GetString(h TclObj) string {
+   406→	if obj := i.getObject(h); obj != nil {
+   407→		// Shimmer: int → string
+   408→		if obj.isInt && obj.stringVal == "" {
+   409→			obj.stringVal = fmt.Sprintf("%d", obj.intVal)
+   410→		}
+   411→		// Shimmer: double → string
+   412→		if obj.isDouble && obj.stringVal == "" {
+   413→			obj.stringVal = strconv.FormatFloat(obj.dblVal, 'g', -1, 64)
+   414→		}
+   415→		// Shimmer: list → string (use listToValue for proper TCL semantics)
+   416→		if obj.isList && obj.stringVal == "" {
+   417→			obj.stringVal = i.listToValue(obj)
+   418→		}
+   419→		return obj.stringVal
+   420→	}
+   421→	return ""
+   422→}
+   423→
+   424→// GetInt returns the integer representation of an object.
+   425→// Performs shimmering: parses string representation as integer if needed.
+   426→// Returns an error if the value cannot be converted to an integer.
+   427→func (i *Interp) GetInt(h TclObj) (int64, error) {
+   428→	obj := i.getObject(h)
+   429→	if obj == nil {
+   430→		return 0, fmt.Errorf("nil object")
+   431→	}
+   432→	// Already an integer
+   433→	if obj.isInt {
+   434→		return obj.intVal, nil
+   435→	}
+   436→	// Shimmer from double if available
+   437→	if obj.isDouble {
+   438→		obj.intVal = int64(obj.dblVal)
+   439→		obj.isInt = true
+   440→		return obj.intVal, nil
+   441→	}
+   442→	// Shimmer: string → int
+   443→	val, err := strconv.ParseInt(obj.stringVal, 10, 64)
+   444→	if err != nil {
+   445→		return 0, fmt.Errorf("expected integer but got %q", obj.stringVal)
+   446→	}
+   447→	// Cache the parsed value
+   448→	obj.intVal = val
+   449→	obj.isInt = true
+   450→	return val, nil
+   451→}
+   452→
+   453→// GetDouble returns the floating-point representation of an object.
+   454→// Performs shimmering: parses string representation as double if needed.
+   455→// Returns an error if the value cannot be converted to a double.
+   456→func (i *Interp) GetDouble(h TclObj) (float64, error) {
+   457→	obj := i.getObject(h)
+   458→	if obj == nil {
+   459→		return 0, fmt.Errorf("nil object")
+   460→	}
+   461→	// Already a double
+   462→	if obj.isDouble {
+   463→		return obj.dblVal, nil
+   464→	}
+   465→	// Shimmer from int if available
+   466→	if obj.isInt {
+   467→		obj.dblVal = float64(obj.intVal)
+   468→		obj.isDouble = true
+   469→		return obj.dblVal, nil
+   470→	}
+   471→	// Shimmer: string → double
+   472→	val, err := strconv.ParseFloat(obj.stringVal, 64)
+   473→	if err != nil {
+   474→		return 0, fmt.Errorf("expected floating-point number but got %q", obj.stringVal)
+   475→	}
+   476→	// Cache the parsed value
+   477→	obj.dblVal = val
+   478→	obj.isDouble = true
+   479→	return val, nil
+   480→}
+   481→
+   482→// GetList returns the list representation of an object.
+   483→// Performs shimmering: parses string representation as list if needed.
+   484→// Returns an error if the value cannot be converted to a list.
+   485→func (i *Interp) GetList(h TclObj) ([]TclObj, error) {
+   486→	obj := i.getObject(h)
+   487→	if obj == nil {
+   488→		return nil, fmt.Errorf("nil object")
+   489→	}
+   490→	// Already a list
+   491→	if obj.isList {
+   492→		return obj.listItems, nil
+   493→	}
+   494→	// Shimmer: string → list
+   495→	// Parse the string as a TCL list
+   496→	items, err := i.parseList(obj.stringVal)
+   497→	if err != nil {
+   498→		return nil, err
+   499→	}
+   500→	// Cache the parsed list
+   501→	obj.listItems = items
+   502→	obj.isList = true
+   503→	return items, nil
+   504→}
+   505→
+   506→// parseList parses a TCL list string into a slice of object handles.
+   507→func (i *Interp) parseList(s string) ([]TclObj, error) {
+   508→	var items []TclObj
+   509→	s = strings.TrimSpace(s)
+   510→	if s == "" {
+   511→		return items, nil
+   512→	}
+   513→
+   514→	pos := 0
+   515→	for pos < len(s) {
+   516→		// Skip whitespace
+   517→		for pos < len(s) && (s[pos] == ' ' || s[pos] == '\t' || s[pos] == '\n') {
+   518→			pos++
+   519→		}
+   520→		if pos >= len(s) {
+   521→			break
+   522→		}
+   523→
+   524→		var elem string
+   525→		if s[pos] == '{' {
+   526→			// Braced element
+   527→			depth := 1
+   528→			start := pos + 1
+   529→			pos++
+   530→			for pos < len(s) && depth > 0 {
+   531→				if s[pos] == '{' {
+   532→					depth++
+   533→				} else if s[pos] == '}' {
+   534→					depth--
+   535→				}
+   536→				pos++
+   537→			}
+   538→			if depth != 0 {
+   539→				return nil, fmt.Errorf("unmatched brace in list")
+   540→			}
+   541→			elem = s[start : pos-1]
+   542→		} else if s[pos] == '"' {
+   543→			// Quoted element
+   544→			start := pos + 1
+   545→			pos++
+   546→			for pos < len(s) && s[pos] != '"' {
+   547→				if s[pos] == '\\' && pos+1 < len(s) {
+   548→					pos++
+   549→				}
+   550→				pos++
+   551→			}
+   552→			if pos >= len(s) {
+   553→				return nil, fmt.Errorf("unmatched quote in list")
+   554→			}
+   555→			elem = s[start:pos]
+   556→			pos++ // skip closing quote
+   557→		} else {
+   558→			// Bare word
+   559→			start := pos
+   560→			for pos < len(s) && s[pos] != ' ' && s[pos] != '\t' && s[pos] != '\n' {
+   561→				pos++
+   562→			}
+   563→			elem = s[start:pos]
+   564→		}
+   565→		items = append(items, i.internString(elem))
+   566→	}
+   567→	return items, nil
+   568→}
+   569→
+   570→// SetResult sets the interpreter's result to the given object.
+   571→func (i *Interp) SetResult(obj TclObj) {
+   572→	i.result = obj
+   573→}
+   574→
+   575→// SetResultString sets the interpreter's result to a string value.
+   576→func (i *Interp) SetResultString(s string) {
+   577→	i.result = i.internString(s)
+   578→}
+   579→
+   580→// SetErrorString sets the interpreter's result to an error message.
+   581→func (i *Interp) SetErrorString(s string) {
+   582→	i.result = i.internString(s)
+   583→}
+   584→
+   585→// SetVar sets a variable by name to a string value in the current frame.
+   586→func (i *Interp) SetVar(name, value string) {
+   587→	i.mu.Lock()
+   588→	defer i.mu.Unlock()
+   589→	frame := i.frames[i.active]
+   590→	frame.vars[name] = i.nextID
+   591→	i.objects[i.nextID] = &Object{stringVal: value}
+   592→	i.nextID++
+   593→}
+   594→
+   595→// GetVar returns the string value of a variable from the current frame, or empty string if not found.
+   596→func (i *Interp) GetVar(name string) string {
+   597→	i.mu.Lock()
+   598→	defer i.mu.Unlock()
+   599→	frame := i.frames[i.active]
+   600→	if val, ok := frame.vars[name]; ok {
+   601→		if obj := i.objects[val]; obj != nil {
+   602→			return obj.stringVal
+   603→		}
+   604→	}
+   605→	return ""
+   606→}
+   607→
+   608→func getInterp(h C.TclInterp) *Interp {
+   609→	return cgo.Handle(h).Value().(*Interp)
+   610→}
+   611→
+   612→// Keep unused import to ensure cgo is used
+   613→var _ = unsafe.Pointer(nil)
+   614→
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>
