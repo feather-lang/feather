@@ -15,6 +15,13 @@ run = """
 go build -o $MISE_CONFIG_ROOT/bin/gcl ./cmd/gcl
 """
 
+[tasks."build:feather-tester"]
+description = "Builds the test interpreter with test-specific commands"
+depends = ["build:core"]
+run = """
+go build -o $MISE_CONFIG_ROOT/bin/feather-tester ./cmd/feather-tester
+"""
+
 [tasks."build:core"]
 description = "Builds the core interpreter as a static library"
 run = """
@@ -44,11 +51,11 @@ go build -o $MISE_CONFIG_ROOT/bin/feather-httpd ./cmd/feather-httpd
 
 [tasks.build]
 description = "build all binaries in bin/"
-depends = ["build:core", "build:harness", "build:gcl"]
+depends = ["build:core", "build:harness", "build:gcl", "build:feather-tester"]
 
 [tasks.test]
 description = "Run the test harness"
 depends = ["build"]
 run = """
-harness run --host bin/gcl testcases/
+harness run --host bin/feather-tester testcases/
 """
