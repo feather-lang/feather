@@ -24,7 +24,6 @@ static const BuiltinEntry builtins[] = {
     {"::incr", tcl_builtin_incr},
     {"::llength", tcl_builtin_llength},
     {"::lindex", tcl_builtin_lindex},
-    {"::run", tcl_builtin_run},
     {"::return", tcl_builtin_return},
     {"::tcl::mathfunc::exp", tcl_builtin_mathfunc_exp},
     {"::error", tcl_builtin_error},

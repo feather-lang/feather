@@ -155,10 +155,6 @@ TclResult tcl_builtin_llength(const TclHostOps *ops, TclInterp interp,
 TclResult tcl_builtin_lindex(const TclHostOps *ops, TclInterp interp,
                               TclObj cmd, TclObj args);
 
-// Test command for debugging
-TclResult tcl_builtin_run(const TclHostOps *ops, TclInterp interp,
-                           TclObj cmd, TclObj args);
-
 /**
  * tcl_builtin_return implements the TCL 'return' command.
  *
