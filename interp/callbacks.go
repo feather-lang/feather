@@ -2412,3 +2412,98 @@ func goNsCopyCommand(interp C.TclInterp, srcNs C.TclObj, srcName C.TclObj,
 
 	return C.TCL_OK
 }
+
+// ============================================================================
+// Foreign Object Operations
+// ============================================================================
+
+//export goForeignIsForeign
+func goForeignIsForeign(interp C.TclInterp, obj C.TclObj) C.int {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	if i.IsForeign(TclObj(obj)) {
+		return 1
+	}
+	return 0
+}
+
+//export goForeignTypeName
+func goForeignTypeName(interp C.TclInterp, obj C.TclObj) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	typeName := i.GetForeignType(TclObj(obj))
+	if typeName == "" {
+		return 0
+	}
+	return C.TclObj(i.internString(typeName))
+}
+
+//export goForeignStringRep
+func goForeignStringRep(interp C.TclInterp, obj C.TclObj) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	o := i.getObject(TclObj(obj))
+	if o == nil || !o.isForeign {
+		return 0
+	}
+	// Return the cached string representation
+	return C.TclObj(i.internString(o.stringVal))
+}
+
+//export goForeignMethods
+func goForeignMethods(interp C.TclInterp, obj C.TclObj) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	o := i.getObject(TclObj(obj))
+	if o == nil || !o.isForeign {
+		return 0
+	}
+	// For now, return an empty list.
+	// The high-level library will provide method discovery via a type registry.
+	id := i.nextID
+	i.nextID++
+	i.objects[id] = &Object{isList: true, listItems: []TclObj{}}
+	return C.TclObj(id)
+}
+
+//export goForeignInvoke
+func goForeignInvoke(interp C.TclInterp, obj C.TclObj, method C.TclObj, args C.TclObj) C.TclResult {
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	o := i.getObject(TclObj(obj))
+	if o == nil || !o.isForeign {
+		i.SetResult(i.internString("not a foreign object"))
+		return C.TCL_ERROR
+	}
+	// For now, method invocation is not implemented at the low level.
+	// The high-level library will handle method dispatch via the type registry.
+	methodStr := i.GetString(TclObj(method))
+	i.SetResult(i.internString("method invocation not implemented: " + methodStr))
+	return C.TCL_ERROR
+}
+
+//export goForeignDestroy
+func goForeignDestroy(interp C.TclInterp, obj C.TclObj) {
+	i := getInterp(interp)
+	if i == nil {
+		return
+	}
+	o := i.getObject(TclObj(obj))
+	if o == nil || !o.isForeign {
+		return
+	}
+	// Clear the foreign value to allow GC
+	o.foreignValue = nil
+	o.isForeign = false
+	o.foreignType = ""
+}

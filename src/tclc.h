@@ -1185,6 +1185,84 @@ typedef struct TclBindOpts {
 } TclBindOpts;
 
 /**
+ * TclForeignOps provides operations for foreign (host-language) objects.
+ *
+ * Foreign objects are values that wrap host language types (Go structs,
+ * JavaScript objects, Java objects, etc.). They participate in TCL's
+ * shimmering mechanism and can be introspected.
+ *
+ * The host is responsible for:
+ * - Creating foreign objects with NewForeign or equivalent
+ * - Maintaining a type registry mapping type names to implementations
+ * - Implementing method dispatch for each foreign type
+ *
+ * Foreign objects:
+ * - Have a type name (e.g., "Mux", "Connection")
+ * - Have a string representation for display/shimmering
+ * - Can expose methods callable from TCL
+ * - Participate in introspection via info type/methods
+ */
+typedef struct TclForeignOps {
+  /**
+   * is_foreign checks if an object is a foreign object.
+   *
+   * Returns 1 if obj is a foreign object, 0 otherwise.
+   */
+  int (*is_foreign)(TclInterp interp, TclObj obj);
+
+  /**
+   * type_name returns the type name of a foreign object.
+   *
+   * Returns the type name (e.g., "Mux", "Connection") as a TclObj.
+   * Returns nil (0) if the object is not a foreign object.
+   */
+  TclObj (*type_name)(TclInterp interp, TclObj obj);
+
+  /**
+   * string_rep returns the string representation of a foreign object.
+   *
+   * This is called during shimmering when a foreign object needs to be
+   * converted to a string. The returned string is cached in the object.
+   *
+   * Typical formats: "<Mux:1>", "mux1", "<Connection:host:3306>"
+   * Returns nil (0) if the object is not a foreign object.
+   */
+  TclObj (*string_rep)(TclInterp interp, TclObj obj);
+
+  /**
+   * methods returns a list of method names available on a foreign object.
+   *
+   * Returns a list of strings (e.g., {"handle" "listen" "close" "destroy"}).
+   * Returns empty list if the object is not foreign or has no methods.
+   *
+   * Used by "info methods $obj" for introspection.
+   */
+  TclObj (*methods)(TclInterp interp, TclObj obj);
+
+  /**
+   * invoke calls a method on a foreign object.
+   *
+   * obj: the foreign object
+   * method: the method name to invoke
+   * args: list of arguments to the method
+   *
+   * Returns TCL_OK on success with result in interpreter's result slot.
+   * Returns TCL_ERROR if method doesn't exist or invocation fails.
+   */
+  TclResult (*invoke)(TclInterp interp, TclObj obj, TclObj method, TclObj args);
+
+  /**
+   * destroy is called when a foreign object is being destroyed.
+   *
+   * This gives the host an opportunity to clean up resources associated
+   * with the foreign object (close connections, release handles, etc.).
+   *
+   * Called when the object's command is deleted (e.g., via rename to "").
+   */
+  void (*destroy)(TclInterp interp, TclObj obj);
+} TclForeignOps;
+
+/**
  * TclHostOps contains the aggregation of all operations necessary
  * for interpreter to work.
  */
@@ -1202,6 +1280,7 @@ typedef struct TclHostOps {
   TclInterpOps interp;
   TclBindOpts bind;
   TclTraceOps trace;
+  TclForeignOps foreign;
 } TclHostOps;
 
 /**

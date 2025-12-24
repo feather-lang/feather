@@ -710,6 +710,117 @@ static TclResult info_script(const TclHostOps *ops, TclInterp interp,
   return TCL_OK;
 }
 
+/**
+ * info type value
+ *
+ * Returns the type name of a value:
+ * - For foreign objects: the registered type name (e.g., "Mux", "Connection")
+ * - For lists: "list"
+ * - For dicts: "dict"
+ * - For integers: "int"
+ * - For doubles: "double"
+ * - For strings: "string"
+ */
+static TclResult info_type(const TclHostOps *ops, TclInterp interp,
+                           TclObj args) {
+  size_t argc = ops->list.length(interp, args);
+  if (argc != 1) {
+    ops->interp.set_result(
+        interp,
+        ops->string.intern(interp, "wrong # args: should be \"info type value\"", 41));
+    return TCL_ERROR;
+  }
+
+  TclObj value = ops->list.at(interp, args, 0);
+
+  // Check if it's a foreign object first
+  if (ops->foreign.is_foreign(interp, value)) {
+    TclObj typeName = ops->foreign.type_name(interp, value);
+    if (!ops->list.is_nil(interp, typeName)) {
+      ops->interp.set_result(interp, typeName);
+      return TCL_OK;
+    }
+  }
+
+  // For non-foreign objects, return the basic type
+  // We check in order of specificity
+
+  // Check if it's an integer
+  int64_t intVal;
+  if (ops->integer.get(interp, value, &intVal) == TCL_OK) {
+    ops->interp.set_result(interp, ops->string.intern(interp, "int", 3));
+    return TCL_OK;
+  }
+
+  // Check if it's a double
+  double dblVal;
+  if (ops->dbl.get(interp, value, &dblVal) == TCL_OK) {
+    // Only return "double" if it looks like a float (has decimal point or e)
+    size_t len;
+    const char *str = ops->string.get(interp, value, &len);
+    int isFloat = 0;
+    for (size_t i = 0; i < len; i++) {
+      if (str[i] == '.' || str[i] == 'e' || str[i] == 'E') {
+        isFloat = 1;
+        break;
+      }
+    }
+    if (isFloat) {
+      ops->interp.set_result(interp, ops->string.intern(interp, "double", 6));
+      return TCL_OK;
+    }
+  }
+
+  // Check if it's a list (more than one element, or looks like a list)
+  TclObj asList = ops->list.from(interp, value);
+  size_t listLen = ops->list.length(interp, asList);
+  if (listLen > 1) {
+    ops->interp.set_result(interp, ops->string.intern(interp, "list", 4));
+    return TCL_OK;
+  }
+
+  // Check if it looks like a dict (even number of elements >= 2)
+  if (listLen >= 2 && (listLen % 2) == 0) {
+    TclObj asDict = ops->dict.from(interp, value);
+    if (!ops->list.is_nil(interp, asDict)) {
+      ops->interp.set_result(interp, ops->string.intern(interp, "dict", 4));
+      return TCL_OK;
+    }
+  }
+
+  // Default: it's a string
+  ops->interp.set_result(interp, ops->string.intern(interp, "string", 6));
+  return TCL_OK;
+}
+
+/**
+ * info methods value
+ *
+ * Returns a list of method names available on a foreign object.
+ * Returns empty list for non-foreign objects.
+ */
+static TclResult info_methods(const TclHostOps *ops, TclInterp interp,
+                              TclObj args) {
+  size_t argc = ops->list.length(interp, args);
+  if (argc != 1) {
+    ops->interp.set_result(
+        interp,
+        ops->string.intern(interp, "wrong # args: should be \"info methods value\"", 44));
+    return TCL_ERROR;
+  }
+
+  TclObj value = ops->list.at(interp, args, 0);
+
+  // Get methods from foreign ops (returns empty list for non-foreign)
+  TclObj methods = ops->foreign.methods(interp, value);
+  if (ops->list.is_nil(interp, methods)) {
+    methods = ops->list.create(interp);
+  }
+
+  ops->interp.set_result(interp, methods);
+  return TCL_OK;
+}
+
 TclResult tcl_builtin_info(const TclHostOps *ops, TclInterp interp,
                            TclObj cmd, TclObj args) {
   size_t argc = ops->list.length(interp, args);
@@ -762,6 +873,12 @@ TclResult tcl_builtin_info(const TclHostOps *ops, TclInterp interp,
   if (str_eq(subcmdStr, subcmdLen, "script")) {
     return info_script(ops, interp, args);
   }
+  if (str_eq(subcmdStr, subcmdLen, "type")) {
+    return info_type(ops, interp, args);
+  }
+  if (str_eq(subcmdStr, subcmdLen, "methods")) {
+    return info_methods(ops, interp, args);
+  }
 
   // Unknown subcommand
   TclObj msg = ops->string.intern(
@@ -770,7 +887,7 @@ TclResult tcl_builtin_info(const TclHostOps *ops, TclInterp interp,
   msg = ops->string.concat(interp, msg, subcmd);
   msg = ops->string.concat(
       interp, msg,
-      ops->string.intern(interp, "\": must be args, body, commands, default, exists, frame, globals, level, locals, procs, script, or vars", 103));
+      ops->string.intern(interp, "\": must be args, body, commands, default, exists, frame, globals, level, locals, methods, procs, script, type, or vars", 118));
   ops->interp.set_result(interp, msg);
   return TCL_ERROR;
 }

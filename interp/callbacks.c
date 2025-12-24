@@ -376,6 +376,31 @@ static TclObj c_trace_info(TclInterp interp, TclObj kind, TclObj name) {
     return goTraceInfo(interp, kind, name);
 }
 
+// Foreign object operations
+static int c_foreign_is_foreign(TclInterp interp, TclObj obj) {
+    return goForeignIsForeign(interp, obj);
+}
+
+static TclObj c_foreign_type_name(TclInterp interp, TclObj obj) {
+    return goForeignTypeName(interp, obj);
+}
+
+static TclObj c_foreign_string_rep(TclInterp interp, TclObj obj) {
+    return goForeignStringRep(interp, obj);
+}
+
+static TclObj c_foreign_methods(TclInterp interp, TclObj obj) {
+    return goForeignMethods(interp, obj);
+}
+
+static TclResult c_foreign_invoke(TclInterp interp, TclObj obj, TclObj method, TclObj args) {
+    return goForeignInvoke(interp, obj, method, args);
+}
+
+static void c_foreign_destroy(TclInterp interp, TclObj obj) {
+    goForeignDestroy(interp, obj);
+}
+
 // Build the TclHostOps struct with all callbacks
 TclHostOps make_host_ops(void) {
     TclHostOps ops;
@@ -482,6 +507,13 @@ TclHostOps make_host_ops(void) {
     ops.trace.add = c_trace_add;
     ops.trace.remove = c_trace_remove;
     ops.trace.info = c_trace_info;
+
+    ops.foreign.is_foreign = c_foreign_is_foreign;
+    ops.foreign.type_name = c_foreign_type_name;
+    ops.foreign.string_rep = c_foreign_string_rep;
+    ops.foreign.methods = c_foreign_methods;
+    ops.foreign.invoke = c_foreign_invoke;
+    ops.foreign.destroy = c_foreign_destroy;
 
     return ops;
 }

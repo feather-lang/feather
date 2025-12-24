@@ -160,6 +160,10 @@ type Object struct {
 	dictItems map[string]TclObj // key → value mapping
 	dictOrder []string          // keys in insertion order
 	isDict    bool
+	// Foreign object support
+	isForeign    bool   // true if this is a foreign (host-language) object
+	foreignType  string // type name, e.g., "Mux", "Connection"
+	foreignValue any    // the actual Go value
 }
 
 // NewInterp creates a new interpreter
@@ -462,6 +466,45 @@ func (i *Interp) internString(s string) TclObj {
 // InternString stores a string and returns its handle.
 func (i *Interp) InternString(s string) TclObj {
 	return i.internString(s)
+}
+
+// NewForeign creates a new foreign object with the given type name and Go value.
+// The string representation is generated as "<TypeName:id>".
+// Returns the handle to the new foreign object.
+func (i *Interp) NewForeign(typeName string, value any) TclObj {
+	id := i.nextID
+	i.nextID++
+	i.objects[id] = &Object{
+		stringVal:    fmt.Sprintf("<%s:%d>", typeName, id),
+		isForeign:    true,
+		foreignType:  typeName,
+		foreignValue: value,
+	}
+	return id
+}
+
+// IsForeign returns true if the object is a foreign object.
+func (i *Interp) IsForeign(h TclObj) bool {
+	if obj := i.getObject(h); obj != nil {
+		return obj.isForeign
+	}
+	return false
+}
+
+// GetForeignType returns the type name of a foreign object, or empty string if not foreign.
+func (i *Interp) GetForeignType(h TclObj) string {
+	if obj := i.getObject(h); obj != nil && obj.isForeign {
+		return obj.foreignType
+	}
+	return ""
+}
+
+// GetForeignValue returns the Go value of a foreign object, or nil if not foreign.
+func (i *Interp) GetForeignValue(h TclObj) any {
+	if obj := i.getObject(h); obj != nil && obj.isForeign {
+		return obj.foreignValue
+	}
+	return nil
 }
 
 // getObject retrieves an object by handle
