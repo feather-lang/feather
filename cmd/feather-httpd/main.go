@@ -17,6 +17,13 @@
 //	request path               - get request path (in handler context)
 //	request header name        - get request header (in handler context)
 //	request query name         - get query parameter (in handler context)
+//	template list              - list available templates
+//	template show name         - show template source
+//	template render name data  - render template with data to response
+//	template errors            - get dict of templates with parse errors
+//
+// Templates are loaded from the "templates" directory and automatically
+// reloaded when files change. Supported extensions: .html, .tmpl
 //
 // Example session:
 //
@@ -32,23 +39,35 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"html/template"
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
 	"github.com/feather-lang/feather/interp"
 )
 
+// TemplateInfo holds a parsed template and its file modification time.
+type TemplateInfo struct {
+	Template *template.Template
+	ModTime  int64
+	Error    error
+}
+
 // HTTPServer wraps an HTTP server with feather integration.
 type HTTPServer struct {
-	host    *interp.Host
-	mux     *http.ServeMux
-	server  *http.Server
-	mu      sync.RWMutex
-	routes  map[string]string // "METHOD /path" -> script
-	running bool
+	host        *interp.Host
+	mux         *http.ServeMux
+	server      *http.Server
+	mu          sync.RWMutex
+	routes      map[string]string // "METHOD /path" -> script
+	running     bool
+	templateDir string
+	templates   map[string]*TemplateInfo
+	templateMu  sync.RWMutex
 }
 
 // RequestContext holds per-request state for handler scripts.
@@ -70,9 +89,11 @@ func main() {
 	defer host.Close()
 
 	srv := &HTTPServer{
-		host:   host,
-		mux:    http.NewServeMux(),
-		routes: make(map[string]string),
+		host:        host,
+		mux:         http.NewServeMux(),
+		routes:      make(map[string]string),
+		templateDir: "templates",
+		templates:   make(map[string]*TemplateInfo),
 	}
 
 	// Register HTTP commands
@@ -126,6 +147,7 @@ func (s *HTTPServer) registerCommands() {
 	s.host.Register("status", s.cmdStatus)
 	s.host.Register("header", s.cmdHeader)
 	s.host.Register("request", s.cmdRequest)
+	s.host.Register("template", s.cmdTemplate)
 }
 
 // cmdRoute registers a route handler.
@@ -337,6 +359,250 @@ func (s *HTTPServer) cmdRequest(i *interp.Interp, cmd interp.FeatherObj, args []
 	}
 
 	return interp.ResultOK
+}
+
+// refreshTemplates scans the template directory and reloads changed templates.
+func (s *HTTPServer) refreshTemplates() {
+	s.templateMu.Lock()
+	defer s.templateMu.Unlock()
+
+	// Track which templates still exist
+	seen := make(map[string]bool)
+
+	// Walk the template directory
+	filepath.Walk(s.templateDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			return nil
+		}
+		// Only process .html and .tmpl files
+		ext := filepath.Ext(path)
+		if ext != ".html" && ext != ".tmpl" {
+			return nil
+		}
+
+		// Use relative path as template name
+		relPath, err := filepath.Rel(s.templateDir, path)
+		if err != nil {
+			return nil
+		}
+		name := relPath
+
+		seen[name] = true
+		modTime := info.ModTime().UnixNano()
+
+		// Check if we need to reload
+		existing, ok := s.templates[name]
+		if ok && existing.ModTime == modTime {
+			return nil
+		}
+
+		// Parse the template
+		tmpl, parseErr := template.ParseFiles(path)
+		s.templates[name] = &TemplateInfo{
+			Template: tmpl,
+			ModTime:  modTime,
+			Error:    parseErr,
+		}
+		return nil
+	})
+
+	// Remove templates that no longer exist
+	for name := range s.templates {
+		if !seen[name] {
+			delete(s.templates, name)
+		}
+	}
+}
+
+// cmdTemplate handles template subcommands.
+// Usage: template list | template render name data | template errors
+func (s *HTTPServer) cmdTemplate(i *interp.Interp, cmd interp.FeatherObj, args []interp.FeatherObj) interp.FeatherResult {
+	if len(args) < 1 {
+		i.SetErrorString("wrong # args: should be \"template subcommand ?args?\"")
+		return interp.ResultError
+	}
+
+	subcmd := i.GetString(args[0])
+	switch subcmd {
+	case "list":
+		return s.cmdTemplateList(i)
+	case "render":
+		return s.cmdTemplateRender(i, args[1:])
+	case "errors":
+		return s.cmdTemplateErrors(i)
+	case "show":
+		return s.cmdTemplateShow(i, args[1:])
+	default:
+		i.SetErrorString(fmt.Sprintf("template: unknown subcommand %q", subcmd))
+		return interp.ResultError
+	}
+}
+
+// cmdTemplateList lists available templates.
+func (s *HTTPServer) cmdTemplateList(i *interp.Interp) interp.FeatherResult {
+	s.refreshTemplates()
+
+	s.templateMu.RLock()
+	defer s.templateMu.RUnlock()
+
+	names := make([]string, 0, len(s.templates))
+	for name := range s.templates {
+		names = append(names, name)
+	}
+
+	// Build a TCL list as string
+	i.SetResultString(tclList(names))
+	return interp.ResultOK
+}
+
+// cmdTemplateRender renders a template with data to the response.
+func (s *HTTPServer) cmdTemplateRender(i *interp.Interp, args []interp.FeatherObj) interp.FeatherResult {
+	requestMu.Lock()
+	ctx := currentRequest
+	requestMu.Unlock()
+
+	if ctx == nil {
+		i.SetErrorString("template render: not in request context")
+		return interp.ResultError
+	}
+
+	if len(args) < 2 {
+		i.SetErrorString("wrong # args: should be \"template render name data\"")
+		return interp.ResultError
+	}
+
+	name := i.GetString(args[0])
+	dataObj := args[1]
+
+	s.refreshTemplates()
+
+	s.templateMu.RLock()
+	info, ok := s.templates[name]
+	s.templateMu.RUnlock()
+
+	if !ok {
+		i.SetErrorString(fmt.Sprintf("template render: template %q not found", name))
+		return interp.ResultError
+	}
+
+	if info.Error != nil {
+		i.SetErrorString(fmt.Sprintf("template render: template %q has parse error: %v", name, info.Error))
+		return interp.ResultError
+	}
+
+	// Convert TCL data to Go map
+	data := s.tclToGoData(i, dataObj)
+
+	// Render template to buffer
+	var buf strings.Builder
+	if err := info.Template.Execute(&buf, data); err != nil {
+		i.SetErrorString(fmt.Sprintf("template render: %v", err))
+		return interp.ResultError
+	}
+
+	ctx.ResponseBody = buf.String()
+	i.SetResultString("")
+	return interp.ResultOK
+}
+
+// cmdTemplateShow returns the source of a template.
+func (s *HTTPServer) cmdTemplateShow(i *interp.Interp, args []interp.FeatherObj) interp.FeatherResult {
+	if len(args) < 1 {
+		i.SetErrorString("wrong # args: should be \"template show name\"")
+		return interp.ResultError
+	}
+
+	name := i.GetString(args[0])
+	path := filepath.Join(s.templateDir, name)
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		i.SetErrorString(fmt.Sprintf("template show: %v", err))
+		return interp.ResultError
+	}
+
+	i.SetResultString(string(content))
+	return interp.ResultOK
+}
+
+// cmdTemplateErrors returns a dict of templates and their parsing errors.
+func (s *HTTPServer) cmdTemplateErrors(i *interp.Interp) interp.FeatherResult {
+	s.refreshTemplates()
+
+	s.templateMu.RLock()
+	defer s.templateMu.RUnlock()
+
+	// Build dict as TCL string (key-value pairs)
+	var pairs []string
+	for name, info := range s.templates {
+		if info.Error != nil {
+			pairs = append(pairs, name, info.Error.Error())
+		}
+	}
+	i.SetResultString(tclList(pairs))
+	return interp.ResultOK
+}
+
+// tclToGoData converts a TCL object to Go data suitable for template execution.
+func (s *HTTPServer) tclToGoData(i *interp.Interp, obj interp.FeatherObj) any {
+	// Check native dict first (avoids infinite recursion from shimmering)
+	if i.IsNativeDict(obj) {
+		dictItems, dictOrder, err := i.GetDict(obj)
+		if err == nil {
+			result := make(map[string]any)
+			for _, key := range dictOrder {
+				val := dictItems[key]
+				result[key] = s.tclToGoData(i, val)
+			}
+			return result
+		}
+	}
+
+	// Check native list (avoids infinite recursion from shimmering)
+	if i.IsNativeList(obj) {
+		listItems, err := i.GetList(obj)
+		if err == nil {
+			result := make([]any, len(listItems))
+			for idx, elem := range listItems {
+				result[idx] = s.tclToGoData(i, elem)
+			}
+			return result
+		}
+	}
+
+	// Default to string
+	return i.GetString(obj)
+}
+
+// tclList formats strings as a proper TCL list.
+func tclList(items []string) string {
+	var parts []string
+	for _, item := range items {
+		parts = append(parts, tclQuote(item))
+	}
+	return strings.Join(parts, " ")
+}
+
+// tclQuote quotes a string for use in a TCL list if necessary.
+func tclQuote(s string) string {
+	if s == "" {
+		return "{}"
+	}
+	needsQuote := false
+	for _, c := range s {
+		if c == ' ' || c == '\t' || c == '\n' || c == '{' || c == '}' || c == '"' || c == '\\' {
+			needsQuote = true
+			break
+		}
+	}
+	if !needsQuote {
+		return s
+	}
+	// Use braces for quoting
+	return "{" + s + "}"
 }
 
 // ServeHTTP implements http.Handler.

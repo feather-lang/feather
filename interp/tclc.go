@@ -2,6 +2,7 @@ package interp
 
 /*
 #cgo CFLAGS: -I${SRCDIR}/../src
+#cgo LDFLAGS: ${SRCDIR}/../build/libtclc.a
 #include "feather.h"
 #include <stdlib.h>
 */
@@ -488,17 +489,41 @@ func (i *Interp) NewForeign(typeName string, value any) FeatherObj {
 }
 
 // IsForeign returns true if the object is a foreign object.
+// Also checks if the string representation is a foreign handle name.
 func (i *Interp) IsForeign(h FeatherObj) bool {
 	if obj := i.getObject(h); obj != nil {
-		return obj.isForeign
+		if obj.isForeign {
+			return true
+		}
+		// Check if string value is a foreign handle name
+		if i.ForeignRegistry != nil {
+			i.ForeignRegistry.mu.RLock()
+			_, ok := i.ForeignRegistry.instances[obj.stringVal]
+			i.ForeignRegistry.mu.RUnlock()
+			if ok {
+				return true
+			}
+		}
 	}
 	return false
 }
 
 // GetForeignType returns the type name of a foreign object, or empty string if not foreign.
+// Also checks if the string representation is a foreign handle name.
 func (i *Interp) GetForeignType(h FeatherObj) string {
-	if obj := i.getObject(h); obj != nil && obj.isForeign {
-		return obj.foreignType
+	if obj := i.getObject(h); obj != nil {
+		if obj.isForeign {
+			return obj.foreignType
+		}
+		// Check if string value is a foreign handle name
+		if i.ForeignRegistry != nil {
+			i.ForeignRegistry.mu.RLock()
+			instance, ok := i.ForeignRegistry.instances[obj.stringVal]
+			i.ForeignRegistry.mu.RUnlock()
+			if ok {
+				return instance.typeName
+			}
+		}
 	}
 	return ""
 }
@@ -677,6 +702,20 @@ func (i *Interp) GetDict(h FeatherObj) (map[string]FeatherObj, []string, error) 
 	obj.dictOrder = dictOrder
 	obj.isDict = true
 	return dictItems, dictOrder, nil
+}
+
+// IsNativeDict returns true if the object has a native dict representation
+// (not just convertible to dict via shimmering).
+func (i *Interp) IsNativeDict(h FeatherObj) bool {
+	obj := i.getObject(h)
+	return obj != nil && obj.isDict
+}
+
+// IsNativeList returns true if the object has a native list representation
+// (not just convertible to list via shimmering).
+func (i *Interp) IsNativeList(h FeatherObj) bool {
+	obj := i.getObject(h)
+	return obj != nil && obj.isList
 }
 
 // parseList parses a TCL list string into a slice of object handles.

@@ -394,4 +394,172 @@ $c get</script>
     <exit-code>0</exit-code>
   </test-case>
 
+  <!-- ============================================= -->
+  <!-- info type integration                         -->
+  <!-- ============================================= -->
+
+  <test-case name="info type returns Counter for foreign object">
+    <script>set c [Counter new]
+info type $c</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>Counter</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info type returns string for plain string">
+    <script>info type hello</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>string</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info type returns int for integer">
+    <script>info type 42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>int</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info type returns list for list value">
+    <script>info type [list a b c]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>list</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info type returns dict for dict value">
+    <script>info type [dict create a 1 b 2]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>dict</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info type wrong args - no arguments">
+    <script>info type</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "info type value"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="info type wrong args - too many">
+    <script>info type a b</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "info type value"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- info methods integration                      -->
+  <!-- ============================================= -->
+
+  <test-case name="info methods returns method list for foreign object">
+    <script>set c [Counter new]
+set methods [info methods $c]
+expr {[llength $methods] > 0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info methods includes get method">
+    <script>set c [Counter new]
+set methods [info methods $c]
+expr {"get" in $methods}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info methods includes set method">
+    <script>set c [Counter new]
+set methods [info methods $c]
+expr {"set" in $methods}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info methods includes incr method">
+    <script>set c [Counter new]
+set methods [info methods $c]
+expr {"incr" in $methods}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info methods includes destroy method">
+    <script>set c [Counter new]
+set methods [info methods $c]
+expr {"destroy" in $methods}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info methods returns empty list for string">
+    <script>info methods hello</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info methods returns empty list for integer">
+    <script>info methods 42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info methods returns empty list for list">
+    <script>info methods [list a b c]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info methods wrong args - no arguments">
+    <script>info methods</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "info methods value"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="info methods wrong args - too many">
+    <script>info methods a b</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "info methods value"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
 </test-suite>

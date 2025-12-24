@@ -16,10 +16,13 @@ go build -o $MISE_CONFIG_ROOT/bin/gcl ./cmd/gcl
 """
 
 [tasks."build:core"]
-description = "Builds the core interpreter as a dynamic library"
+description = "Builds the core interpreter as a static library"
 run = """
 mkdir -p build
-cc -shared -fPIC -o build/libtclc.dylib src/*.c -I src
+for f in src/*.c; do
+  cc -c -fPIC -I src -o "build/$(basename "$f" .c).o" "$f"
+done
+ar rcs build/libtclc.a build/*.o
 """
 
 [tasks."build:oracle"]

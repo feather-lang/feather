@@ -745,6 +745,12 @@ static FeatherResult info_type(const FeatherHostOps *ops, FeatherInterp interp,
   // For non-foreign objects, return the basic type
   // We check in order of specificity
 
+  // Check if it's natively a dict first (before list, since dicts can shimmer to lists)
+  if (ops->dict.is_dict(interp, value)) {
+    ops->interp.set_result(interp, ops->string.intern(interp, "dict", 4));
+    return TCL_OK;
+  }
+
   // Check if it's an integer
   int64_t intVal;
   if (ops->integer.get(interp, value, &intVal) == TCL_OK) {
@@ -771,21 +777,12 @@ static FeatherResult info_type(const FeatherHostOps *ops, FeatherInterp interp,
     }
   }
 
-  // Check if it's a list (more than one element, or looks like a list)
+  // Check if it's a list (more than one element)
   FeatherObj asList = ops->list.from(interp, value);
   size_t listLen = ops->list.length(interp, asList);
   if (listLen > 1) {
     ops->interp.set_result(interp, ops->string.intern(interp, "list", 4));
     return TCL_OK;
-  }
-
-  // Check if it looks like a dict (even number of elements >= 2)
-  if (listLen >= 2 && (listLen % 2) == 0) {
-    FeatherObj asDict = ops->dict.from(interp, value);
-    if (!ops->list.is_nil(interp, asDict)) {
-      ops->interp.set_result(interp, ops->string.intern(interp, "dict", 4));
-      return TCL_OK;
-    }
   }
 
   // Default: it's a string

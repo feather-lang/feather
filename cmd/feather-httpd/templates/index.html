@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Feather - A Lightweight Embeddable Language</title>
+    <style>
+      :root {
+        --bg: #0a0a0f;
+        --bg-secondary: #12121a;
+        --bg-code: #1a1a24;
+        --text: #e4e4eb;
+        --text-muted: #8888a0;
+        --accent: #7c5cff;
+        --accent-soft: #6b4de6;
+        --accent-glow: rgba(124, 92, 255, 0.15);
+        --border: #2a2a3a;
+        --success: #4ade80;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.6;
+        min-height: 100vh;
+      }
+
+      .container {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+
+      /* Header */
+      header {
+        padding: 20px 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .logo {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text);
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .logo-icon {
+        width: 32px;
+        height: 32px;
+      }
+
+      .nav-links {
+        display: flex;
+        gap: 32px;
+        list-style: none;
+      }
+
+      .nav-links a {
+        color: var(--text-muted);
+        text-decoration: none;
+        font-size: 0.95rem;
+        transition: color 0.2s;
+      }
+
+      .nav-links a:hover {
+        color: var(--text);
+      }
+
+      /* Hero */
+      .hero {
+        padding: 100px 0 80px;
+        text-align: center;
+      }
+
+      .hero h1 {
+        font-size: 4rem;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        margin-bottom: 24px;
+        background: linear-gradient(135deg, var(--text) 0%, var(--accent) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .hero .tagline {
+        font-size: 1.4rem;
+        color: var(--text-muted);
+        max-width: 600px;
+        margin: 0 auto 40px;
+      }
+
+      .cta-group {
+        display: flex;
+        gap: 16px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+
+      .btn {
+        padding: 14px 28px;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.2s;
+        cursor: pointer;
+        border: none;
+      }
+
+      .btn-primary {
+        background: var(--accent);
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background: var(--accent-soft);
+        transform: translateY(-2px);
+      }
+
+      .btn-secondary {
+        background: transparent;
+        color: var(--text);
+        border: 1px solid var(--border);
+      }
+
+      .btn-secondary:hover {
+        border-color: var(--accent);
+        background: var(--accent-glow);
+      }
+
+      /* Code Block */
+      .code-showcase {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        margin: 60px 0;
+        overflow: hidden;
+      }
+
+      .code-header {
+        background: var(--bg-code);
+        padding: 12px 20px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .code-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--border);
+      }
+
+      .code-dot.red { background: #ff5f56; }
+      .code-dot.yellow { background: #ffbd2e; }
+      .code-dot.green { background: #27ca40; }
+
+      .code-title {
+        margin-left: 12px;
+        color: var(--text-muted);
+        font-size: 0.85rem;
+      }
+
+      pre {
+        padding: 24px;
+        overflow-x: auto;
+        font-family: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
+        font-size: 0.9rem;
+        line-height: 1.7;
+      }
+
+      .code-comment { color: #6b7280; }
+      .code-keyword { color: #c084fc; }
+      .code-string { color: #4ade80; }
+      .code-command { color: #60a5fa; }
+      .code-var { color: #fbbf24; }
+      .code-output { color: #8888a0; }
+
+      /* Features */
+      .features {
+        padding: 80px 0;
+      }
+
+      .section-title {
+        font-size: 2.2rem;
+        font-weight: 700;
+        text-align: center;
+        margin-bottom: 16px;
+      }
+
+      .section-subtitle {
+        text-align: center;
+        color: var(--text-muted);
+        max-width: 600px;
+        margin: 0 auto 60px;
+      }
+
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 24px;
+      }
+
+      .feature-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 32px;
+        transition: border-color 0.2s, transform 0.2s;
+      }
+
+      .feature-card:hover {
+        border-color: var(--accent);
+        transform: translateY(-4px);
+      }
+
+      .feature-icon {
+        width: 48px;
+        height: 48px;
+        background: var(--accent-glow);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 20px;
+        font-size: 1.5rem;
+      }
+
+      .feature-card h3 {
+        font-size: 1.2rem;
+        margin-bottom: 12px;
+      }
+
+      .feature-card p {
+        color: var(--text-muted);
+        font-size: 0.95rem;
+      }
+
+      /* Use Cases */
+      .use-cases {
+        padding: 80px 0;
+        border-top: 1px solid var(--border);
+      }
+
+      .use-case-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+        list-style: none;
+      }
+
+      .use-case-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+        padding: 24px;
+        background: var(--bg-secondary);
+        border-radius: 10px;
+        border: 1px solid var(--border);
+      }
+
+      .use-case-check {
+        color: var(--success);
+        font-size: 1.2rem;
+        flex-shrink: 0;
+      }
+
+      .use-case-item span {
+        color: var(--text-muted);
+      }
+
+      /* Philosophy */
+      .philosophy {
+        padding: 80px 0;
+        border-top: 1px solid var(--border);
+      }
+
+      .philosophy-content {
+        max-width: 700px;
+        margin: 0 auto;
+        text-align: center;
+      }
+
+      .philosophy blockquote {
+        font-size: 1.3rem;
+        color: var(--text);
+        font-style: italic;
+        border-left: 3px solid var(--accent);
+        padding-left: 24px;
+        text-align: left;
+        margin-top: 40px;
+      }
+
+      /* Footer */
+      footer {
+        padding: 40px 0;
+        border-top: 1px solid var(--border);
+        text-align: center;
+        color: var(--text-muted);
+        font-size: 0.9rem;
+      }
+
+      footer a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+
+      footer a:hover {
+        text-decoration: underline;
+      }
+
+      /* Responsive */
+      @media (max-width: 768px) {
+        .hero h1 {
+          font-size: 2.5rem;
+        }
+
+        .hero .tagline {
+          font-size: 1.1rem;
+        }
+
+        .nav-links {
+          display: none;
+        }
+
+        pre {
+          font-size: 0.8rem;
+          padding: 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <nav class="container">
+        <a href="/" class="logo">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M16 2C16 2 8 8 8 16C8 24 16 30 16 30" stroke="#7c5cff" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M16 2C16 2 24 8 24 16C24 24 16 30 16 30" stroke="#7c5cff" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M6 12H26" stroke="#7c5cff" stroke-width="2" stroke-linecap="round"/>
+            <path d="M6 20H26" stroke="#7c5cff" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          Feather
+        </a>
+        <ul class="nav-links">
+          <li><a href="#features">Features</a></li>
+          <li><a href="#use-cases">Use Cases</a></li>
+          <li><a href="https://github.com">GitHub</a></li>
+          <li><a href="#docs">Docs</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="container">
+          <h1>Feather</h1>
+          <p class="tagline">
+            A lightweight, embeddable TCL interpreter. Add an interactive console to any application.
+          </p>
+          <div class="cta-group">
+            <a href="#get-started" class="btn btn-primary">Get Started</a>
+            <a href="https://github.com" class="btn btn-secondary">View on GitHub</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="container">
+        <div class="code-showcase">
+          <div class="code-header">
+            <span class="code-dot red"></span>
+            <span class="code-dot yellow"></span>
+            <span class="code-dot green"></span>
+            <span class="code-title">feather repl</span>
+          </div>
+          <pre><code><span class="code-comment"># Define a greeting procedure</span>
+<span class="code-keyword">proc</span> <span class="code-command">greet</span> {name} {
+    <span class="code-keyword">return</span> <span class="code-string">"Hello, $name!"</span>
+}
+
+<span class="code-output">% greet Feather</span>
+<span class="code-string">Hello, Feather!</span>
+
+<span class="code-comment"># Work with lists</span>
+<span class="code-keyword">set</span> <span class="code-var">numbers</span> {1 2 3 4 5}
+<span class="code-keyword">foreach</span> n <span class="code-var">$numbers</span> {
+    <span class="code-keyword">if</span> {$n > 3} { <span class="code-keyword">break</span> }
+    <span class="code-command">echo</span> $n
+}
+<span class="code-output">1</span>
+<span class="code-output">2</span>
+<span class="code-output">3</span>
+
+<span class="code-comment"># Configure an HTTP server at runtime</span>
+<span class="code-command">route</span> GET / {<span class="code-command">response</span> <span class="code-string">"Hello, World!"</span>}
+<span class="code-command">listen</span> 8080</code></pre>
+        </div>
+      </section>
+
+      <section class="features" id="features">
+        <div class="container">
+          <h2 class="section-title">Why Feather?</h2>
+          <p class="section-subtitle">
+            A pure interpreter designed for embedding. No I/O, no event loop, no surprises.
+          </p>
+          <div class="feature-grid">
+            <div class="feature-card">
+              <div class="feature-icon">&#x2699;</div>
+              <h3>Zero Dependencies</h3>
+              <p>Pure implementation with no stdlib. All I/O and allocation controlled by your host program.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">&#x26A1;</div>
+              <h3>Lightweight</h3>
+              <p>Small footprint, fast startup. Interpreter objects are cheap enough to create on demand.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">&#x1F50D;</div>
+              <h3>Fully Introspectable</h3>
+              <p>Every aspect of a running program can be inspected and modified from within.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">&#x1F9E9;</div>
+              <h3>TCL Semantics</h3>
+              <p>Faithful implementation of TCL core: procs, control flow, lists, dicts, namespaces, and more.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">&#x1F4BB;</div>
+              <h3>Host Integration</h3>
+              <p>Expose your application's objects and functions directly to Feather scripts.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">&#x1F916;</div>
+              <h3>Agent-Friendly</h3>
+              <p>Let AI agents interact with your running application through a scriptable interface.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="use-cases" id="use-cases">
+        <div class="container">
+          <h2 class="section-title">Built For</h2>
+          <p class="section-subtitle">
+            Feather fills the niche where you need an interactive console for your running application.
+          </p>
+          <ul class="use-case-list">
+            <li class="use-case-item">
+              <span class="use-case-check">&#x2713;</span>
+              <span>Runtime configuration and hot-reloading</span>
+            </li>
+            <li class="use-case-item">
+              <span class="use-case-check">&#x2713;</span>
+              <span>Quake-style debug consoles</span>
+            </li>
+            <li class="use-case-item">
+              <span class="use-case-check">&#x2713;</span>
+              <span>Agent access to application internals</span>
+            </li>
+            <li class="use-case-item">
+              <span class="use-case-check">&#x2713;</span>
+              <span>Networked REPLs for remote inspection</span>
+            </li>
+            <li class="use-case-item">
+              <span class="use-case-check">&#x2713;</span>
+              <span>User-customizable automation</span>
+            </li>
+            <li class="use-case-item">
+              <span class="use-case-check">&#x2713;</span>
+              <span>Declarative configuration files</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="philosophy">
+        <div class="container">
+          <div class="philosophy-content">
+            <h2 class="section-title">Philosophy</h2>
+            <p class="section-subtitle">
+              TCL's great ideas, without the baggage. Pure metaprogramming with syntax moldable like clay.
+            </p>
+            <blockquote>
+              "The browser is one example of an inspectable, scriptable runtime being successful. Feather brings that same power to your job runner, web server, database, or desktop app."
+            </blockquote>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="container">
+        <p>Feather is open source. <a href="https://github.com">Contribute on GitHub</a></p>
+      </div>
+    </footer>
+  </body>
+</html>

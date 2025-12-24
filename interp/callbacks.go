@@ -693,6 +693,19 @@ func goDictCreate(interp C.FeatherInterp) C.FeatherObj {
 	return C.FeatherObj(id)
 }
 
+//export goDictIsDict
+func goDictIsDict(interp C.FeatherInterp, obj C.FeatherObj) C.int {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	o := i.getObject(FeatherObj(obj))
+	if o != nil && o.isDict {
+		return 1
+	}
+	return 0
+}
+
 //export goDictFrom
 func goDictFrom(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 	i := getInterp(interp)
@@ -2463,14 +2476,32 @@ func goForeignMethods(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 		return 0
 	}
 	o := i.getObject(FeatherObj(obj))
-	if o == nil || !o.isForeign {
+	if o == nil {
 		return 0
 	}
+
+	// Determine the foreign type name
+	var typeName string
+	if o.isForeign {
+		typeName = o.foreignType
+	} else if i.ForeignRegistry != nil {
+		// Check if string value is a foreign handle name
+		i.ForeignRegistry.mu.RLock()
+		if instance, ok := i.ForeignRegistry.instances[o.stringVal]; ok {
+			typeName = instance.typeName
+		}
+		i.ForeignRegistry.mu.RUnlock()
+	}
+
+	if typeName == "" {
+		return 0
+	}
+
 	// Use the high-level registry if available
 	var methods []string
 	if i.ForeignRegistry != nil {
 		i.ForeignRegistry.mu.RLock()
-		if info, ok := i.ForeignRegistry.types[o.foreignType]; ok {
+		if info, ok := i.ForeignRegistry.types[typeName]; ok {
 			for name := range info.methods {
 				methods = append(methods, name)
 			}

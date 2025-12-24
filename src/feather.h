@@ -893,6 +893,16 @@ typedef struct FeatherDictOps {
   FeatherObj (*create)(FeatherInterp interp);
 
   /**
+   * is_dict checks if an object is natively a dictionary.
+   *
+   * Returns 1 if the object was created as a dict (via dict create,
+   * dict set, etc.) and still has dict representation.
+   * Returns 0 for lists, strings, etc. even if they could be
+   * converted to a dict.
+   */
+  int (*is_dict)(FeatherInterp interp, FeatherObj obj);
+
+  /**
    * from converts a list or string to a dictionary.
    *
    * The input must have an even number of elements (key-value pairs).

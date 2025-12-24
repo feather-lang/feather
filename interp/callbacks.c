@@ -141,6 +141,10 @@ static FeatherObj c_dict_create(FeatherInterp interp) {
     return goDictCreate(interp);
 }
 
+static int c_dict_is_dict(FeatherInterp interp, FeatherObj obj) {
+    return goDictIsDict(interp, obj);
+}
+
 static FeatherObj c_dict_from(FeatherInterp interp, FeatherObj obj) {
     return goDictFrom(interp, obj);
 }
@@ -479,6 +483,7 @@ FeatherHostOps make_host_ops(void) {
     ops.list.sort = c_list_sort;
 
     ops.dict.create = c_dict_create;
+    ops.dict.is_dict = c_dict_is_dict;
     ops.dict.from = c_dict_from;
     ops.dict.get = c_dict_get;
     ops.dict.set = c_dict_set;

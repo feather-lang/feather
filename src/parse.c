@@ -335,10 +335,15 @@ static FeatherResult substitute_variable(const FeatherHostOps *ops, FeatherInter
       ops->interp.set_result(interp, msg);
       return TCL_ERROR;
     }
-    // Get string representation of value
-    size_t val_len;
-    const char *val_str = ops->string.get(interp, value, &val_len);
-    *word_out = append_to_word(ops, interp, word, val_str, val_len);
+    // If word is empty, preserve object identity (avoid shimmering)
+    if (ops->list.is_nil(interp, word)) {
+      *word_out = value;
+    } else {
+      // Concatenating - must stringify
+      size_t val_len;
+      const char *val_str = ops->string.get(interp, value, &val_len);
+      *word_out = append_to_word(ops, interp, word, val_str, val_len);
+    }
     *consumed_out = (p - pos) + 1; // +1 for closing brace
     return TCL_OK;
   } else if (is_varname_char_base(*pos) || is_namespace_sep(pos, end)) {
@@ -381,10 +386,15 @@ static FeatherResult substitute_variable(const FeatherHostOps *ops, FeatherInter
       ops->interp.set_result(interp, msg);
       return TCL_ERROR;
     }
-    // Get string representation of value
-    size_t val_len;
-    const char *val_str = ops->string.get(interp, value, &val_len);
-    *word_out = append_to_word(ops, interp, word, val_str, val_len);
+    // If word is empty, preserve object identity (avoid shimmering)
+    if (ops->list.is_nil(interp, word)) {
+      *word_out = value;
+    } else {
+      // Concatenating - must stringify
+      size_t val_len;
+      const char *val_str = ops->string.get(interp, value, &val_len);
+      *word_out = append_to_word(ops, interp, word, val_str, val_len);
+    }
     *consumed_out = name_len;
     return TCL_OK;
   } else {
@@ -435,9 +445,15 @@ static int substitute_command(const FeatherHostOps *ops, FeatherInterp interp,
   // Get the result and append to word
   FeatherObj cmd_result = ops->interp.get_result(interp);
   if (!ops->list.is_nil(interp, cmd_result)) {
-    size_t result_len;
-    const char *result_str = ops->string.get(interp, cmd_result, &result_len);
-    *word_out = append_to_word(ops, interp, word, result_str, result_len);
+    // If word is empty, preserve object identity (avoid shimmering)
+    if (ops->list.is_nil(interp, word)) {
+      *word_out = cmd_result;
+    } else {
+      // Concatenating - must stringify
+      size_t result_len;
+      const char *result_str = ops->string.get(interp, cmd_result, &result_len);
+      *word_out = append_to_word(ops, interp, word, result_str, result_len);
+    }
   } else {
     *word_out = word;
   }
