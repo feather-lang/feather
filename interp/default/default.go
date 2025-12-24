@@ -7,6 +7,11 @@ import (
 	"github.com/dhamidi/tclc/interp"
 )
 
+// Counter is a simple foreign object type for testing and demonstration.
+type Counter struct {
+	value int
+}
+
 // NewHost creates a Host configured for milestone 1.
 // M1 tests basic command invocation from the host.
 func NewHost() *interp.Host {
@@ -21,6 +26,29 @@ func NewHost() *interp.Host {
 	h.Register("echo", cmdEcho)
 	h.Register("count", cmdCount)
 	h.Register("list", cmdList)
+
+	// Register the Counter foreign type
+	interp.DefineType[*Counter](h, "Counter", interp.ForeignTypeDef[*Counter]{
+		New: func() *Counter {
+			return &Counter{value: 0}
+		},
+		Methods: interp.Methods{
+			"get": func(c *Counter) int {
+				return c.value
+			},
+			"set": func(c *Counter, val int) {
+				c.value = val
+			},
+			"incr": func(c *Counter) int {
+				c.value++
+				return c.value
+			},
+			"add": func(c *Counter, amount int) int {
+				c.value += amount
+				return c.value
+			},
+		},
+	})
 
 	return h
 }
