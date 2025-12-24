@@ -1,331 +1,325 @@
-# Roadmap
+# Plan: Transparent Foreign Object Support in tclc
 
-## Background and project goals
+## Goals
 
-tclc is an embeddable implementation of the core TCL language.
+1. **Elegant TCL experience** - foreign objects feel native, idiomatic syntax
+2. **Minimal embedder burden** - exposing host types is declarative, not imperative
+3. **Cross-runtime consistency** - same patterns work for Go, Node.js, Java, Swift
 
-TCL was conceived at a time when most networked software was written
-in C at the core, the internet was young, user expectations were looser.
+## Design Philosophy
 
-It is a tiny language full of great ideas, but features that were useful
-20 years ago are a hindrance today:
+**Complexity budget**: tclc stays minimal, host libraries absorb complexity.
 
-- I/O in the language is an obstacle, as the host is more than likely
-  to already have taken a stance on how it wants to handle I/O,
-- a built-in event loop for multiplexing I/O and orchestrating timers
-  was useful when no host could easily provide this, but event loops
-  are widespread and having to integrate multiple event loops in one
-  application is error-prone.
-- reference counting with lots of calls to malloc and free works great for
-  standalone TCL, but the emergence of zig and wasm incentivizes being in
-  control of allocations.
+The libraries we ship (Go, Node.js, Java, Swift) handle:
+- Type registration and method dispatch
+- Argument conversion (TclObj ↔ native types)
+- Object-as-command registration
+- Lifecycle management
 
-So what ideas are worth preserving?
+tclc just needs hooks for the libraries to build on.
 
-A pure form of metaprogramming, syntax moldable like clay, with meaning
-to be added at a time and in a form that is convenient for that particular
-use case.
+## User Experience Goals
 
-A transparent execution environment: every aspect of a running TCL program
-can be inspected from within that program, and often even modified.
-
-A focus on expressing computation in the form of instructions to carry out.
-
-The latter point is key: agentic coding benefits from an inspectable and
-moldable environment. Having the agent talk to your running program gives it
-highly valuable feedback for a small amount of tokens.
-
-The browser is one example of this model being successful, but what about all
-the other applications? Your job runner, web server, database, your desktop
-or mobile app.
-
-tclc wants to be the thin glue layer that's easy to embed into your programs,
-so that you can talk to them while they are running.
-
-Another way to look at TCL is this: it is a Lisp-2 with fexprs that extend
-to the lexical syntax level. Maybe that is more exciting.
-
-Here you will find a faithful implementation of:
-
-- control flow and execution primitives: proc, foreach, for, while, if,
-  return, break, continue, error, tailcall, try, throw, catch, switch
-- introspection capabilities: info, errorCode, errorInfo, trace
-- values and expressions: expr, incr, set, unset, global, variable
-- metaprogramming: upvar, uplevel, rename, unknown, namespace
-- data structures: list, dict, string, apply
-- string manipulation: split, subst, concat, append, regexp, regsub, join
-
-Notable omissions (all to be covered by the host):
-
-- Arrays: TCL-style associative arrays were supplanted by the dictionary datatype.
-  There is no reason to have both in the language when starting from scratch.
-
-- I/O: chan, puts, gets, refchan, transchan, after, vwait, update
-  These are better provided by the host in the form of exposed commands.
-
-- OO: tclc intended use case is short, interactive programs
-  similar to bash. Programming in the large is explicitly not supported.
-
-- Coroutines: tclc interpreter objects are small and lightweight so you can
-  have of them if you need something like coroutines.
-
-## Development Process
-
-At a high-level we want to start with a small interpreter working end-to-end,
-using a single host implementation until we have reached a certain complexity
-threshold.
-
-Reaching the threshold is important to establish a ground truth before adding
-the burden of having to maintain another implementation.
-
-We iterate strictly using TDD and progressively more complicated tests
-that exercise more and more of the functionality.
-
-## Milestones
-
-Since the set of commands we want to implement is large,
-picking a reasonable order is important.
-
-The guiding principle: each milestone should add exactly one new concept to the interpreter's execution model. We front-load features that affect the interpreter's core logic (call frames, return codes, variable scoping) before features that are merely new commands using existing machinery.
-
-### M1: Just Invoking Commands from the Host ✓
-
-This phase is mostly about testing the parser and making sure the
-host / interpreter interop works at a basic level.
-
-Tests in this phase make no use of special Tcl semantics beyond simple,
-flat command invocation.
-
-Builtin commands implemented:
-
-- set, so that we can test variable and command substitution
-
-### M2: The Expression DSL ✓
-
-In order to build up to control flow, we need to have a working expression evaluator.
-
-Tests start with basic comparison operators, then math operators for integers only.
-
-This forces us to get the integer data type working.
-
-Builtin commands implemented:
-
-- expr, partially: <, <=, >, >=, ==, !=, |, &, ||, &&; integers only
-
-### M3: Proc with Implicit Return ✓
-
-With parsing complete and expressions working, we can define user procedures.
-
-TCL procedures return the result of their last evaluated command automatically—no explicit `return` is needed. This "implicit return" is the default behavior:
+### For TCL Users - Elegant Syntax
 
 ```tcl
-proc double {x} {
-    expr {$x * 2}
+# Object-as-command pattern (Tk style)
+set mux [Mux new]
+$mux handle "/" serveIndex
+$mux listen 8080
+
+# Introspection works
+info type $mux           ;# => Mux
+info methods $mux        ;# => handle listen close destroy
+
+# Objects are values - pass them around
+proc setupRoutes {m} {
+    $m handle "/" indexHandler
+    $m handle "/api" apiHandler
 }
-double 5  ;# returns 10
+setupRoutes $mux
+
+# Destruction is explicit
+$mux destroy
 ```
 
-This milestone establishes the core procedure mechanism:
+### For Embedders - Declarative API
 
-- Binding a name to a parameter list and body
-- Creating a new call frame when invoked
-- Evaluating the body in that frame
-- Returning the final result to the caller
+```go
+// Go: Define a type in ~10 lines
+tclc.DefineType[*http.ServeMux]("Mux", tclc.TypeDef{
+    New: func() *http.ServeMux {
+        return http.NewServeMux()
+    },
+    Methods: tclc.Methods{
+        "handle": func(m *http.ServeMux, pattern string, handler tclc.Proc) {
+            m.HandleFunc(pattern, handler.AsHTTPHandler())
+        },
+        "listen": func(m *http.ServeMux, port int) error {
+            return http.ListenAndServe(fmt.Sprintf(":%d", port), m)
+        },
+    },
+})
+// That's it! Mux is now available in TCL
+```
 
-We defer explicit `return` to M4 because implicit return exercises the full call/return lifecycle with minimal complexity.
-
-Builtin commands implemented:
-
-- proc: define named procedures with parameters
-
-### M4: Control Flow with break and continue ✓
-
-Before implementing `return` with its full option machinery, we introduce the simpler loop control commands. This forces us to handle non-OK return codes propagating through the interpreter, but with simpler semantics than `return -code`.
-
-The key insight: `break` and `continue` are return codes that travel up the call stack until caught by a loop construct. This is the same machinery `return` will need, but constrained to a single, obvious catching point.
-
-```tcl
-proc find_first_negative {lst} {
-    set result ""
-    set i 0
-    set len [llength $lst]
-    while {$i < $len} {
-        set x [lindex $lst $i]
-        if {$x < 0} {
-            set result $x
-            break
-        }
-        incr i
+```javascript
+// Node.js: Same pattern
+tclc.defineType('Server', {
+    new: () => http.createServer(),
+    methods: {
+        listen: (server, port) => server.listen(port),
+        close: (server) => server.close(),
     }
-    set result
-}
+});
 ```
 
-Builtin commands implemented:
-
-- if: conditional with then/elseif/else, boolean literals (1/0, true/false, yes/no)
-- while: loop with condition, must catch break/continue
-- break: return TCL_BREAK to be caught by enclosing loop
-- continue: return TCL_CONTINUE to be caught by enclosing loop
-- incr: increment variable by amount (default 1)
-- llength, lindex: to have basic list access
-
-### M5: The return Command ✓
-
-With non-OK return codes working for loops, we add the general `return` command. The critical feature is `-code`: it allows a procedure to return any code, not just TCL_OK or TCL_RETURN.
-
-```tcl
-proc my_break {} {
-    return -code break
-}
-
-proc my_error {msg} {
-    return -code error $msg
-}
-```
-
-This milestone also introduces `-level`, which controls how many call frames the return code should travel through before taking effect. This is essential for writing control-flow abstractions.
-
-Builtin commands implemented:
-
-- return: with -code and -level options
-
-### M6: Error Handling ✓
-
-With return codes fully working, we can implement proper error handling. The `error` command is the producer; `catch` is the consumer.
-
-```tcl
-proc divide {a b} {
-    if {$b == 0} {
-        error "division by zero"
+```java
+// Java: Annotation or builder
+@TclType("Connection")
+public class ConnectionWrapper {
+    @TclConstructor
+    public static Connection create(String url) {
+        return DriverManager.getConnection(url);
     }
-    expr {$a / $b}
-}
 
-if {[catch {divide 10 0} result]} {
-    set result "error caught"
-}
-```
-
-The `catch` command is where introspection begins: it captures not just whether an error occurred, but optionally the return options dictionary containing the error code, stack trace, etc.
-
-Builtin commands implemented:
-
-- error: raise an error with message, optional errorInfo and errorCode
-- catch: execute script, capture return code and result
-
-The error needs to be stored in the interpreters error value, cf 
-
-### M7: Introspection with info ✓
-
-The `info` command is TCL's window into itself. We implement a minimal subset that exercises the key introspectable state:
-
-```tcl
-info exists varName     ;# does variable exist?
-info level ?number?     ;# call stack depth or frame info
-info commands ?pattern? ;# list available commands
-info procs ?pattern?    ;# list user-defined procedures
-info body procName      ;# get procedure body
-info args procName      ;# get procedure parameters
-```
-
-This forces the interpreter to expose its internal state in a structured way. The `info level` subcommand is particularly important: it reveals the call stack, which is foundational for `uplevel` and `upvar`.
-
-Builtin commands implemented:
-
-- info: exists, level, commands, procs, body, args subcommands
-
-### M8: Metaprogramming with uplevel and upvar ✓
-
-These commands break the normal scoping rules, allowing code to execute in or access variables from calling frames. They are the heart of TCL's metaprogramming capability.
-
-```tcl
-proc localvar {name value} {
-    upvar 1 $name var
-    set var $value
-}
-
-proc debug_eval {script} {
-    uplevel 1 $script
-}
-```
-
-`upvar` creates an alias between a local variable and a variable in another frame. `uplevel` evaluates a script in a calling frame's context. Together they enable any control structure to be written as a procedure.
-
-Builtin commands implemented:
-
-- upvar: link local variable to variable in another frame
-- uplevel: evaluate script in a calling frame
-
-### M9: The unknown Handler ✓
-
-When a command is not found, TCL calls `unknown` with the original command and arguments. This enables auto-loading, abbreviation expansion, and domain-specific command resolution.
-
-```tcl
-proc unknown {cmd args} {
-    if {[string match "get*" $cmd]} {
-        return [dict get $::data [string range $cmd 3 end]]
+    @TclMethod
+    public ResultSet query(Connection conn, String sql) {
+        return conn.createStatement().executeQuery(sql);
     }
-    error "invalid command name \"$cmd\""
 }
 ```
 
-This milestone exercises the bind.unknown hook in TclHostOps and demonstrates how the interpreter delegates to user code for missing commands.
+```swift
+// Swift: Protocol-based
+extension URLSession: TclExposable {
+    static var tclTypeName = "URLSession"
 
-Builtin commands implemented:
+    static func tclNew() -> URLSession { .shared }
 
-- rename: rename or delete commands (needed to replace `unknown`)
-- The `unknown` mechanism via TclBindOps
+    var tclMethods: [String: TclMethod] {
+        ["fetch": { url in self.data(from: URL(string: url)!) }]
+    }
+}
+```
 
-## M10: Namespaces
+## Architecture
 
-Namespace support tests symbol table scoping and procedure resolution:
+### Layer 1: tclc Core (C) - Minimal Hooks
 
-- namespace: eval, current, exists, children, parent, delete, export, import
-- variable: declare namespace variables
+tclc provides the primitives. The host libraries build ergonomics on top.
 
-## M11: Advanced Error Handling
+```c
+typedef struct TclForeignOps {
+    // Check if an object is a foreign object
+    int (*is_foreign)(TclInterp interp, TclObj obj);
 
-Structured exception handling validates the interpreter's frame and result management:
+    // Get the type name (e.g., "Mux", "Connection")
+    TclObj (*type_name)(TclInterp interp, TclObj obj);
 
-- try/on/trap/finally: structured exception handling
-- throw: raise typed exceptions
+    // Get string representation (for shimmering/display)
+    TclObj (*string_rep)(TclInterp interp, TclObj obj);
 
-## M12: Trace Support
+    // List method names (for introspection)
+    TclObj (*methods)(TclInterp interp, TclObj obj);
 
-Traces exercise the interpreter's hook points and introspection capabilities:
+    // Invoke a method: obj.method(args)
+    TclResult (*invoke)(TclInterp interp, TclObj obj,
+                        TclObj method, TclObj args);
 
-- trace: add, remove, info for variable and command traces
-- Complete info subcommands: frame, default, locals, globals, vars, script
+    // Destructor callback (called when object is destroyed)
+    void (*destroy)(TclInterp interp, TclObj obj);
+} TclForeignOps;
+```
 
-## M13: Completing the Control Flow Suite
+**tclc changes:**
+1. Add `TclForeignOps` to `TclHostOps`
+2. `info type $obj` - returns type name for any value
+3. `info methods $obj` - returns method list (empty for non-foreign)
+4. String shimmering calls `foreign.string_rep()` for foreign objects
 
-With error handling, namespaces, and tracing validated, we round out control flow:
+### Layer 2: Host Library (Go/JS/Java/Swift) - The Magic
 
-- for: C-style loop
-- foreach: iteration over lists
-- switch: multi-way branch with -exact, -glob, -regexp modes
-- tailcall: replace current frame with new command
+The library provides:
 
-## M14: Full Expression Support
+**A. Type Registry**
+```go
+type TypeDef struct {
+    Name       string
+    New        any                    // Constructor function
+    Methods    map[string]any         // Method implementations
+    StringRep  func(any) string       // Custom string representation
+    Destroy    func(any)              // Cleanup callback
+}
 
-Extend `expr` to its complete form:
+var typeRegistry = map[string]*TypeDef{}
+```
 
-- Floating point numbers
-- Mathematical functions (sin, cos, sqrt, etc.)
-- String comparisons (eq, ne)
-- Ternary operator (? :)
-- List membership (in, ni)
+**B. Automatic Command Registration**
 
-## M15: String and List Operations
+When `DefineType("Mux", ...)` is called:
+1. Register `Mux` as a command (the constructor)
+2. `Mux new` creates instance, registers `mux1` as command
+3. `mux1 handle ...` dispatches to Methods["handle"]
+4. `mux1 destroy` calls Destroy callback, unregisters command
 
-Complete the data structure commands:
+**C. Argument Conversion**
 
-- list: construct lists
-- lindex, lrange, llength, lappend, lset, lreplace, lsort, lsearch
-- string: length, index, range, match, map, trim, toupper, tolower
-- split, join, concat, append
+The library automatically converts TclObj ↔ native types:
+- `string` ↔ TclObj (string rep)
+- `int`, `int64` ↔ TclObj (integer rep)
+- `float64` ↔ TclObj (double rep)
+- `[]T` ↔ TclObj (list rep)
+- `map[string]T` ↔ TclObj (dict rep)
+- `*ForeignType` ↔ TclObj (foreign rep)
+- `tclc.Proc` ↔ TclObj (callable script/proc name)
+- `error` → TCL_ERROR with message
 
-## M16: Dictionary Support
+**D. Object-as-Command Pattern**
 
-- dict: create, get, set, exists, keys, values, for, map, filter, remove, merge
+When a foreign object is created:
+```go
+func (lib *Library) CreateForeign(typeName string, value any) TclObj {
+    // 1. Create the foreign object
+    obj := lib.interp.NewForeign(typeName, value)
+
+    // 2. Generate unique handle name
+    handle := lib.nextHandle(typeName)  // "mux1", "mux2", ...
+
+    // 3. Register handle as command that dispatches to object
+    lib.interp.RegisterCommand(handle, func(cmd, args TclObj) TclResult {
+        method := lib.interp.ListShift(args)
+        return lib.foreign.invoke(obj, method, args)
+    })
+
+    // 4. Set up destructor via command trace
+    lib.interp.TraceCommand(handle, "delete", func() {
+        lib.foreign.destroy(obj)
+    })
+
+    // 5. Return handle (which is also the object's string rep)
+    return lib.interp.Intern(handle)
+}
+```
+
+## Implementation Roadmap
+
+### M1: tclc Core Changes ✓
+
+**Files:**
+- `src/tclc.h` - Add `TclForeignOps` to `TclHostOps`
+- `src/builtins.c` - Add `info type`, `info methods` subcommands
+
+**Scope:**
+1. Define `TclForeignOps` struct with 6 callbacks
+2. Add `foreign` field to `TclHostOps`
+3. Extend `info` command:
+   - `info type $obj` → type name (or "string"/"list"/"dict"/"int" for builtins)
+   - `info methods $obj` → method list (calls `foreign.methods`)
+4. Modify string shimmering path to check `foreign.is_foreign()` and call `foreign.string_rep()`
+
+### M2: Go Host - Low-Level Support ✓
+
+**Files:**
+- `interp/tclc.go` - Add foreign fields to Object, implement callbacks
+- `interp/callbacks.go` - Export foreign ops to C
+- `interp/callbacks.c` - C wrapper functions
+
+**Scope:**
+1. Add to `Object` struct:
+   ```go
+   isForeign    bool
+   foreignType  string
+   foreignValue any
+   ```
+2. Implement `TclForeignOps` callbacks
+3. Add `NewForeign(typeName string, value any) TclObj` method
+4. Add type registry: `map[string]*ForeignTypeDef`
+
+### M3: Go Library - High-Level API
+
+**Files:**
+- extend interp/ with interp/foreign.go
+
+**Scope:**
+1. `DefineType[T]()` - generic type registration with reflection
+2. Automatic argument conversion via reflection
+3. Object-as-command registration
+4. Handle generation (`mux1`, `mux2`, ...)
+5. Lifecycle management via command traces
+
+### M4: Documentation & Examples
+
+1. Example: HTTP server type
+2. Example: Database connection type
+3. Example: Custom data structure
+4. Guide for each runtime (Node.js, Java, Swift stubs)
+
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/tclc.h` | Add `TclForeignOps` struct, add to `TclHostOps` |
+| `src/builtins.c` | `info type`, `info methods` subcommands |
+| `interp/tclc.go` | Foreign fields in Object, type registry, NewForeign |
+| `interp/callbacks.go` | Implement 6 foreign ops callbacks |
+| `interp/callbacks.c` | C wrappers for foreign ops |
+| `interp/foreign.go` (new) | High-level DefineType API |
+
+## Object Storage
+
+```go
+type Object struct {
+    // Existing representations (shimmering)
+    stringVal string
+    intVal    int64
+    isInt     bool
+    dblVal    float64
+    isDouble  bool
+    listItems []TclObj
+    isList    bool
+    dictItems map[string]TclObj
+    isDict    bool
+
+    // New: Foreign object support
+    isForeign    bool
+    foreignType  string   // "Mux", "Connection", etc.
+    foreignValue any      // The actual Go/host value
+}
+```
+
+**Shimmering behavior:**
+- Foreign objects can shimmer to string (via `string_rep`)
+- String rep is cached in `stringVal`
+- `isForeign` remains true - object retains foreign identity
+- Cannot shimmer to int/list/dict (returns error)
+
+## Testing Strategy
+
+1. **Unit tests** (in tclc test harness):
+   - `info type` returns correct type for all value types
+   - `info methods` returns method list for foreign objects
+   - Foreign objects have string representation
+   - Foreign objects pass through lists/dicts unchanged
+
+2. **Integration tests** (Go):
+   - Define type, create instance, call methods
+   - Object-as-command dispatch works
+   - Argument conversion for various types
+   - Error handling (wrong type, missing method)
+   - Lifecycle: destroy cleans up
+
+3. **Example applications**:
+   - HTTP server with routes
+   - Database with queries
+   - File handle wrapper
+
+## Design Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Method syntax | `$obj method args` | Tk-style, most TCL-idiomatic |
+| Object lifecycle | Explicit `$obj destroy` | Predictable, no GC surprises |
+| Handle format | `typename1`, `typename2` | Readable, debuggable |
+| Type checking | Runtime, not compile-time | TCL is dynamic |
+| Comparison | By handle string | Consistent with TCL semantics |
