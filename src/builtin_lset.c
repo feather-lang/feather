@@ -91,19 +91,15 @@ TclResult tcl_builtin_lset(const TclHostOps *ops, TclInterp interp,
     return TCL_ERROR;
   }
 
-  // Rebuild list with new value at index
-  TclObj result = ops->list.create(interp);
-  for (size_t i = 0; i < listLen; i++) {
-    if ((int64_t)i == index) {
-      result = ops->list.push(interp, result, newValue);
-    } else {
-      TclObj elem = ops->list.at(interp, list, i);
-      result = ops->list.push(interp, result, elem);
-    }
+  // Use set_at for O(1) in-place modification
+  if (ops->list.set_at(interp, list, (size_t)index, newValue) != TCL_OK) {
+    TclObj msg = ops->string.intern(interp, "list index out of range", 23);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
   }
 
   // Store back in variable
-  ops->var.set(interp, varName, result);
-  ops->interp.set_result(interp, result);
+  ops->var.set(interp, varName, list);
+  ops->interp.set_result(interp, list);
   return TCL_OK;
 }

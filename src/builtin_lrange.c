@@ -82,13 +82,8 @@ TclResult tcl_builtin_lrange(const TclHostOps *ops, TclInterp interp,
     return TCL_OK;
   }
 
-  // Build result list
-  TclObj result = ops->list.create(interp);
-  for (int64_t i = first; i <= last; i++) {
-    TclObj elem = ops->list.at(interp, list, (size_t)i);
-    result = ops->list.push(interp, result, elem);
-  }
-
+  // Use slice for efficient O(n) extraction where n is slice size
+  TclObj result = ops->list.slice(interp, list, (size_t)first, (size_t)last);
   ops->interp.set_result(interp, result);
   return TCL_OK;
 }

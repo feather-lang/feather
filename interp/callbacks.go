@@ -4,11 +4,21 @@ package interp
 #cgo CFLAGS: -I${SRCDIR}/../src
 #cgo LDFLAGS: -L${SRCDIR}/../build -ltclc -Wl,-rpath,${SRCDIR}/../build
 #include "tclc.h"
+#include <stdlib.h>
 
 // Implemented in callbacks.c
 extern TclResult call_tcl_eval_obj(TclInterp interp, TclObj script, TclEvalFlags flags);
 extern TclParseStatus call_tcl_parse(TclInterp interp, TclObj script);
 extern void call_tcl_interp_init(TclInterp interp);
+
+// Type for the list comparison callback
+typedef int (*ListCmpFunc)(TclInterp interp, TclObj a, TclObj b, void *ctx);
+
+// Helper to call the comparison function
+static inline int call_list_compare(TclInterp interp, TclObj a, TclObj b, void *fn, void *ctx) {
+    ListCmpFunc cmp = (ListCmpFunc)fn;
+    return cmp(interp, a, b, ctx);
+}
 */
 import "C"
 
@@ -18,6 +28,7 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+	"unsafe"
 )
 
 // Go callback implementations - these are called from C via the wrappers in callbacks.c
@@ -397,6 +408,184 @@ func goListAt(interp C.TclInterp, list C.TclObj, index C.size_t) C.TclObj {
 		return 0
 	}
 	return C.TclObj(items[idx])
+}
+
+//export goListSlice
+func goListSlice(interp C.TclInterp, list C.TclObj, first C.size_t, last C.size_t) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	items, err := i.GetList(TclObj(list))
+	if err != nil {
+		return 0
+	}
+
+	length := len(items)
+	f := int(first)
+	l := int(last)
+
+	// Clamp indices
+	if f < 0 {
+		f = 0
+	}
+	if l >= length {
+		l = length - 1
+	}
+
+	// Empty result if invalid range
+	if f > l || length == 0 {
+		id := i.nextID
+		i.nextID++
+		i.objects[id] = &Object{isList: true, listItems: []TclObj{}}
+		return C.TclObj(id)
+	}
+
+	// Create new list with sliced items
+	slicedItems := make([]TclObj, l-f+1)
+	copy(slicedItems, items[f:l+1])
+
+	id := i.nextID
+	i.nextID++
+	i.objects[id] = &Object{isList: true, listItems: slicedItems}
+	return C.TclObj(id)
+}
+
+//export goListSetAt
+func goListSetAt(interp C.TclInterp, list C.TclObj, index C.size_t, value C.TclObj) C.TclResult {
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+
+	// Get the list object directly for mutation
+	o := i.getObject(TclObj(list))
+	if o == nil || !o.isList {
+		return C.TCL_ERROR
+	}
+
+	idx := int(index)
+	if idx < 0 || idx >= len(o.listItems) {
+		return C.TCL_ERROR
+	}
+
+	// Mutate in place
+	o.listItems[idx] = TclObj(value)
+
+	// Invalidate string representation if any
+	o.stringVal = ""
+	if o.cstr != nil {
+		C.free(unsafe.Pointer(o.cstr))
+		o.cstr = nil
+	}
+
+	return C.TCL_OK
+}
+
+//export goListSplice
+func goListSplice(interp C.TclInterp, list C.TclObj, first C.size_t, deleteCount C.size_t, insertions C.TclObj) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+
+	items, err := i.GetList(TclObj(list))
+	if err != nil {
+		return 0
+	}
+
+	f := int(first)
+	dc := int(deleteCount)
+	length := len(items)
+
+	// Get insertion items
+	var insertItems []TclObj
+	if insertions != 0 {
+		insertItems, err = i.GetList(TclObj(insertions))
+		if err != nil {
+			insertItems = []TclObj{}
+		}
+	}
+
+	// Clamp first index
+	if f < 0 {
+		f = 0
+	}
+	if f > length {
+		f = length
+	}
+
+	// Clamp delete count
+	if f+dc > length {
+		dc = length - f
+	}
+
+	// Build new list: [0:first] + insertItems + [first+deleteCount:]
+	newLen := length - dc + len(insertItems)
+	newItems := make([]TclObj, 0, newLen)
+	newItems = append(newItems, items[:f]...)
+	newItems = append(newItems, insertItems...)
+	if f+dc < length {
+		newItems = append(newItems, items[f+dc:]...)
+	}
+
+	id := i.nextID
+	i.nextID++
+	i.objects[id] = &Object{isList: true, listItems: newItems}
+	return C.TclObj(id)
+}
+
+// ListSortContext holds context for list sorting
+type ListSortContext struct {
+	interp  C.TclInterp
+	cmpFunc unsafe.Pointer
+	ctx     unsafe.Pointer
+}
+
+// Global sort context for the current sort operation
+var currentSortCtx *ListSortContext
+
+//export goListSort
+func goListSort(interp C.TclInterp, list C.TclObj, cmpFunc unsafe.Pointer, ctx unsafe.Pointer) C.TclResult {
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+
+	// Get the list object directly for in-place mutation
+	o := i.getObject(TclObj(list))
+	if o == nil || !o.isList {
+		return C.TCL_ERROR
+	}
+
+	if len(o.listItems) <= 1 {
+		return C.TCL_OK // Already sorted
+	}
+
+	// Set up sort context
+	currentSortCtx = &ListSortContext{
+		interp:  interp,
+		cmpFunc: cmpFunc,
+		ctx:     ctx,
+	}
+
+	// Sort using Go's sort with the C comparison function
+	sort.Slice(o.listItems, func(a, b int) bool {
+		result := C.call_list_compare(currentSortCtx.interp, C.TclObj(o.listItems[a]), C.TclObj(o.listItems[b]),
+			currentSortCtx.cmpFunc, currentSortCtx.ctx)
+		return result < 0
+	})
+
+	currentSortCtx = nil
+
+	// Invalidate string representation
+	o.stringVal = ""
+	if o.cstr != nil {
+		C.free(unsafe.Pointer(o.cstr))
+		o.cstr = nil
+	}
+
+	return C.TCL_OK
 }
 
 //export goIntCreate

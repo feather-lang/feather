@@ -73,35 +73,20 @@ TclResult tcl_builtin_lreplace(const TclHostOps *ops, TclInterp interp,
     return TCL_ERROR;
   }
 
-  // Build result:
-  // 1. Elements before first
-  // 2. Replacement elements
-  // 3. Elements after last
-  TclObj result = ops->list.create(interp);
+  // Clamp indices for splice calculation
+  if (first < 0) first = 0;
+  if (first > (int64_t)listLen) first = (int64_t)listLen;
+  if (last < first - 1) last = first - 1;
+  if (last >= (int64_t)listLen) last = (int64_t)listLen - 1;
 
-  // Add elements before first (if first > 0)
-  int64_t insertBefore = first;
-  if (insertBefore < 0) insertBefore = 0;
-  for (int64_t i = 0; i < insertBefore && i < (int64_t)listLen; i++) {
-    TclObj elem = ops->list.at(interp, list, (size_t)i);
-    result = ops->list.push(interp, result, elem);
+  // Calculate delete count
+  size_t deleteCount = 0;
+  if (last >= first) {
+    deleteCount = (size_t)(last - first + 1);
   }
 
-  // Add replacement elements
-  size_t numReplacements = ops->list.length(interp, args);
-  for (size_t i = 0; i < numReplacements; i++) {
-    TclObj elem = ops->list.shift(interp, args);
-    result = ops->list.push(interp, result, elem);
-  }
-
-  // Add elements after last
-  int64_t startAfter = last + 1;
-  if (startAfter < 0) startAfter = 0;
-  for (int64_t i = startAfter; i < (int64_t)listLen; i++) {
-    TclObj elem = ops->list.at(interp, list, (size_t)i);
-    result = ops->list.push(interp, result, elem);
-  }
-
+  // Use splice for efficient O(n) replacement
+  TclObj result = ops->list.splice(interp, list, (size_t)first, deleteCount, args);
   ops->interp.set_result(interp, result);
   return TCL_OK;
 }

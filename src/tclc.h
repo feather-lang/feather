@@ -828,6 +828,52 @@ typedef struct TclListOps {
    * If the index is out of bounds, the nil object is returned.
    */
   TclObj (*at)(TclInterp interp, TclObj list, size_t index);
+
+  /**
+   * slice returns a new list containing elements from first to last (inclusive).
+   *
+   * Indices are 0-based. Out-of-bounds indices are clamped to valid range.
+   * Returns empty list if first > last or list is empty.
+   *
+   * This enables O(n) lrange where n is slice size, not source list size.
+   */
+  TclObj (*slice)(TclInterp interp, TclObj list, size_t first, size_t last);
+
+  /**
+   * set_at replaces the element at index with value.
+   *
+   * Returns TCL_ERROR if index is out of bounds.
+   * Mutates the list in place if the host implementation supports it.
+   *
+   * This enables O(1) lset instead of O(n) list rebuild.
+   */
+  TclResult (*set_at)(TclInterp interp, TclObj list, size_t index, TclObj value);
+
+  /**
+   * splice removes 'deleteCount' elements starting at 'first',
+   * then inserts all elements from 'insertions' at that position.
+   * Returns the modified list.
+   *
+   * For lreplace list first last ?elem ...?:
+   *   splice(list, first, last-first+1, insertions)
+   *
+   * This enables O(n) lreplace instead of O(n²).
+   */
+  TclObj (*splice)(TclInterp interp, TclObj list, size_t first,
+                   size_t deleteCount, TclObj insertions);
+
+  /**
+   * sort sorts the list in place using the provided comparison function.
+   *
+   * The comparison function receives two elements and user context.
+   * It should return <0 if a<b, 0 if a==b, >0 if a>b.
+   *
+   * The host can use its native O(n log n) sort algorithm.
+   * This removes the 1024 element limit and O(n²) insertion sort.
+   */
+  TclResult (*sort)(TclInterp interp, TclObj list,
+                    int (*cmp)(TclInterp interp, TclObj a, TclObj b, void *ctx),
+                    void *ctx);
 } TclListOps;
 
 /**

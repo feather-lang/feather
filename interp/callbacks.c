@@ -117,6 +117,25 @@ static TclObj c_list_at(TclInterp interp, TclObj list, size_t index) {
     return goListAt(interp, list, index);
 }
 
+static TclObj c_list_slice(TclInterp interp, TclObj list, size_t first, size_t last) {
+    return goListSlice(interp, list, first, last);
+}
+
+static TclResult c_list_set_at(TclInterp interp, TclObj list, size_t index, TclObj value) {
+    return goListSetAt(interp, list, index, value);
+}
+
+static TclObj c_list_splice(TclInterp interp, TclObj list, size_t first,
+                            size_t deleteCount, TclObj insertions) {
+    return goListSplice(interp, list, first, deleteCount, insertions);
+}
+
+static TclResult c_list_sort(TclInterp interp, TclObj list,
+                             int (*cmp)(TclInterp interp, TclObj a, TclObj b, void *ctx),
+                             void *ctx) {
+    return goListSort(interp, list, (void*)cmp, ctx);
+}
+
 static TclObj c_int_create(TclInterp interp, int64_t val) {
     return goIntCreate(interp, val);
 }
@@ -392,6 +411,10 @@ TclHostOps make_host_ops(void) {
     ops.list.shift = c_list_shift;
     ops.list.length = c_list_length;
     ops.list.at = c_list_at;
+    ops.list.slice = c_list_slice;
+    ops.list.set_at = c_list_set_at;
+    ops.list.splice = c_list_splice;
+    ops.list.sort = c_list_sort;
 
     ops.integer.create = c_int_create;
     ops.integer.get = c_int_get;

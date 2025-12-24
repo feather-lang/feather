@@ -40,16 +40,17 @@ static int compare_nocase(const TclHostOps *ops, TclInterp interp,
   return 0;
 }
 
-// Compare two elements
-static int compare_elements(SortContext *ctx, TclObj a, TclObj b) {
+// Compare two elements - signature matches the host sort callback
+static int compare_elements(TclInterp interp, TclObj a, TclObj b, void *ctx_ptr) {
+  SortContext *ctx = (SortContext *)ctx_ptr;
   int result = 0;
 
   switch (ctx->mode) {
     case SORT_ASCII:
       if (ctx->nocase) {
-        result = compare_nocase(ctx->ops, ctx->interp, a, b);
+        result = compare_nocase(ctx->ops, interp, a, b);
       } else {
-        result = ctx->ops->string.compare(ctx->interp, a, b);
+        result = ctx->ops->string.compare(interp, a, b);
       }
       break;
 
@@ -57,8 +58,8 @@ static int compare_elements(SortContext *ctx, TclObj a, TclObj b) {
       int64_t va, vb;
       // For integer mode, we assume the conversion will succeed
       // (error checking should happen before sort)
-      ctx->ops->integer.get(ctx->interp, a, &va);
-      ctx->ops->integer.get(ctx->interp, b, &vb);
+      ctx->ops->integer.get(interp, a, &va);
+      ctx->ops->integer.get(interp, b, &vb);
       if (va < vb) result = -1;
       else if (va > vb) result = 1;
       else result = 0;
@@ -67,8 +68,8 @@ static int compare_elements(SortContext *ctx, TclObj a, TclObj b) {
 
     case SORT_REAL: {
       double va, vb;
-      ctx->ops->dbl.get(ctx->interp, a, &va);
-      ctx->ops->dbl.get(ctx->interp, b, &vb);
+      ctx->ops->dbl.get(interp, a, &va);
+      ctx->ops->dbl.get(interp, b, &vb);
       if (va < vb) result = -1;
       else if (va > vb) result = 1;
       else result = 0;
@@ -78,19 +79,6 @@ static int compare_elements(SortContext *ctx, TclObj a, TclObj b) {
 
   if (ctx->decreasing) result = -result;
   return result;
-}
-
-// Simple insertion sort for small lists (stable)
-static void insertion_sort(SortContext *ctx, TclObj *arr, size_t n) {
-  for (size_t i = 1; i < n; i++) {
-    TclObj key = arr[i];
-    size_t j = i;
-    while (j > 0 && compare_elements(ctx, arr[j - 1], key) > 0) {
-      arr[j] = arr[j - 1];
-      j--;
-    }
-    arr[j] = key;
-  }
 }
 
 // Helper to check string equality
@@ -180,37 +168,28 @@ TclResult tcl_builtin_lsort(const TclHostOps *ops, TclInterp interp,
     return TCL_OK;
   }
 
-  // Copy elements to array for sorting
-  // For large lists, we would need dynamic allocation, but for now
-  // we'll use a fixed-size array. The host should handle this ideally.
-  // For simplicity, we'll rebuild using list operations.
-  #define MAX_SORT_SIZE 1024
-  TclObj arr[MAX_SORT_SIZE];
-  if (listLen > MAX_SORT_SIZE) {
-    TclObj msg = ops->string.intern(interp, "list too large to sort", 22);
+  // Use host's O(n log n) sort - no size limit!
+  if (ops->list.sort(interp, list, compare_elements, &ctx) != TCL_OK) {
+    TclObj msg = ops->string.intern(interp, "sort failed", 11);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  for (size_t i = 0; i < listLen; i++) {
-    arr[i] = ops->list.at(interp, list, i);
-  }
-
-  // Sort
-  insertion_sort(&ctx, arr, listLen);
-
-  // Build result, optionally removing duplicates
-  TclObj result = ops->list.create(interp);
-  for (size_t i = 0; i < listLen; i++) {
-    if (unique && i > 0) {
-      // Check if same as previous
-      if (compare_elements(&ctx, arr[i], arr[i - 1]) == 0) {
-        continue;
+  // Handle -unique: remove consecutive duplicates after sorting
+  if (unique) {
+    TclObj result = ops->list.create(interp);
+    TclObj prev = 0;
+    for (size_t i = 0; i < listLen; i++) {
+      TclObj elem = ops->list.at(interp, list, i);
+      if (i == 0 || compare_elements(interp, elem, prev, &ctx) != 0) {
+        result = ops->list.push(interp, result, elem);
+        prev = elem;
       }
     }
-    result = ops->list.push(interp, result, arr[i]);
+    ops->interp.set_result(interp, result);
+  } else {
+    ops->interp.set_result(interp, list);
   }
 
-  ops->interp.set_result(interp, result);
   return TCL_OK;
 }
