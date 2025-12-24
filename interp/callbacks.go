@@ -2466,11 +2466,26 @@ func goForeignMethods(interp C.TclInterp, obj C.TclObj) C.TclObj {
 	if o == nil || !o.isForeign {
 		return 0
 	}
-	// For now, return an empty list.
-	// The high-level library will provide method discovery via a type registry.
+	// Use the high-level registry if available
+	var methods []string
+	if i.ForeignRegistry != nil {
+		i.ForeignRegistry.mu.RLock()
+		if info, ok := i.ForeignRegistry.types[o.foreignType]; ok {
+			for name := range info.methods {
+				methods = append(methods, name)
+			}
+			methods = append(methods, "destroy")
+		}
+		i.ForeignRegistry.mu.RUnlock()
+	}
+	// Build a list of method names
 	id := i.nextID
 	i.nextID++
-	i.objects[id] = &Object{isList: true, listItems: []TclObj{}}
+	methodHandles := make([]TclObj, len(methods))
+	for j, m := range methods {
+		methodHandles[j] = i.internString(m)
+	}
+	i.objects[id] = &Object{isList: true, listItems: methodHandles}
 	return C.TclObj(id)
 }
 

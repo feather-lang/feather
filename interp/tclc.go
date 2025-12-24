@@ -145,6 +145,10 @@ type Interp struct {
 
 	// UnknownHandler is called when an unknown command is invoked.
 	UnknownHandler CommandFunc
+
+	// ForeignRegistry stores foreign type definitions for the high-level API.
+	// Set by DefineType when registering foreign types.
+	ForeignRegistry *ForeignRegistry
 }
 
 // Object represents a TCL object
