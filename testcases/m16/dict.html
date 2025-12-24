@@ -1,0 +1,634 @@
+<test-suite>
+  <!-- M16: dict command - dictionary operations -->
+
+  <!-- ============================================= -->
+  <!-- dict create                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="dict create with no arguments">
+    <script>dict create</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict create with one pair">
+    <script>dict create a 1</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a 1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict create with multiple pairs">
+    <script>dict create a 1 b 2 c 3</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a 1 b 2 c 3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict create with odd number of args is error">
+    <script>dict create a</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "dict create ?key value ...?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- dict get                                      -->
+  <!-- ============================================= -->
+
+  <test-case name="dict get single key">
+    <script>dict get {a 1 b 2} a</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict get no keys returns all">
+    <script>dict get {a 1 b 2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a 1 b 2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict get missing key is error">
+    <script>dict get {a 1 b 2} c</script>
+    <return>TCL_ERROR</return>
+    <error>key "c" not known in dictionary</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="dict get nested">
+    <script>dict get {outer {inner val}} outer inner</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>val</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- dict set                                      -->
+  <!-- ============================================= -->
+
+  <test-case name="dict set creates new dict">
+    <script>dict set d a 1; set d</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a 1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict set updates existing key">
+    <script>
+set d {a 1 b 2}
+dict set d a 99
+set d
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a 99 b 2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict set adds new key">
+    <script>
+set d {a 1}
+dict set d b 2
+set d
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a 1 b 2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict set nested creates path">
+    <script>dict set d outer inner value; set d</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>outer {inner value}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- dict exists                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="dict exists returns 1 for present key">
+    <script>dict exists {a 1 b 2} a</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict exists returns 0 for missing key">
+    <script>dict exists {a 1 b 2} c</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict exists nested">
+    <script>dict exists {outer {inner val}} outer inner</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict exists nested missing">
+    <script>dict exists {outer {inner val}} outer missing</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- dict keys                                     -->
+  <!-- ============================================= -->
+
+  <test-case name="dict keys returns all keys">
+    <script>dict keys {a 1 b 2 c 3}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict keys with pattern">
+    <script>dict keys {abc 1 abd 2 xyz 3} ab*</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>abc abd</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict keys empty dict">
+    <script>dict keys {}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- dict values                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="dict values returns all values">
+    <script>dict values {a 1 b 2 c 3}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1 2 3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict values with pattern">
+    <script>dict values {a hello b world c hi} h*</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello hi</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- dict size                                     -->
+  <!-- ============================================= -->
+
+  <test-case name="dict size empty">
+    <script>dict size {}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict size non-empty">
+    <script>dict size {a 1 b 2 c 3}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- dict remove                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="dict remove one key">
+    <script>dict remove {a 1 b 2 c 3} b</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a 1 c 3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict remove multiple keys">
+    <script>dict remove {a 1 b 2 c 3} a c</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>b 2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict remove non-existent key is ok">
+    <script>dict remove {a 1 b 2} x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a 1 b 2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- dict replace                                  -->
+  <!-- ============================================= -->
+
+  <test-case name="dict replace update existing">
+    <script>dict replace {a 1 b 2} a 99</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a 99 b 2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict replace add new">
+    <script>dict replace {a 1} b 2 c 3</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a 1 b 2 c 3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- dict merge                                    -->
+  <!-- ============================================= -->
+
+  <test-case name="dict merge empty">
+    <script>dict merge</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict merge single">
+    <script>dict merge {a 1 b 2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a 1 b 2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict merge multiple overwrites">
+    <script>dict merge {a 1 b 2} {b 99 c 3}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a 1 b 99 c 3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- dict append                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="dict append to existing">
+    <script>
+set d {greet hello}
+dict append d greet " world"
+dict get $d greet
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict append to new key">
+    <script>
+set d {}
+dict append d key val
+dict get $d key
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>val</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- dict incr                                     -->
+  <!-- ============================================= -->
+
+  <test-case name="dict incr existing key">
+    <script>
+set d {count 5}
+dict incr d count
+dict get $d count
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>6</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict incr new key starts at 0">
+    <script>
+set d {}
+dict incr d count
+dict get $d count
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict incr with amount">
+    <script>
+set d {count 10}
+dict incr d count 5
+dict get $d count
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>15</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict incr with negative">
+    <script>
+set d {count 10}
+dict incr d count -3
+dict get $d count
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>7</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- dict lappend                                  -->
+  <!-- ============================================= -->
+
+  <test-case name="dict lappend to existing list">
+    <script>
+set d {items {a b}}
+dict lappend d items c d
+dict get $d items
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c d</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict lappend to new key">
+    <script>
+set d {}
+dict lappend d items a b
+dict get $d items
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- dict unset                                    -->
+  <!-- ============================================= -->
+
+  <test-case name="dict unset removes key">
+    <script>
+set d {a 1 b 2 c 3}
+dict unset d b
+set d
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a 1 c 3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict unset nested">
+    <script>
+set d {outer {inner1 1 inner2 2}}
+dict unset d outer inner1
+dict get $d outer
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>inner2 2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- dict for                                      -->
+  <!-- ============================================= -->
+
+  <test-case name="dict for iterates in order">
+    <script>
+set result {}
+dict for {k v} {a 1 b 2 c 3} {
+    lappend result "$k=$v"
+}
+join $result ,
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a=1,b=2,c=3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict for with break">
+    <script>
+set result {}
+dict for {k v} {a 1 b 2 c 3} {
+    if {$k eq "b"} break
+    lappend result $k
+}
+join $result ,
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict for with continue">
+    <script>
+set result {}
+dict for {k v} {a 1 b 2 c 3} {
+    if {$k eq "b"} continue
+    lappend result $k
+}
+join $result ,
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a,c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- dict info                                     -->
+  <!-- ============================================= -->
+
+  <test-case name="dict info returns size info">
+    <script>
+set info [dict info {a 1 b 2 c 3}]
+string match "*3*" $info
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- dict getdef / getwithdefault                  -->
+  <!-- ============================================= -->
+
+  <test-case name="dict getdef with existing key">
+    <script>dict getdef {a 1 b 2} a default</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict getdef with missing key returns default">
+    <script>dict getdef {a 1 b 2} c default</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>default</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict getwithdefault alias works">
+    <script>dict getwithdefault {a 1} x missing</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>missing</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict getdef nested">
+    <script>dict getdef {outer {inner val}} outer missing default</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>default</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Error handling                                -->
+  <!-- ============================================= -->
+
+  <test-case name="dict with no subcommand is error">
+    <script>dict</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "dict subcommand ?arg ...?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="dict unknown subcommand is error">
+    <script>dict foobar</script>
+    <return>TCL_ERROR</return>
+    <error>unknown or ambiguous subcommand "foobar": must be append, create, exists, for, get, getdef, getwithdefault, incr, info, keys, lappend, merge, remove, replace, set, size, unset, or values</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Order preservation                            -->
+  <!-- ============================================= -->
+
+  <test-case name="dict preserves insertion order">
+    <script>
+set d [dict create]
+dict set d z 1
+dict set d a 2
+dict set d m 3
+dict keys $d
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>z a m</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="dict update preserves order">
+    <script>
+set d {z 1 a 2 m 3}
+dict set d a 99
+dict keys $d
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>z a m</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

@@ -157,6 +157,9 @@ type Object struct {
 	isDouble  bool
 	listItems []TclObj
 	isList    bool
+	dictItems map[string]TclObj // key → value mapping
+	dictOrder []string          // keys in insertion order
+	isDict    bool
 }
 
 // NewInterp creates a new interpreter
@@ -342,6 +345,42 @@ func (i *Interp) listToValue(obj *Object) string {
 	return result
 }
 
+// dictToValue converts a dict object to its TCL string representation.
+// Dicts are represented as lists: key1 value1 key2 value2 ...
+func (i *Interp) dictToValue(obj *Object) string {
+	if obj == nil || !obj.isDict {
+		return ""
+	}
+	var result string
+	first := true
+	for _, key := range obj.dictOrder {
+		if !first {
+			result += " "
+		}
+		first = false
+		// Quote key if needed
+		if len(key) == 0 || strings.ContainsAny(key, " \t\n{}") {
+			result += "{" + key + "}"
+		} else {
+			result += key
+		}
+		result += " "
+		// Get value and convert to string
+		if valHandle, ok := obj.dictItems[key]; ok {
+			valStr := i.GetString(valHandle)
+			// Quote value if needed
+			if len(valStr) == 0 || strings.ContainsAny(valStr, " \t\n{}") {
+				result += "{" + valStr + "}"
+			} else {
+				result += valStr
+			}
+		} else {
+			result += "{}"
+		}
+	}
+	return result
+}
+
 // Eval evaluates a script string using the C interpreter
 func (i *Interp) Eval(script string) (string, error) {
 	scriptHandle := i.internString(script)
@@ -431,7 +470,7 @@ func (i *Interp) getObject(h TclObj) *Object {
 }
 
 // GetString returns the string representation of an object.
-// Performs shimmering: converts int/double/list representations to string as needed.
+// Performs shimmering: converts int/double/list/dict representations to string as needed.
 func (i *Interp) GetString(h TclObj) string {
 	if obj := i.getObject(h); obj != nil {
 		// Shimmer: int → string
@@ -445,6 +484,10 @@ func (i *Interp) GetString(h TclObj) string {
 		// Shimmer: list → string (use listToValue for proper TCL semantics)
 		if obj.isList && obj.stringVal == "" {
 			obj.stringVal = i.listToValue(obj)
+		}
+		// Shimmer: dict → string (key-value pairs in insertion order)
+		if obj.isDict && obj.stringVal == "" {
+			obj.stringVal = i.dictToValue(obj)
 		}
 		return obj.stringVal
 	}
@@ -546,6 +589,47 @@ func (i *Interp) GetList(h TclObj) ([]TclObj, error) {
 	obj.listItems = items
 	obj.isList = true
 	return items, nil
+}
+
+// GetDict returns the dict representation of an object.
+// Performs shimmering: parses string/list representation as dict if needed.
+// Returns an error if the value cannot be converted to a dict (odd number of elements).
+func (i *Interp) GetDict(h TclObj) (map[string]TclObj, []string, error) {
+	obj := i.getObject(h)
+	if obj == nil {
+		return nil, nil, fmt.Errorf("nil object")
+	}
+	// Already a dict
+	if obj.isDict {
+		return obj.dictItems, obj.dictOrder, nil
+	}
+	// Shimmer: string/list → dict
+	// First get as list (which handles parsing if needed)
+	items, err := i.GetList(h)
+	if err != nil {
+		return nil, nil, err
+	}
+	// Must have even number of elements
+	if len(items)%2 != 0 {
+		return nil, nil, fmt.Errorf("missing value to go with key")
+	}
+	// Build dict
+	dictItems := make(map[string]TclObj)
+	var dictOrder []string
+	for j := 0; j < len(items); j += 2 {
+		key := i.GetString(items[j])
+		val := items[j+1]
+		// If key already exists, update value but keep order position
+		if _, exists := dictItems[key]; !exists {
+			dictOrder = append(dictOrder, key)
+		}
+		dictItems[key] = val
+	}
+	// Cache the parsed dict
+	obj.dictItems = dictItems
+	obj.dictOrder = dictOrder
+	obj.isDict = true
+	return dictItems, dictOrder, nil
 }
 
 // parseList parses a TCL list string into a slice of object handles.

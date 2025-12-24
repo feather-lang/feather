@@ -499,4 +499,18 @@ TclResult tcl_builtin_append(const TclHostOps *ops, TclInterp interp,
 TclResult tcl_builtin_unset(const TclHostOps *ops, TclInterp interp,
                              TclObj cmd, TclObj args);
 
+// M16: Dictionary support
+
+/**
+ * tcl_builtin_dict implements the TCL 'dict' command.
+ *
+ * Usage:
+ *   dict subcommand ?arg ...?
+ *
+ * Dictionary manipulation subcommands: create, get, set, exists, keys, values,
+ * size, remove, replace, merge, append, incr, lappend, unset, for, info, getdef.
+ */
+TclResult tcl_builtin_dict(const TclHostOps *ops, TclInterp interp,
+                            TclObj cmd, TclObj args);
+
 #endif

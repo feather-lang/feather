@@ -877,6 +877,80 @@ typedef struct TclListOps {
 } TclListOps;
 
 /**
+ * TclDictOps provides operations on dictionaries.
+ *
+ * Dictionaries are ordered key-value maps. Keys are strings, values are
+ * arbitrary TCL objects. Insertion order is preserved for iteration.
+ *
+ * The host is responsible for providing an efficient implementation.
+ * Typical backing: Go map with separate slice for key order,
+ * or a linked hash map in other languages.
+ */
+typedef struct TclDictOps {
+  /**
+   * create returns a new empty dictionary.
+   */
+  TclObj (*create)(TclInterp interp);
+
+  /**
+   * from converts a list or string to a dictionary.
+   *
+   * The input must have an even number of elements (key-value pairs).
+   * Returns 0 (nil) if the conversion fails (odd number of elements,
+   * or input is not a valid list).
+   *
+   * Duplicate keys: only the last value for each key is retained.
+   */
+  TclObj (*from)(TclInterp interp, TclObj obj);
+
+  /**
+   * get retrieves the value for a key.
+   *
+   * Returns 0 (nil) if the key does not exist.
+   */
+  TclObj (*get)(TclInterp interp, TclObj dict, TclObj key);
+
+  /**
+   * set stores a key-value pair in the dictionary.
+   *
+   * If the key already exists, its value is updated.
+   * If the key is new, it is appended to the key order.
+   * Returns the (possibly new) dictionary object.
+   */
+  TclObj (*set)(TclInterp interp, TclObj dict, TclObj key, TclObj value);
+
+  /**
+   * exists checks if a key is present in the dictionary.
+   *
+   * Returns 1 if the key exists, 0 otherwise.
+   */
+  int (*exists)(TclInterp interp, TclObj dict, TclObj key);
+
+  /**
+   * remove deletes a key from the dictionary.
+   *
+   * Returns the (possibly new) dictionary object.
+   * Removing a non-existent key is a no-op.
+   */
+  TclObj (*remove)(TclInterp interp, TclObj dict, TclObj key);
+
+  /**
+   * size returns the number of key-value pairs.
+   */
+  size_t (*size)(TclInterp interp, TclObj dict);
+
+  /**
+   * keys returns a list of all keys in insertion order.
+   */
+  TclObj (*keys)(TclInterp interp, TclObj dict);
+
+  /**
+   * values returns a list of all values in key order.
+   */
+  TclObj (*values)(TclInterp interp, TclObj dict);
+} TclDictOps;
+
+/**
  * TclNamespaceOps provides operations on the namespace hierarchy.
  *
  * Namespaces are containers for commands and persistent variables.
@@ -1122,6 +1196,7 @@ typedef struct TclHostOps {
   TclStringOps string;
   TclRuneOps rune;
   TclListOps list;
+  TclDictOps dict;
   TclIntOps integer;
   TclDoubleOps dbl;
   TclInterpOps interp;

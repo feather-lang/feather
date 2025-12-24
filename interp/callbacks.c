@@ -136,6 +136,43 @@ static TclResult c_list_sort(TclInterp interp, TclObj list,
     return goListSort(interp, list, (void*)cmp, ctx);
 }
 
+// Dict operations
+static TclObj c_dict_create(TclInterp interp) {
+    return goDictCreate(interp);
+}
+
+static TclObj c_dict_from(TclInterp interp, TclObj obj) {
+    return goDictFrom(interp, obj);
+}
+
+static TclObj c_dict_get(TclInterp interp, TclObj dict, TclObj key) {
+    return goDictGet(interp, dict, key);
+}
+
+static TclObj c_dict_set(TclInterp interp, TclObj dict, TclObj key, TclObj value) {
+    return goDictSet(interp, dict, key, value);
+}
+
+static int c_dict_exists(TclInterp interp, TclObj dict, TclObj key) {
+    return goDictExists(interp, dict, key);
+}
+
+static TclObj c_dict_remove(TclInterp interp, TclObj dict, TclObj key) {
+    return goDictRemove(interp, dict, key);
+}
+
+static size_t c_dict_size(TclInterp interp, TclObj dict) {
+    return goDictSize(interp, dict);
+}
+
+static TclObj c_dict_keys(TclInterp interp, TclObj dict) {
+    return goDictKeys(interp, dict);
+}
+
+static TclObj c_dict_values(TclInterp interp, TclObj dict) {
+    return goDictValues(interp, dict);
+}
+
 static TclObj c_int_create(TclInterp interp, int64_t val) {
     return goIntCreate(interp, val);
 }
@@ -415,6 +452,16 @@ TclHostOps make_host_ops(void) {
     ops.list.set_at = c_list_set_at;
     ops.list.splice = c_list_splice;
     ops.list.sort = c_list_sort;
+
+    ops.dict.create = c_dict_create;
+    ops.dict.from = c_dict_from;
+    ops.dict.get = c_dict_get;
+    ops.dict.set = c_dict_set;
+    ops.dict.exists = c_dict_exists;
+    ops.dict.remove = c_dict_remove;
+    ops.dict.size = c_dict_size;
+    ops.dict.keys = c_dict_keys;
+    ops.dict.values = c_dict_values;
 
     ops.integer.create = c_int_create;
     ops.integer.get = c_int_get;

@@ -351,7 +351,28 @@ func goListPush(interp C.TclInterp, list C.TclObj, item C.TclObj) C.TclObj {
 
 //export goListPop
 func goListPop(interp C.TclInterp, list C.TclObj) C.TclObj {
-	return 0
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	// Use GetList for shimmering (string → list)
+	items, err := i.GetList(TclObj(list))
+	if err != nil || len(items) == 0 {
+		return 0
+	}
+	o := i.getObject(TclObj(list))
+	if o == nil {
+		return 0
+	}
+	last := o.listItems[len(items)-1]
+	o.listItems = o.listItems[:len(items)-1]
+	// Invalidate string representation
+	o.stringVal = ""
+	if o.cstr != nil {
+		C.free(unsafe.Pointer(o.cstr))
+		o.cstr = nil
+	}
+	return C.TclObj(last)
 }
 
 //export goListUnshift
@@ -586,6 +607,213 @@ func goListSort(interp C.TclInterp, list C.TclObj, cmpFunc unsafe.Pointer, ctx u
 	}
 
 	return C.TCL_OK
+}
+
+// Dict operations
+
+//export goDictCreate
+func goDictCreate(interp C.TclInterp) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	id := i.nextID
+	i.nextID++
+	i.objects[id] = &Object{
+		isDict:    true,
+		dictItems: make(map[string]TclObj),
+		dictOrder: []string{},
+	}
+	return C.TclObj(id)
+}
+
+//export goDictFrom
+func goDictFrom(interp C.TclInterp, obj C.TclObj) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	// Try to convert to dict
+	dictItems, dictOrder, err := i.GetDict(TclObj(obj))
+	if err != nil {
+		return 0 // Return nil on error
+	}
+	// Create new dict object with copied data
+	id := i.nextID
+	i.nextID++
+	newItems := make(map[string]TclObj, len(dictItems))
+	for k, v := range dictItems {
+		newItems[k] = v
+	}
+	newOrder := make([]string, len(dictOrder))
+	copy(newOrder, dictOrder)
+	i.objects[id] = &Object{
+		isDict:    true,
+		dictItems: newItems,
+		dictOrder: newOrder,
+	}
+	return C.TclObj(id)
+}
+
+//export goDictGet
+func goDictGet(interp C.TclInterp, dict C.TclObj, key C.TclObj) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	dictItems, _, err := i.GetDict(TclObj(dict))
+	if err != nil {
+		return 0
+	}
+	keyStr := i.GetString(TclObj(key))
+	if val, ok := dictItems[keyStr]; ok {
+		return C.TclObj(val)
+	}
+	return 0 // Key not found
+}
+
+//export goDictSet
+func goDictSet(interp C.TclInterp, dict C.TclObj, key C.TclObj, value C.TclObj) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	o := i.getObject(TclObj(dict))
+	if o == nil {
+		return 0
+	}
+	// Ensure it's a dict (shimmer if needed)
+	if !o.isDict {
+		_, _, err := i.GetDict(TclObj(dict))
+		if err != nil {
+			return 0
+		}
+	}
+	keyStr := i.GetString(TclObj(key))
+	// Add to order if new key
+	if _, exists := o.dictItems[keyStr]; !exists {
+		o.dictOrder = append(o.dictOrder, keyStr)
+	}
+	o.dictItems[keyStr] = TclObj(value)
+	// Invalidate string and list caches (dict is now authoritative)
+	o.stringVal = ""
+	o.isList = false
+	o.listItems = nil
+	if o.cstr != nil {
+		C.free(unsafe.Pointer(o.cstr))
+		o.cstr = nil
+	}
+	return dict
+}
+
+//export goDictExists
+func goDictExists(interp C.TclInterp, dict C.TclObj, key C.TclObj) C.int {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	dictItems, _, err := i.GetDict(TclObj(dict))
+	if err != nil {
+		return 0
+	}
+	keyStr := i.GetString(TclObj(key))
+	if _, ok := dictItems[keyStr]; ok {
+		return 1
+	}
+	return 0
+}
+
+//export goDictRemove
+func goDictRemove(interp C.TclInterp, dict C.TclObj, key C.TclObj) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	o := i.getObject(TclObj(dict))
+	if o == nil {
+		return 0
+	}
+	// Ensure it's a dict
+	if !o.isDict {
+		_, _, err := i.GetDict(TclObj(dict))
+		if err != nil {
+			return 0
+		}
+	}
+	keyStr := i.GetString(TclObj(key))
+	// Remove from map
+	delete(o.dictItems, keyStr)
+	// Remove from order
+	for idx, k := range o.dictOrder {
+		if k == keyStr {
+			o.dictOrder = append(o.dictOrder[:idx], o.dictOrder[idx+1:]...)
+			break
+		}
+	}
+	// Invalidate string and list caches (dict is now authoritative)
+	o.stringVal = ""
+	o.isList = false
+	o.listItems = nil
+	if o.cstr != nil {
+		C.free(unsafe.Pointer(o.cstr))
+		o.cstr = nil
+	}
+	return dict
+}
+
+//export goDictSize
+func goDictSize(interp C.TclInterp, dict C.TclObj) C.size_t {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	dictItems, _, err := i.GetDict(TclObj(dict))
+	if err != nil {
+		return 0
+	}
+	return C.size_t(len(dictItems))
+}
+
+//export goDictKeys
+func goDictKeys(interp C.TclInterp, dict C.TclObj) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	_, dictOrder, err := i.GetDict(TclObj(dict))
+	if err != nil {
+		return 0
+	}
+	// Create list of keys
+	id := i.nextID
+	i.nextID++
+	items := make([]TclObj, len(dictOrder))
+	for idx, key := range dictOrder {
+		items[idx] = i.internString(key)
+	}
+	i.objects[id] = &Object{isList: true, listItems: items}
+	return C.TclObj(id)
+}
+
+//export goDictValues
+func goDictValues(interp C.TclInterp, dict C.TclObj) C.TclObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	dictItems, dictOrder, err := i.GetDict(TclObj(dict))
+	if err != nil {
+		return 0
+	}
+	// Create list of values in key order
+	id := i.nextID
+	i.nextID++
+	items := make([]TclObj, len(dictOrder))
+	for idx, key := range dictOrder {
+		items[idx] = dictItems[key]
+	}
+	i.objects[id] = &Object{isList: true, listItems: items}
+	return C.TclObj(id)
 }
 
 //export goIntCreate

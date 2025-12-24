@@ -52,6 +52,8 @@ static const BuiltinEntry builtins[] = {
     {"::concat", tcl_builtin_concat},
     {"::append", tcl_builtin_append},
     {"::unset", tcl_builtin_unset},
+    // M16: Dictionary support
+    {"::dict", tcl_builtin_dict},
     {NULL, NULL} // sentinel
 };
 
