@@ -6,24 +6,25 @@ import (
 	"io"
 	"os"
 
+	"github.com/feather-lang/feather"
 	"github.com/feather-lang/feather/interp"
-	defaults "github.com/feather-lang/feather/interp/default"
 )
 
 func main() {
-	host := defaults.NewHost()
+	i := feather.New()
+	defer i.Close()
 
 	// Check if stdin is a TTY
 	stat, _ := os.Stdin.Stat()
 	if (stat.Mode() & os.ModeCharDevice) != 0 {
-		runREPL(host)
+		runREPL(i)
 		return
 	}
 
-	runScript(host)
+	runScript(i)
 }
 
-func runREPL(host *interp.Host) {
+func runREPL(i *feather.Interp) {
 	scanner := bufio.NewScanner(os.Stdin)
 	var inputBuffer string
 
@@ -46,23 +47,23 @@ func runREPL(host *interp.Host) {
 		}
 
 		// Check if input is complete
-		parseResult := host.Parse(inputBuffer)
-		if parseResult.Status == interp.ParseIncomplete {
+		parseResult := i.Parse(inputBuffer)
+		if parseResult.Status == feather.ParseIncomplete {
 			continue // Need more input
 		}
 
-		if parseResult.Status == interp.ParseError {
-			fmt.Fprintf(os.Stderr, "error: %s\n", parseResult.ErrorMessage)
+		if parseResult.Status == feather.ParseError {
+			fmt.Fprintf(os.Stderr, "error: %s\n", parseResult.Message)
 			inputBuffer = ""
 			continue
 		}
 
 		// Evaluate the complete input
-		result, err := host.Eval(inputBuffer)
+		result, err := i.Eval(inputBuffer)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %s\n", err.Error())
-		} else if result != "" {
-			fmt.Println(result)
+		} else if result.String() != "" {
+			fmt.Println(result.String())
 		}
 		inputBuffer = ""
 	}
@@ -72,7 +73,7 @@ func runREPL(host *interp.Host) {
 	}
 }
 
-func runScript(host *interp.Host) {
+func runScript(i *feather.Interp) {
 	script, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error reading script: %v\n", err)
@@ -81,29 +82,33 @@ func runScript(host *interp.Host) {
 	}
 
 	// First, parse the script to check for incomplete input
-	parseResult := host.Parse(string(script))
-	if parseResult.Status == interp.ParseIncomplete {
-		writeHarnessResult("TCL_OK", parseResult.Result, "")
+	parseResult := i.Parse(string(script))
+	if parseResult.Status == feather.ParseIncomplete {
+		// Need to get the parse result from Internal() for harness compatibility
+		hostParseResult := i.Internal().Parse(string(script))
+		writeHarnessResult("TCL_OK", hostParseResult.Result, "")
 		os.Exit(2) // Exit code 2 signals incomplete input
 	}
-	if parseResult.Status == interp.ParseError {
-		writeHarnessResult("TCL_ERROR", parseResult.Result, parseResult.ErrorMessage)
+	if parseResult.Status == feather.ParseError {
+		hostParseResult := i.Internal().Parse(string(script))
+		writeHarnessResult("TCL_ERROR", hostParseResult.Result, parseResult.Message)
 		os.Exit(3) // Exit code 3 signals parse error
 	}
 
 	// Parse succeeded, now evaluate
-	result, err := host.Eval(string(script))
+	result, evalErr := i.Eval(string(script))
 
-	if err != nil {
-		fmt.Println(err.Error())
-		writeHarnessResult("TCL_ERROR", "", err.Error())
+	if evalErr != nil {
+		fmt.Println(evalErr.Error())
+		writeHarnessResult("TCL_ERROR", "", evalErr.Error())
 		os.Exit(1)
 	}
 
-	if result != "" {
-		fmt.Println(result)
+	resultStr := result.String()
+	if resultStr != "" {
+		fmt.Println(resultStr)
 	}
-	writeHarnessResult("TCL_OK", result, "")
+	writeHarnessResult("TCL_OK", resultStr, "")
 }
 
 func writeHarnessResult(returnCode string, result string, errorMsg string) {
@@ -127,3 +132,6 @@ func writeHarnessResult(returnCode string, result string, errorMsg string) {
 	}
 	w.Flush()
 }
+
+// Ensure we still use interp for the harness protocol
+var _ = interp.ParseOK

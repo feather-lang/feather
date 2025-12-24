@@ -47,6 +47,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/feather-lang/feather"
 	"github.com/feather-lang/feather/interp"
 )
 
@@ -59,7 +60,7 @@ type TemplateInfo struct {
 
 // HTTPServer wraps an HTTP server with feather integration.
 type HTTPServer struct {
-	host        *interp.Host
+	interp      *feather.Interp
 	mux         *http.ServeMux
 	server      *http.Server
 	mu          sync.RWMutex
@@ -85,11 +86,11 @@ var currentRequest *RequestContext
 var requestMu sync.Mutex
 
 func main() {
-	host := interp.NewHost()
-	defer host.Close()
+	i := feather.New()
+	defer i.Close()
 
 	srv := &HTTPServer{
-		host:        host,
+		interp:      i,
 		mux:         http.NewServeMux(),
 		routes:      make(map[string]string),
 		templateDir: "templates",
@@ -106,7 +107,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "error reading script: %v\n", err)
 			os.Exit(1)
 		}
-		if _, err := host.Eval(string(script)); err != nil {
+		if _, err := i.Eval(string(script)); err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
 		}
@@ -115,7 +116,7 @@ func main() {
 	// Check if stdin is a TTY for REPL
 	stat, _ := os.Stdin.Stat()
 	if (stat.Mode() & os.ModeCharDevice) != 0 {
-		runREPL(host)
+		runREPL(i)
 	} else {
 		// Non-interactive: read and eval stdin, then wait if server is running
 		script, err := io.ReadAll(os.Stdin)
@@ -124,7 +125,7 @@ func main() {
 			os.Exit(1)
 		}
 		if len(script) > 0 {
-			if _, err := host.Eval(string(script)); err != nil {
+			if _, err := i.Eval(string(script)); err != nil {
 				fmt.Fprintf(os.Stderr, "error: %v\n", err)
 				os.Exit(1)
 			}
@@ -140,14 +141,15 @@ func main() {
 }
 
 func (s *HTTPServer) registerCommands() {
-	s.host.Register("route", s.cmdRoute)
-	s.host.Register("listen", s.cmdListen)
-	s.host.Register("stop", s.cmdStop)
-	s.host.Register("response", s.cmdResponse)
-	s.host.Register("status", s.cmdStatus)
-	s.host.Register("header", s.cmdHeader)
-	s.host.Register("request", s.cmdRequest)
-	s.host.Register("template", s.cmdTemplate)
+	host := s.interp.Internal()
+	host.Register("route", s.cmdRoute)
+	host.Register("listen", s.cmdListen)
+	host.Register("stop", s.cmdStop)
+	host.Register("response", s.cmdResponse)
+	host.Register("status", s.cmdStatus)
+	host.Register("header", s.cmdHeader)
+	host.Register("request", s.cmdRequest)
+	host.Register("template", s.cmdTemplate)
 }
 
 // cmdRoute registers a route handler.
@@ -643,7 +645,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// Execute the handler script
-	_, err := s.host.Eval(script)
+	_, err := s.interp.Eval(script)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -659,7 +661,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func runREPL(host *interp.Host) {
+func runREPL(i *feather.Interp) {
 	scanner := bufio.NewScanner(os.Stdin)
 	var inputBuffer string
 
@@ -682,23 +684,23 @@ func runREPL(host *interp.Host) {
 		}
 
 		// Check if input is complete
-		parseResult := host.Parse(inputBuffer)
-		if parseResult.Status == interp.ParseIncomplete {
+		parseResult := i.Parse(inputBuffer)
+		if parseResult.Status == feather.ParseIncomplete {
 			continue
 		}
 
-		if parseResult.Status == interp.ParseError {
-			fmt.Fprintf(os.Stderr, "error: %s\n", parseResult.ErrorMessage)
+		if parseResult.Status == feather.ParseError {
+			fmt.Fprintf(os.Stderr, "error: %s\n", parseResult.Message)
 			inputBuffer = ""
 			continue
 		}
 
 		// Evaluate the complete input
-		result, err := host.Eval(inputBuffer)
+		result, err := i.Eval(inputBuffer)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %s\n", err.Error())
-		} else if result != "" {
-			fmt.Println(result)
+		} else if result.String() != "" {
+			fmt.Println(result.String())
 		}
 		inputBuffer = ""
 	}
