@@ -1233,12 +1233,17 @@ async function createFeather(wasmSource) {
         return interp.store({ type: 'string', value: '-Inf' });
       }
 
+      // Helper to pad exponent to at least 2 digits (TCL format)
+      const padExponent = (s) => {
+        return s.replace(/e([+-])(\d)$/, 'e$10$2');
+      };
+
       // Format based on specifier
       let result;
       switch (spec) {
         case 'e':
         case 'E':
-          result = val.toExponential(prec);
+          result = padExponent(val.toExponential(prec));
           if (spec === 'E') result = result.toUpperCase();
           break;
         case 'f':
@@ -1247,15 +1252,33 @@ async function createFeather(wasmSource) {
           break;
         case 'g':
         case 'G':
-        default:
-          // toPrecision with significant digits
-          result = val.toPrecision(prec + 1);
-          // Remove trailing zeros after decimal point
-          if (result.includes('.') && !result.includes('e')) {
-            result = result.replace(/\.?0+$/, '');
+        default: {
+          // TCL %g: use exponential if exponent < -4 or >= precision
+          const absVal = Math.abs(val);
+          let exponent = 0;
+          if (absVal !== 0) {
+            exponent = Math.floor(Math.log10(absVal));
+          }
+          const sigfigs = prec > 0 ? prec : 6;
+          
+          if (exponent < -4 || exponent >= sigfigs) {
+            // Use exponential notation
+            result = val.toExponential(sigfigs - 1);
+            // Trim trailing zeros before 'e' (TCL %g behavior)
+            result = result.replace(/(\.\d*?)0+(e)/, '$1$2').replace(/\.(e)/, '$1');
+            result = padExponent(result);
+          } else {
+            // Use fixed notation with trailing zeros trimmed
+            const decimalPlaces = sigfigs - exponent - 1;
+            result = val.toFixed(Math.max(0, decimalPlaces));
+            // Remove trailing zeros after decimal point
+            if (result.includes('.')) {
+              result = result.replace(/\.?0+$/, '');
+            }
           }
           if (spec === 'G') result = result.toUpperCase();
           break;
+        }
       }
       return interp.store({ type: 'string', value: result });
     },

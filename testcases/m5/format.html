@@ -549,6 +549,55 @@
   </test-case>
 
   <!-- ============================================= -->
+  <!-- Special floating-point values (IEEE 754)      -->
+  <!-- ============================================= -->
+
+  <test-case name="format %f positive infinity">
+    <script>format "%f" [expr {exp(1000)}]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>Inf</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %f negative infinity">
+    <script>format "%f" [expr {-exp(1000)}]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-Inf</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %f NaN">
+    <script>format "%f" [expr {sqrt(-1)}]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>NaN</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %e positive infinity">
+    <script>format "%e" [expr {exp(1000)}]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>Inf</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %g NaN">
+    <script>format "%g" [expr {sqrt(-1)}]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>NaN</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
   <!-- Positional specifiers                         -->
   <!-- ============================================= -->
 
