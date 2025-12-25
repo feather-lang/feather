@@ -1,22 +1,24 @@
 [tasks.build]
 description = "Builds feather.wasm using zig cc"
 run = """
-zig cc -target wasm32-freestanding -Os \
-  -nostdlib -Wl,--no-entry \
-  -Wl,--export=feather_interp_init \
-  -Wl,--export=feather_script_eval \
-  -Wl,--export=feather_script_eval_obj \
-  -Wl,--export=feather_command_exec \
-  -Wl,--export=feather_parse_init \
-  -Wl,--export=feather_parse_command \
-  -Wl,--export=feather_subst \
-  -Wl,--export=alloc \
-  -Wl,--export=free \
-  -Wl,--import-memory \
-  -Wl,--import-table \
-  -I ../src \
+zig wasm-ld --no-entry \
+  --allow-undefined \
+  --export=feather_interp_init \
+  --export=feather_script_eval \
+  --export=feather_script_eval_obj \
+  --export=feather_command_exec \
+  --export=feather_parse_init \
+  --export=feather_parse_command \
+  --export=feather_subst \
+  --export=feather_get_ops \
+  --export=alloc \
+  --export=free \
+  --import-memory \
   -o feather.wasm \
-  $(ls ../src/*.c | grep -v host.c) wasm_alloc.c
+  $(for f in ../src/*.c wasm_alloc.c; do
+    zig cc -target wasm32-freestanding -Os -c -DFEATHER_WASM_BUILD -I ../src -o /tmp/$(basename $f .c).o $f
+    echo /tmp/$(basename $f .c).o
+  done)
 """
 
 [tasks.serve]
