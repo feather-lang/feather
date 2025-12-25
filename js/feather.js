@@ -348,12 +348,216 @@ async function createFeather(wasmSource) {
     new DataView(wasmMemory.buffer).setFloat64(ptr, value, true);
   };
 
-  const addToTable = (fn, signature) => {
-    const wasmFn = new WebAssembly.Function(signature, fn);
-    const index = wasmTable.length;
-    wasmTable.grow(1);
-    wasmTable.set(index, wasmFn);
-    return index;
+  // Check if WebAssembly.Function constructor is available
+  // (requires --experimental-wasm-type-reflection in Node.js, or a modern browser with Type Reflection)
+  const hasWasmFunction = typeof WebAssembly.Function === 'function';
+
+  // For environments without WebAssembly.Function, we generate trampoline WASM modules
+  // Each unique signature needs its own trampoline that imports a JS dispatcher
+
+  // Map from signature key to { module, nextSlot, dispatcher }
+  const trampolineCache = new Map();
+
+  // Convert signature to a key string
+  const sigKey = (sig) => `${sig.parameters.join(',')}->${sig.results.join(',')}`;
+
+  // WASM binary encoding helpers
+  const encodeU32 = (n) => {
+    const bytes = [];
+    do {
+      let byte = n & 0x7f;
+      n >>>= 7;
+      if (n !== 0) byte |= 0x80;
+      bytes.push(byte);
+    } while (n !== 0);
+    return bytes;
+  };
+
+  const encodeI32 = (n) => {
+    const bytes = [];
+    n |= 0;
+    while (true) {
+      const byte = n & 0x7f;
+      n >>= 7;
+      if ((n === 0 && (byte & 0x40) === 0) || (n === -1 && (byte & 0x40) !== 0)) {
+        bytes.push(byte);
+        break;
+      }
+      bytes.push(byte | 0x80);
+    }
+    return bytes;
+  };
+
+  const valType = (t) => {
+    switch (t) {
+      case 'i32': return 0x7f;
+      case 'i64': return 0x7e;
+      case 'f32': return 0x7d;
+      case 'f64': return 0x7c;
+      default: throw new Error(`Unknown type: ${t}`);
+    }
+  };
+
+  // Build a trampoline WASM module for a given signature
+  // The module imports a dispatcher function and exports N trampolines
+  const buildTrampolineWasm = (sig, count) => {
+    const params = sig.parameters;
+    const results = sig.results;
+
+    // Build the module bytes
+    const bytes = [];
+
+    // Magic + version
+    bytes.push(0x00, 0x61, 0x73, 0x6d); // \0asm
+    bytes.push(0x01, 0x00, 0x00, 0x00); // version 1
+
+    // Type section (1) - defines the function signature
+    const typeSection = [];
+    // Function type
+    typeSection.push(0x60); // func type
+    typeSection.push(params.length);
+    params.forEach(p => typeSection.push(valType(p)));
+    typeSection.push(results.length);
+    results.forEach(r => typeSection.push(valType(r)));
+
+    bytes.push(0x01); // type section
+    bytes.push(...encodeU32(typeSection.length + 1));
+    bytes.push(0x01); // 1 type
+    bytes.push(...typeSection);
+
+    // Import section (2) - import dispatcher functions
+    const importSection = [];
+    importSection.push(count); // number of imports
+    for (let i = 0; i < count; i++) {
+      // module name "env"
+      importSection.push(0x03, 0x65, 0x6e, 0x76);
+      // function name "f0", "f1", etc.
+      const fname = `f${i}`;
+      importSection.push(fname.length);
+      for (let j = 0; j < fname.length; j++) {
+        importSection.push(fname.charCodeAt(j));
+      }
+      // import kind: function, type index 0
+      importSection.push(0x00, 0x00);
+    }
+
+    bytes.push(0x02); // import section
+    bytes.push(...encodeU32(importSection.length));
+    bytes.push(...importSection);
+
+    // Function section (3) - declare our trampoline functions
+    const funcSection = [count];
+    for (let i = 0; i < count; i++) {
+      funcSection.push(0x00); // type index 0
+    }
+    bytes.push(0x03); // function section
+    bytes.push(...encodeU32(funcSection.length));
+    bytes.push(...funcSection);
+
+    // Export section (7) - export all trampolines
+    const exportSection = [count];
+    for (let i = 0; i < count; i++) {
+      const ename = `t${i}`;
+      exportSection.push(ename.length);
+      for (let j = 0; j < ename.length; j++) {
+        exportSection.push(ename.charCodeAt(j));
+      }
+      exportSection.push(0x00); // export kind: function
+      exportSection.push(...encodeU32(count + i)); // function index (after imports)
+    }
+    bytes.push(0x07); // export section
+    bytes.push(...encodeU32(exportSection.length));
+    bytes.push(...exportSection);
+
+    // Code section (10) - function bodies
+    const codeSection = [count];
+    for (let i = 0; i < count; i++) {
+      // Function body: call the imported function with all args
+      const body = [];
+      body.push(0x00); // no locals
+
+      // Push all parameters
+      for (let p = 0; p < params.length; p++) {
+        body.push(0x20); // local.get
+        body.push(...encodeU32(p));
+      }
+
+      // Call imported function
+      body.push(0x10); // call
+      body.push(...encodeU32(i)); // function index
+
+      body.push(0x0b); // end
+
+      codeSection.push(...encodeU32(body.length));
+      codeSection.push(...body);
+    }
+    bytes.push(0x0a); // code section
+    bytes.push(...encodeU32(codeSection.length));
+    bytes.push(...codeSection);
+
+    return new Uint8Array(bytes);
+  };
+
+  // Registry for trampoline functions per signature
+  const trampolineRegistry = new Map(); // sigKey -> { functions: [], instances: [] }
+
+  const TRAMPOLINE_BATCH_SIZE = 64; // Create trampolines in batches
+
+  const getTrampolineFunction = async (fn, signature) => {
+    const key = sigKey(signature);
+    let reg = trampolineRegistry.get(key);
+
+    if (!reg) {
+      reg = { functions: [], instances: [], nextIndex: 0 };
+      trampolineRegistry.set(key, reg);
+    }
+
+    // Store the JS function
+    const fnIndex = reg.functions.length;
+    reg.functions.push(fn);
+
+    // Check if we need a new trampoline instance
+    const batchIndex = Math.floor(fnIndex / TRAMPOLINE_BATCH_SIZE);
+    if (batchIndex >= reg.instances.length) {
+      // Build a new batch of trampolines
+      const wasmBytes = buildTrampolineWasm(signature, TRAMPOLINE_BATCH_SIZE);
+      const module = await WebAssembly.compile(wasmBytes);
+
+      // Create imports object with dispatcher functions
+      const imports = { env: {} };
+      for (let i = 0; i < TRAMPOLINE_BATCH_SIZE; i++) {
+        const globalIdx = batchIndex * TRAMPOLINE_BATCH_SIZE + i;
+        imports.env[`f${i}`] = (...args) => {
+          const f = reg.functions[globalIdx];
+          return f ? f(...args) : (signature.results.length > 0 ? 0 : undefined);
+        };
+      }
+
+      const instance = await WebAssembly.instantiate(module, imports);
+      reg.instances.push(instance);
+    }
+
+    // Get the trampoline function from the appropriate instance
+    const localIndex = fnIndex % TRAMPOLINE_BATCH_SIZE;
+    const instance = reg.instances[batchIndex];
+    return instance.exports[`t${localIndex}`];
+  };
+
+  const addToTable = async (fn, signature) => {
+    if (hasWasmFunction) {
+      const wasmFn = new WebAssembly.Function(signature, fn);
+      const index = wasmTable.length;
+      wasmTable.grow(1);
+      wasmTable.set(index, wasmFn);
+      return index;
+    } else {
+      // Use trampoline approach for browsers
+      const trampolineFn = await getTrampolineFunction(fn, signature);
+      const index = wasmTable.length;
+      wasmTable.grow(1);
+      wasmTable.set(index, trampolineFn);
+      return index;
+    }
   };
 
   const hostFunctions = {
@@ -1582,7 +1786,7 @@ async function createFeather(wasmSource) {
   wasmMemory = wasmInstance.exports.memory || wasmMemory;
   wasmTable = wasmInstance.exports.__indirect_function_table || wasmTable;
 
-  const buildHostOps = () => {
+  const buildHostOps = async () => {
     const STRUCT_SIZE = fields.length * 4;
     const opsPtr = wasmInstance.exports.alloc(STRUCT_SIZE);
 
@@ -1593,7 +1797,7 @@ async function createFeather(wasmSource) {
       if (!fn || !sig) {
         throw new Error(`Missing function or signature for: ${name}`);
       }
-      const index = addToTable(fn, sig);
+      const index = await addToTable(fn, sig);
       writeI32(opsPtr + offset, index);
       offset += 4;
     }
@@ -1601,7 +1805,7 @@ async function createFeather(wasmSource) {
     return opsPtr;
   };
 
-  const opsPtr = buildHostOps();
+  const opsPtr = await buildHostOps();
   hostOpsPtr = opsPtr; // Make available to fireVarTraces/fireCmdTraces
 
   return {
