@@ -800,6 +800,19 @@ async function createFeather(wasmSource) {
       return list;
     },
     list_sort: (interpId, list, cmpFn, ctx) => {
+      const interp = interpreters.get(interpId);
+      const listObj = interp.get(list);
+      if (listObj?.type !== 'list' || listObj.items.length <= 1) {
+        return TCL_OK;
+      }
+      // Get the comparison function from the WASM table
+      const compareFn = wasmTable.get(cmpFn);
+      // Sort using JavaScript's sort with the WASM comparison function
+      listObj.items.sort((a, b) => {
+        return compareFn(interpId, a, b, ctx);
+      });
+      // Invalidate string cache since list order changed
+      interp.invalidateStringCache(listObj);
       return TCL_OK;
     },
 

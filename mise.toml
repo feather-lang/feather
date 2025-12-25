@@ -57,3 +57,10 @@ depends = ["build"]
 run = """
 harness run --host bin/feather-tester testcases/
 """
+
+[tasks."test:js"]
+description = "Run the test harness with the JavaScript host"
+depends = ["build:harness", "build:wasm"]
+run = """
+harness run --host js/tester.js testcases/
+"""

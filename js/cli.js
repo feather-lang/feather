@@ -9,7 +9,7 @@
  */
 
 import { createFeather } from './feather.js';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, writeSync } from 'fs';
 import { createInterface } from 'readline';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -61,8 +61,14 @@ async function main() {
   const argv = process.argv.slice(2);
 
   if (argv.length === 0) {
-    await runRepl(feather, interp);
-    return; // runRepl handles cleanup
+    if (process.stdin.isTTY) {
+      await runRepl(feather, interp);
+      return; // runRepl handles cleanup
+    } else {
+      // Non-interactive: read stdin and evaluate
+      await runFromStdin(feather, interp);
+      return;
+    }
   } else if (argv[0] === '-e') {
     if (argv.length < 2) {
       console.error('Error: -e requires a script argument');
@@ -107,6 +113,44 @@ Built-in commands:
   }
 
   feather.destroy(interp);
+}
+
+async function runFromStdin(feather, interp) {
+  const chunks = [];
+  for await (const chunk of process.stdin) {
+    chunks.push(chunk);
+  }
+  const script = Buffer.concat(chunks).toString('utf-8');
+  try {
+    const result = feather.eval(interp, script);
+    if (result !== undefined && result !== null && result !== '') {
+      console.log(result);
+    }
+    writeHarnessResult('TCL_OK', result || '', '');
+  } catch (e) {
+    console.log(e.message);
+    writeHarnessResult('TCL_ERROR', '', e.message);
+    process.exit(1);
+  }
+  feather.destroy(interp);
+}
+
+function writeHarnessResult(returnCode, result, errorMsg) {
+  if (process.env.FEATHER_IN_HARNESS !== '1') {
+    return;
+  }
+  let output = `return: ${returnCode}\n`;
+  if (result) {
+    output += `result: ${result}\n`;
+  }
+  if (errorMsg) {
+    output += `error: ${errorMsg}\n`;
+  }
+  try {
+    writeSync(3, output);
+  } catch (e) {
+    // FD 3 not available, ignore
+  }
 }
 
 function runRepl(feather, interp) {

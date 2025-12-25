@@ -53,7 +53,7 @@ to work with multiple implementations, tests must be modeled as data.
 Before you start any task, you must review the last commit in full
 using `git show HEAD`.
 
-@src/feather.h is the authoritative source of what the interpreter expects from the host and defines the public API.
+src/feather.h is the authoritative source of what the interpreter expects from the host and defines the public API.
 
 All internal forward declarations necessary should go into src/internal.h
 
@@ -71,3 +71,9 @@ important learnings, and the current state of the code.
 After committing, your colleague will continue the work,
 but the commit message is the only piece of information
 they have access to.
+
+## Running tests
+
+`mise test` runs the test harness against the Go reference implementation.
+
+`mise test:js` runs the test harness against the JavaScript/WASM host.
