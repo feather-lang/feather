@@ -6,6 +6,26 @@
 
 This repository holds Feather: a minimal, clean implementation of the TCL core language, suitable for embedding into modern applications.
 
+## Runs everywhere
+
+<table>
+<tr>
+<td align="center" width="50%">
+<img src="./go-logo.svg" width="120" alt="Go logo"><br>
+<strong>Go</strong><br>
+Native integration with Go applications.<br>
+Full access to the host runtime.
+</td>
+<td align="center" width="50%">
+<img src="./wasm-logo.svg" width="60" alt="WebAssembly logo">
+<img src="./js-logo.png" width="60" alt="JavaScript logo"><br>
+<strong>JavaScript / WebAssembly</strong><br>
+Run in any browser or Node.js.<br>
+See <a href="./js/">js/</a> for the WASM host.
+</td>
+</tr>
+</table>
+
 Feather stays mostly faithful to the original, but adds new functionality
 where user ergonomics count, such as exposing objects from the host to Feather programs.
 
