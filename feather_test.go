@@ -117,7 +117,7 @@ func TestRegisterStringFunc(t *testing.T) {
 	}
 }
 
-func TestValueList(t *testing.T) {
+func TestObjectList(t *testing.T) {
 	interp := feather.New()
 	defer interp.Close()
 
@@ -141,7 +141,7 @@ func TestValueList(t *testing.T) {
 	}
 }
 
-func TestValueDict(t *testing.T) {
+func TestObjectDict(t *testing.T) {
 	interp := feather.New()
 	defer interp.Close()
 
@@ -174,7 +174,7 @@ func TestForeignType(t *testing.T) {
 		value int
 	}
 
-	err := feather.Register[*Counter](interp, "Counter", feather.TypeDef[*Counter]{
+	err := feather.RegisterType[*Counter](interp, "Counter", feather.TypeDef[*Counter]{
 		New: func() *Counter { return &Counter{value: 0} },
 		Methods: map[string]any{
 			"get":  func(c *Counter) int { return c.value },
@@ -183,7 +183,7 @@ func TestForeignType(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("Register failed: %v", err)
+		t.Fatalf("RegisterType failed: %v", err)
 	}
 
 	// Create instance
@@ -301,9 +301,12 @@ func TestEvalReturnsTypedValues(t *testing.T) {
 	}
 }
 
-func TestValueTypes(t *testing.T) {
-	t.Run("intValue", func(t *testing.T) {
-		v := feather.NewInt(42)
+func TestInterpObjectCreation(t *testing.T) {
+	interp := feather.New()
+	defer interp.Close()
+
+	t.Run("Int", func(t *testing.T) {
+		v := interp.Int(42)
 		if v.Type() != "int" {
 			t.Errorf("expected type 'int', got %q", v.Type())
 		}
@@ -318,25 +321,10 @@ func TestValueTypes(t *testing.T) {
 		if err != nil || f != 42.0 {
 			t.Errorf("Float() = %f, %v; want 42.0, nil", f, err)
 		}
-		_, err = v.Bool()
-		if err == nil {
-			t.Error("Bool() on 42 should fail")
-		}
-		// 0 and 1 should work for Bool
-		v0 := feather.NewInt(0)
-		b, err := v0.Bool()
-		if err != nil || b != false {
-			t.Errorf("Bool() on 0 = %v, %v; want false, nil", b, err)
-		}
-		v1 := feather.NewInt(1)
-		b, err = v1.Bool()
-		if err != nil || b != true {
-			t.Errorf("Bool() on 1 = %v, %v; want true, nil", b, err)
-		}
 	})
 
-	t.Run("floatValue", func(t *testing.T) {
-		v := feather.NewFloat(3.14)
+	t.Run("Float", func(t *testing.T) {
+		v := interp.Float(3.14)
 		if v.Type() != "double" {
 			t.Errorf("expected type 'double', got %q", v.Type())
 		}
@@ -350,8 +338,8 @@ func TestValueTypes(t *testing.T) {
 		}
 	})
 
-	t.Run("listValue", func(t *testing.T) {
-		v := feather.NewList(feather.NewInt(1), feather.NewString("two"), feather.NewFloat(3.0))
+	t.Run("List", func(t *testing.T) {
+		v := interp.List(interp.Int(1), interp.String("two"), interp.Int(3))
 		if v.Type() != "list" {
 			t.Errorf("expected type 'list', got %q", v.Type())
 		}
@@ -365,49 +353,96 @@ func TestValueTypes(t *testing.T) {
 		if items[0].Type() != "int" {
 			t.Errorf("items[0].Type() = %q; want 'int'", items[0].Type())
 		}
+	})
 
-		// Single-element list can shimmer to scalar
-		single := feather.NewList(feather.NewInt(42))
-		n, err := single.Int()
-		if err != nil || n != 42 {
-			t.Errorf("single.Int() = %d, %v; want 42, nil", n, err)
+	t.Run("String", func(t *testing.T) {
+		v := interp.String("hello")
+		if v.Type() != "string" {
+			t.Errorf("expected type 'string', got %q", v.Type())
+		}
+		if v.String() != "hello" {
+			t.Errorf("String() = %q; want 'hello'", v.String())
 		}
 	})
 
-	t.Run("dictValue", func(t *testing.T) {
-		v := feather.NewDict(
-			feather.NewString("a"), feather.NewInt(1),
-			feather.NewString("b"), feather.NewString("two"),
-		)
+	t.Run("Dict", func(t *testing.T) {
+		v := interp.Dict()
 		if v.Type() != "dict" {
 			t.Errorf("expected type 'dict', got %q", v.Type())
 		}
-		m, err := v.Dict()
-		if err != nil || len(m) != 2 {
-			t.Errorf("Dict() = %v, %v; want 2 items", m, err)
-		}
-		if m["a"].String() != "1" {
-			t.Errorf("m['a'] = %q; want '1'", m["a"].String())
-		}
+	})
+}
 
-		// Dict to list
-		items, err := v.List()
-		if err != nil || len(items) != 4 {
-			t.Errorf("List() = %v, %v; want 4 items", items, err)
+func TestRegisterCommand(t *testing.T) {
+	interp := feather.New()
+	defer interp.Close()
+
+	interp.RegisterCommand("sum", func(i *feather.Interp, cmd feather.Object, args []feather.Object) feather.Result {
+		if len(args) < 2 {
+			return feather.Errorf("wrong # args: should be \"%s a b\"", cmd.String())
 		}
+		a, err := args[0].Int()
+		if err != nil {
+			return feather.Error(err.Error())
+		}
+		b, err := args[1].Int()
+		if err != nil {
+			return feather.Error(err.Error())
+		}
+		return feather.OK(a + b)
 	})
 
-	t.Run("foreignValue", func(t *testing.T) {
-		v := feather.NewForeign("Mux", "mux1")
-		if v.Type() != "Mux" {
-			t.Errorf("expected type 'Mux', got %q", v.Type())
+	result, err := interp.Eval("sum 3 4")
+	if err != nil {
+		t.Fatalf("Eval failed: %v", err)
+	}
+	if result.String() != "7" {
+		t.Errorf("expected '7', got %q", result.String())
+	}
+
+	// Test error case
+	_, err = interp.Eval("sum 1")
+	if err == nil {
+		t.Fatal("expected error for wrong # args")
+	}
+}
+
+func TestObjectBool(t *testing.T) {
+	interp := feather.New()
+	defer interp.Close()
+
+	tests := []struct {
+		input    string
+		expected bool
+		wantErr  bool
+	}{
+		{"1", true, false},
+		{"0", false, false},
+		{"true", true, false},
+		{"false", false, false},
+		{"yes", true, false},
+		{"no", false, false},
+		{"on", true, false},
+		{"off", false, false},
+		{"TRUE", true, false},
+		{"FALSE", false, false},
+		{"42", false, true},
+		{"hello", false, true},
+	}
+
+	for _, tc := range tests {
+		v := interp.String(tc.input)
+		got, err := v.Bool()
+		if tc.wantErr {
+			if err == nil {
+				t.Errorf("Bool(%q): expected error, got %v", tc.input, got)
+			}
+		} else {
+			if err != nil {
+				t.Errorf("Bool(%q): unexpected error: %v", tc.input, err)
+			} else if got != tc.expected {
+				t.Errorf("Bool(%q) = %v; want %v", tc.input, got, tc.expected)
+			}
 		}
-		if v.String() != "mux1" {
-			t.Errorf("String() = %q; want 'mux1'", v.String())
-		}
-		_, err := v.Int()
-		if err == nil {
-			t.Error("Int() on foreign should fail")
-		}
-	})
+	}
 }

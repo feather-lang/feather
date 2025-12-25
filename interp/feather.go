@@ -478,6 +478,11 @@ func (i *Interp) Result() string {
 	return i.GetString(i.result)
 }
 
+// ResultHandle returns the current result object handle.
+func (i *Interp) ResultHandle() FeatherObj {
+	return i.result
+}
+
 // EvalError represents an evaluation error
 type EvalError struct {
 	Message string
