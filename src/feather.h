@@ -501,6 +501,48 @@ typedef struct FeatherIntOps {
 } FeatherIntOps;
 
 /**
+ * FeatherDoubleClass classifies floating-point values for special value detection.
+ */
+typedef enum FeatherDoubleClass {
+  FEATHER_DBL_NORMAL  = 0, /* Finite, non-zero */
+  FEATHER_DBL_ZERO    = 1, /* Positive or negative zero */
+  FEATHER_DBL_INF     = 2, /* Positive infinity */
+  FEATHER_DBL_NEG_INF = 3, /* Negative infinity */
+  FEATHER_DBL_NAN     = 4, /* Not a number */
+} FeatherDoubleClass;
+
+/**
+ * FeatherMathOp identifies transcendental and special math operations.
+ * Unary operations use parameter 'a' only; binary operations use both 'a' and 'b'.
+ */
+typedef enum FeatherMathOp {
+  /* Unary operations */
+  FEATHER_MATH_SQRT,
+  FEATHER_MATH_EXP,
+  FEATHER_MATH_LOG,
+  FEATHER_MATH_LOG10,
+  FEATHER_MATH_SIN,
+  FEATHER_MATH_COS,
+  FEATHER_MATH_TAN,
+  FEATHER_MATH_ASIN,
+  FEATHER_MATH_ACOS,
+  FEATHER_MATH_ATAN,
+  FEATHER_MATH_SINH,
+  FEATHER_MATH_COSH,
+  FEATHER_MATH_TANH,
+  FEATHER_MATH_FLOOR,
+  FEATHER_MATH_CEIL,
+  FEATHER_MATH_ROUND,
+  FEATHER_MATH_ABS,
+
+  /* Binary operations */
+  FEATHER_MATH_POW,
+  FEATHER_MATH_ATAN2,
+  FEATHER_MATH_FMOD,
+  FEATHER_MATH_HYPOT,
+} FeatherMathOp;
+
+/**
  * FeatherDoubleOps gives access to floating-point numbers from the host.
  */
 typedef struct FeatherDoubleOps {
@@ -516,6 +558,32 @@ typedef struct FeatherDoubleOps {
    * double.
    */
   FeatherResult (*get)(FeatherInterp interp, FeatherObj obj, double *out);
+
+  /**
+   * classify returns the classification of a double value.
+   * Used to detect special values (Inf, -Inf, NaN) without stdlib.
+   */
+  FeatherDoubleClass (*classify)(double val);
+
+  /**
+   * format converts a double to a string object.
+   * Handles special values (Inf, -Inf, NaN) and format specifiers.
+   * @param specifier One of 'e', 'f', 'g', 'E', 'G'
+   * @param precision Number of decimal places (-1 for default)
+   */
+  FeatherObj (*format)(FeatherInterp interp, double val, char specifier,
+                       int precision);
+
+  /**
+   * math computes a transcendental or special math operation.
+   * @param op The operation to perform
+   * @param a First operand (used by all operations)
+   * @param b Second operand (used only by binary operations)
+   * @param out Result is written here on success
+   * @return TCL_OK on success, TCL_ERROR on domain error
+   */
+  FeatherResult (*math)(FeatherInterp interp, FeatherMathOp op, double a,
+                        double b, double *out);
 } FeatherDoubleOps;
 
 /**
