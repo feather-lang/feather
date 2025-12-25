@@ -742,4 +742,35 @@
     <exit-code>0</exit-code>
   </test-case>
 
+  <!-- ============================================= -->
+  <!-- Function results in arithmetic               -->
+  <!-- ============================================= -->
+
+  <test-case name="sin squared plus cos squared equals 1">
+    <script>expr {sin(1)*sin(1) + cos(1)*cos(1)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="exp(1) * exp(1) equals e squared">
+    <script>expr {int(exp(1)*exp(1))}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>7</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="function result multiplication preserves float type">
+    <script>expr {sin(1) * 2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1.682941969615793</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
 </test-suite>
