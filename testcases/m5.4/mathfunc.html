@@ -773,4 +773,35 @@
     <exit-code>0</exit-code>
   </test-case>
 
+  <!-- ============================================= -->
+  <!-- Command substitution type preservation       -->
+  <!-- ============================================= -->
+
+  <test-case name="command substitution preserves double type in arithmetic">
+    <script>expr {[expr {sin(1)}] * 2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1.682941969615793</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="command substitution preserves integer type in arithmetic">
+    <script>expr {[expr {2 + 3}] * 4}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>20</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="nested command substitution preserves float">
+    <script>expr {[expr {[expr {1.5}] + 0.5}] * 2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>4</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
 </test-suite>

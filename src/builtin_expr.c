@@ -370,7 +370,18 @@ static ExprValue parse_command(ExprParser *p) {
     return make_error();
   }
 
-  return make_str(p->ops->interp.get_result(p->interp));
+  // Try to preserve numeric type from command result
+  FeatherObj result_obj = p->ops->interp.get_result(p->interp);
+  double dval;
+  if (p->ops->dbl.get(p->interp, result_obj, &dval) == TCL_OK) {
+    // Check if it's actually an integer (no fractional part)
+    int64_t ival;
+    if (p->ops->integer.get(p->interp, result_obj, &ival) == TCL_OK && (double)ival == dval) {
+      return make_int(ival);
+    }
+    return make_double(dval);
+  }
+  return make_str(result_obj);
 }
 
 // Parse braced string {...}
