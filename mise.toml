@@ -12,4 +12,4 @@ run = "bun run dev"
 run = "bun run preview"
 
 [tasks.deploy]
-run = "wrangler pages deploy .vitepress/dist --project-name feather-lang"
+run = "wrangler pages deploy .vitepress/dist --project-name feather-lang --branch main"

@@ -3,29 +3,43 @@ import { defineConfig } from "vitepress";
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
   srcDir: "md",
+  head: [["link", { rel: "icon", href: "/feather-logo.png" }]],
 
-  title: "The Feather Programming Language",
+  title: "Feather Programming Language",
   description:
-    "Documentation for Feather, an embeddable command language for your applications.",
+    "Feather is an embeddable TCL interpreter for adding interactive command shells to any application.",
   themeConfig: {
+    logo: "/feather-logo.png",
     // https://vitepress.dev/reference/default-theme-config
     nav: [
       { text: "Home", link: "/" },
-      { text: "Examples", link: "/markdown-examples" },
+      { text: "Philosophy", link: "/philosophy" },
+      { text: "Documentation", link: "/markdown-examples" },
     ],
 
     sidebar: [
       {
-        text: "Examples",
+        text: "Getting Started",
         items: [
-          { text: "Markdown Examples", link: "/markdown-examples" },
-          { text: "Runtime API Examples", link: "/api-examples" },
+          { text: "Introduction", link: "/markdown-examples" },
+          { text: "API Reference", link: "/api-examples" },
+        ],
+      },
+      {
+        text: "About",
+        items: [
+          { text: "Philosophy", link: "/philosophy" },
         ],
       },
     ],
 
     socialLinks: [
-      { icon: "github", link: "https://github.com/vuejs/vitepress" },
+      { icon: "github", link: "https://github.com/feather-lang/feather" },
     ],
   },
+  vite: {
+    ssr: {
+      noExternal: ['feather.js']
+    }
+  }
 });
