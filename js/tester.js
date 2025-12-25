@@ -4,7 +4,7 @@
  * Mirrors cmd/feather-tester/main.go definitions.
  */
 
-import { createFeather } from './feather.js';
+import { createFeather, TCL_PARSE_OK, TCL_PARSE_INCOMPLETE, TCL_PARSE_ERROR } from './feather.js';
 import { createInterface } from 'readline';
 import { readFileSync, writeSync, fstatSync } from 'fs';
 import { fileURLToPath } from 'url';
@@ -188,6 +188,17 @@ async function runREPL(feather, interp) {
 
 async function runScript(feather, interp) {
   const script = readFileSync(0, 'utf-8');
+
+  // Check parse status first (like Go version)
+  const parseResult = feather.parse(interp, script);
+  if (parseResult.status === TCL_PARSE_INCOMPLETE) {
+    writeHarnessResult('TCL_OK', parseResult.result, '');
+    process.exit(2);
+  }
+  if (parseResult.status === TCL_PARSE_ERROR) {
+    writeHarnessResult('TCL_ERROR', parseResult.result, parseResult.errorMessage);
+    process.exit(3);
+  }
 
   try {
     const result = feather.eval(interp, script);

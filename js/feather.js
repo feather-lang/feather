@@ -11,6 +11,12 @@ const TCL_RETURN = 2;
 const TCL_BREAK = 3;
 const TCL_CONTINUE = 4;
 
+// Parse status constants (matching FeatherParseStatus enum in feather.h)
+const TCL_PARSE_OK = 0;
+const TCL_PARSE_INCOMPLETE = 1;
+const TCL_PARSE_ERROR = 2;
+const TCL_PARSE_DONE = 3;
+
 const TCL_CMD_NONE = 0;
 const TCL_CMD_BUILTIN = 1;
 const TCL_CMD_PROC = 2;
@@ -1331,6 +1337,40 @@ async function createFeather(wasmSource) {
       interp.foreignInstances.delete(handleName);
     },
 
+    parse(interpId, script) {
+      const interp = interpreters.get(interpId);
+      const [ptr, len] = writeString(script);
+
+      // Allocate FeatherParseContext (3 x 4 bytes for wasm32)
+      const ctxPtr = wasmInstance.exports.alloc(12);
+      wasmInstance.exports.feather_parse_init(ctxPtr, ptr, len);
+
+      const status = wasmInstance.exports.feather_parse_command(opsPtr, interpId, ctxPtr);
+
+      wasmInstance.exports.free(ctxPtr);
+      wasmInstance.exports.free(ptr);
+
+      // Convert TCL_PARSE_DONE to TCL_PARSE_OK (empty script is OK)
+      if (status === TCL_PARSE_DONE) {
+        interp.result = interp.store({ type: 'list', items: [] });
+        return { status: TCL_PARSE_OK, result: '' };
+      }
+
+      // Get result string (for INCOMPLETE/ERROR: "{TYPE pos len}" or "{ERROR pos len {msg}}")
+      const resultStr = interp.getString(interp.result);
+
+      // For errors, extract the error message (4th element)
+      let errorMessage = '';
+      if (status === TCL_PARSE_ERROR) {
+        const resultObj = interp.get(interp.result);
+        if (resultObj?.type === 'list' && resultObj.items.length >= 4) {
+          errorMessage = interp.getString(resultObj.items[3]);
+        }
+      }
+
+      return { status, result: resultStr ? `{${resultStr}}` : '', errorMessage };
+    },
+
     eval(interpId, script) {
       const [ptr, len] = writeString(script);
       const result = wasmInstance.exports.feather_script_eval(opsPtr, interpId, ptr, len, 0);
@@ -1383,4 +1423,4 @@ function globMatch(pattern, string) {
   return pi === pattern.length;
 }
 
-export { createFeather, TCL_OK, TCL_ERROR, TCL_RETURN, TCL_BREAK, TCL_CONTINUE };
+export { createFeather, TCL_OK, TCL_ERROR, TCL_RETURN, TCL_BREAK, TCL_CONTINUE, TCL_PARSE_OK, TCL_PARSE_INCOMPLETE, TCL_PARSE_ERROR };
