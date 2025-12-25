@@ -1188,7 +1188,17 @@ async function createFeather(wasmSource) {
         writeI64(outPtr, obj.value);
         return TCL_OK;
       }
+      if (obj?.type === 'double') {
+        // Shimmer from double
+        writeI64(outPtr, Math.trunc(obj.value));
+        return TCL_OK;
+      }
       const str = interp.getString(handle);
+      // Strict integer parsing - reject floats and non-numeric strings
+      // Only accept optional leading +/-, digits, and whitespace
+      if (!/^\s*[+-]?\d+\s*$/.test(str)) {
+        return TCL_ERROR;
+      }
       const num = parseInt(str, 10);
       if (!isNaN(num)) {
         writeI64(outPtr, num);
@@ -1209,9 +1219,19 @@ async function createFeather(wasmSource) {
         writeF64(outPtr, obj.value);
         return TCL_OK;
       }
-      const str = interp.getString(handle);
-      const num = parseFloat(str);
-      if (!isNaN(num)) {
+      if (obj?.type === 'int') {
+        // Shimmer from int
+        writeF64(outPtr, obj.value);
+        return TCL_OK;
+      }
+      const str = interp.getString(handle).trim();
+      // Strict float parsing - match Go's strconv.ParseFloat behavior
+      // Reject hex strings (0x...), octal prefixes that don't parse as float
+      if (str === '') return TCL_ERROR;
+      // Reject hex notation - Go's ParseFloat doesn't accept it
+      if (/^[+-]?0[xX]/.test(str)) return TCL_ERROR;
+      const num = Number(str);
+      if (!isNaN(num) && isFinite(num)) {
         writeF64(outPtr, num);
         return TCL_OK;
       }
@@ -1655,12 +1675,64 @@ async function createFeather(wasmSource) {
       wasmInstance.exports.free(ptr);
 
       const interp = interpreters.get(interpId);
-      if (result !== TCL_OK) {
-        const error = new Error(interp.getString(interp.result));
+      if (result === TCL_OK) {
+        return interp.getString(interp.result);
+      }
+      // Handle TCL_RETURN at top level - apply the return options
+      if (result === TCL_RETURN) {
+        // Get return options and apply the code
+        let code = TCL_OK;
+        const opts = interp.returnOptions.get('current');
+        if (opts) {
+          const items = interp.getList(opts);
+          for (let j = 0; j + 1 < items.length; j += 2) {
+            const key = interp.getString(items[j]);
+            if (key === '-code') {
+              const codeStr = interp.getString(items[j + 1]);
+              const codeVal = parseInt(codeStr, 10);
+              if (!isNaN(codeVal)) {
+                code = codeVal;
+              }
+            }
+          }
+        }
+        // Apply the extracted code
+        if (code === TCL_OK) {
+          return interp.getString(interp.result);
+        }
+        if (code === TCL_ERROR) {
+          const error = new Error(interp.getString(interp.result));
+          error.code = TCL_ERROR;
+          throw error;
+        }
+        if (code === TCL_BREAK) {
+          const error = new Error('invoked "break" outside of a loop');
+          error.code = TCL_BREAK;
+          throw error;
+        }
+        if (code === TCL_CONTINUE) {
+          const error = new Error('invoked "continue" outside of a loop');
+          error.code = TCL_CONTINUE;
+          throw error;
+        }
+        // For other codes, treat as ok
+        return interp.getString(interp.result);
+      }
+      // Convert break/continue outside loop to specific error messages
+      if (result === TCL_BREAK) {
+        const error = new Error('invoked "break" outside of a loop');
         error.code = result;
         throw error;
       }
-      return interp.getString(interp.result);
+      if (result === TCL_CONTINUE) {
+        const error = new Error('invoked "continue" outside of a loop');
+        error.code = result;
+        throw error;
+      }
+      // For TCL_ERROR and other codes, use the result message
+      const error = new Error(interp.getString(interp.result));
+      error.code = result;
+      throw error;
     },
 
     getResult(interpId) {
