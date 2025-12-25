@@ -98,4 +98,182 @@
     <exit-code>0</exit-code>
   </test-case>
 
+  <!-- ============================================= -->
+  <!-- NaN/Inf arithmetic operations                 -->
+  <!-- ============================================= -->
+
+  <test-case name="NaN plus number is NaN">
+    <script>expr {(0.0/0) + 5.0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>NaN</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="NaN times number is NaN">
+    <script>expr {(0.0/0) * 5.0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>NaN</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="Inf plus number is Inf">
+    <script>expr {(1.0/0) + 100.0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>+Inf</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="Inf times positive is Inf">
+    <script>expr {(1.0/0) * 2.0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>+Inf</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="Inf times negative is -Inf">
+    <script>expr {(1.0/0) * -2.0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-Inf</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="Inf times zero is NaN">
+    <script>expr {(1.0/0) * 0.0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>NaN</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- NaN comparison behavior                       -->
+  <!-- ============================================= -->
+
+  <test-case name="NaN not equal to itself">
+    <script>expr {(0.0/0) == (0.0/0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="NaN not less than itself">
+    <script>expr {(0.0/0) < (0.0/0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="NaN not greater than itself">
+    <script>expr {(0.0/0) > (0.0/0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="NaN != NaN is true">
+    <script>expr {(0.0/0) != (0.0/0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Inf comparison behavior                       -->
+  <!-- ============================================= -->
+
+  <test-case name="Inf equals Inf">
+    <script>expr {(1.0/0) == (1.0/0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="Inf greater than any finite number">
+    <script>expr {(1.0/0) > 1e308}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="-Inf less than any finite number">
+    <script>expr {(-1.0/0) < -1e308}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Command substitution with special values      -->
+  <!-- ============================================= -->
+
+  <test-case name="Inf via command substitution in arithmetic">
+    <script>expr {[expr {1.0/0}] + 1}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>+Inf</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="NaN via command substitution in arithmetic">
+    <script>expr {[expr {0.0/0}] * 2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>NaN</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="-Inf via command substitution">
+    <script>expr {[expr {-1.0/0}] - 1}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-Inf</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="nested command substitution with Inf">
+    <script>expr {[expr {[expr {1.0/0}] * 2}] + 0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>+Inf</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="Inf from function in command substitution">
+    <script>expr {[expr {log(0)}] - 1}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-Inf</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
 </test-suite>
