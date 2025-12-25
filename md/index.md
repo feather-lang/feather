@@ -4,8 +4,8 @@ layout: home
 
 hero:
   name: "The Feather Programming Language"
-  text: "Documentation for Feather, an embeddable command language for your applications."
-  tagline: My great project tagline
+  text: "An embeddable command language for your applications."
+  tagline: Add a command shell to any application
   actions:
     - theme: brand
       text: Markdown Examples
@@ -22,4 +22,3 @@ features:
   - title: Feature C
     details: Lorem ipsum dolor sit amet, consectetur adipiscing elit
 ---
-

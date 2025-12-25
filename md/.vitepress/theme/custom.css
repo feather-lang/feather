@@ -1,0 +1,29 @@
+:root {
+  /* Brand colors - based on Feather logo gradient (olive-green to teal) */
+  --vp-c-brand-1: #4a7c23;
+  --vp-c-brand-2: #5a9428;
+  --vp-c-brand-3: #3d6a1c;
+  --vp-c-brand-soft: rgba(74, 124, 35, 0.14);
+
+  /* Accent colors - teal from logo bottom */
+  --vp-c-tip-1: #2d7d6a;
+  --vp-c-tip-2: rgba(45, 125, 106, 0.16);
+  --vp-c-tip-3: rgba(45, 125, 106, 0.38);
+}
+
+.dark {
+  --vp-c-brand-1: #7bac4a;
+  --vp-c-brand-2: #8bc45a;
+  --vp-c-brand-3: #6a9a3a;
+  --vp-c-brand-soft: rgba(123, 172, 74, 0.14);
+}
+
+/* Hero gradient to match logo */
+.VPHero .VPImage {
+  border-radius: 16px;
+}
+
+/* Button hover enhancement */
+.VPButton.brand:hover {
+  background-color: var(--vp-c-brand-2);
+}

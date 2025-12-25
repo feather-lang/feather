@@ -10,3 +10,6 @@ run = "bun run dev"
 
 [tasks.preview]
 run = "bun run preview"
+
+[tasks.deploy]
+run = "wrangler pages deploy .vitepress/dist --project-name feather-lang"
