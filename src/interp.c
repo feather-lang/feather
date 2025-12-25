@@ -83,6 +83,7 @@ static const BuiltinEntry builtins[] = {
     {"::dict", feather_builtin_dict},
     // String formatting
     {"::format", feather_builtin_format},
+    {"::scan", feather_builtin_scan},
     {NULL, NULL} // sentinel
 };
 

@@ -54,6 +54,29 @@ func main() {
 	}
 	listCmd.Flags().StringVar(&namePattern, "name", "", "regex pattern to filter test names")
 
-	rootCmd.AddCommand(runCmd, listCmd)
+	var updateHostPath string
+	var updateNamePattern string
+	updateCmd := &cobra.Command{
+		Use:   "update [flags] <test-files-or-dirs>...",
+		Short: "Update test expectations based on actual host output",
+		Long: `Update runs tests against the host and updates failing test expectations
+to match the actual output. Use this to update tests after intentional behavior changes.`,
+		Args: cobra.MinimumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			exitCode := harness.Update(harness.Config{
+				HostPath:    updateHostPath,
+				TestPaths:   args,
+				NamePattern: updateNamePattern,
+				Output:      os.Stdout,
+				ErrOutput:   os.Stderr,
+			})
+			os.Exit(exitCode)
+		},
+	}
+	updateCmd.Flags().StringVar(&updateHostPath, "host", "", "path to the host executable (required)")
+	updateCmd.MarkFlagRequired("host")
+	updateCmd.Flags().StringVar(&updateNamePattern, "name", "", "regex pattern to filter test names")
+
+	rootCmd.AddCommand(runCmd, listCmd, updateCmd)
 	rootCmd.Execute()
 }

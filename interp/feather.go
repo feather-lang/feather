@@ -361,6 +361,14 @@ func (i *Interp) listToValue(obj *Object) string {
 		// Handle different object types
 		if itemObj.isInt {
 			result += fmt.Sprintf("%d", itemObj.intVal)
+		} else if itemObj.isDouble {
+			// Format double - ensure decimal point for round numbers, but not for NaN/Inf
+			s := strconv.FormatFloat(itemObj.dblVal, 'g', -1, 64)
+			if !strings.Contains(s, ".") && !strings.Contains(s, "e") &&
+				!strings.Contains(s, "NaN") && !strings.Contains(s, "Inf") {
+				s += ".0"
+			}
+			result += s
 		} else if itemObj.isList {
 			// Nested lists need to be braced
 			nested := i.listToValue(itemObj)
@@ -646,9 +654,15 @@ func (i *Interp) GetString(h FeatherObj) string {
 		if obj.isInt && obj.stringVal == "" {
 			obj.stringVal = fmt.Sprintf("%d", obj.intVal)
 		}
-		// Shimmer: double → string
+		// Shimmer: double → string (always include decimal point for round numbers)
 		if obj.isDouble && obj.stringVal == "" {
-			obj.stringVal = strconv.FormatFloat(obj.dblVal, 'g', -1, 64)
+			s := strconv.FormatFloat(obj.dblVal, 'g', -1, 64)
+			// Add .0 for round numbers, but not for NaN/Inf
+			if !strings.Contains(s, ".") && !strings.Contains(s, "e") &&
+				!strings.Contains(s, "NaN") && !strings.Contains(s, "Inf") {
+				s += ".0"
+			}
+			obj.stringVal = s
 		}
 		// Shimmer: list → string (use listToValue for proper TCL semantics)
 		if obj.isList && obj.stringVal == "" {

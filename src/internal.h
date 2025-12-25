@@ -601,4 +601,18 @@ FeatherResult feather_builtin_dict(const FeatherHostOps *ops, FeatherInterp inte
 FeatherResult feather_builtin_format(const FeatherHostOps *ops, FeatherInterp interp,
                               FeatherObj cmd, FeatherObj args);
 
+/**
+ * feather_builtin_scan implements the TCL 'scan' command.
+ *
+ * Usage:
+ *   scan string format ?varName ...?
+ *
+ * Parses string using conversion specifiers similar to C sscanf.
+ * Returns count of conversions (with varNames) or list of values (inline mode).
+ * Supports: %d, %i, %u, %o, %x, %X, %b, %c, %s, %f, %e, %g, %n, %[...], %[^...]
+ * Plus width specifiers, assignment suppression (*), and positional specifiers.
+ */
+FeatherResult feather_builtin_scan(const FeatherHostOps *ops, FeatherInterp interp,
+                              FeatherObj cmd, FeatherObj args);
+
 #endif
