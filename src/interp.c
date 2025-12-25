@@ -53,6 +53,8 @@ static const BuiltinEntry builtins[] = {
     {"::unset", feather_builtin_unset},
     // M16: Dictionary support
     {"::dict", feather_builtin_dict},
+    // String formatting
+    {"::format", feather_builtin_format},
     {NULL, NULL} // sentinel
 };
 

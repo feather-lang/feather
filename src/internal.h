@@ -516,4 +516,17 @@ FeatherResult feather_builtin_unset(const FeatherHostOps *ops, FeatherInterp int
 FeatherResult feather_builtin_dict(const FeatherHostOps *ops, FeatherInterp interp,
                             FeatherObj cmd, FeatherObj args);
 
+/**
+ * feather_builtin_format implements the TCL 'format' command.
+ *
+ * Usage:
+ *   format formatString ?arg ...?
+ *
+ * Generates a formatted string similar to C sprintf.
+ * Supports: %d, %i, %u, %o, %x, %X, %b, %c, %s, %f, %e, %E, %g, %G, %%
+ * Plus flags (-, +, space, 0, #), width, precision, and positional specifiers.
+ */
+FeatherResult feather_builtin_format(const FeatherHostOps *ops, FeatherInterp interp,
+                              FeatherObj cmd, FeatherObj args);
+
 #endif
