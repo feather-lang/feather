@@ -175,16 +175,59 @@ FeatherResult feather_builtin_lindex(const FeatherHostOps *ops, FeatherInterp in
 FeatherResult feather_builtin_return(const FeatherHostOps *ops, FeatherInterp interp,
                               FeatherObj cmd, FeatherObj args);
 
-/**
- * feather_builtin_mathfunc_exp implements the tcl::mathfunc::exp function.
- *
- * Usage:
- *   tcl::mathfunc::exp value
- *
- * Returns floor(e^value) for integer value.
- */
+/* Math functions - tcl::mathfunc::* */
+FeatherResult feather_builtin_mathfunc_sqrt(const FeatherHostOps *ops, FeatherInterp interp,
+                                            FeatherObj cmd, FeatherObj args);
 FeatherResult feather_builtin_mathfunc_exp(const FeatherHostOps *ops, FeatherInterp interp,
-                                    FeatherObj cmd, FeatherObj args);
+                                           FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_log(const FeatherHostOps *ops, FeatherInterp interp,
+                                           FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_log10(const FeatherHostOps *ops, FeatherInterp interp,
+                                             FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_sin(const FeatherHostOps *ops, FeatherInterp interp,
+                                           FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_cos(const FeatherHostOps *ops, FeatherInterp interp,
+                                           FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_tan(const FeatherHostOps *ops, FeatherInterp interp,
+                                           FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_asin(const FeatherHostOps *ops, FeatherInterp interp,
+                                            FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_acos(const FeatherHostOps *ops, FeatherInterp interp,
+                                            FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_atan(const FeatherHostOps *ops, FeatherInterp interp,
+                                            FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_sinh(const FeatherHostOps *ops, FeatherInterp interp,
+                                            FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_cosh(const FeatherHostOps *ops, FeatherInterp interp,
+                                            FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_tanh(const FeatherHostOps *ops, FeatherInterp interp,
+                                            FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_floor(const FeatherHostOps *ops, FeatherInterp interp,
+                                             FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_ceil(const FeatherHostOps *ops, FeatherInterp interp,
+                                            FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_round(const FeatherHostOps *ops, FeatherInterp interp,
+                                             FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_abs(const FeatherHostOps *ops, FeatherInterp interp,
+                                           FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_pow(const FeatherHostOps *ops, FeatherInterp interp,
+                                           FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_atan2(const FeatherHostOps *ops, FeatherInterp interp,
+                                             FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_fmod(const FeatherHostOps *ops, FeatherInterp interp,
+                                            FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_hypot(const FeatherHostOps *ops, FeatherInterp interp,
+                                             FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_double(const FeatherHostOps *ops, FeatherInterp interp,
+                                              FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_int(const FeatherHostOps *ops, FeatherInterp interp,
+                                           FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_wide(const FeatherHostOps *ops, FeatherInterp interp,
+                                            FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_isnan(const FeatherHostOps *ops, FeatherInterp interp,
+                                             FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_isinf(const FeatherHostOps *ops, FeatherInterp interp,
+                                             FeatherObj cmd, FeatherObj args);
 
 /**
  * feather_builtin_error implements the TCL 'error' command.

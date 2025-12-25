@@ -101,6 +101,9 @@ static FeatherHostOps default_ops = {
     .dbl = {
         .create = feather_host_dbl_create,
         .get = feather_host_dbl_get,
+        .classify = feather_host_dbl_classify,
+        .format = feather_host_dbl_format,
+        .math = feather_host_dbl_math,
     },
     .interp = {
         .set_result = feather_host_interp_set_result,

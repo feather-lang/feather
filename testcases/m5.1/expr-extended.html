@@ -311,20 +311,20 @@ expr {$x > 3 ? 100 : 200}</script>
     <exit-code>0</exit-code>
   </test-case>
 
-  <test-case name="exp(1) returns 2">
+  <test-case name="exp(1) returns e">
     <script>expr {exp(1)}</script>
     <return>TCL_OK</return>
     <error></error>
-    <stdout>2</stdout>
+    <stdout>2.718281828459045</stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
 
-  <test-case name="exp(5) returns 148">
+  <test-case name="exp(5) returns e^5">
     <script>expr {exp(5)}</script>
     <return>TCL_OK</return>
     <error></error>
-    <stdout>148</stdout>
+    <stdout>148.4131591025766</stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
@@ -334,7 +334,7 @@ expr {$x > 3 ? 100 : 200}</script>
 expr {exp($n)}</script>
     <return>TCL_OK</return>
     <error></error>
-    <stdout>20</stdout>
+    <stdout>20.085536923187668</stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>

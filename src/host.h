@@ -176,6 +176,11 @@ extern FeatherResult feather_host_integer_get(FeatherInterp interp, FeatherObj o
 
 extern FeatherObj feather_host_dbl_create(FeatherInterp interp, double val);
 extern FeatherResult feather_host_dbl_get(FeatherInterp interp, FeatherObj obj, double *out);
+extern FeatherDoubleClass feather_host_dbl_classify(double val);
+extern FeatherObj feather_host_dbl_format(FeatherInterp interp, double val, char specifier,
+                                          int precision);
+extern FeatherResult feather_host_dbl_math(FeatherInterp interp, FeatherMathOp op, double a,
+                                           double b, double *out);
 
 /* ============================================================================
  * Interp Operations (7 functions)
