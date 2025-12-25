@@ -14,15 +14,15 @@ export default defineConfig({
     nav: [
       { text: "Home", link: "/" },
       { text: "Philosophy", link: "/philosophy" },
-      { text: "Documentation", link: "/markdown-examples" },
+      { text: "Documentation", link: "/introduction" },
     ],
 
     sidebar: [
       {
         text: "Getting Started",
         items: [
-          { text: "Introduction", link: "/markdown-examples" },
-          { text: "API Reference", link: "/api-examples" },
+          { text: "Introduction", link: "/introduction" },
+          { text: "In 5 Minutes", link: "/in-5-minutes" },
         ],
       },
       {
