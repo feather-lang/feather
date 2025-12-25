@@ -3,7 +3,6 @@ import { defineConfig } from "vitepress";
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
   srcDir: "md",
-  outDir: "docs/",
 
   title: "The Feather Programming Language",
   description:
