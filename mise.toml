@@ -64,3 +64,7 @@ depends = ["build:harness", "build:wasm"]
 run = """
 harness run --host js/tester.js testcases/
 """
+
+[tasks."test:all"]
+description = "Run all test suites in parallel"
+depends = ["test", "test:js"]
