@@ -229,7 +229,16 @@ extern void feather_host_foreign_destroy(FeatherInterp interp, FeatherObj obj);
  *
  * This allows public API functions to accept NULL for ops parameter,
  * falling back to import-based host functions for WASM builds.
+ *
+ * For native builds where the host always provides ops, this is a simple
+ * passthrough. For WASM builds, host.c provides the default_ops struct.
  */
+#ifdef FEATHER_WASM_BUILD
 extern const FeatherHostOps *feather_get_ops(const FeatherHostOps *ops);
+#else
+static inline const FeatherHostOps *feather_get_ops(const FeatherHostOps *ops) {
+    return ops;
+}
+#endif
 
 #endif /* FEATHER_HOST_H */

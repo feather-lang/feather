@@ -20,6 +20,8 @@ description = "Builds the core interpreter as a static library"
 run = """
 mkdir -p build
 for f in src/*.c; do
+  # Skip host.c for native builds - only needed for WASM import-based host
+  [ "$(basename "$f")" = "host.c" ] && continue
   cc -c -fPIC -I src -o "build/$(basename "$f" .c).o" "$f"
 done
 ar rcs build/libfeather.a build/*.o

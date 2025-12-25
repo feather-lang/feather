@@ -1,4 +1,5 @@
 #include "feather.h"
+#include "host.h"
 #include "internal.h"
 
 // Builtin command table entry
@@ -79,6 +80,7 @@ FeatherBuiltinCmd feather_lookup_builtin(const char *name, size_t len) {
 }
 
 void feather_interp_init(const FeatherHostOps *ops, FeatherInterp interp) {
+  ops = feather_get_ops(ops);
   // Register all builtin commands in their respective namespaces
   for (const BuiltinEntry *entry = builtins; entry->name != NULL; entry++) {
     FeatherObj fullName = ops->string.intern(interp, entry->name, feather_strlen(entry->name));

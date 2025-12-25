@@ -16,7 +16,7 @@ zig cc -target wasm32-freestanding -Os \
   -Wl,--import-table \
   -I ../src \
   -o feather.wasm \
-  ../src/*.c wasm_alloc.c
+  $(ls ../src/*.c | grep -v host.c) wasm_alloc.c
 """
 
 [tasks.serve]

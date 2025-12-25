@@ -1,8 +1,10 @@
 #include "feather.h"
+#include "host.h"
 #include "internal.h"
 
 FeatherResult feather_command_exec(const FeatherHostOps *ops, FeatherInterp interp,
                            FeatherObj command, FeatherEvalFlags flags) {
+  ops = feather_get_ops(ops);
   // command is a parsed command list [name, arg1, arg2, ...]
   // First element is the command name, rest are arguments (unevaluated)
 
@@ -134,6 +136,7 @@ FeatherResult feather_command_exec(const FeatherHostOps *ops, FeatherInterp inte
 
 FeatherResult feather_script_eval(const FeatherHostOps *ops, FeatherInterp interp,
                           const char *source, size_t len, FeatherEvalFlags flags) {
+  ops = feather_get_ops(ops);
   FeatherResult result = TCL_OK;
   FeatherParseContext ctx;
   feather_parse_init(&ctx, source, len);
@@ -158,6 +161,7 @@ FeatherResult feather_script_eval(const FeatherHostOps *ops, FeatherInterp inter
 
 FeatherResult feather_script_eval_obj(const FeatherHostOps *ops, FeatherInterp interp,
                               FeatherObj script, FeatherEvalFlags flags) {
+  ops = feather_get_ops(ops);
   size_t len;
   const char *source = ops->string.get(interp, script, &len);
   return feather_script_eval(ops, interp, source, len, flags);

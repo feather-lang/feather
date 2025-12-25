@@ -1,4 +1,5 @@
 #include "feather.h"
+#include "host.h"
 
 static int is_whitespace(char c) {
   return c == ' ' || c == '\t';
@@ -847,6 +848,7 @@ static FeatherObj parse_word(const FeatherHostOps *ops, FeatherInterp interp,
  */
 FeatherResult feather_subst(const FeatherHostOps *ops, FeatherInterp interp,
                     const char *str, size_t len, int flags) {
+  ops = feather_get_ops(ops);
   const char *p = str;
   const char *end = str + len;
   FeatherObj result = 0;  // nil initially
@@ -936,6 +938,7 @@ FeatherResult feather_subst(const FeatherHostOps *ops, FeatherInterp interp,
 
 FeatherParseStatus feather_parse_command(const FeatherHostOps *ops, FeatherInterp interp,
                                   FeatherParseContext *ctx) {
+  ops = feather_get_ops(ops);
   const char *script = ctx->script;
   size_t len = ctx->len;
 
