@@ -13,16 +13,25 @@
     </div>
 
     <div class="editor-container">
-      <div class="panel">
+      <div class="panel editor-panel">
         <div class="panel-header">
           Feather Script
           <button @click="runScript" :disabled="!ready" class="run-btn">▶ Run</button>
         </div>
-        <CodeEditor
-          v-model="script"
-          language="tcl"
-          @run="runScript"
-        />
+        <div class="editor-wrapper">
+          <CodeEditor
+            v-model="script"
+            language="tcl"
+            @run="runScript"
+          />
+          <div v-if="scriptError" class="error-overlay" @click="clearError">
+            <div class="error-content">
+              <div class="error-title">Error</div>
+              <div class="error-message">{{ scriptError }}</div>
+              <div class="error-hint">Click to dismiss</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="panel" v-if="showHostCode">
@@ -76,49 +85,44 @@
 import { ref, onMounted, nextTick } from 'vue'
 import CodeEditor from './CodeEditor.vue'
 
-const script = ref(`# Canvas drawing with reusable shape procs
-canvas clear
+const script = ref(`# Pulsing circle animation
+set state [dict create]
+dict set state radius 20
+dict set state growing 1
+dict set state min 20
+dict set state max 100
 
-# Define a procedure to draw a colored circle
-proc dot {x y radius color} {
-    canvas fill $color
-    canvas circle $x $y $radius
+proc grow {} {
+    upvar #0 state s
+    dict incr s radius
+    if {[dict get $s radius] >= [dict get $s max]} {
+        dict set s growing 0
+    }
 }
 
-# Define a procedure to draw a labeled box
-proc box {x y w h color label} {
-    canvas fill $color
-    canvas rect $x $y $w $h
-    canvas fill #fff
-    canvas font "14px sans-serif"
-    canvas text [expr {$x + 10}] [expr {$y + 25}] $label
+proc shrink {} {
+    upvar #0 state s
+    dict incr s radius -1
+    if {[dict get $s radius] <= [dict get $s min]} {
+        dict set s growing 1
+    }
 }
 
-# Draw some boxes
-box 50 40 120 50 #e94560 "Feather"
-box 200 40 120 50 #4ade80 "TCL"
-box 350 40 120 50 #60a5fa "WASM"
-
-# Draw a row of dots using a loop
-set colors {#fbbf24 #a78bfa #ec4899 #14b8a6 #f97316}
-set i 0
-foreach color $colors {
-    dot [expr {80 + $i * 80}] 150 25 $color
-    incr i
+proc update_radius {} {
+    upvar #0 state s
+    if {[dict get $s growing]} { grow } else { shrink }
 }
 
-# Draw connecting lines
-canvas stroke #fff
-canvas width 2
-canvas line 110 90 260 90
-canvas line 260 90 410 90
+proc draw {} {
+    upvar #0 state s
+    update_radius
+    set r [dict get $s radius]
+    canvas clear
+    canvas fill #e94560
+    canvas circle 250 140 $r
+}
 
-# Title
-canvas fill #fff
-canvas font "18px sans-serif"
-canvas text 50 250 "Feather: Scripting meets Graphics"
-
-puts "Canvas with procs complete!"`)
+animate draw`)
 
 const hostCode = ref('')
 const showHostCode = ref(false)
@@ -128,54 +132,52 @@ const output = ref([])
 const ready = ref(false)
 const outputEl = ref(null)
 const canvasEl = ref(null)
+const scriptError = ref(null)
 
 let feather = null
 let interp = null
+let animationFrameId = null
+let animationStartTime = null
 
 const examples = [
-  { name: 'Canvas', hostCode: null, code: `# Canvas drawing with reusable shape procs
-canvas clear
+  { name: 'Canvas', hostCode: null, code: `# Pulsing circle animation
+set state [dict create]
+dict set state radius 20
+dict set state growing 1
+dict set state min 20
+dict set state max 100
 
-# Define a procedure to draw a colored circle
-proc dot {x y radius color} {
-    canvas fill $color
-    canvas circle $x $y $radius
+proc grow {} {
+    upvar #0 state s
+    dict incr s radius
+    if {[dict get $s radius] >= [dict get $s max]} {
+        dict set s growing 0
+    }
 }
 
-# Define a procedure to draw a labeled box
-proc box {x y w h color label} {
-    canvas fill $color
-    canvas rect $x $y $w $h
-    canvas fill #fff
-    canvas font "14px sans-serif"
-    canvas text [expr {$x + 10}] [expr {$y + 25}] $label
+proc shrink {} {
+    upvar #0 state s
+    dict incr s radius -1
+    if {[dict get $s radius] <= [dict get $s min]} {
+        dict set s growing 1
+    }
 }
 
-# Draw some boxes
-box 50 40 120 50 #e94560 "Feather"
-box 200 40 120 50 #4ade80 "TCL"
-box 350 40 120 50 #60a5fa "WASM"
-
-# Draw a row of dots using a loop
-set colors {#fbbf24 #a78bfa #ec4899 #14b8a6 #f97316}
-set i 0
-foreach color $colors {
-    dot [expr {80 + $i * 80}] 150 25 $color
-    incr i
+proc update_radius {} {
+    upvar #0 state s
+    if {[dict get $s growing]} { grow } else { shrink }
 }
 
-# Draw connecting lines
-canvas stroke #fff
-canvas width 2
-canvas line 110 90 260 90
-canvas line 260 90 410 90
+proc draw {} {
+    upvar #0 state s
+    update_radius
+    set r [dict get $s radius]
+    canvas clear
+    canvas fill #e94560
+    canvas circle 250 140 $r
+}
 
-# Title
-canvas fill #fff
-canvas font "18px sans-serif"
-canvas text 50 250 "Feather: Scripting meets Graphics"
-
-puts "Canvas with procs complete!"` },
+animate draw` },
   { name: 'Hello World', hostCode: null, code: `puts "Hello, World!"
 set name "Feather"
 puts "Welcome to $name!"` },
@@ -274,7 +276,15 @@ function log(text, type = '') {
   })
 }
 
+function stopAnimation() {
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId)
+    animationFrameId = null
+  }
+}
+
 function loadExample(ex) {
+  stopAnimation()
   script.value = ex.code
   showCanvas.value = ex.name === 'Canvas'
   if (ex.hostCode) {
@@ -312,9 +322,148 @@ function registerHostCode() {
   }
 }
 
+function registerBuiltinCommands() {
+  feather.register(interp, 'puts', (args) => {
+    log(args.join(' '))
+    return ''
+  })
+
+  feather.register(interp, 'clock', (args) => {
+    if (args[0] === 'seconds') return Math.floor(Date.now() / 1000)
+    if (args[0] === 'milliseconds') return Date.now()
+    throw new Error(`unknown clock subcommand "${args[0]}"`)
+  })
+
+  // Canvas commands
+  let ctx = null
+  let logicalWidth = 800
+  let logicalHeight = 300
+
+  function setupCanvas() {
+    const canvas = canvasEl.value
+    if (!canvas) return
+    ctx = canvas.getContext('2d')
+    const dpr = window.devicePixelRatio || 1
+    const parent = canvas.parentElement
+    logicalWidth = parent.clientWidth
+    const header = parent.querySelector('.panel-header')
+    const headerHeight = header ? header.offsetHeight : 0
+    logicalHeight = Math.max(parent.clientHeight - headerHeight, 280)
+    canvas.width = logicalWidth * dpr
+    canvas.height = logicalHeight * dpr
+    canvas.style.width = logicalWidth + 'px'
+    canvas.style.height = logicalHeight + 'px'
+    ctx.scale(dpr, dpr)
+  }
+
+  setupCanvas()
+
+  feather.register(interp, 'canvas', (args) => {
+    if (!ctx) setupCanvas()
+    if (!ctx) throw new Error('canvas not available')
+    const sub = args[0]
+    switch (sub) {
+      case 'clear':
+        ctx.clearRect(0, 0, logicalWidth, logicalHeight)
+        break
+      case 'fill':
+        ctx.fillStyle = args[1]
+        break
+      case 'stroke':
+        ctx.strokeStyle = args[1]
+        break
+      case 'width':
+        ctx.lineWidth = parseFloat(args[1])
+        break
+      case 'rect':
+        ctx.fillRect(parseFloat(args[1]), parseFloat(args[2]), parseFloat(args[3]), parseFloat(args[4]))
+        break
+      case 'circle':
+        ctx.beginPath()
+        ctx.arc(parseFloat(args[1]), parseFloat(args[2]), parseFloat(args[3]), 0, Math.PI * 2)
+        ctx.fill()
+        break
+      case 'line':
+        ctx.beginPath()
+        ctx.moveTo(parseFloat(args[1]), parseFloat(args[2]))
+        ctx.lineTo(parseFloat(args[3]), parseFloat(args[4]))
+        ctx.stroke()
+        break
+      case 'polygon': {
+        const points = args.slice(1).map(parseFloat)
+        if (points.length >= 4) {
+          ctx.beginPath()
+          ctx.moveTo(points[0], points[1])
+          for (let i = 2; i < points.length; i += 2) {
+            ctx.lineTo(points[i], points[i + 1])
+          }
+          ctx.closePath()
+          ctx.fill()
+        }
+        break
+      }
+      case 'font':
+        ctx.font = args[1]
+        break
+      case 'text':
+        ctx.fillText(args.slice(3).join(' '), parseFloat(args[1]), parseFloat(args[2]))
+        break
+      default:
+        throw new Error(`unknown canvas subcommand "${sub}"`)
+    }
+    return ''
+  })
+
+  // Register 'animate' command - runs for 30 seconds max
+  const ANIMATION_DURATION_MS = 30000
+  feather.register(interp, 'animate', (args) => {
+    const procName = args[0] || 'draw'
+    stopAnimation()
+    animationStartTime = Date.now()
+    
+    function animationLoop() {
+      const elapsed = Date.now() - animationStartTime
+      if (elapsed >= ANIMATION_DURATION_MS) {
+        const seconds = Math.round(elapsed / 1000)
+        if (ctx) {
+          ctx.font = '14px monospace'
+          ctx.fillStyle = 'white'
+          ctx.fillText(`Animation stopped after ${seconds} seconds`, 10, 20)
+        }
+        log('Animation stopped (30s limit)', 'info')
+        stopAnimation()
+        return
+      }
+      
+      try {
+        feather.eval(interp, procName)
+        animationFrameId = requestAnimationFrame(animationLoop)
+      } catch (e) {
+        const errMsg = e.message || feather.getResult(interp) || JSON.stringify(e)
+        scriptError.value = errMsg
+        log(`Animation error: ${errMsg}`, 'error')
+        stopAnimation()
+      }
+    }
+    animationFrameId = requestAnimationFrame(animationLoop)
+    return ''
+  })
+}
+
+function clearError() {
+  scriptError.value = null
+}
+
 function runScript() {
   if (!ready.value || !script.value.trim()) return
 
+  stopAnimation()
+  clearError()
+  
+  // Create fresh interpreter for each run
+  interp = feather.create()
+  registerBuiltinCommands()
+  
   log('--- Running script ---', 'info')
 
   try {
@@ -323,7 +472,9 @@ function runScript() {
       log(`=> ${result}`, 'result')
     }
   } catch (e) {
-    log(`Error: ${e.message}`, 'error')
+    const errMsg = e.message || feather.getResult?.(interp) || String(e)
+    scriptError.value = errMsg
+    log(`Error: ${errMsg}`, 'error')
   }
 }
 
@@ -332,98 +483,7 @@ onMounted(async () => {
     const { createFeather } = await import('../feather.js')
     feather = await createFeather('/feather.wasm')
     interp = feather.create()
-
-    feather.register(interp, 'puts', (args) => {
-      log(args.join(' '))
-      return ''
-    })
-
-    feather.register(interp, 'clock', (args) => {
-      if (args[0] === 'seconds') return Math.floor(Date.now() / 1000)
-      if (args[0] === 'milliseconds') return Date.now()
-      throw new Error(`unknown clock subcommand "${args[0]}"`)
-    })
-
-    // Canvas commands
-    let ctx = null
-    let logicalWidth = 800
-    let logicalHeight = 300
-
-    function setupCanvas() {
-      const canvas = canvasEl.value
-      if (!canvas) return
-      ctx = canvas.getContext('2d')
-      const dpr = window.devicePixelRatio || 1
-      const parent = canvas.parentElement
-      logicalWidth = parent.clientWidth
-      // Use parent height minus header, or fallback to 280 (matches editor height)
-      const header = parent.querySelector('.panel-header')
-      const headerHeight = header ? header.offsetHeight : 0
-      logicalHeight = Math.max(parent.clientHeight - headerHeight, 280)
-      canvas.width = logicalWidth * dpr
-      canvas.height = logicalHeight * dpr
-      canvas.style.width = logicalWidth + 'px'
-      canvas.style.height = logicalHeight + 'px'
-      ctx.scale(dpr, dpr)
-    }
-
-    setupCanvas()
-
-    feather.register(interp, 'canvas', (args) => {
-      if (!ctx) setupCanvas()
-      if (!ctx) throw new Error('canvas not available')
-      const sub = args[0]
-      switch (sub) {
-        case 'clear':
-          ctx.clearRect(0, 0, logicalWidth, logicalHeight)
-          break
-        case 'fill':
-          ctx.fillStyle = args[1]
-          break
-        case 'stroke':
-          ctx.strokeStyle = args[1]
-          break
-        case 'width':
-          ctx.lineWidth = parseFloat(args[1])
-          break
-        case 'rect':
-          ctx.fillRect(parseFloat(args[1]), parseFloat(args[2]), parseFloat(args[3]), parseFloat(args[4]))
-          break
-        case 'circle':
-          ctx.beginPath()
-          ctx.arc(parseFloat(args[1]), parseFloat(args[2]), parseFloat(args[3]), 0, Math.PI * 2)
-          ctx.fill()
-          break
-        case 'line':
-          ctx.beginPath()
-          ctx.moveTo(parseFloat(args[1]), parseFloat(args[2]))
-          ctx.lineTo(parseFloat(args[3]), parseFloat(args[4]))
-          ctx.stroke()
-          break
-        case 'polygon': {
-          const points = args.slice(1).map(parseFloat)
-          if (points.length >= 4) {
-            ctx.beginPath()
-            ctx.moveTo(points[0], points[1])
-            for (let i = 2; i < points.length; i += 2) {
-              ctx.lineTo(points[i], points[i + 1])
-            }
-            ctx.closePath()
-            ctx.fill()
-          }
-          break
-        }
-        case 'font':
-          ctx.font = args[1]
-          break
-        case 'text':
-          ctx.fillText(args.slice(3).join(' '), parseFloat(args[1]), parseFloat(args[2]))
-          break
-        default:
-          throw new Error(`unknown canvas subcommand "${sub}"`)
-      }
-      return ''
-    })
+    registerBuiltinCommands()
 
     ready.value = true
     log('Feather interpreter ready', 'info')
@@ -473,6 +533,58 @@ onMounted(async () => {
   border-radius: 4px;
   font-size: 12px;
   cursor: pointer;
+}
+
+.editor-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-wrapper {
+  position: relative;
+  flex: 1;
+}
+
+.error-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+}
+
+.error-content {
+  background: rgba(239, 68, 68, 0.9);
+  color: white;
+  padding: 16px 24px;
+  border-radius: 8px;
+  max-width: 80%;
+  text-align: center;
+}
+
+.error-title {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.error-message {
+  font-family: var(--vp-font-family-mono);
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.error-hint {
+  margin-top: 12px;
+  font-size: 11px;
+  opacity: 0.7;
 }
 
 .editor-container {

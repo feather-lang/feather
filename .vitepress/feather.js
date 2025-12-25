@@ -1774,7 +1774,7 @@ async function createFeather(wasmSource) {
   const wasmModule = await WebAssembly.compile(wasmBytes);
 
   wasmTable = new WebAssembly.Table({ initial: 128, element: 'anyfunc' });
-  wasmMemory = new WebAssembly.Memory({ initial: 32 });
+  wasmMemory = new WebAssembly.Memory({ initial: 256 });
 
   wasmInstance = await WebAssembly.instantiate(wasmModule, {
     env: {
@@ -1950,6 +1950,10 @@ async function createFeather(wasmSource) {
 
     get exports() {
       return wasmInstance.exports;
+    },
+
+    getMemory() {
+      return wasmMemory;
     }
   };
 }
