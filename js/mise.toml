@@ -13,6 +13,7 @@ zig wasm-ld --no-entry \
   --export=feather_get_ops \
   --export=alloc \
   --export=free \
+  --export=wasm_call_compare \
   --import-memory \
   -o feather.wasm \
   $(for f in ../src/*.c wasm_alloc.c; do

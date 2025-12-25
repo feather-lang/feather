@@ -21,7 +21,7 @@ const TCL_CMD_NONE = 0;
 const TCL_CMD_BUILTIN = 1;
 const TCL_CMD_PROC = 2;
 
-const DEFAULT_RECURSION_LIMIT = 1000;
+const DEFAULT_RECURSION_LIMIT = 200;
 
 class FeatherInterp {
   constructor(id) {
@@ -744,7 +744,7 @@ async function createFeather(wasmSource) {
       const normalized = nsPath.replace(/^::/, '');
       const namespace = interp.namespaces.get(normalized);
       if (!namespace) return interp.store({ type: 'list', items: [] });
-      const children = [...namespace.children.values()].map(c => '::' + c);
+      const children = [...namespace.children.values()].map(c => '::' + c).sort();
       const items = children.map(c => interp.store({ type: 'string', value: c }));
       return interp.store({ type: 'list', items });
     },
@@ -754,8 +754,9 @@ async function createFeather(wasmSource) {
       const varName = interp.getString(name);
       const namespace = interp.getNamespace(nsPath);
       if (!namespace) return 0;
-      const value = namespace.vars.get(varName);
-      return value || 0;
+      const entry = namespace.vars.get(varName);
+      if (!entry) return 0;
+      return typeof entry === 'object' && 'value' in entry ? entry.value : entry;
     },
     feather_host_ns_set_var: (interpId, ns, name, value) => {
       const interp = interpreters.get(interpId);
@@ -1047,12 +1048,10 @@ async function createFeather(wasmSource) {
       const interp = interpreters.get(interpId);
       const obj = interp.get(list);
       if (obj?.type !== 'list') return TCL_ERROR;
-      // Use a simple stable sort - cmpFn would need to be called via WASM
-      // For now, sort by string representation
+      if (obj.items.length <= 1) return TCL_OK;
+      // Sort using the C comparison function via exported helper
       obj.items.sort((a, b) => {
-        const strA = interp.getString(a);
-        const strB = interp.getString(b);
-        return strA < strB ? -1 : strA > strB ? 1 : 0;
+        return wasmInstance.exports.wasm_call_compare(interpId, a, b, cmpFn, ctx);
       });
       interp.invalidateStringCache(obj);
       return TCL_OK;
@@ -1164,8 +1163,15 @@ async function createFeather(wasmSource) {
         writeI64(outPtr, o.value);
         return TCL_OK;
       }
-      const str = interp.getString(obj);
-      const val = parseInt(str, 10);
+      const str = interp.getString(obj).trim();
+      // Must be a valid integer string (not a float that parseInt would truncate)
+      if (!/^-?(?:0x[0-9a-fA-F]+|0o[0-7]+|0b[01]+|[0-9]+)$/.test(str)) {
+        interp.result = interp.store({ type: 'string', value: `expected integer but got "${str}"` });
+        return TCL_ERROR;
+      }
+      const val = parseInt(str, str.startsWith('0x') || str.startsWith('-0x') ? 16 :
+                           str.startsWith('0o') || str.startsWith('-0o') ? 8 :
+                           str.startsWith('0b') || str.startsWith('-0b') ? 2 : 10);
       if (isNaN(val)) {
         interp.result = interp.store({ type: 'string', value: `expected integer but got "${str}"` });
         return TCL_ERROR;
@@ -1190,7 +1196,12 @@ async function createFeather(wasmSource) {
         writeF64(outPtr, o.value);
         return TCL_OK;
       }
-      const str = interp.getString(obj);
+      const str = interp.getString(obj).trim();
+      // Must be a valid numeric string (parseFloat is too lenient - "0y" parses as 0)
+      if (!/^-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(str)) {
+        interp.result = interp.store({ type: 'string', value: `expected floating-point number but got "${str}"` });
+        return TCL_ERROR;
+      }
       const val = parseFloat(str);
       if (isNaN(val)) {
         interp.result = interp.store({ type: 'string', value: `expected floating-point number but got "${str}"` });

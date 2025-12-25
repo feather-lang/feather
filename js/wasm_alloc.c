@@ -19,3 +19,12 @@ void free(void *ptr) {
     // Bump allocator doesn't free
     (void)ptr;
 }
+
+// Comparison function type for list sorting
+typedef int (*ListCmpFunc)(unsigned int interp, unsigned int a, unsigned int b, void *ctx);
+
+// Helper to call a comparison function pointer - exported for JS to use
+int wasm_call_compare(unsigned int interp, unsigned int a, unsigned int b,
+                      ListCmpFunc fn, void *ctx) {
+    return fn(interp, a, b, ctx);
+}
