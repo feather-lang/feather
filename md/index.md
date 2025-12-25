@@ -53,3 +53,72 @@ Feather is for **short, interactive programs** - similar to bash. It's the thin 
 
 Feather compiles to **WebAssembly**, running in browsers and any WASM runtime. The Go implementation serves as the reference host.
 
+<div class="runs-everywhere-cards">
+  <div class="platform-card">
+    <div class="platform-logo-col">
+      <img src="/go-logo.svg" alt="Go Logo" class="platform-logo" />
+    </div>
+    <div class="platform-text">
+      <h3>Go</h3>
+      <p>Reference implementation. Embed Feather in any Go application with a simple API.</p>
+    </div>
+  </div>
+  <div class="platform-card">
+    <div class="platform-logo-col">
+      <img src="/webassembly-logo.svg" alt="WebAssembly Logo" class="platform-logo" />
+    </div>
+    <div class="platform-text">
+      <h3>JavaScript / WASM</h3>
+      <p>Run in browsers and Node.js via WebAssembly. Works anywhere WASM runs.</p>
+    </div>
+  </div>
+</div>
+
+<style>
+.runs-everywhere-cards {
+  display: flex;
+  gap: 24px;
+  margin-top: 24px;
+  flex-wrap: wrap;
+}
+
+.platform-card {
+  flex: 1;
+  min-width: 320px;
+  padding: 24px;
+  border-radius: 12px;
+  background: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-divider);
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.platform-logo-col {
+  flex-shrink: 0;
+  width: 80px;
+  display: flex;
+  justify-content: center;
+}
+
+.platform-logo {
+  height: 56px;
+  width: auto;
+}
+
+.platform-text {
+  text-align: left;
+}
+
+.platform-text h3 {
+  margin: 0 0 8px 0;
+  font-size: 1.2em;
+}
+
+.platform-text p {
+  margin: 0;
+  color: var(--vp-c-text-2);
+  font-size: 0.95em;
+}
+</style>
+

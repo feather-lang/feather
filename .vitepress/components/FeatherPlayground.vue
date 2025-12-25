@@ -133,6 +133,7 @@ const ready = ref(false)
 const outputEl = ref(null)
 const canvasEl = ref(null)
 const scriptError = ref(null)
+const persistentInterp = ref(false)
 
 let feather = null
 let interp = null
@@ -252,7 +253,7 @@ proc inner {} {
 }
 proc outer {} { inner }
 outer` },
-  { name: 'Host Functions', hostCode: `// Expose JavaScript functions to Feather
+  { name: 'Host Functions', persistent: true, hostCode: `// Expose JavaScript functions to Feather
 // Click "+ Register" to add them
 
 register("time", (args) => {
@@ -287,12 +288,18 @@ function loadExample(ex) {
   stopAnimation()
   script.value = ex.code
   showCanvas.value = ex.name === 'Canvas'
+  persistentInterp.value = ex.persistent || false
   if (ex.hostCode) {
     hostCode.value = ex.hostCode
     showHostCode.value = true
   } else {
     hostCode.value = ''
     showHostCode.value = false
+  }
+  // Reset interpreter when switching examples
+  if (feather) {
+    interp = feather.create()
+    registerBuiltinCommands()
   }
 }
 
@@ -415,7 +422,7 @@ function registerBuiltinCommands() {
   })
 
   // Register 'animate' command - runs for 30 seconds max
-  const ANIMATION_DURATION_MS = 30000
+  const ANIMATION_DURATION_MS = 5000
   feather.register(interp, 'animate', (args) => {
     const procName = args[0] || 'draw'
     stopAnimation()
@@ -460,9 +467,11 @@ function runScript() {
   stopAnimation()
   clearError()
   
-  // Create fresh interpreter for each run
-  interp = feather.create()
-  registerBuiltinCommands()
+  // Create fresh interpreter for each run, unless persistent mode is enabled
+  if (!persistentInterp.value) {
+    interp = feather.create()
+    registerBuiltinCommands()
+  }
   
   log('--- Running script ---', 'info')
 
