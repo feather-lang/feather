@@ -133,6 +133,58 @@ class FeatherInterp {
     return this.parseList(str);
   }
 
+  // getDict shimmers string/list to dict representation
+  // Returns { entries: [[keyHandle, valHandle], ...], order: [key1, key2, ...] } or null on error
+  getDict(handle) {
+    if (handle === 0) return null;
+    const obj = this.get(handle);
+    if (!obj) return null;
+
+    // Already a dict - return cached
+    if (obj.type === 'dict') {
+      return {
+        entries: obj.entries,
+        order: obj.entries.map(([k]) => this.getString(k))
+      };
+    }
+
+    // Shimmer: get as list first, then convert to dict
+    const items = this.getList(handle);
+    if (items.length % 2 !== 0) {
+      return null; // odd number of elements
+    }
+
+    // Build dict entries preserving order
+    const entries = [];
+    const order = [];
+    const seen = new Set();
+    for (let i = 0; i < items.length; i += 2) {
+      const keyStr = this.getString(items[i]);
+      if (!seen.has(keyStr)) {
+        seen.add(keyStr);
+        order.push(keyStr);
+      }
+      // Find existing entry to update, or add new
+      let found = false;
+      for (let j = 0; j < entries.length; j++) {
+        if (this.getString(entries[j][0]) === keyStr) {
+          entries[j][1] = items[i + 1];
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        entries.push([items[i], items[i + 1]]);
+      }
+    }
+
+    // Cache the parsed dict representation on the object
+    obj.type = 'dict';
+    obj.entries = entries;
+
+    return { entries, order };
+  }
+
   parseList(str) {
     const items = [];
     let i = 0;
@@ -844,20 +896,23 @@ async function createFeather(wasmSource) {
     },
     dict_get: (interpId, dict, key) => {
       const interp = interpreters.get(interpId);
-      const dictObj = interp.get(dict);
-      if (dictObj?.type !== 'dict') return 0;
+      const dictData = interp.getDict(dict);
+      if (!dictData) return 0;
       const keyStr = interp.getString(key);
-      for (const [k, v] of dictObj.entries) {
+      for (const [k, v] of dictData.entries) {
         if (interp.getString(k) === keyStr) return v;
       }
       return 0;
     },
     dict_set: (interpId, dict, key, value) => {
       const interp = interpreters.get(interpId);
-      let dictObj = interp.get(dict);
+      // Shimmer to dict first
+      const dictData = interp.getDict(dict);
+      const dictObj = interp.get(dict);
       if (!dictObj || dictObj.type !== 'dict') {
-        dictObj = { type: 'dict', entries: [] };
-        dict = interp.store(dictObj);
+        // Create new dict if shimmering failed
+        const newDict = { type: 'dict', entries: [[key, value]] };
+        return interp.store(newDict);
       }
       const keyStr = interp.getString(key);
       for (let i = 0; i < dictObj.entries.length; i++) {
@@ -871,35 +926,36 @@ async function createFeather(wasmSource) {
     },
     dict_exists: (interpId, dict, key) => {
       const interp = interpreters.get(interpId);
-      const dictObj = interp.get(dict);
-      if (dictObj?.type !== 'dict') return 0;
+      const dictData = interp.getDict(dict);
+      if (!dictData) return 0;
       const keyStr = interp.getString(key);
-      return dictObj.entries.some(([k]) => interp.getString(k) === keyStr) ? 1 : 0;
+      return dictData.entries.some(([k]) => interp.getString(k) === keyStr) ? 1 : 0;
     },
     dict_remove: (interpId, dict, key) => {
       const interp = interpreters.get(interpId);
+      const dictData = interp.getDict(dict);
+      if (!dictData) return dict;
       const dictObj = interp.get(dict);
-      if (dictObj?.type !== 'dict') return dict;
       const keyStr = interp.getString(key);
       dictObj.entries = dictObj.entries.filter(([k]) => interp.getString(k) !== keyStr);
       return dict;
     },
     dict_size: (interpId, dict) => {
       const interp = interpreters.get(interpId);
-      const dictObj = interp.get(dict);
-      return dictObj?.type === 'dict' ? dictObj.entries.length : 0;
+      const dictData = interp.getDict(dict);
+      return dictData ? dictData.entries.length : 0;
     },
     dict_keys: (interpId, dict) => {
       const interp = interpreters.get(interpId);
-      const dictObj = interp.get(dict);
-      if (dictObj?.type !== 'dict') return interp.store({ type: 'list', items: [] });
-      return interp.store({ type: 'list', items: dictObj.entries.map(([k]) => k) });
+      const dictData = interp.getDict(dict);
+      if (!dictData) return interp.store({ type: 'list', items: [] });
+      return interp.store({ type: 'list', items: dictData.entries.map(([k]) => k) });
     },
     dict_values: (interpId, dict) => {
       const interp = interpreters.get(interpId);
-      const dictObj = interp.get(dict);
-      if (dictObj?.type !== 'dict') return interp.store({ type: 'list', items: [] });
-      return interp.store({ type: 'list', items: dictObj.entries.map(([, v]) => v) });
+      const dictData = interp.getDict(dict);
+      if (!dictData) return interp.store({ type: 'list', items: [] });
+      return interp.store({ type: 'list', items: dictData.entries.map(([, v]) => v) });
     },
 
     // Integer operations
