@@ -199,7 +199,9 @@ class FeatherInterp {
       if (i >= str.length) break;
 
       let word = '';
+      let wasBraced = false;
       if (str[i] === '{') {
+        wasBraced = true;
         let depth = 1;
         i++;
         const start = i;
@@ -211,6 +213,7 @@ class FeatherInterp {
         word = str.slice(start, i);
         i++;
       } else if (str[i] === '"') {
+        wasBraced = true;
         i++;
         const start = i;
         while (i < str.length && str[i] !== '"') {
@@ -224,7 +227,7 @@ class FeatherInterp {
           word += str[i++];
         }
       }
-      if (word !== '') items.push(this.store({ type: 'string', value: word }));
+      if (word !== '' || wasBraced) items.push(this.store({ type: 'string', value: word }));
     }
     return items;
   }
