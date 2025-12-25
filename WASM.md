@@ -18,7 +18,7 @@ This document describes how to build feather as a WebAssembly module that can be
 │  (C → WASM)       │                    │  (JS or Python)   │
 │                   │                    │                   │
 │  extern functions │──── provided by ──→│  feather_host_*   │
-│  (97 imports)     │                    │  implementations  │
+│  (100 imports)    │                    │  implementations  │
 │                   │                    │                   │
 │  feather_script_eval  │←─── called by ─────│  Host code    │
 └───────────────────┘                    └───────────────────┘
@@ -35,7 +35,7 @@ const imports = {
     env: {
         feather_host_frame_push: (interp, cmd, args) => { /* ... */ },
         feather_host_string_intern: (interp, ptr, len) => { /* ... */ },
-        // ... all 97 host functions
+        // ... all 100 host functions
         memory: wasmMemory,
     }
 };
@@ -107,7 +107,7 @@ The same C source compiles for both native and WASM targets.
 | `alloc` | `(size: i32) → i32` | Allocate WASM memory |
 | `free` | `(ptr: i32) → void` | Free WASM memory |
 
-### Imports (97 functions in `env` namespace)
+### Imports (100 functions in `env` namespace)
 
 The host must provide implementations for all `feather_host_*` functions. See [src/host.h](src/host.h) for the complete list with signatures.
 
@@ -124,7 +124,7 @@ Functions are grouped by category:
 | List | 13 | `feather_host_list_push` |
 | Dict | 10 | `feather_host_dict_get` |
 | Integer | 2 | `feather_host_integer_create` |
-| Double | 2 | `feather_host_dbl_create` |
+| Double | 5 | `feather_host_dbl_create`, `feather_host_dbl_classify`, `feather_host_dbl_format`, `feather_host_dbl_math` |
 | Interp | 7 | `feather_host_interp_get_result` |
 | Bind | 1 | `feather_host_bind_unknown` |
 | Trace | 3 | `feather_host_trace_add` |
@@ -329,6 +329,34 @@ wasm-objdump -x feather.wasm | grep -A 200 "Import\["
 ```
 
 Should show all `feather_host_*` functions in the `env` module.
+
+## Floating-Point Support
+
+The double operations provide IEEE 754 compliant floating-point support:
+
+| Function | Purpose |
+|----------|---------|
+| `feather_host_dbl_create` | Create a double object |
+| `feather_host_dbl_get` | Extract double value from object |
+| `feather_host_dbl_classify` | Detect special values (Inf, -Inf, NaN, Zero, Normal) |
+| `feather_host_dbl_format` | Format double to string with specifier (%e, %f, %g) |
+| `feather_host_dbl_math` | Transcendental math operations (sin, cos, sqrt, pow, etc.) |
+
+The `classify` operation returns a `FeatherDoubleClass` enum:
+
+| Value | Constant | Meaning |
+|-------|----------|---------|
+| 0 | `FEATHER_DBL_NORMAL` | Finite, non-zero |
+| 1 | `FEATHER_DBL_ZERO` | Positive or negative zero |
+| 2 | `FEATHER_DBL_INF` | Positive infinity |
+| 3 | `FEATHER_DBL_NEG_INF` | Negative infinity |
+| 4 | `FEATHER_DBL_NAN` | Not a number |
+
+The `math` operation uses a `FeatherMathOp` enum to select the operation. Unary operations use only the `a` parameter; binary operations use both `a` and `b`:
+
+**Unary:** `sqrt`, `exp`, `log`, `log10`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `sinh`, `cosh`, `tanh`, `floor`, `ceil`, `round`, `abs`
+
+**Binary:** `pow`, `atan2`, `fmod`, `hypot`
 
 ## Known Limitations
 

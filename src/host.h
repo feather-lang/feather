@@ -171,7 +171,7 @@ extern FeatherObj feather_host_integer_create(FeatherInterp interp, int64_t val)
 extern FeatherResult feather_host_integer_get(FeatherInterp interp, FeatherObj obj, int64_t *out);
 
 /* ============================================================================
- * Double Operations (2 functions)
+ * Double Operations (5 functions)
  * ============================================================================ */
 
 extern FeatherObj feather_host_dbl_create(FeatherInterp interp, double val);
