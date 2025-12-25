@@ -6,9 +6,7 @@ Works in both **Node.js** and **browsers** using ES modules.
 
 ## Quick Start
 
-### Prerequisites
-
-**Node.js** requires the `--experimental-wasm-type-reflection` flag for `WebAssembly.Function` support.
+### Build
 
 Build feather.wasm using Zig (via mise):
 
@@ -61,13 +59,13 @@ Run scripts from the command line:
 
 ```bash
 # Start REPL
-node --experimental-wasm-type-reflection cli.js
+node cli.js
 
 # Execute a script file
-node --experimental-wasm-type-reflection cli.js script.tcl
+node cli.js script.tcl
 
 # Execute inline script
-node --experimental-wasm-type-reflection cli.js -e 'puts [expr {2 + 2}]'
+node cli.js -e 'puts [expr {2 + 2}]'
 ```
 
 ## API
@@ -148,14 +146,16 @@ const feather: Feather = await createFeather('./feather.wasm');
 
 ## Architecture
 
-The host uses WASM function tables for indirect calls:
+The host provides implementations for all `feather_host_*` functions as direct WASM imports:
 
-1. JavaScript implements all `FeatherHostOps` callbacks
-2. Functions are added to the WASM function table
-3. A `FeatherHostOps` struct is allocated in WASM memory with function table indices
-4. The C code uses `call_indirect` to dispatch through the table
+1. JavaScript implements all 97 host callbacks (frame, var, proc, string, list, etc.)
+2. These functions are provided in the `env` imports object during WASM instantiation
+3. The C code calls these via `extern` declarations that resolve to WASM imports
+4. All API calls pass `0` (NULL) for the `ops` parameter
 
 Objects live in JavaScript (managed by the host), while the C code only handles opaque integer handles.
+
+See [WASM.md](../WASM.md) for detailed architecture documentation.
 
 ## License
 
