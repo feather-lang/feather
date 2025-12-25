@@ -30,7 +30,7 @@ class FeatherInterp {
     this.nextHandle = 1;
     this.result = 0;
     // Global namespace - shared between namespace storage and frame 0
-    const globalNS = { vars: new Map(), children: new Map(), exports: [] };
+    const globalNS = { vars: new Map(), children: new Map(), exports: [], commands: new Map() };
     this.namespaces = new Map([['', globalNS]]);
     // Frame 0's vars IS the global namespace's vars (unified storage)
     this.frames = [{ vars: globalNS.vars, cmd: 0, args: 0, ns: '::' }];
@@ -242,7 +242,7 @@ class FeatherInterp {
       const parent = this.namespaces.get(current);
       current = current ? `${current}::${part}` : part;
       if (!this.namespaces.has(current)) {
-        const ns = { vars: new Map(), children: new Map(), exports: [] };
+        const ns = { vars: new Map(), children: new Map(), exports: [], commands: new Map() };
         this.namespaces.set(current, ns);
         if (parent) parent.children.set(part, current);
       }
@@ -452,6 +452,23 @@ async function createFeather(wasmSource) {
       const interp = interpreters.get(interpId);
       const procName = interp.getString(name);
       interp.procs.set(procName, { params, body });
+
+      // Also store in namespace commands map for ns_list_commands
+      // Extract namespace and simple name from qualified name (e.g., "::foo::bar" -> ns="foo", name="bar")
+      let nsPath = '';
+      let simpleName = procName;
+      if (procName.startsWith('::')) {
+        const withoutLeading = procName.slice(2);
+        const lastSep = withoutLeading.lastIndexOf('::');
+        if (lastSep !== -1) {
+          nsPath = withoutLeading.slice(0, lastSep);
+          simpleName = withoutLeading.slice(lastSep + 2);
+        } else {
+          simpleName = withoutLeading;
+        }
+      }
+      const namespace = interp.ensureNamespace('::' + nsPath);
+      namespace.commands.set(simpleName, { kind: TCL_CMD_PROC, fn: 0, params, body });
     },
     proc_exists: (interpId, name) => {
       const interp = interpreters.get(interpId);
@@ -615,8 +632,35 @@ async function createFeather(wasmSource) {
     ns_delete: (interpId, path) => {
       const interp = interpreters.get(interpId);
       const nsPath = interp.getString(path).replace(/^::/, '');
-      if (nsPath === '') return TCL_ERROR;
+      if (nsPath === '') return TCL_ERROR; // Cannot delete global namespace
+      const namespace = interp.namespaces.get(nsPath);
+      if (!namespace) return TCL_ERROR;
+
+      // Delete all children recursively
+      const deleteRecursive = (ns) => {
+        for (const childPath of ns.children.values()) {
+          const child = interp.namespaces.get(childPath);
+          if (child) deleteRecursive(child);
+          interp.namespaces.delete(childPath);
+        }
+      };
+      deleteRecursive(namespace);
       interp.namespaces.delete(nsPath);
+
+      // Remove from parent's children
+      const parts = nsPath.split('::').filter(p => p);
+      if (parts.length > 1) {
+        const parentPath = parts.slice(0, -1).join('::');
+        const parent = interp.namespaces.get(parentPath);
+        if (parent) {
+          const childName = parts[parts.length - 1];
+          parent.children.delete(childName);
+        }
+      } else {
+        // Direct child of global namespace
+        const global = interp.namespaces.get('');
+        if (global) global.children.delete(nsPath);
+      }
       return TCL_OK;
     },
     ns_exists: (interpId, path) => {
@@ -631,6 +675,11 @@ async function createFeather(wasmSource) {
     ns_parent: (interpId, ns, resultPtr) => {
       const interp = interpreters.get(interpId);
       const nsPath = interp.getString(ns).replace(/^::/, '');
+      // Global namespace has no parent - return empty string
+      if (nsPath === '') {
+        writeI32(resultPtr, interp.store({ type: 'string', value: '' }));
+        return TCL_OK;
+      }
       const parts = nsPath.split('::').filter(p => p);
       parts.pop();
       const parent = parts.length ? '::' + parts.join('::') : '::';
@@ -642,9 +691,12 @@ async function createFeather(wasmSource) {
       const nsPath = interp.getString(ns).replace(/^::/, '');
       const namespace = interp.namespaces.get(nsPath);
       if (!namespace) return interp.store({ type: 'list', items: [] });
-      const children = [...namespace.children.values()].map(c =>
-        interp.store({ type: 'string', value: '::' + c })
-      );
+      // Sort children alphabetically for consistent ordering (like Go)
+      const sortedNames = [...namespace.children.keys()].sort();
+      const children = sortedNames.map(name => {
+        const childPath = namespace.children.get(name);
+        return interp.store({ type: 'string', value: '::' + childPath });
+      });
       return interp.store({ type: 'list', items: children });
     },
     ns_get_var: (interpId, ns, name) => {
@@ -681,48 +733,70 @@ async function createFeather(wasmSource) {
     },
     ns_get_command: (interpId, ns, name, fnPtr) => {
       const interp = interpreters.get(interpId);
-      const nsPath = interp.getString(ns);
+      const nsPath = interp.getString(ns).replace(/^::/, '');
       const cmdName = interp.getString(name);
-      // Build fully qualified name for lookup
-      const fullName = nsPath === '::' ? `::${cmdName}` : `${nsPath}::${cmdName}`;
-      // Check builtins (stored with simple names)
+      const namespace = interp.namespaces.get(nsPath);
+
+      // Check namespace-local commands first
+      if (namespace?.commands.has(cmdName)) {
+        const cmd = namespace.commands.get(cmdName);
+        writeI32(fnPtr, cmd.fn || 0);
+        return cmd.kind;
+      }
+      // Fallback to global builtins for backwards compatibility
       if (interp.builtins.has(cmdName)) {
         writeI32(fnPtr, interp.builtins.get(cmdName));
         return TCL_CMD_BUILTIN;
-      }
-      // Check procs (stored with fully qualified names)
-      if (interp.procs.has(fullName)) {
-        writeI32(fnPtr, 0);
-        return TCL_CMD_PROC;
-      }
-      // Also check simple name for backwards compatibility
-      if (interp.procs.has(cmdName)) {
-        writeI32(fnPtr, 0);
-        return TCL_CMD_PROC;
       }
       writeI32(fnPtr, 0);
       return TCL_CMD_NONE;
     },
     ns_set_command: (interpId, ns, name, kind, fn, params, body) => {
       const interp = interpreters.get(interpId);
-      const procName = interp.getString(name);
+      const nsPath = interp.getString(ns).replace(/^::/, '');
+      const cmdName = interp.getString(name);
+      const namespace = interp.ensureNamespace('::' + nsPath);
+
+      // Store command in namespace
+      namespace.commands.set(cmdName, { kind, fn, params, body });
+
+      // Also store in legacy maps for backwards compatibility
       if (kind === TCL_CMD_BUILTIN) {
-        interp.builtins.set(procName, fn);
+        interp.builtins.set(cmdName, fn);
       } else if (kind === TCL_CMD_PROC) {
-        interp.procs.set(procName, { params, body });
+        const fullName = nsPath === '' ? `::${cmdName}` : `::${nsPath}::${cmdName}`;
+        interp.procs.set(fullName, { params, body });
       }
     },
     ns_delete_command: (interpId, ns, name) => {
       const interp = interpreters.get(interpId);
-      const procName = interp.getString(name);
-      if (interp.procs.delete(procName) || interp.builtins.delete(procName)) {
+      const nsPath = interp.getString(ns).replace(/^::/, '');
+      const cmdName = interp.getString(name);
+      const namespace = interp.namespaces.get(nsPath);
+
+      if (namespace?.commands.delete(cmdName)) {
+        // Also clean up legacy maps
+        interp.builtins.delete(cmdName);
+        const fullName = nsPath === '' ? `::${cmdName}` : `::${nsPath}::${cmdName}`;
+        interp.procs.delete(fullName);
+        return TCL_OK;
+      }
+      // Try legacy maps as fallback
+      if (interp.procs.delete(cmdName) || interp.builtins.delete(cmdName)) {
         return TCL_OK;
       }
       return TCL_ERROR;
     },
     ns_list_commands: (interpId, ns) => {
       const interp = interpreters.get(interpId);
-      const names = [...interp.procs.keys(), ...interp.builtins.keys()];
+      const nsPath = interp.getString(ns).replace(/^::/, '');
+      const namespace = interp.namespaces.get(nsPath);
+
+      if (!namespace) {
+        return interp.store({ type: 'list', items: [] });
+      }
+      // Get commands from namespace and sort alphabetically
+      const names = [...namespace.commands.keys()].sort();
       return interp.store({ type: 'list', items: names.map(n => interp.store({ type: 'string', value: n })) });
     },
     ns_get_exports: (interpId, ns) => {
@@ -753,14 +827,31 @@ async function createFeather(wasmSource) {
     },
     ns_copy_command: (interpId, srcNs, srcName, dstNs, dstName) => {
       const interp = interpreters.get(interpId);
+      const srcNsPath = interp.getString(srcNs).replace(/^::/, '');
+      const dstNsPath = interp.getString(dstNs).replace(/^::/, '');
       const src = interp.getString(srcName);
       const dst = interp.getString(dstName);
-      if (interp.builtins.has(src)) {
-        interp.builtins.set(dst, interp.builtins.get(src));
+
+      const srcNamespace = interp.namespaces.get(srcNsPath);
+      const dstNamespace = interp.ensureNamespace('::' + dstNsPath);
+
+      // Copy from namespace commands
+      if (srcNamespace?.commands.has(src)) {
+        const cmd = srcNamespace.commands.get(src);
+        dstNamespace.commands.set(dst, { ...cmd });
+        // Also update legacy maps
+        if (cmd.kind === TCL_CMD_BUILTIN) {
+          interp.builtins.set(dst, cmd.fn);
+        } else if (cmd.kind === TCL_CMD_PROC) {
+          const fullName = dstNsPath === '' ? `::${dst}` : `::${dstNsPath}::${dst}`;
+          interp.procs.set(fullName, { params: cmd.params, body: cmd.body });
+        }
         return TCL_OK;
       }
-      if (interp.procs.has(src)) {
-        interp.procs.set(dst, interp.procs.get(src));
+      // Fallback to legacy maps
+      if (interp.builtins.has(src)) {
+        interp.builtins.set(dst, interp.builtins.get(src));
+        dstNamespace.commands.set(dst, { kind: TCL_CMD_BUILTIN, fn: interp.builtins.get(src) });
         return TCL_OK;
       }
       return TCL_ERROR;
