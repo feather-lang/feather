@@ -888,15 +888,13 @@ static ExprValue parse_exponentiation(ExprParser *p) {
         set_syntax_error(p);
         return make_error();
       }
-      // pow(base, exp) - implemented as repeated multiplication for simplicity
-      double result = 1.0;
-      int neg = exp < 0;
-      if (neg) exp = -exp;
-      int64_t iexp = (int64_t)exp;
-      for (int64_t i = 0; i < iexp; i++) {
-        result *= base;
+      // Use host pow for proper handling of all cases (including fractional exponents)
+      double result;
+      if (p->ops->dbl.math(p->interp, FEATHER_MATH_POW, base, exp, &result) != TCL_OK) {
+        p->has_error = 1;
+        p->error_msg = p->ops->interp.get_result(p->interp);
+        return make_error();
       }
-      if (neg) result = 1.0 / result;
       return make_double(result);
     }
 
@@ -908,14 +906,13 @@ static ExprValue parse_exponentiation(ExprParser *p) {
         set_syntax_error(p);
         return make_error();
       }
-      double result = 1.0;
-      int neg = dexp < 0;
-      if (neg) dexp = -dexp;
-      int64_t iexp = (int64_t)dexp;
-      for (int64_t i = 0; i < iexp; i++) {
-        result *= dbase;
+      // Use host pow for proper handling
+      double result;
+      if (p->ops->dbl.math(p->interp, FEATHER_MATH_POW, dbase, dexp, &result) != TCL_OK) {
+        p->has_error = 1;
+        p->error_msg = p->ops->interp.get_result(p->interp);
+        return make_error();
       }
-      if (neg) result = 1.0 / result;
       return make_double(result);
     }
 
@@ -984,12 +981,10 @@ static ExprValue parse_multiplicative(ExprParser *p) {
           set_syntax_error(p);
           return make_error();
         }
-        if (rv == 0.0) {
-          set_error(p, "divide by zero", 14);
-          return make_error();
-        }
+        // IEEE 754: float division by zero produces Inf, -Inf, or NaN
         left = make_double(lv / rv);
       } else {
+        // Integer division
         int64_t lv, rv;
         if (!get_int(p, &left, &lv) || !get_int(p, &right, &rv)) {
           // Fall back to double
@@ -998,10 +993,7 @@ static ExprValue parse_multiplicative(ExprParser *p) {
             set_syntax_error(p);
             return make_error();
           }
-          if (drv == 0.0) {
-            set_error(p, "divide by zero", 14);
-            return make_error();
-          }
+          // IEEE 754: float division by zero produces Inf, -Inf, or NaN
           left = make_double(dlv / drv);
         } else {
           if (rv == 0) {

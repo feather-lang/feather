@@ -69,7 +69,13 @@ class FeatherInterp {
     if (typeof obj === 'string') return obj;
     if (obj.type === 'string') return obj.value;
     if (obj.type === 'int') return String(obj.value);
-    if (obj.type === 'double') return String(obj.value);
+    if (obj.type === 'double') {
+      // Format special values to match Go's strconv format
+      if (Number.isNaN(obj.value)) return 'NaN';
+      if (obj.value === Infinity) return '+Inf';
+      if (obj.value === -Infinity) return '-Inf';
+      return String(obj.value);
+    }
     if (obj.type === 'list') return obj.items.map(h => this.quoteListElement(this.getString(h))).join(' ');
     if (obj.type === 'dict') {
       const parts = [];
