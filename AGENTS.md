@@ -27,18 +27,20 @@ bun install <package>  # Install dependencies (not npm install)
 .vitepress/
   config.mjs           # VitePress configuration (title, nav, sidebar, theme)
   dist/                # Build output
+  theme/
+    index.js           # Theme entry point (extends default theme)
+    custom.css         # Custom brand colors based on Feather logo
+  components/
+    FeatherPlayground.vue  # Interactive WASM playground
+    CodeEditor.vue         # CodeMirror 6 editor with Gruvbox themes
+    tcl-lang.js            # TCL syntax highlighting for CodeMirror
+  feather.js           # Feather WASM JavaScript bindings
 
 md/                    # Source directory (srcDir in config)
   index.md             # Home page with hero, features, and playground
-  .vitepress/
-    components/
-      FeatherPlayground.vue  # Interactive WASM playground
-      CodeEditor.vue         # CodeMirror 6 editor with Gruvbox themes
-      tcl-lang.js            # TCL syntax highlighting for CodeMirror
-    feather.js               # Feather WASM JavaScript bindings
   public/
-    feather-logo.png         # Logo (served at /feather-logo.png)
-    feather.wasm             # Feather interpreter compiled to WASM
+    feather-logo.png   # Logo (served at /feather-logo.png)
+    feather.wasm       # Feather interpreter compiled to WASM
 ```
 
 ## Code Editor
@@ -58,7 +60,7 @@ TCL comments (`#`) are only recognized at command start:
 ## Feather WASM Integration
 
 Files copied from `~/projects/feather/js/`:
-- `feather.js` → `md/.vitepress/feather.js` (ES module, imported by Vue)
+- `feather.js` → `.vitepress/feather.js` (ES module, imported by Vue)
 - `feather.wasm` → `md/public/feather.wasm` (served statically)
 
 The playground registers host commands:
