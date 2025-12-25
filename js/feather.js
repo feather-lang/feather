@@ -257,6 +257,63 @@ async function createFeather(wasmSource) {
   let wasmMemory;
   let wasmTable;
   let wasmInstance;
+  let hostOpsPtr = 0; // Set after buildHostOps()
+
+  // Helper to fire variable traces
+  const fireVarTraces = (interp, varName, op) => {
+    const traces = interp.traces.variable.get(varName);
+    if (!traces || traces.length === 0) return;
+
+    for (const trace of traces) {
+      // Check if this trace matches the operation
+      const ops = trace.ops.split(/\s+/);
+      if (!ops.includes(op)) continue;
+
+      // Build the command: script name1 name2 op
+      const scriptStr = interp.getString(trace.script);
+      const cmd = `${scriptStr} ${varName} {} ${op}`;
+      const [ptr, len] = writeString(cmd);
+      wasmInstance.exports.feather_script_eval(hostOpsPtr, interp.id, ptr, len, 0);
+      wasmInstance.exports.free(ptr);
+    }
+  };
+
+  // Helper to convert fully qualified name to display name (strip :: for global commands)
+  const displayName = (name) => {
+    if (name.length > 2 && name.startsWith('::')) {
+      const rest = name.slice(2);
+      if (!rest.includes('::')) {
+        return rest;
+      }
+    }
+    return name;
+  };
+
+  // Helper to fire command traces
+  const fireCmdTraces = (interp, oldName, newName, op) => {
+    // Look up traces using the qualified name (traces are stored with :: prefix)
+    const qualifiedOld = oldName.startsWith('::') ? oldName : '::' + oldName;
+    const traces = interp.traces.command.get(qualifiedOld);
+    if (!traces || traces.length === 0) return;
+
+    for (const trace of traces) {
+      // Check if this trace matches the operation
+      const ops = trace.ops.split(/\s+/);
+      if (!ops.includes(op)) continue;
+
+      // Build the command: script oldName newName op
+      // Use display names (strip :: for global namespace commands)
+      const scriptStr = interp.getString(trace.script);
+      const displayOld = displayName(oldName);
+      const displayNew = displayName(newName);
+      // Empty strings must be properly quoted with {}
+      const quotedNew = displayNew === '' ? '{}' : displayNew;
+      const cmd = `${scriptStr} ${displayOld} ${quotedNew} ${op}`;
+      const [ptr, len] = writeString(cmd);
+      wasmInstance.exports.feather_script_eval(hostOpsPtr, interp.id, ptr, len, 0);
+      wasmInstance.exports.free(ptr);
+    }
+  };
 
   const readString = (ptr, len) => {
     const bytes = new Uint8Array(wasmMemory.buffer, ptr, len);
@@ -362,19 +419,23 @@ async function createFeather(wasmSource) {
       const frame = interp.currentFrame();
       const entry = frame.vars.get(varName);
       if (!entry) return 0;
+      let result;
       if (entry.link) {
         const targetFrame = interp.frames[entry.link.level];
         const targetEntry = targetFrame?.vars.get(entry.link.name);
         if (!targetEntry) return 0;
-        return typeof targetEntry === 'object' && 'value' in targetEntry ? targetEntry.value : targetEntry;
-      }
-      if (entry.nsLink) {
+        result = typeof targetEntry === 'object' && 'value' in targetEntry ? targetEntry.value : targetEntry;
+      } else if (entry.nsLink) {
         const ns = interp.getNamespace(entry.nsLink.ns);
         const nsEntry = ns?.vars.get(entry.nsLink.name);
         if (!nsEntry) return 0;
-        return typeof nsEntry === 'object' && 'value' in nsEntry ? nsEntry.value : nsEntry;
+        result = typeof nsEntry === 'object' && 'value' in nsEntry ? nsEntry.value : nsEntry;
+      } else {
+        result = entry.value || 0;
       }
-      return entry.value || 0;
+      // Fire read traces
+      fireVarTraces(interp, varName, 'read');
+      return result;
     },
     var_set: (interpId, name, value) => {
       const interp = interpreters.get(interpId);
@@ -395,11 +456,15 @@ async function createFeather(wasmSource) {
       } else {
         frame.vars.set(varName, { value });
       }
+      // Fire write traces
+      fireVarTraces(interp, varName, 'write');
     },
     var_unset: (interpId, name) => {
       const interp = interpreters.get(interpId);
       const varName = interp.getString(name);
       interp.currentFrame().vars.delete(varName);
+      // Fire unset traces
+      fireVarTraces(interp, varName, 'unset');
     },
     var_exists: (interpId, name) => {
       const interp = interpreters.get(interpId);
@@ -531,13 +596,19 @@ async function createFeather(wasmSource) {
       const interp = interpreters.get(interpId);
       const oldN = interp.getString(oldName);
       const newN = interp.getString(newName);
+      // Determine the operation for trace firing
+      const op = newN ? 'rename' : 'delete';
       if (interp.procs.has(oldN)) {
+        // Fire command traces before the rename/delete
+        fireCmdTraces(interp, oldN, newN, op);
         const proc = interp.procs.get(oldN);
         interp.procs.delete(oldN);
         if (newN) interp.procs.set(newN, proc);
         return TCL_OK;
       }
       if (interp.builtins.has(oldN)) {
+        // Fire command traces before the rename/delete
+        fireCmdTraces(interp, oldN, newN, op);
         const fn = interp.builtins.get(oldN);
         interp.builtins.delete(oldN);
         if (newN) interp.builtins.set(newN, fn);
@@ -1129,7 +1200,10 @@ async function createFeather(wasmSource) {
       const interp = interpreters.get(interpId);
       const cmdName = interp.getString(cmd);
       const hostFn = interp.hostCommands.get(cmdName);
-      if (!hostFn) return TCL_ERROR;
+      if (!hostFn) {
+        interp.result = interp.store({ type: 'string', value: `invalid command name "${cmdName}"` });
+        return TCL_ERROR;
+      }
 
       const argList = interp.getList(args).map(h => interp.getString(h));
       try {
@@ -1452,6 +1526,7 @@ async function createFeather(wasmSource) {
   };
 
   const opsPtr = buildHostOps();
+  hostOpsPtr = opsPtr; // Make available to fireVarTraces/fireCmdTraces
 
   return {
     create() {
