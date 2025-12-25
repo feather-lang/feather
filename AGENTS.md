@@ -68,6 +68,18 @@ The playground registers host commands:
 - `clock` - time functions
 - `canvas` - drawing commands (clear, fill, stroke, rect, circle, line, polygon, text, font)
 
+## Code Samples
+
+All code samples in documentation must use the `<FeatherPlayground />` component so they are interactive and runnable. Never use static code blocks for Feather/TCL examples.
+
+```vue
+<script setup>
+import FeatherPlayground from '../.vitepress/components/FeatherPlayground.vue'
+</script>
+
+<FeatherPlayground />
+```
+
 ## Deployment
 
 Deployed to Cloudflare Pages as `feather-lang` project.

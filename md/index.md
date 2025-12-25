@@ -49,25 +49,6 @@ Lua excels at programming extensions for large applications.
 
 Feather is for **short, interactive programs** - similar to bash. It's the thin glue layer that lets you talk to your programs while they're running.
 
-## Quick Example
-
-```tcl
-# Define a procedure
-proc greet {name} {
-    return "Hello, $name!"
-}
-puts [greet "World"]
-
-# Work with data structures
-set config [dict create host localhost port 8080]
-puts "Server: [dict get $config host]:[dict get $config port]"
-
-# Control flow
-foreach fruit {apple banana cherry} {
-    puts "I like $fruit"
-}
-```
-
 ## Runs Everywhere
 
 Feather compiles to **WebAssembly**, running in browsers and any WASM runtime. The Go implementation serves as the reference host.

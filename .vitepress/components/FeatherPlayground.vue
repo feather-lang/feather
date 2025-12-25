@@ -50,7 +50,7 @@
         </div>
       </div>
 
-      <div class="panel canvas-panel" v-else-if="showCanvas">
+      <div class="panel canvas-panel" v-else>
         <div class="panel-header">Canvas</div>
         <canvas ref="canvasEl" width="800" height="300"></canvas>
       </div>
@@ -507,8 +507,8 @@ onMounted(async () => {
 }
 
 .register-btn {
-  background: #4ade80;
-  color: #000;
+  background: var(--vp-c-brand-1);
+  color: white;
   border: none;
   padding: 4px 10px;
   border-radius: 4px;
@@ -520,10 +520,6 @@ onMounted(async () => {
 .register-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.register-btn:hover:not(:disabled) {
-  background: #22c55e;
 }
 
 .panel textarea {

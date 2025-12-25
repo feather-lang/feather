@@ -40,6 +40,14 @@ export default defineConfig({
   vite: {
     ssr: {
       noExternal: ['feather.js']
+    },
+    build: {
+      rollupOptions: {
+        onwarn(warning, warn) {
+          if (warning.message.includes('Module "fs" has been externalized')) return
+          warn(warning)
+        }
+      }
     }
   }
 });
