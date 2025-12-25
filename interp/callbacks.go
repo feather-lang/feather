@@ -40,22 +40,20 @@ func goBindUnknown(interp C.FeatherInterp, cmd C.FeatherObj, args C.FeatherObj, 
 		return C.TCL_ERROR
 	}
 
-	if i.UnknownHandler != nil {
-		// Convert args FeatherObj (list) to []FeatherObj slice
-		var argSlice []FeatherObj
-		if args != 0 {
-			o := i.getObject(FeatherObj(args))
-			if o != nil && o.isList {
-				argSlice = make([]FeatherObj, len(o.listItems))
-				copy(argSlice, o.listItems)
-			}
+	// Convert args FeatherObj (list) to []FeatherObj slice
+	var argSlice []FeatherObj
+	if args != 0 {
+		o := i.getObject(FeatherObj(args))
+		if o != nil && o.isList {
+			argSlice = make([]FeatherObj, len(o.listItems))
+			copy(argSlice, o.listItems)
 		}
-		result := i.UnknownHandler(i, FeatherObj(cmd), argSlice)
-		*value = C.FeatherObj(i.result)
-		return C.FeatherResult(result)
 	}
 
-	return C.TCL_ERROR
+	// Dispatch to registered Go commands
+	result := i.dispatch(FeatherObj(cmd), argSlice)
+	*value = C.FeatherObj(i.result)
+	return C.FeatherResult(result)
 }
 
 //export goStringIntern

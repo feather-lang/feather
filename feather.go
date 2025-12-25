@@ -40,25 +40,25 @@ import (
 
 // Interp is a TCL interpreter instance.
 type Interp struct {
-	host *interp.Host
+	i *interp.Interp
 }
 
 // New creates a new TCL interpreter.
 func New() *Interp {
 	return &Interp{
-		host: interp.NewHost(),
+		i: interp.NewInterp(),
 	}
 }
 
 // Close releases resources associated with the interpreter.
 // Must be called when the interpreter is no longer needed.
 func (i *Interp) Close() {
-	i.host.Close()
+	i.i.Close()
 }
 
 // Eval evaluates a TCL script and returns the result.
 func (i *Interp) Eval(script string) (Value, error) {
-	result, err := i.host.EvalTyped(script)
+	result, err := i.i.EvalTyped(script)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +105,7 @@ func (i *Interp) Call(cmd string, args ...any) (Value, error) {
 
 // Var returns the value of a variable, or nil if not found.
 func (i *Interp) Var(name string) Value {
-	val := i.host.Interp.GetVar(name)
+	val := i.i.GetVar(name)
 	if val == "" {
 		// Check if variable actually exists with empty value
 		// For now, return empty string value
@@ -117,7 +117,7 @@ func (i *Interp) Var(name string) Value {
 // SetVar sets a variable to a value.
 // The value is automatically converted from Go types to TCL.
 func (i *Interp) SetVar(name string, val any) {
-	i.host.Interp.SetVar(name, toTclString(val))
+	i.i.SetVar(name, toTclString(val))
 }
 
 // Register adds a Go function as a TCL command.
@@ -131,23 +131,23 @@ func (i *Interp) SetVar(name string, val any) {
 //   - etc.
 func (i *Interp) Register(name string, fn any) {
 	wrapper := wrapFunc(i, fn)
-	i.host.Register(name, wrapper)
+	i.i.Register(name, wrapper)
 }
 
 // Parse checks if a script is syntactically complete.
 // Returns ParseOK, ParseIncomplete, or ParseError.
 func (i *Interp) Parse(script string) ParseResult {
-	pr := i.host.Parse(script)
+	pr := i.i.Parse(script)
 	return ParseResult{
 		Status:  ParseStatus(pr.Status),
 		Message: pr.ErrorMessage,
 	}
 }
 
-// Internal returns the underlying interp.Host for advanced usage.
+// Internal returns the underlying interp.Interp for advanced usage.
 // This is an escape hatch for features not yet exposed in the public API.
-func (i *Interp) Internal() *interp.Host {
-	return i.host
+func (i *Interp) Internal() *interp.Interp {
+	return i.i
 }
 
 // ParseStatus indicates the result of parsing a script.
@@ -192,8 +192,8 @@ type TypeDef[T any] struct {
 //	        "handle": func(m *http.ServeMux, pattern, handler string) { ... },
 //	    },
 //	})
-func Register[T any](i *Interp, name string, def TypeDef[T]) error {
-	return interp.DefineType[T](i.host, name, interp.ForeignTypeDef[T]{
+func Register[T any](fi *Interp, name string, def TypeDef[T]) error {
+	return interp.DefineType[T](fi.i, name, interp.ForeignTypeDef[T]{
 		New:       def.New,
 		Methods:   interp.Methods(def.Methods),
 		StringRep: def.String,

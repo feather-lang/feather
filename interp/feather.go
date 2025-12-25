@@ -144,8 +144,10 @@ type Interp struct {
 	varTraces      map[string][]TraceEntry // variable name -> traces
 	cmdTraces      map[string][]TraceEntry // command name -> traces
 
-	// UnknownHandler is called when an unknown command is invoked.
-	UnknownHandler CommandFunc
+	// Commands holds registered Go command implementations.
+	// These are dispatched via the unknown handler when the C layer
+	// doesn't find a builtin or proc.
+	Commands map[string]CommandFunc
 
 	// ForeignRegistry stores foreign type definitions for the high-level API.
 	// Set by DefineType when registering foreign types.
@@ -178,6 +180,7 @@ func NewInterp() *Interp {
 		namespaces: make(map[string]*Namespace),
 		varTraces:  make(map[string][]TraceEntry),
 		cmdTraces:  make(map[string][]TraceEntry),
+		Commands:   make(map[string]CommandFunc),
 		nextID:     1,
 	}
 	// Create the global namespace
@@ -213,6 +216,29 @@ func NewInterp() *Interp {
 // Must be called when the interpreter is no longer needed.
 func (i *Interp) Close() {
 	cgo.Handle(i.handle).Delete()
+}
+
+// Register adds a Go command to the interpreter.
+// The command will be invoked when the C layer doesn't find a builtin or proc.
+func (i *Interp) Register(name string, fn CommandFunc) {
+	i.Commands[name] = fn
+	// Also register in interpreter's namespace storage for enumeration.
+	// These are Go commands dispatched via bind.unknown, not C builtins.
+	// We set builtin to nil so the C code falls through to unknown handler.
+	i.globalNamespace.commands[name] = &Command{
+		cmdType: CmdBuiltin,
+		builtin: nil, // nil means dispatch via bind.unknown
+	}
+}
+
+// dispatch handles command lookup and execution for Go-registered commands.
+func (i *Interp) dispatch(cmd FeatherObj, args []FeatherObj) FeatherResult {
+	cmdStr := i.GetString(cmd)
+	if fn, ok := i.Commands[cmdStr]; ok {
+		return fn(i, cmd, args)
+	}
+	i.SetErrorString("invalid command name \"" + cmdStr + "\"")
+	return ResultError
 }
 
 // DefaultRecursionLimit is the default maximum call stack depth.
@@ -459,6 +485,71 @@ type EvalError struct {
 
 func (e *EvalError) Error() string {
 	return e.Message
+}
+
+// ResultInfo contains type information about a TCL value.
+type ResultInfo struct {
+	String      string
+	IsInt       bool
+	IntVal      int64
+	IsDouble    bool
+	DoubleVal   float64
+	IsList      bool
+	ListItems   []ResultInfo
+	IsDict      bool
+	DictKeys    []string
+	DictValues  map[string]ResultInfo
+	IsForeign   bool
+	ForeignType string
+}
+
+// EvalTyped evaluates a script and returns typed result info.
+func (i *Interp) EvalTyped(script string) (ResultInfo, error) {
+	_, err := i.Eval(script)
+	if err != nil {
+		return ResultInfo{}, err
+	}
+	return i.getResultInfo(i.result), nil
+}
+
+// getResultInfo extracts type information from a FeatherObj.
+func (i *Interp) getResultInfo(h FeatherObj) ResultInfo {
+	obj := i.objects[h]
+	if obj == nil {
+		return ResultInfo{String: ""}
+	}
+
+	info := ResultInfo{
+		String:      i.GetString(h),
+		IsInt:       obj.isInt,
+		IsDouble:    obj.isDouble,
+		IsList:      obj.isList,
+		IsDict:      obj.isDict,
+		IsForeign:   obj.isForeign,
+		ForeignType: obj.foreignType,
+	}
+
+	if obj.isInt {
+		info.IntVal = obj.intVal
+	}
+	if obj.isDouble {
+		info.DoubleVal = obj.dblVal
+	}
+	if obj.isList {
+		info.ListItems = make([]ResultInfo, len(obj.listItems))
+		for idx, item := range obj.listItems {
+			info.ListItems[idx] = i.getResultInfo(item)
+		}
+	}
+	if obj.isDict {
+		info.DictKeys = obj.dictOrder
+		info.DictValues = make(map[string]ResultInfo, len(obj.dictItems))
+		for k, v := range obj.dictItems {
+			info.DictValues[k] = i.getResultInfo(v)
+		}
+	}
+
+	return info
 }
 
 // internString stores a string and returns its handle

@@ -1,122 +1,73 @@
 package interp
 
-// Host contains the interpreter and registered commands.
+// Host is a deprecated alias for Interp.
+// Use NewInterp() instead of NewHost().
+//
+// Deprecated: Host exists only for backward compatibility.
+// All functionality has been merged into Interp.
 type Host struct {
 	Interp   *Interp
 	Commands map[string]CommandFunc
 }
 
-// NewHost creates a new Host with an interpreter.
+// NewHost creates a new interpreter.
+//
+// Deprecated: Use NewInterp() instead.
 func NewHost() *Host {
-	h := &Host{
-		Interp:   NewInterp(),
-		Commands: make(map[string]CommandFunc),
+	i := NewInterp()
+	return &Host{
+		Interp:   i,
+		Commands: i.Commands,
 	}
-
-	// Set up the unknown handler to dispatch to registered commands
-	h.Interp.UnknownHandler = h.dispatch
-
-	return h
 }
 
-// Register adds a command to the host.
+// Register adds a command to the interpreter.
+//
+// Deprecated: Use Interp.Register() instead.
 func (h *Host) Register(name string, fn CommandFunc) {
-	h.Commands[name] = fn
-	// Also register in interpreter's namespace storage for enumeration.
-	// These are Go commands dispatched via bind.unknown, not C builtins.
-	// We set builtin to nil so the C code falls through to unknown handler.
-	h.Interp.globalNamespace.commands[name] = &Command{
-		cmdType: CmdBuiltin,
-		builtin: nil, // nil means dispatch via bind.unknown
-	}
+	h.Interp.Register(name, fn)
 }
 
 // Parse parses a script and returns the parse result.
+//
+// Deprecated: Use Interp.Parse() instead.
 func (h *Host) Parse(script string) ParseResult {
 	return h.Interp.Parse(script)
 }
 
 // Eval evaluates a script and returns the result as a string.
+//
+// Deprecated: Use Interp.Eval() instead.
 func (h *Host) Eval(script string) (string, error) {
 	return h.Interp.Eval(script)
 }
 
-// ResultInfo contains type information about a TCL value.
-type ResultInfo struct {
-	String      string
-	IsInt       bool
-	IntVal      int64
-	IsDouble    bool
-	DoubleVal   float64
-	IsList      bool
-	ListItems   []ResultInfo
-	IsDict      bool
-	DictKeys    []string
-	DictValues  map[string]ResultInfo
-	IsForeign   bool
-	ForeignType string
-}
-
 // EvalTyped evaluates a script and returns typed result info.
+//
+// Deprecated: Use Interp.EvalTyped() instead.
 func (h *Host) EvalTyped(script string) (ResultInfo, error) {
-	_, err := h.Interp.Eval(script)
-	if err != nil {
-		return ResultInfo{}, err
-	}
-	return h.Interp.getResultInfo(h.Interp.result), nil
+	return h.Interp.EvalTyped(script)
 }
 
-// getResultInfo extracts type information from a FeatherObj.
-func (i *Interp) getResultInfo(h FeatherObj) ResultInfo {
-	obj := i.objects[h]
-	if obj == nil {
-		return ResultInfo{String: ""}
-	}
-
-	info := ResultInfo{
-		String:      i.GetString(h),
-		IsInt:       obj.isInt,
-		IsDouble:    obj.isDouble,
-		IsList:      obj.isList,
-		IsDict:      obj.isDict,
-		IsForeign:   obj.isForeign,
-		ForeignType: obj.foreignType,
-	}
-
-	if obj.isInt {
-		info.IntVal = obj.intVal
-	}
-	if obj.isDouble {
-		info.DoubleVal = obj.dblVal
-	}
-	if obj.isList {
-		info.ListItems = make([]ResultInfo, len(obj.listItems))
-		for idx, item := range obj.listItems {
-			info.ListItems[idx] = i.getResultInfo(item)
-		}
-	}
-	if obj.isDict {
-		info.DictKeys = obj.dictOrder
-		info.DictValues = make(map[string]ResultInfo, len(obj.dictItems))
-		for k, v := range obj.dictItems {
-			info.DictValues[k] = i.getResultInfo(v)
-		}
-	}
-
-	return info
-}
-
-// Close releases resources associated with the host.
+// Close releases resources associated with the interpreter.
+//
+// Deprecated: Use Interp.Close() instead.
 func (h *Host) Close() {
 	h.Interp.Close()
 }
 
-// dispatch handles command lookup and execution.
-func (h *Host) dispatch(i *Interp, cmd FeatherObj, args []FeatherObj) FeatherResult {
-	cmdStr := i.GetString(cmd)
-	if fn, ok := h.Commands[cmdStr]; ok {
-		return fn(i, cmd, args)
-	}
-	i.SetErrorString("invalid command name \"" + cmdStr + "\"")
-	return ResultError
+// GetForeignMethods returns the method names for a foreign type.
+func (h *Host) GetForeignMethods(typeName string) []string {
+	return h.Interp.GetForeignMethods(typeName)
+}
+
+// GetForeignStringRep returns a custom string representation for a foreign object.
+func (h *Host) GetForeignStringRep(obj FeatherObj) string {
+	return h.Interp.GetForeignStringRep(obj)
+}
+
+// DefineTypeHost registers a foreign type using the deprecated Host.
+// Deprecated: Use DefineType with *Interp instead.
+func DefineTypeHost[T any](host *Host, typeName string, def ForeignTypeDef[T]) error {
+	return DefineType[T](host.Interp, typeName, def)
 }

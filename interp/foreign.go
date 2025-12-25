@@ -72,24 +72,24 @@ func newForeignRegistry() *ForeignRegistry {
 	}
 }
 
-// DefineType registers a foreign type with the host.
+// DefineType registers a foreign type with the interpreter.
 // After registration, the type name becomes a command that supports "new" to create instances.
 //
 // Example:
 //
-//	DefineType[*http.ServeMux](host, "Mux", ForeignTypeDef[*http.ServeMux]{
+//	DefineType[*http.ServeMux](interp, "Mux", ForeignTypeDef[*http.ServeMux]{
 //	    New: func() *http.ServeMux { return http.NewServeMux() },
 //	    Methods: Methods{
 //	        "handle": func(m *http.ServeMux, pattern string, handler string) { ... },
 //	    },
 //	})
-func DefineType[T any](host *Host, typeName string, def ForeignTypeDef[T]) error {
-	if host.Interp.ForeignRegistry == nil {
-		host.Interp.ForeignRegistry = newForeignRegistry()
+func DefineType[T any](i *Interp, typeName string, def ForeignTypeDef[T]) error {
+	if i.ForeignRegistry == nil {
+		i.ForeignRegistry = newForeignRegistry()
 	}
 
-	host.Interp.ForeignRegistry.mu.Lock()
-	defer host.Interp.ForeignRegistry.mu.Unlock()
+	i.ForeignRegistry.mu.Lock()
+	defer i.ForeignRegistry.mu.Unlock()
 
 	// Validate that New is provided
 	if def.New == nil {
@@ -118,19 +118,19 @@ func DefineType[T any](host *Host, typeName string, def ForeignTypeDef[T]) error
 	}
 
 	// Store the type info
-	host.Interp.ForeignRegistry.types[typeName] = info
-	host.Interp.ForeignRegistry.counters[typeName] = 1
+	i.ForeignRegistry.types[typeName] = info
+	i.ForeignRegistry.counters[typeName] = 1
 
 	// Register the constructor command (e.g., "Mux")
-	host.Register(typeName, func(i *Interp, cmd FeatherObj, args []FeatherObj) FeatherResult {
-		return host.foreignConstructor(typeName, i, cmd, args)
+	i.Register(typeName, func(interp *Interp, cmd FeatherObj, args []FeatherObj) FeatherResult {
+		return interp.foreignConstructor(typeName, cmd, args)
 	})
 
 	return nil
 }
 
 // foreignConstructor handles "TypeName new" and "TypeName subcommand" calls.
-func (h *Host) foreignConstructor(typeName string, i *Interp, cmd FeatherObj, args []FeatherObj) FeatherResult {
+func (i *Interp) foreignConstructor(typeName string, cmd FeatherObj, args []FeatherObj) FeatherResult {
 	if len(args) == 0 {
 		i.SetErrorString(fmt.Sprintf("wrong # args: should be \"%s subcommand ?arg ...?\"", typeName))
 		return ResultError
@@ -143,9 +143,9 @@ func (h *Host) foreignConstructor(typeName string, i *Interp, cmd FeatherObj, ar
 	}
 
 	// Get type info
-	h.Interp.ForeignRegistry.mu.RLock()
-	info, ok := h.Interp.ForeignRegistry.types[typeName]
-	h.Interp.ForeignRegistry.mu.RUnlock()
+	i.ForeignRegistry.mu.RLock()
+	info, ok := i.ForeignRegistry.types[typeName]
+	i.ForeignRegistry.mu.RUnlock()
 	if !ok {
 		i.SetErrorString(fmt.Sprintf("unknown foreign type \"%s\"", typeName))
 		return ResultError
@@ -160,11 +160,11 @@ func (h *Host) foreignConstructor(typeName string, i *Interp, cmd FeatherObj, ar
 	value := results[0].Interface()
 
 	// Generate handle name (e.g., "mux1")
-	h.Interp.ForeignRegistry.mu.Lock()
-	counter := h.Interp.ForeignRegistry.counters[typeName]
-	h.Interp.ForeignRegistry.counters[typeName] = counter + 1
+	i.ForeignRegistry.mu.Lock()
+	counter := i.ForeignRegistry.counters[typeName]
+	i.ForeignRegistry.counters[typeName] = counter + 1
 	handleName := fmt.Sprintf("%s%d", strings.ToLower(typeName), counter)
-	h.Interp.ForeignRegistry.mu.Unlock()
+	i.ForeignRegistry.mu.Unlock()
 
 	// Create the foreign object
 	objHandle := i.NewForeign(typeName, value)
@@ -181,14 +181,14 @@ func (h *Host) foreignConstructor(typeName string, i *Interp, cmd FeatherObj, ar
 		objHandle:  objHandle,
 		value:      value,
 	}
-	h.Interp.ForeignRegistry.mu.Lock()
-	h.Interp.ForeignRegistry.instances[handleName] = instance
-	h.Interp.ForeignRegistry.handleToType[objHandle] = instance
-	h.Interp.ForeignRegistry.mu.Unlock()
+	i.ForeignRegistry.mu.Lock()
+	i.ForeignRegistry.instances[handleName] = instance
+	i.ForeignRegistry.handleToType[objHandle] = instance
+	i.ForeignRegistry.mu.Unlock()
 
 	// Register the handle as a command (object-as-command pattern)
-	h.Register(handleName, func(i *Interp, cmd FeatherObj, args []FeatherObj) FeatherResult {
-		return h.foreignMethodDispatch(handleName, i, cmd, args)
+	i.Register(handleName, func(interp *Interp, cmd FeatherObj, args []FeatherObj) FeatherResult {
+		return interp.foreignMethodDispatch(handleName, cmd, args)
 	})
 
 	// Return the handle name
@@ -198,7 +198,7 @@ func (h *Host) foreignConstructor(typeName string, i *Interp, cmd FeatherObj, ar
 
 // foreignMethodDispatch handles method calls on foreign objects.
 // Called when "$handle method args..." is evaluated.
-func (h *Host) foreignMethodDispatch(handleName string, i *Interp, cmd FeatherObj, args []FeatherObj) FeatherResult {
+func (i *Interp) foreignMethodDispatch(handleName string, cmd FeatherObj, args []FeatherObj) FeatherResult {
 	if len(args) == 0 {
 		i.SetErrorString(fmt.Sprintf("wrong # args: should be \"%s method ?arg ...?\"", handleName))
 		return ResultError
@@ -208,9 +208,9 @@ func (h *Host) foreignMethodDispatch(handleName string, i *Interp, cmd FeatherOb
 	methodArgs := args[1:]
 
 	// Get the instance
-	h.Interp.ForeignRegistry.mu.RLock()
-	instance, ok := h.Interp.ForeignRegistry.instances[handleName]
-	h.Interp.ForeignRegistry.mu.RUnlock()
+	i.ForeignRegistry.mu.RLock()
+	instance, ok := i.ForeignRegistry.instances[handleName]
+	i.ForeignRegistry.mu.RUnlock()
 	if !ok {
 		i.SetErrorString(fmt.Sprintf("invalid object handle \"%s\"", handleName))
 		return ResultError
@@ -218,13 +218,13 @@ func (h *Host) foreignMethodDispatch(handleName string, i *Interp, cmd FeatherOb
 
 	// Handle built-in methods
 	if methodName == "destroy" {
-		return h.foreignDestroy(handleName, i)
+		return i.foreignDestroy(handleName)
 	}
 
 	// Get type info
-	h.Interp.ForeignRegistry.mu.RLock()
-	info, ok := h.Interp.ForeignRegistry.types[instance.typeName]
-	h.Interp.ForeignRegistry.mu.RUnlock()
+	i.ForeignRegistry.mu.RLock()
+	info, ok := i.ForeignRegistry.types[instance.typeName]
+	i.ForeignRegistry.mu.RUnlock()
 	if !ok {
 		i.SetErrorString(fmt.Sprintf("unknown foreign type \"%s\"", instance.typeName))
 		return ResultError
@@ -244,11 +244,11 @@ func (h *Host) foreignMethodDispatch(handleName string, i *Interp, cmd FeatherOb
 	}
 
 	// Call the method with argument conversion
-	return h.callForeignMethod(i, instance.value, methodFunc, methodArgs)
+	return i.callForeignMethod(instance.value, methodFunc, methodArgs)
 }
 
 // callForeignMethod calls a method with automatic argument conversion.
-func (h *Host) callForeignMethod(i *Interp, receiver any, methodFunc reflect.Value, args []FeatherObj) FeatherResult {
+func (i *Interp) callForeignMethod(receiver any, methodFunc reflect.Value, args []FeatherObj) FeatherResult {
 	methodType := methodFunc.Type()
 	numParams := methodType.NumIn()
 
@@ -272,7 +272,7 @@ func (h *Host) callForeignMethod(i *Interp, receiver any, methodFunc reflect.Val
 	// Convert each argument
 	for j := 0; j < len(args); j++ {
 		paramType := methodType.In(j + 1)
-		converted, err := h.convertArg(i, args[j], paramType)
+		converted, err := i.convertArg(args[j], paramType)
 		if err != nil {
 			i.SetErrorString(fmt.Sprintf("argument %d: %v", j+1, err))
 			return ResultError
@@ -284,11 +284,11 @@ func (h *Host) callForeignMethod(i *Interp, receiver any, methodFunc reflect.Val
 	results := methodFunc.Call(callArgs)
 
 	// Process results
-	return h.processResults(i, results, methodType)
+	return i.processResults(results, methodType)
 }
 
 // convertArg converts a FeatherObj to a Go value of the specified type.
-func (h *Host) convertArg(i *Interp, arg FeatherObj, targetType reflect.Type) (reflect.Value, error) {
+func (i *Interp) convertArg(arg FeatherObj, targetType reflect.Type) (reflect.Value, error) {
 	switch targetType.Kind() {
 	case reflect.String:
 		return reflect.ValueOf(i.GetString(arg)), nil
@@ -334,7 +334,7 @@ func (h *Host) convertArg(i *Interp, arg FeatherObj, targetType reflect.Type) (r
 		elemType := targetType.Elem()
 		slice := reflect.MakeSlice(targetType, len(items), len(items))
 		for j, item := range items {
-			converted, err := h.convertArg(i, item, elemType)
+			converted, err := i.convertArg(item, elemType)
 			if err != nil {
 				return reflect.Value{}, fmt.Errorf("element %d: %v", j, err)
 			}
@@ -355,7 +355,7 @@ func (h *Host) convertArg(i *Interp, arg FeatherObj, targetType reflect.Type) (r
 		m := reflect.MakeMap(targetType)
 		for _, key := range dictOrder {
 			valHandle := dictItems[key]
-			converted, err := h.convertArg(i, valHandle, elemType)
+			converted, err := i.convertArg(valHandle, elemType)
 			if err != nil {
 				return reflect.Value{}, fmt.Errorf("value for key %q: %v", key, err)
 			}
@@ -370,10 +370,10 @@ func (h *Host) convertArg(i *Interp, arg FeatherObj, targetType reflect.Type) (r
 			return reflect.ValueOf(arg), nil
 		}
 		// Check if it's a foreign object that implements the interface
-		if h.Interp.ForeignRegistry != nil {
-			h.Interp.ForeignRegistry.mu.RLock()
-			instance, ok := h.Interp.ForeignRegistry.handleToType[arg]
-			h.Interp.ForeignRegistry.mu.RUnlock()
+		if i.ForeignRegistry != nil {
+			i.ForeignRegistry.mu.RLock()
+			instance, ok := i.ForeignRegistry.handleToType[arg]
+			i.ForeignRegistry.mu.RUnlock()
 			if ok {
 				val := reflect.ValueOf(instance.value)
 				if val.Type().Implements(targetType) {
@@ -386,10 +386,10 @@ func (h *Host) convertArg(i *Interp, arg FeatherObj, targetType reflect.Type) (r
 	case reflect.Ptr:
 		// Check if it's a foreign object
 		handleName := i.GetString(arg)
-		if h.Interp.ForeignRegistry != nil {
-			h.Interp.ForeignRegistry.mu.RLock()
-			instance, ok := h.Interp.ForeignRegistry.instances[handleName]
-			h.Interp.ForeignRegistry.mu.RUnlock()
+		if i.ForeignRegistry != nil {
+			i.ForeignRegistry.mu.RLock()
+			instance, ok := i.ForeignRegistry.instances[handleName]
+			i.ForeignRegistry.mu.RUnlock()
 			if ok {
 				val := reflect.ValueOf(instance.value)
 				if val.Type().AssignableTo(targetType) {
@@ -406,7 +406,7 @@ func (h *Host) convertArg(i *Interp, arg FeatherObj, targetType reflect.Type) (r
 }
 
 // processResults handles the return values from a method call.
-func (h *Host) processResults(i *Interp, results []reflect.Value, methodType reflect.Type) FeatherResult {
+func (i *Interp) processResults(results []reflect.Value, methodType reflect.Type) FeatherResult {
 	if len(results) == 0 {
 		i.SetResultString("")
 		return ResultOK
@@ -430,11 +430,11 @@ func (h *Host) processResults(i *Interp, results []reflect.Value, methodType ref
 	}
 
 	result := results[0]
-	return h.convertResult(i, result)
+	return i.convertResult(result)
 }
 
 // convertResult converts a Go value back to a FeatherObj result.
-func (h *Host) convertResult(i *Interp, result reflect.Value) FeatherResult {
+func (i *Interp) convertResult(result reflect.Value) FeatherResult {
 	if !result.IsValid() {
 		i.SetResultString("")
 		return ResultOK
@@ -516,22 +516,22 @@ func (h *Host) convertResult(i *Interp, result reflect.Value) FeatherResult {
 }
 
 // foreignDestroy handles the "destroy" method on foreign objects.
-func (h *Host) foreignDestroy(handleName string, i *Interp) FeatherResult {
-	h.Interp.ForeignRegistry.mu.Lock()
-	instance, ok := h.Interp.ForeignRegistry.instances[handleName]
+func (i *Interp) foreignDestroy(handleName string) FeatherResult {
+	i.ForeignRegistry.mu.Lock()
+	instance, ok := i.ForeignRegistry.instances[handleName]
 	if !ok {
-		h.Interp.ForeignRegistry.mu.Unlock()
+		i.ForeignRegistry.mu.Unlock()
 		i.SetErrorString(fmt.Sprintf("invalid object handle \"%s\"", handleName))
 		return ResultError
 	}
 
 	// Get type info for destructor
-	info := h.Interp.ForeignRegistry.types[instance.typeName]
+	info := i.ForeignRegistry.types[instance.typeName]
 
 	// Remove from registry
-	delete(h.Interp.ForeignRegistry.instances, handleName)
-	delete(h.Interp.ForeignRegistry.handleToType, instance.objHandle)
-	h.Interp.ForeignRegistry.mu.Unlock()
+	delete(i.ForeignRegistry.instances, handleName)
+	delete(i.ForeignRegistry.handleToType, instance.objHandle)
+	i.ForeignRegistry.mu.Unlock()
 
 	// Call destructor if defined
 	if info != nil && info.destroy.IsValid() {
@@ -546,7 +546,7 @@ func (h *Host) foreignDestroy(handleName string, i *Interp) FeatherResult {
 	}
 
 	// Remove the command
-	delete(h.Commands, handleName)
+	delete(i.Commands, handleName)
 	delete(i.globalNamespace.commands, handleName)
 
 	i.SetResultString("")
@@ -555,14 +555,14 @@ func (h *Host) foreignDestroy(handleName string, i *Interp) FeatherResult {
 
 // GetForeignMethods returns the method names for a foreign type.
 // Used by the goForeignMethods callback.
-func (h *Host) GetForeignMethods(typeName string) []string {
-	if h.Interp.ForeignRegistry == nil {
+func (i *Interp) GetForeignMethods(typeName string) []string {
+	if i.ForeignRegistry == nil {
 		return nil
 	}
-	h.Interp.ForeignRegistry.mu.RLock()
-	defer h.Interp.ForeignRegistry.mu.RUnlock()
+	i.ForeignRegistry.mu.RLock()
+	defer i.ForeignRegistry.mu.RUnlock()
 
-	info, ok := h.Interp.ForeignRegistry.types[typeName]
+	info, ok := i.ForeignRegistry.types[typeName]
 	if !ok {
 		return nil
 	}
@@ -577,20 +577,20 @@ func (h *Host) GetForeignMethods(typeName string) []string {
 
 // GetForeignStringRep returns a custom string representation for a foreign object.
 // Used by the goForeignStringRep callback.
-func (h *Host) GetForeignStringRep(obj FeatherObj) string {
-	if h.Interp.ForeignRegistry == nil {
+func (i *Interp) GetForeignStringRep(obj FeatherObj) string {
+	if i.ForeignRegistry == nil {
 		return ""
 	}
-	h.Interp.ForeignRegistry.mu.RLock()
-	instance, ok := h.Interp.ForeignRegistry.handleToType[obj]
-	h.Interp.ForeignRegistry.mu.RUnlock()
+	i.ForeignRegistry.mu.RLock()
+	instance, ok := i.ForeignRegistry.handleToType[obj]
+	i.ForeignRegistry.mu.RUnlock()
 	if !ok {
 		return ""
 	}
 
-	h.Interp.ForeignRegistry.mu.RLock()
-	info := h.Interp.ForeignRegistry.types[instance.typeName]
-	h.Interp.ForeignRegistry.mu.RUnlock()
+	i.ForeignRegistry.mu.RLock()
+	info := i.ForeignRegistry.types[instance.typeName]
+	i.ForeignRegistry.mu.RUnlock()
 
 	if info != nil && info.stringRep.IsValid() {
 		results := info.stringRep.Call([]reflect.Value{reflect.ValueOf(instance.value)})

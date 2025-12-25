@@ -35,20 +35,20 @@ func main() {
 }
 
 func registerTestCommands(i *feather.Interp) {
-	host := i.Internal()
+	fi := i.Internal()
 
 	// Set milestone variables
-	host.Interp.SetVar("milestone", "m1")
-	host.Interp.SetVar("current-step", "m1")
+	fi.SetVar("milestone", "m1")
+	fi.SetVar("current-step", "m1")
 
 	// Test commands
-	host.Register("say-hello", cmdSayHello)
-	host.Register("echo", cmdEcho)
-	host.Register("count", cmdCount)
-	host.Register("list", cmdList)
+	fi.Register("say-hello", cmdSayHello)
+	fi.Register("echo", cmdEcho)
+	fi.Register("count", cmdCount)
+	fi.Register("list", cmdList)
 
 	// Register the Counter foreign type
-	interp.DefineType[*Counter](host, "Counter", interp.ForeignTypeDef[*Counter]{
+	interp.DefineType[*Counter](fi, "Counter", interp.ForeignTypeDef[*Counter]{
 		New: func() *Counter {
 			return &Counter{value: 0}
 		},
