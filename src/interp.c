@@ -61,6 +61,7 @@ static const BuiltinEntry builtins[] = {
     {"::namespace", feather_builtin_namespace},
     {"::variable", feather_builtin_variable},
     {"::global", feather_builtin_global},
+    {"::apply", feather_builtin_apply},
     {"::throw", feather_builtin_throw},
     {"::try", feather_builtin_try},
     {"::trace", feather_builtin_trace},

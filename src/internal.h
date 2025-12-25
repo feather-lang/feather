@@ -355,6 +355,21 @@ FeatherResult feather_builtin_global(const FeatherHostOps *ops, FeatherInterp in
                                      FeatherObj cmd, FeatherObj args);
 
 /**
+ * feather_builtin_apply implements the TCL 'apply' command.
+ *
+ * Usage:
+ *   apply lambdaExpr ?arg1 arg2 ...?
+ *
+ * Applies an anonymous function (lambda) to arguments.
+ * lambdaExpr is a list of 2 or 3 elements: {args body ?namespace?}
+ * - args: formal parameter list (like proc)
+ * - body: script to execute
+ * - namespace: optional namespace context for execution
+ */
+FeatherResult feather_builtin_apply(const FeatherHostOps *ops, FeatherInterp interp,
+                                    FeatherObj cmd, FeatherObj args);
+
+/**
  * feather_builtin_throw implements the TCL 'throw' command.
  *
  * Usage:
