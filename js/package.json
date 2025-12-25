@@ -1,0 +1,34 @@
+{
+  "name": "@feather-lang/feather",
+  "version": "0.1.0",
+  "description": "JavaScript host for feather TCL interpreter (WASM)",
+  "type": "module",
+  "main": "feather.js",
+  "exports": {
+    ".": {
+      "import": "./feather.js",
+      "types": "./feather.d.ts"
+    }
+  },
+  "files": [
+    "feather.js",
+    "feather.d.ts",
+    "feather.wasm"
+  ],
+  "scripts": {
+    "test": "node cli.js -e 'puts [expr {2 + 2}]'",
+    "repl": "node cli.js"
+  },
+  "keywords": [
+    "tcl",
+    "interpreter",
+    "wasm",
+    "webassembly",
+    "scripting"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/feather-lang/feather"
+  }
+}

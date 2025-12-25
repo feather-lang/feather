@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>feather TCL Interpreter</title>
+  <style>
+    :root {
+      --bg: #1a1a2e;
+      --surface: #16213e;
+      --primary: #0f3460;
+      --accent: #e94560;
+      --text: #eee;
+      --text-dim: #888;
+      --success: #4ade80;
+      --error: #f87171;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 20px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin: 0 0 10px 0;
+      color: var(--accent);
+      font-size: 2rem;
+    }
+
+    .subtitle {
+      color: var(--text-dim);
+      margin-bottom: 20px;
+    }
+
+    .editor-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    @media (max-width: 768px) {
+      .editor-container {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      background: var(--surface);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      background: var(--primary);
+      padding: 10px 15px;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .panel-body {
+      padding: 0;
+    }
+
+    textarea {
+      width: 100%;
+      height: 300px;
+      background: var(--surface);
+      color: var(--text);
+      border: none;
+      padding: 15px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 14px;
+      resize: vertical;
+      outline: none;
+    }
+
+    textarea::placeholder {
+      color: var(--text-dim);
+    }
+
+    .output {
+      padding: 15px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 14px;
+      min-height: 300px;
+      max-height: 400px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .output-line {
+      margin: 2px 0;
+    }
+
+    .output-line.error {
+      color: var(--error);
+    }
+
+    .output-line.result {
+      color: var(--success);
+    }
+
+    .output-line.info {
+      color: var(--text-dim);
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    button {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    button.secondary {
+      background: var(--primary);
+    }
+
+    .examples {
+      margin-top: 20px;
+    }
+
+    .examples h3 {
+      margin: 0 0 10px 0;
+      color: var(--text-dim);
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .example-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .example-btn {
+      background: var(--primary);
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-dim);
+    }
+
+    .status-dot.ready {
+      background: var(--success);
+    }
+
+    .status-dot.loading {
+      background: var(--accent);
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🪶 feather</h1>
+    <p class="subtitle">A lightweight TCL interpreter compiled to WebAssembly</p>
+
+    <div class="controls">
+      <button id="runBtn" disabled>▶ Run</button>
+      <button id="clearBtn" class="secondary">Clear Output</button>
+      <div class="status">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Loading...</span>
+      </div>
+    </div>
+
+    <div class="editor-container">
+      <div class="panel">
+        <div class="panel-header">Script</div>
+        <div class="panel-body">
+          <textarea id="editor" placeholder="Enter TCL code here...">
+# Welcome to feather!
+# Try some TCL commands:
+
+set greeting "Hello, World!"
+puts $greeting
+
+proc factorial {n} {
+    if {$n <= 1} {
+        return 1
+    }
+    expr {$n * [factorial [expr {$n - 1}]]}
+}
+
+puts "5! = [factorial 5]"
+
+foreach fruit {apple banana cherry} {
+    puts "I like $fruit"
+}
+</textarea>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">Output</div>
+        <div class="panel-body">
+          <div class="output" id="output"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="examples">
+      <h3>Examples</h3>
+      <div class="example-buttons">
+        <button class="example-btn" data-example="hello">Hello World</button>
+        <button class="example-btn" data-example="math">Math</button>
+        <button class="example-btn" data-example="lists">Lists</button>
+        <button class="example-btn" data-example="procs">Procedures</button>
+        <button class="example-btn" data-example="loops">Loops</button>
+        <button class="example-btn" data-example="dict">Dictionaries</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { createFeather } from './feather.js';
+
+    const examples = {
+      hello: `puts "Hello, World!"
+set name "feather"
+puts "Welcome to $name!"`,
+
+      math: `# Basic arithmetic
+puts [expr {2 + 3 * 4}]
+puts [expr {(2 + 3) * 4}]
+
+# Variables in expressions
+set x 10
+set y 5
+puts "$x + $y = [expr {$x + $y}]"
+puts "$x * $y = [expr {$x * $y}]"
+
+# Comparisons
+puts "10 > 5? [expr {10 > 5}]"
+puts "10 == 10? [expr {10 == 10}]"`,
+
+      lists: `# Create a list
+set colors {red green blue}
+puts "Colors: $colors"
+puts "Length: [llength $colors]"
+
+# Access elements
+puts "First: [lindex $colors 0]"
+puts "Last: [lindex $colors end]"
+
+# Modify lists
+lappend colors yellow
+puts "After append: $colors"
+
+# List operations
+set nums {3 1 4 1 5 9 2 6}
+puts "Sorted: [lsort $nums]"
+puts "Range: [lrange $nums 2 5]"`,
+
+      procs: `# Define a procedure
+proc greet {name} {
+    return "Hello, $name!"
+}
+puts [greet "World"]
+
+# Procedure with default argument
+proc add {a {b 10}} {
+    expr {$a + $b}
+}
+puts "add 5: [add 5]"
+puts "add 5 3: [add 5 3]"
+
+# Recursive procedure
+proc fib {n} {
+    if {$n <= 1} {
+        return $n
+    }
+    expr {[fib [expr {$n-1}]] + [fib [expr {$n-2}]]}
+}
+puts "fib(10) = [fib 10]"`,
+
+      loops: `# foreach loop
+foreach item {a b c d e} {
+    puts "Item: $item"
+}
+
+# for loop
+for {set i 0} {$i < 5} {incr i} {
+    puts "i = $i"
+}
+
+# while loop
+set count 3
+while {$count > 0} {
+    puts "Countdown: $count"
+    incr count -1
+}
+puts "Blast off!"`,
+
+      dict: `# Create a dictionary
+set person [dict create name "Alice" age 30 city "NYC"]
+puts "Person: $person"
+
+# Access values
+puts "Name: [dict get $person name]"
+puts "Age: [dict get $person age]"
+
+# Modify dictionary
+dict set person job "Engineer"
+puts "Updated: $person"
+
+# Check existence
+puts "Has name? [dict exists $person name]"
+puts "Has salary? [dict exists $person salary]"
+
+# Get all keys
+puts "Keys: [dict keys $person]"`
+    };
+
+    const editor = document.getElementById('editor');
+    const output = document.getElementById('output');
+    const runBtn = document.getElementById('runBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const statusDot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+
+    let feather, interp;
+
+    function log(text, type = '') {
+      const line = document.createElement('div');
+      line.className = `output-line ${type}`;
+      line.textContent = text;
+      output.appendChild(line);
+      output.scrollTop = output.scrollHeight;
+    }
+
+    async function init() {
+      statusDot.className = 'status-dot loading';
+      statusText.textContent = 'Loading WASM...';
+
+      try {
+        feather = await createFeather('./feather.wasm');
+        interp = feather.create();
+
+        feather.register(interp, 'puts', (args) => {
+          log(args.join(' '));
+          return '';
+        });
+
+        feather.register(interp, 'clock', (args) => {
+          if (args[0] === 'seconds') return Math.floor(Date.now() / 1000);
+          if (args[0] === 'milliseconds') return Date.now();
+          throw new Error(`unknown clock subcommand "${args[0]}"`);
+        });
+
+        statusDot.className = 'status-dot ready';
+        statusText.textContent = 'Ready';
+        runBtn.disabled = false;
+
+        log('feather interpreter ready', 'info');
+      } catch (e) {
+        statusDot.className = 'status-dot';
+        statusText.textContent = 'Failed to load';
+        log(`Failed to load WASM: ${e.message}`, 'error');
+        console.error(e);
+      }
+    }
+
+    runBtn.addEventListener('click', () => {
+      const script = editor.value;
+      if (!script.trim()) return;
+
+      log('', 'info');
+      log('--- Running script ---', 'info');
+
+      try {
+        const result = feather.eval(interp, script);
+        if (result) {
+          log(`=> ${result}`, 'result');
+        }
+      } catch (e) {
+        log(`Error: ${e.message}`, 'error');
+      }
+    });
+
+    clearBtn.addEventListener('click', () => {
+      output.innerHTML = '';
+    });
+
+    editor.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        runBtn.click();
+      }
+    });
+
+    document.querySelectorAll('.example-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const example = examples[btn.dataset.example];
+        if (example) {
+          editor.value = example;
+        }
+      });
+    });
+
+    init();
+  </script>
+</body>
+</html>

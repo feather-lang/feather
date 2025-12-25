@@ -1,0 +1,27 @@
+[tasks.build]
+description = "Builds feather.wasm using zig cc"
+run = """
+zig cc -target wasm32-freestanding -Os \
+  -nostdlib -Wl,--no-entry \
+  -Wl,--export=feather_interp_init \
+  -Wl,--export=feather_script_eval \
+  -Wl,--export=feather_script_eval_obj \
+  -Wl,--export=feather_command_exec \
+  -Wl,--export=feather_parse_init \
+  -Wl,--export=feather_parse_command \
+  -Wl,--export=feather_subst \
+  -Wl,--export=alloc \
+  -Wl,--export=free \
+  -Wl,--import-memory \
+  -Wl,--import-table \
+  -I ../src \
+  -o feather.wasm \
+  ../src/*.c wasm_alloc.c
+"""
+
+[tasks.serve]
+description = "Serve the JS host for browser testing"
+depends = ["build"]
+run = """
+python3 -m http.server 8080
+"""
