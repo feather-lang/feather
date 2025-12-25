@@ -449,7 +449,7 @@ async function createFeather(wasmSource) {
         }
       } else if (entry?.nsLink) {
         const ns = interp.getNamespace(entry.nsLink.ns);
-        if (ns) ns.vars.set(entry.nsLink.name, value);
+        if (ns) ns.vars.set(entry.nsLink.name, { value });
       } else {
         frame.vars.set(varName, { value });
       }
@@ -769,7 +769,7 @@ async function createFeather(wasmSource) {
       const nsPath = interp.getString(ns);
       const varName = interp.getString(name);
       const namespace = interp.ensureNamespace(nsPath);
-      namespace.vars.set(varName, value);
+      namespace.vars.set(varName, { value });
     },
     feather_host_ns_var_exists: (interpId, ns, name) => {
       const interp = interpreters.get(interpId);

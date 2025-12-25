@@ -341,6 +341,20 @@ FeatherResult feather_builtin_variable(const FeatherHostOps *ops, FeatherInterp 
                                 FeatherObj cmd, FeatherObj args);
 
 /**
+ * feather_builtin_global implements the TCL 'global' command.
+ *
+ * Usage:
+ *   global ?varname ...?
+ *
+ * Creates local variables linked to corresponding global variables.
+ * Only has effect when executed inside a proc body.
+ * If varname contains namespace qualifiers, the local variable's name
+ * is the unqualified name (namespace tail).
+ */
+FeatherResult feather_builtin_global(const FeatherHostOps *ops, FeatherInterp interp,
+                                     FeatherObj cmd, FeatherObj args);
+
+/**
  * feather_builtin_throw implements the TCL 'throw' command.
  *
  * Usage:

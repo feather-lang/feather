@@ -1,0 +1,156 @@
+<test-suite>
+  <!-- global command tests -->
+
+  <!-- Basic global variable access -->
+
+  <test-case name="global: basic access from proc">
+    <script>
+set x 10
+proc getx {} {
+    global x
+    return $x
+}
+getx
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="global: modify global from proc">
+    <script>
+set y 5
+proc sety {val} {
+    global y
+    set y $val
+}
+sety 42
+set y
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="global: multiple variables">
+    <script>
+set a 1
+set b 2
+set c 3
+proc sum {} {
+    global a b c
+    expr {$a + $b + $c}
+}
+sum
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>6</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- global outside proc is a no-op -->
+
+  <test-case name="global: at global level is no-op">
+    <script>
+set z 100
+global z
+set z
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>100</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- global with no args -->
+
+  <test-case name="global: no arguments">
+    <script>global</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- global with namespace-qualified names -->
+
+  <test-case name="global: qualified name a::x">
+    <script>
+namespace eval a {
+    variable x 99
+}
+proc getns {} {
+    global a::x
+    return $x
+}
+getns
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>99</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="global: absolute qualified name ::foo::bar">
+    <script>
+namespace eval foo {
+    variable bar hello
+}
+proc getfoo {} {
+    global ::foo::bar
+    return $bar
+}
+getfoo
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- global error cases -->
+
+  <test-case name="global: array element not allowed">
+    <script>
+proc tryarray {} {
+    global arr(key)
+}
+catch {tryarray} msg
+set msg
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>can't use "arr(key)" as variable name: must be a scalar variable</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- global creates variable if not exists -->
+
+  <test-case name="global: creates global var on write">
+    <script>
+proc createvar {} {
+    global newvar
+    set newvar created
+}
+createvar
+set newvar
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>created</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>
