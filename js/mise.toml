@@ -25,3 +25,8 @@ depends = ["build"]
 run = """
 python3 -m http.server 8080
 """
+
+[tasks.cli]
+description = "Start the feather.js CLI"
+depends = ["build"]
+run = "node --experimental-wasm-type-reflection cli.js"

@@ -62,6 +62,7 @@ async function main() {
 
   if (argv.length === 0) {
     await runRepl(feather, interp);
+    return; // runRepl handles cleanup
   } else if (argv[0] === '-e') {
     if (argv.length < 2) {
       console.error('Error: -e requires a script argument');
@@ -108,39 +109,40 @@ Built-in commands:
   feather.destroy(interp);
 }
 
-async function runRepl(feather, interp) {
-  const rl = createInterface({
-    input: process.stdin,
-    output: process.stdout,
-    prompt: 'feather> ',
-  });
+function runRepl(feather, interp) {
+  return new Promise((resolve) => {
+    const rl = createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      prompt: 'feather> ',
+    });
 
-  console.log('feather TCL interpreter');
-  console.log('Type "exit" to quit, "help" for commands');
-  console.log('');
+    console.log('feather TCL interpreter');
+    console.log('Type "exit" to quit, "help" for commands');
+    console.log('');
 
-  rl.prompt();
+    rl.prompt();
 
-  let buffer = '';
-  let braceDepth = 0;
+    let buffer = '';
+    let braceDepth = 0;
 
-  rl.on('line', (line) => {
-    buffer += (buffer ? '\n' : '') + line;
+    rl.on('line', (line) => {
+      buffer += (buffer ? '\n' : '') + line;
 
-    for (const ch of line) {
-      if (ch === '{') braceDepth++;
-      else if (ch === '}') braceDepth--;
-    }
+      for (const ch of line) {
+        if (ch === '{') braceDepth++;
+        else if (ch === '}') braceDepth--;
+      }
 
-    if (braceDepth > 0) {
-      process.stdout.write('> ');
-      return;
-    }
+      if (braceDepth > 0) {
+        process.stdout.write('> ');
+        return;
+      }
 
-    braceDepth = 0;
+      braceDepth = 0;
 
-    if (buffer.trim() === 'help') {
-      console.log(`
+      if (buffer.trim() === 'help') {
+        console.log(`
 Available commands:
   puts string     - Print to stdout
   set var value   - Set a variable
@@ -152,27 +154,29 @@ Available commands:
   exit ?code?     - Exit interpreter
   help            - Show this help
 `);
+        buffer = '';
+        rl.prompt();
+        return;
+      }
+
+      if (buffer.trim()) {
+        try {
+          const result = feather.eval(interp, buffer);
+          if (result) console.log(result);
+        } catch (e) {
+          console.error(`Error: ${e.message}`);
+        }
+      }
+
       buffer = '';
       rl.prompt();
-      return;
-    }
+    });
 
-    if (buffer.trim()) {
-      try {
-        const result = feather.eval(interp, buffer);
-        if (result) console.log(result);
-      } catch (e) {
-        console.error(`Error: ${e.message}`);
-      }
-    }
-
-    buffer = '';
-    rl.prompt();
-  });
-
-  rl.on('close', () => {
-    console.log('');
-    process.exit(0);
+    rl.on('close', () => {
+      console.log('');
+      feather.destroy(interp);
+      resolve();
+    });
   });
 }
 

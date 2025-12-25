@@ -21,12 +21,15 @@ class FeatherInterp {
     this.objects = new Map();
     this.nextHandle = 1;
     this.result = 0;
-    this.frames = [{ vars: new Map(), cmd: 0, args: 0, ns: '::' }];
+    // Global namespace - shared between namespace storage and frame 0
+    const globalNS = { vars: new Map(), children: new Map(), exports: [] };
+    this.namespaces = new Map([['', globalNS]]);
+    // Frame 0's vars IS the global namespace's vars (unified storage)
+    this.frames = [{ vars: globalNS.vars, cmd: 0, args: 0, ns: '::' }];
     this.activeLevel = 0;
     this.procs = new Map();
     this.builtins = new Map();
     this.hostCommands = new Map();
-    this.namespaces = new Map([['', { vars: new Map(), children: new Map(), exports: [] }]]);
     this.traces = { variable: new Map(), command: new Map() };
     this.returnOptions = new Map();
     this.scriptPath = '';
@@ -191,6 +194,7 @@ async function createFeather(wasmSource) {
     frame_push: (interpId, cmd, args) => {
       const interp = interpreters.get(interpId);
       const parentNs = interp.frames[interp.frames.length - 1].ns;
+      // New frames get their own vars Map (NOT shared with namespace)
       interp.frames.push({ vars: new Map(), cmd, args, ns: parentNs });
       interp.activeLevel = interp.frames.length - 1;
       return TCL_OK;
@@ -244,11 +248,15 @@ async function createFeather(wasmSource) {
       if (!entry) return 0;
       if (entry.link) {
         const targetFrame = interp.frames[entry.link.level];
-        return targetFrame?.vars.get(entry.link.name)?.value || 0;
+        const targetEntry = targetFrame?.vars.get(entry.link.name);
+        if (!targetEntry) return 0;
+        return typeof targetEntry === 'object' && 'value' in targetEntry ? targetEntry.value : targetEntry;
       }
       if (entry.nsLink) {
         const ns = interp.getNamespace(entry.nsLink.ns);
-        return ns?.vars.get(entry.nsLink.name) || 0;
+        const nsEntry = ns?.vars.get(entry.nsLink.name);
+        if (!nsEntry) return 0;
+        return typeof nsEntry === 'object' && 'value' in nsEntry ? nsEntry.value : nsEntry;
       }
       return entry.value || 0;
     },
@@ -335,7 +343,8 @@ async function createFeather(wasmSource) {
     proc_params: (interpId, name, resultPtr) => {
       const interp = interpreters.get(interpId);
       const procName = interp.getString(name);
-      const proc = interp.procs.get(procName);
+      // Try both qualified and simple names
+      const proc = interp.procs.get(procName) || interp.procs.get(`::${procName}`);
       if (proc) {
         writeI32(resultPtr, proc.params);
         return TCL_OK;
@@ -345,7 +354,8 @@ async function createFeather(wasmSource) {
     proc_body: (interpId, name, resultPtr) => {
       const interp = interpreters.get(interpId);
       const procName = interp.getString(name);
-      const proc = interp.procs.get(procName);
+      // Try both qualified and simple names
+      const proc = interp.procs.get(procName) || interp.procs.get(`::${procName}`);
       if (proc) {
         writeI32(resultPtr, proc.body);
         return TCL_OK;
@@ -401,6 +411,83 @@ async function createFeather(wasmSource) {
       return TCL_ERROR;
     },
 
+    // String operations
+    string_intern: (interpId, ptr, len) => {
+      const interp = interpreters.get(interpId);
+      const str = readString(ptr, len);
+      return interp.store({ type: 'string', value: str });
+    },
+    string_get: (interpId, handle, lenPtr) => {
+      const interp = interpreters.get(interpId);
+      const str = interp.getString(handle);
+      const [ptr, len] = writeString(str);
+      writeI32(lenPtr, len);
+      return ptr;
+    },
+    string_concat: (interpId, a, b) => {
+      const interp = interpreters.get(interpId);
+      const strA = interp.getString(a);
+      const strB = interp.getString(b);
+      return interp.store({ type: 'string', value: strA + strB });
+    },
+    string_compare: (interpId, a, b) => {
+      const interp = interpreters.get(interpId);
+      const strA = interp.getString(a);
+      const strB = interp.getString(b);
+      return strA < strB ? -1 : strA > strB ? 1 : 0;
+    },
+    string_regex_match: (interpId, pattern, string, resultPtr) => {
+      const interp = interpreters.get(interpId);
+      const patternStr = interp.getString(pattern);
+      const stringStr = interp.getString(string);
+      try {
+        const regex = new RegExp(patternStr);
+        writeI32(resultPtr, regex.test(stringStr) ? 1 : 0);
+        return TCL_OK;
+      } catch (e) {
+        interp.result = interp.store({ type: 'string', value: `invalid regex: ${e.message}` });
+        return TCL_ERROR;
+      }
+    },
+
+    // Rune operations (Unicode-aware)
+    rune_length: (interpId, str) => {
+      const interp = interpreters.get(interpId);
+      const s = interp.getString(str);
+      return [...s].length;
+    },
+    rune_at: (interpId, str, index) => {
+      const interp = interpreters.get(interpId);
+      const s = interp.getString(str);
+      const chars = [...s];
+      if (index >= chars.length) return interp.store({ type: 'string', value: '' });
+      return interp.store({ type: 'string', value: chars[index] });
+    },
+    rune_range: (interpId, str, first, last) => {
+      const interp = interpreters.get(interpId);
+      const s = interp.getString(str);
+      const chars = [...s];
+      const f = Math.max(0, Number(first));
+      const l = Math.min(chars.length - 1, Number(last));
+      if (f > l) return interp.store({ type: 'string', value: '' });
+      return interp.store({ type: 'string', value: chars.slice(f, l + 1).join('') });
+    },
+    rune_to_upper: (interpId, str) => {
+      const interp = interpreters.get(interpId);
+      const s = interp.getString(str);
+      return interp.store({ type: 'string', value: s.toUpperCase() });
+    },
+    rune_to_lower: (interpId, str) => {
+      const interp = interpreters.get(interpId);
+      const s = interp.getString(str);
+      return interp.store({ type: 'string', value: s.toLowerCase() });
+    },
+    rune_fold: (interpId, str) => {
+      const interp = interpreters.get(interpId);
+      const s = interp.getString(str);
+      return interp.store({ type: 'string', value: s.toLowerCase() });
+    },
+
     // Namespace operations
     ns_create: (interpId, path) => {
       const interp = interpreters.get(interpId);
@@ -447,14 +534,18 @@ async function createFeather(wasmSource) {
       const nsPath = interp.getString(ns);
       const varName = interp.getString(name);
       const namespace = interp.getNamespace(nsPath);
-      return namespace?.vars.get(varName) || 0;
+      const entry = namespace?.vars.get(varName);
+      // Support both { value: handle } format (from var_set) and raw handle (from ns_set_var)
+      if (!entry) return 0;
+      return typeof entry === 'object' && 'value' in entry ? entry.value : entry;
     },
     ns_set_var: (interpId, ns, name, value) => {
       const interp = interpreters.get(interpId);
       const nsPath = interp.getString(ns);
       const varName = interp.getString(name);
       const namespace = interp.ensureNamespace(nsPath);
-      namespace.vars.set(varName, value);
+      // Use { value } wrapper for consistency with var_set
+      namespace.vars.set(varName, { value });
     },
     ns_var_exists: (interpId, ns, name) => {
       const interp = interpreters.get(interpId);
@@ -472,12 +563,22 @@ async function createFeather(wasmSource) {
     },
     ns_get_command: (interpId, ns, name, fnPtr) => {
       const interp = interpreters.get(interpId);
-      const procName = interp.getString(name);
-      if (interp.builtins.has(procName)) {
-        writeI32(fnPtr, interp.builtins.get(procName));
+      const nsPath = interp.getString(ns);
+      const cmdName = interp.getString(name);
+      // Build fully qualified name for lookup
+      const fullName = nsPath === '::' ? `::${cmdName}` : `${nsPath}::${cmdName}`;
+      // Check builtins (stored with simple names)
+      if (interp.builtins.has(cmdName)) {
+        writeI32(fnPtr, interp.builtins.get(cmdName));
         return TCL_CMD_BUILTIN;
       }
-      if (interp.procs.has(procName)) {
+      // Check procs (stored with fully qualified names)
+      if (interp.procs.has(fullName)) {
+        writeI32(fnPtr, 0);
+        return TCL_CMD_PROC;
+      }
+      // Also check simple name for backwards compatibility
+      if (interp.procs.has(cmdName)) {
         writeI32(fnPtr, 0);
         return TCL_CMD_PROC;
       }
@@ -545,75 +646,6 @@ async function createFeather(wasmSource) {
         return TCL_OK;
       }
       return TCL_ERROR;
-    },
-
-    // String operations
-    string_intern: (interpId, ptr, len) => {
-      const interp = interpreters.get(interpId);
-      const str = readString(ptr, len);
-      return interp.store({ type: 'string', value: str });
-    },
-    string_get: (interpId, handle, lenPtr) => {
-      const interp = interpreters.get(interpId);
-      const str = interp.getString(handle);
-      const [ptr, len] = writeString(str);
-      writeI32(lenPtr, len);
-      return ptr;
-    },
-    string_concat: (interpId, a, b) => {
-      const interp = interpreters.get(interpId);
-      const result = interp.getString(a) + interp.getString(b);
-      return interp.store({ type: 'string', value: result });
-    },
-    string_compare: (interpId, a, b) => {
-      const interp = interpreters.get(interpId);
-      const strA = interp.getString(a);
-      const strB = interp.getString(b);
-      return strA < strB ? -1 : strA > strB ? 1 : 0;
-    },
-    string_regex_match: (interpId, pattern, string, resultPtr) => {
-      const interp = interpreters.get(interpId);
-      try {
-        const regex = new RegExp(interp.getString(pattern));
-        const matched = regex.test(interp.getString(string));
-        writeI32(resultPtr, matched ? 1 : 0);
-        return TCL_OK;
-      } catch (e) {
-        interp.result = interp.store({ type: 'string', value: `bad regex: ${e.message}` });
-        return TCL_ERROR;
-      }
-    },
-
-    // Rune operations
-    rune_length: (interpId, str) => {
-      const interp = interpreters.get(interpId);
-      return [...interp.getString(str)].length;
-    },
-    rune_at: (interpId, str, index) => {
-      const interp = interpreters.get(interpId);
-      const chars = [...interp.getString(str)];
-      if (index < 0 || index >= chars.length) return interp.store({ type: 'string', value: '' });
-      return interp.store({ type: 'string', value: chars[index] });
-    },
-    rune_range: (interpId, str, first, last) => {
-      const interp = interpreters.get(interpId);
-      const chars = [...interp.getString(str)];
-      const start = Math.max(0, Number(first));
-      const end = Math.min(chars.length - 1, Number(last));
-      if (start > end) return interp.store({ type: 'string', value: '' });
-      return interp.store({ type: 'string', value: chars.slice(start, end + 1).join('') });
-    },
-    rune_to_upper: (interpId, str) => {
-      const interp = interpreters.get(interpId);
-      return interp.store({ type: 'string', value: interp.getString(str).toUpperCase() });
-    },
-    rune_to_lower: (interpId, str) => {
-      const interp = interpreters.get(interpId);
-      return interp.store({ type: 'string', value: interp.getString(str).toLowerCase() });
-    },
-    rune_fold: (interpId, str) => {
-      const interp = interpreters.get(interpId);
-      return interp.store({ type: 'string', value: interp.getString(str).toLowerCase() });
     },
 
     // List operations
