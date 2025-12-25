@@ -1,229 +1,256 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>feather TCL Interpreter</title>
-  <style>
-    :root {
-      --bg: #1a1a2e;
-      --surface: #16213e;
-      --primary: #0f3460;
-      --accent: #e94560;
-      --text: #eee;
-      --text-dim: #888;
-      --success: #4ade80;
-      --error: #f87171;
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      padding: 20px;
-      background: var(--bg);
-      color: var(--text);
-      font-family: system-ui, -apple-system, sans-serif;
-      min-height: 100vh;
-    }
-
-    .container {
-      max-width: 900px;
-      margin: 0 auto;
-    }
-
-    h1 {
-      margin: 0 0 10px 0;
-      color: var(--accent);
-      font-size: 2rem;
-    }
-
-    .subtitle {
-      color: var(--text-dim);
-      margin-bottom: 20px;
-    }
-
-    .editor-container {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-      margin-bottom: 20px;
-    }
-
-    @media (max-width: 768px) {
-      .editor-container {
-        grid-template-columns: 1fr;
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>feather TCL Interpreter</title>
+    <style>
+      :root {
+        --bg: #0a1f10;
+        --surface: #0f2e18;
+        --primary: #0b5628;
+        --accent: #7b8c11;
+        --text: #eee;
+        --text-dim: #8a9a7a;
+        --success: #4a721e;
+        --error: #c44536;
       }
-    }
 
-    .panel {
-      background: var(--surface);
-      border-radius: 8px;
-      overflow: hidden;
-    }
+      * {
+        box-sizing: border-box;
+      }
 
-    .panel-header {
-      background: var(--primary);
-      padding: 10px 15px;
-      font-weight: 600;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
+      body {
+        margin: 0;
+        padding: 20px;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        min-height: 100vh;
+      }
 
-    .panel-body {
-      padding: 0;
-    }
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+      }
 
-    textarea {
-      width: 100%;
-      height: 300px;
-      background: var(--surface);
-      color: var(--text);
-      border: none;
-      padding: 15px;
-      font-family: 'JetBrains Mono', 'Fira Code', monospace;
-      font-size: 14px;
-      resize: vertical;
-      outline: none;
-    }
+      h1 {
+        margin: 0 0 10px 0;
+        color: var(--accent);
+        font-size: 2rem;
+      }
 
-    textarea::placeholder {
-      color: var(--text-dim);
-    }
+      .subtitle {
+        color: var(--text-dim);
+        margin-bottom: 20px;
+      }
 
-    .output {
-      padding: 15px;
-      font-family: 'JetBrains Mono', 'Fira Code', monospace;
-      font-size: 14px;
-      min-height: 300px;
-      max-height: 400px;
-      overflow-y: auto;
-      white-space: pre-wrap;
-      word-break: break-all;
-    }
+      .editor-container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 20px;
+      }
 
-    .output-line {
-      margin: 2px 0;
-    }
+      @media (max-width: 768px) {
+        .editor-container {
+          grid-template-columns: 1fr;
+        }
+      }
 
-    .output-line.error {
-      color: var(--error);
-    }
+      .panel {
+        background: var(--surface);
+        border-radius: 8px;
+        overflow: hidden;
+      }
 
-    .output-line.result {
-      color: var(--success);
-    }
+      .panel-header {
+        background: var(--primary);
+        padding: 10px 15px;
+        font-weight: 600;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
 
-    .output-line.info {
-      color: var(--text-dim);
-    }
+      .panel-body {
+        padding: 0;
+      }
 
-    .controls {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 20px;
-    }
+      textarea {
+        width: 100%;
+        height: 300px;
+        background: var(--surface);
+        color: var(--text);
+        border: none;
+        padding: 15px;
+        font-family: "JetBrains Mono", "Fira Code", monospace;
+        font-size: 14px;
+        resize: vertical;
+        outline: none;
+      }
 
-    button {
-      background: var(--accent);
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 6px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: opacity 0.2s;
-    }
+      textarea::placeholder {
+        color: var(--text-dim);
+      }
 
-    button:hover {
-      opacity: 0.9;
-    }
+      .output {
+        padding: 15px;
+        font-family: "JetBrains Mono", "Fira Code", monospace;
+        font-size: 14px;
+        min-height: 300px;
+        max-height: 400px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
 
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+      .output-line {
+        margin: 2px 0;
+      }
 
-    button.secondary {
-      background: var(--primary);
-    }
+      .output-line.error {
+        color: var(--error);
+      }
 
-    .examples {
-      margin-top: 20px;
-    }
+      .output-line.result {
+        color: var(--success);
+      }
 
-    .examples h3 {
-      margin: 0 0 10px 0;
-      color: var(--text-dim);
-      font-size: 14px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
+      .output-line.info {
+        color: var(--text-dim);
+      }
 
-    .example-buttons {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
+      .canvas-panel {
+        margin-top: 20px;
+      }
 
-    .example-btn {
-      background: var(--primary);
-      padding: 6px 12px;
-      font-size: 12px;
-    }
+      .canvas-panel canvas {
+        width: 100%;
+        height: 300px;
+        background: #111;
+        border-radius: 0 0 8px 8px;
+      }
 
-    .status {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 12px;
-    }
+      .controls {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+      }
 
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--text-dim);
-    }
+      button {
+        background: var(--accent);
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: opacity 0.2s;
+      }
 
-    .status-dot.ready {
-      background: var(--success);
-    }
+      button:hover {
+        opacity: 0.9;
+      }
 
-    .status-dot.loading {
-      background: var(--accent);
-      animation: pulse 1s infinite;
-    }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
 
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>🪶 feather</h1>
-    <p class="subtitle">A lightweight TCL interpreter compiled to WebAssembly</p>
+      button.secondary {
+        background: var(--primary);
+      }
 
-    <div class="controls">
-      <button id="runBtn" disabled>▶ Run</button>
-      <button id="clearBtn" class="secondary">Clear Output</button>
-      <div class="status">
-        <div class="status-dot" id="statusDot"></div>
-        <span id="statusText">Loading...</span>
+      .examples {
+        margin-top: 20px;
+      }
+
+      .examples h3 {
+        margin: 0 0 10px 0;
+        color: var(--text-dim);
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+
+      .example-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .example-btn {
+        background: var(--primary);
+        padding: 6px 12px;
+        font-size: 12px;
+      }
+
+      .status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+      }
+
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--text-dim);
+      }
+
+      .status-dot.ready {
+        background: var(--success);
+      }
+
+      .status-dot.loading {
+        background: var(--accent);
+        animation: pulse 1s infinite;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>
+        <img
+          src="/logo.png"
+          alt="feather"
+          style="height: 1.5em; vertical-align: middle; margin-right: 8px"
+        />feather
+      </h1>
+      <p class="subtitle">
+        A lightweight TCL interpreter compiled to WebAssembly
+      </p>
+
+      <div class="controls">
+        <button id="runBtn" disabled>▶ Run</button>
+        <button id="clearBtn" class="secondary">Clear Output</button>
+        <div class="status">
+          <div class="status-dot" id="statusDot"></div>
+          <span id="statusText">Loading...</span>
+        </div>
       </div>
-    </div>
 
-    <div class="editor-container">
-      <div class="panel">
-        <div class="panel-header">Script</div>
-        <div class="panel-body">
-          <textarea id="editor" placeholder="Enter TCL code here...">
+      <div class="editor-container">
+        <div class="panel">
+          <div class="panel-header">Script</div>
+          <div class="panel-body">
+            <textarea id="editor" placeholder="Enter TCL code here...">
 # Welcome to feather!
 # Try some TCL commands:
 
@@ -242,40 +269,49 @@ puts "5! = [factorial 5]"
 foreach fruit {apple banana cherry} {
     puts "I like $fruit"
 }
-</textarea>
+</textarea
+            >
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">Output</div>
+          <div class="panel-body">
+            <div class="output" id="output"></div>
+          </div>
         </div>
       </div>
 
-      <div class="panel">
-        <div class="panel-header">Output</div>
+      <div class="examples">
+        <h3>Examples</h3>
+        <div class="example-buttons">
+          <button class="example-btn" data-example="hello">Hello World</button>
+          <button class="example-btn" data-example="math">Math</button>
+          <button class="example-btn" data-example="lists">Lists</button>
+          <button class="example-btn" data-example="procs">Procedures</button>
+          <button class="example-btn" data-example="loops">Loops</button>
+          <button class="example-btn" data-example="dict">Dictionaries</button>
+          <button class="example-btn" data-example="canvas">Canvas</button>
+        </div>
+      </div>
+
+      <div class="panel canvas-panel">
+        <div class="panel-header">Canvas</div>
         <div class="panel-body">
-          <div class="output" id="output"></div>
+          <canvas id="canvas" width="800" height="300"></canvas>
         </div>
       </div>
     </div>
 
-    <div class="examples">
-      <h3>Examples</h3>
-      <div class="example-buttons">
-        <button class="example-btn" data-example="hello">Hello World</button>
-        <button class="example-btn" data-example="math">Math</button>
-        <button class="example-btn" data-example="lists">Lists</button>
-        <button class="example-btn" data-example="procs">Procedures</button>
-        <button class="example-btn" data-example="loops">Loops</button>
-        <button class="example-btn" data-example="dict">Dictionaries</button>
-      </div>
-    </div>
-  </div>
+    <script type="module">
+      import { createFeather } from "./feather.js";
 
-  <script type="module">
-    import { createFeather } from './feather.js';
-
-    const examples = {
-      hello: `puts "Hello, World!"
+      const examples = {
+        hello: `puts "Hello, World!"
 set name "feather"
 puts "Welcome to $name!"`,
 
-      math: `# Basic arithmetic
+        math: `# Basic arithmetic
 puts [expr {2 + 3 * 4}]
 puts [expr {(2 + 3) * 4}]
 
@@ -289,7 +325,7 @@ puts "$x * $y = [expr {$x * $y}]"
 puts "10 > 5? [expr {10 > 5}]"
 puts "10 == 10? [expr {10 == 10}]"`,
 
-      lists: `# Create a list
+        lists: `# Create a list
 set colors {red green blue}
 puts "Colors: $colors"
 puts "Length: [llength $colors]"
@@ -307,7 +343,7 @@ set nums {3 1 4 1 5 9 2 6}
 puts "Sorted: [lsort $nums]"
 puts "Range: [lrange $nums 2 5]"`,
 
-      procs: `# Define a procedure
+        procs: `# Define a procedure
 proc greet {name} {
     return "Hello, $name!"
 }
@@ -329,7 +365,7 @@ proc fib {n} {
 }
 puts "fib(10) = [fib 10]"`,
 
-      loops: `# foreach loop
+        loops: `# foreach loop
 foreach item {a b c d e} {
     puts "Item: $item"
 }
@@ -347,7 +383,7 @@ while {$count > 0} {
 }
 puts "Blast off!"`,
 
-      dict: `# Create a dictionary
+        dict: `# Create a dictionary
 set person [dict create name "Alice" age 30 city "NYC"]
 puts "Person: $person"
 
@@ -364,96 +400,250 @@ puts "Has name? [dict exists $person name]"
 puts "Has salary? [dict exists $person salary]"
 
 # Get all keys
-puts "Keys: [dict keys $person]"`
-    };
+puts "Keys: [dict keys $person]"`,
 
-    const editor = document.getElementById('editor');
-    const output = document.getElementById('output');
-    const runBtn = document.getElementById('runBtn');
-    const clearBtn = document.getElementById('clearBtn');
-    const statusDot = document.getElementById('statusDot');
-    const statusText = document.getElementById('statusText');
+        canvas: `# Canvas drawing demo
+canvas clear
 
-    let feather, interp;
+# Draw some rectangles
+canvas fill #e94560
+canvas rect 50 50 100 80
+canvas fill #4ade80
+canvas rect 200 100 120 60
 
-    function log(text, type = '') {
-      const line = document.createElement('div');
-      line.className = `output-line ${type}`;
-      line.textContent = text;
-      output.appendChild(line);
-      output.scrollTop = output.scrollHeight;
-    }
+# Draw circles
+canvas fill #60a5fa
+canvas circle 450 100 50
+canvas fill #fbbf24
+canvas circle 550 180 30
 
-    async function init() {
-      statusDot.className = 'status-dot loading';
-      statusText.textContent = 'Loading WASM...';
+# Draw lines
+canvas stroke #fff
+canvas width 2
+canvas line 50 200 200 250
+canvas line 200 250 350 200
 
-      try {
-        feather = await createFeather('./feather.wasm');
-        interp = feather.create();
+# Draw a polygon (triangle)
+canvas fill #a78bfa
+canvas polygon 600 50 700 150 500 150
 
-        feather.register(interp, 'puts', (args) => {
-          log(args.join(' '));
-          return '';
-        });
+# Add some text
+canvas fill #fff
+canvas font "16px sans-serif"
+canvas text 50 280 "Hello from feather!"
 
-        feather.register(interp, 'clock', (args) => {
-          if (args[0] === 'seconds') return Math.floor(Date.now() / 1000);
-          if (args[0] === 'milliseconds') return Date.now();
-          throw new Error(`unknown clock subcommand "${args[0]}"`);
-        });
+puts "Canvas demo complete!"`,
+      };
 
-        statusDot.className = 'status-dot ready';
-        statusText.textContent = 'Ready';
-        runBtn.disabled = false;
+      const editor = document.getElementById("editor");
+      const output = document.getElementById("output");
+      const runBtn = document.getElementById("runBtn");
+      const clearBtn = document.getElementById("clearBtn");
+      const statusDot = document.getElementById("statusDot");
+      const statusText = document.getElementById("statusText");
 
-        log('feather interpreter ready', 'info');
-      } catch (e) {
-        statusDot.className = 'status-dot';
-        statusText.textContent = 'Failed to load';
-        log(`Failed to load WASM: ${e.message}`, 'error');
-        console.error(e);
+      let feather, interp;
+
+      function log(text, type = "") {
+        const line = document.createElement("div");
+        line.className = `output-line ${type}`;
+        line.textContent = text;
+        output.appendChild(line);
+        output.scrollTop = output.scrollHeight;
       }
-    }
 
-    runBtn.addEventListener('click', () => {
-      const script = editor.value;
-      if (!script.trim()) return;
+      async function init() {
+        statusDot.className = "status-dot loading";
+        statusText.textContent = "Loading WASM...";
 
-      log('', 'info');
-      log('--- Running script ---', 'info');
+        try {
+          feather = await createFeather("./feather.wasm");
+          interp = feather.create();
 
-      try {
-        const result = feather.eval(interp, script);
-        if (result) {
-          log(`=> ${result}`, 'result');
+          feather.register(interp, "puts", (args) => {
+            log(args.join(" "));
+            return "";
+          });
+
+          feather.register(interp, "clock", (args) => {
+            if (args[0] === "seconds") return Math.floor(Date.now() / 1000);
+            if (args[0] === "milliseconds") return Date.now();
+            throw new Error(`unknown clock subcommand "${args[0]}"`);
+          });
+
+          // Canvas command with drawing subcommands
+          const canvas = document.getElementById("canvas");
+          const ctx = canvas.getContext("2d");
+          let fillColor = "#fff";
+          let strokeColor = "#fff";
+          let lineWidth = 1;
+
+          feather.register(interp, "canvas", (args) => {
+            const sub = args[0];
+            switch (sub) {
+              case "clear":
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                break;
+              case "fill":
+                fillColor = args[1];
+                ctx.fillStyle = fillColor;
+                break;
+              case "stroke":
+                strokeColor = args[1];
+                ctx.strokeStyle = strokeColor;
+                break;
+              case "width":
+                lineWidth = parseFloat(args[1]);
+                ctx.lineWidth = lineWidth;
+                break;
+              case "rect":
+                ctx.fillRect(
+                  parseFloat(args[1]),
+                  parseFloat(args[2]),
+                  parseFloat(args[3]),
+                  parseFloat(args[4]),
+                );
+                break;
+              case "strokerect":
+                ctx.strokeRect(
+                  parseFloat(args[1]),
+                  parseFloat(args[2]),
+                  parseFloat(args[3]),
+                  parseFloat(args[4]),
+                );
+                break;
+              case "circle":
+                ctx.beginPath();
+                ctx.arc(
+                  parseFloat(args[1]),
+                  parseFloat(args[2]),
+                  parseFloat(args[3]),
+                  0,
+                  Math.PI * 2,
+                );
+                ctx.fill();
+                break;
+              case "strokecircle":
+                ctx.beginPath();
+                ctx.arc(
+                  parseFloat(args[1]),
+                  parseFloat(args[2]),
+                  parseFloat(args[3]),
+                  0,
+                  Math.PI * 2,
+                );
+                ctx.stroke();
+                break;
+              case "line":
+                ctx.beginPath();
+                ctx.moveTo(parseFloat(args[1]), parseFloat(args[2]));
+                ctx.lineTo(parseFloat(args[3]), parseFloat(args[4]));
+                ctx.stroke();
+                break;
+              case "polygon": {
+                const points = args.slice(1).map(parseFloat);
+                if (points.length >= 4) {
+                  ctx.beginPath();
+                  ctx.moveTo(points[0], points[1]);
+                  for (let i = 2; i < points.length; i += 2) {
+                    ctx.lineTo(points[i], points[i + 1]);
+                  }
+                  ctx.closePath();
+                  ctx.fill();
+                }
+                break;
+              }
+              case "strokepolygon": {
+                const points = args.slice(1).map(parseFloat);
+                if (points.length >= 4) {
+                  ctx.beginPath();
+                  ctx.moveTo(points[0], points[1]);
+                  for (let i = 2; i < points.length; i += 2) {
+                    ctx.lineTo(points[i], points[i + 1]);
+                  }
+                  ctx.closePath();
+                  ctx.stroke();
+                }
+                break;
+              }
+              case "font":
+                ctx.font = args[1];
+                break;
+              case "text":
+                ctx.fillText(
+                  args.slice(3).join(" "),
+                  parseFloat(args[1]),
+                  parseFloat(args[2]),
+                );
+                break;
+              case "arc":
+                ctx.beginPath();
+                ctx.arc(
+                  parseFloat(args[1]),
+                  parseFloat(args[2]),
+                  parseFloat(args[3]),
+                  parseFloat(args[4]),
+                  parseFloat(args[5]),
+                );
+                ctx.stroke();
+                break;
+              default:
+                throw new Error(`unknown canvas subcommand "${sub}"`);
+            }
+            return "";
+          });
+
+          statusDot.className = "status-dot ready";
+          statusText.textContent = "Ready";
+          runBtn.disabled = false;
+
+          log("feather interpreter ready", "info");
+        } catch (e) {
+          statusDot.className = "status-dot";
+          statusText.textContent = "Failed to load";
+          log(`Failed to load WASM: ${e.message}`, "error");
+          console.error(e);
         }
-      } catch (e) {
-        log(`Error: ${e.message}`, 'error');
       }
-    });
 
-    clearBtn.addEventListener('click', () => {
-      output.innerHTML = '';
-    });
+      runBtn.addEventListener("click", () => {
+        const script = editor.value;
+        if (!script.trim()) return;
 
-    editor.addEventListener('keydown', (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        e.preventDefault();
-        runBtn.click();
-      }
-    });
+        log("", "info");
+        log("--- Running script ---", "info");
 
-    document.querySelectorAll('.example-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const example = examples[btn.dataset.example];
-        if (example) {
-          editor.value = example;
+        try {
+          const result = feather.eval(interp, script);
+          if (result) {
+            log(`=> ${result}`, "result");
+          }
+        } catch (e) {
+          log(`Error: ${e.message}`, "error");
         }
       });
-    });
 
-    init();
-  </script>
-</body>
+      clearBtn.addEventListener("click", () => {
+        output.innerHTML = "";
+      });
+
+      editor.addEventListener("keydown", (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+          e.preventDefault();
+          runBtn.click();
+        }
+      });
+
+      document.querySelectorAll(".example-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const example = examples[btn.dataset.example];
+          if (example) {
+            editor.value = example;
+          }
+        });
+      });
+
+      init();
+    </script>
+  </body>
 </html>
