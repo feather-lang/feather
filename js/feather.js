@@ -15,6 +15,8 @@ const TCL_CMD_NONE = 0;
 const TCL_CMD_BUILTIN = 1;
 const TCL_CMD_PROC = 2;
 
+const DEFAULT_RECURSION_LIMIT = 1000;
+
 class FeatherInterp {
   constructor(id) {
     this.id = id;
@@ -34,12 +36,20 @@ class FeatherInterp {
     this.returnOptions = new Map();
     this.scriptPath = '';
     this.foreignTypes = new Map();
+    this.foreignInstances = new Map(); // handle name -> { typeName, value, objHandle }
+    this.recursionLimit = DEFAULT_RECURSION_LIMIT;
   }
 
   store(obj) {
     const handle = this.nextHandle++;
     this.objects.set(handle, obj);
     return handle;
+  }
+
+  invalidateStringCache(obj) {
+    if (obj && obj.type === 'list') {
+      delete obj.cachedString;
+    }
   }
 
   get(handle) {
@@ -54,16 +64,58 @@ class FeatherInterp {
     if (obj.type === 'string') return obj.value;
     if (obj.type === 'int') return String(obj.value);
     if (obj.type === 'double') return String(obj.value);
-    if (obj.type === 'list') return obj.items.map(h => this.getString(h)).join(' ');
+    if (obj.type === 'list') return obj.items.map(h => this.quoteListElement(this.getString(h))).join(' ');
     if (obj.type === 'dict') {
       const parts = [];
       for (const [k, v] of obj.entries) {
-        parts.push(this.getString(k), this.getString(v));
+        parts.push(this.quoteListElement(this.getString(k)), this.quoteListElement(this.getString(v)));
       }
       return parts.join(' ');
     }
     if (obj.type === 'foreign') return obj.stringRep || `<${obj.typeName}:${handle}>`;
     return String(obj);
+  }
+
+  quoteListElement(str) {
+    if (str === '') return '{}';
+    if (/[\s{}\\"]/.test(str) || str.includes('\n')) {
+      return '{' + str + '}';
+    }
+    return str;
+  }
+
+  // Check if an object is foreign (directly or by handle name)
+  isForeign(handle) {
+    const obj = this.get(handle);
+    if (obj?.type === 'foreign') return true;
+    // Check if string value is a foreign handle name
+    const strVal = this.getString(handle);
+    return this.foreignInstances.has(strVal);
+  }
+
+  // Get foreign type name (checks direct type and handle name)
+  getForeignTypeName(handle) {
+    const obj = this.get(handle);
+    if (obj?.type === 'foreign') return obj.typeName;
+    // Check if string value is a foreign handle name
+    const strVal = this.getString(handle);
+    const instance = this.foreignInstances.get(strVal);
+    return instance?.typeName || null;
+  }
+
+  // Get foreign instance info by handle
+  getForeignInstance(handle) {
+    const obj = this.get(handle);
+    if (obj?.type === 'foreign') {
+      // Find instance by searching (could optimize with reverse map)
+      for (const [name, inst] of this.foreignInstances) {
+        if (inst.objHandle === handle) return inst;
+      }
+      return null;
+    }
+    // Check if string value is a foreign handle name
+    const strVal = this.getString(handle);
+    return this.foreignInstances.get(strVal) || null;
   }
 
   getList(handle) {
@@ -193,6 +245,12 @@ async function createFeather(wasmSource) {
     // Frame operations
     frame_push: (interpId, cmd, args) => {
       const interp = interpreters.get(interpId);
+      // Check recursion limit
+      if (interp.frames.length >= interp.recursionLimit) {
+        const msg = interp.store({ type: 'string', value: 'too many nested evaluations (infinite loop?)' });
+        interp.result = msg;
+        return TCL_ERROR;
+      }
       const parentNs = interp.frames[interp.frames.length - 1].ns;
       // New frames get their own vars Map (NOT shared with namespace)
       interp.frames.push({ vars: new Map(), cmd, args, ns: parentNs });
@@ -325,6 +383,8 @@ async function createFeather(wasmSource) {
         const namespace = interp.getNamespace(nsPath);
         names = namespace ? [...namespace.vars.keys()] : [];
       }
+      // Sort for consistent ordering (matches Go implementation)
+      names.sort();
       const list = { type: 'list', items: names.map(n => interp.store({ type: 'string', value: n })) };
       return interp.store(list);
     },
@@ -664,6 +724,7 @@ async function createFeather(wasmSource) {
       const listObj = interp.get(list);
       if (listObj?.type === 'list') {
         listObj.items.push(item);
+        interp.invalidateStringCache(listObj);
       }
       return list;
     },
@@ -671,6 +732,7 @@ async function createFeather(wasmSource) {
       const interp = interpreters.get(interpId);
       const listObj = interp.get(list);
       if (listObj?.type === 'list' && listObj.items.length > 0) {
+        interp.invalidateStringCache(listObj);
         return listObj.items.pop();
       }
       return 0;
@@ -680,6 +742,7 @@ async function createFeather(wasmSource) {
       const listObj = interp.get(list);
       if (listObj?.type === 'list') {
         listObj.items.unshift(item);
+        interp.invalidateStringCache(listObj);
       }
       return list;
     },
@@ -687,40 +750,40 @@ async function createFeather(wasmSource) {
       const interp = interpreters.get(interpId);
       const listObj = interp.get(list);
       if (listObj?.type === 'list' && listObj.items.length > 0) {
+        interp.invalidateStringCache(listObj);
         return listObj.items.shift();
       }
       return 0;
     },
     list_length: (interpId, list) => {
       const interp = interpreters.get(interpId);
-      const listObj = interp.get(list);
-      if (listObj?.type === 'list') {
-        return listObj.items.length;
-      }
-      return 0;
+      // Use getList for shimmering (string → list)
+      const items = interp.getList(list);
+      return items.length;
     },
     list_at: (interpId, list, index) => {
       const interp = interpreters.get(interpId);
-      const listObj = interp.get(list);
-      if (listObj?.type === 'list' && index < listObj.items.length) {
-        return listObj.items[index];
+      // Use getList for shimmering (string → list)
+      const items = interp.getList(list);
+      if (index < items.length) {
+        return items[index];
       }
       return 0;
     },
     list_slice: (interpId, list, first, last) => {
       const interp = interpreters.get(interpId);
-      const listObj = interp.get(list);
-      if (listObj?.type === 'list') {
-        const sliced = listObj.items.slice(Number(first), Number(last) + 1);
-        return interp.store({ type: 'list', items: sliced });
-      }
-      return interp.store({ type: 'list', items: [] });
+      // Use getList for shimmering (string → list)
+      const items = interp.getList(list);
+      const sliced = items.slice(Number(first), Number(last) + 1);
+      return interp.store({ type: 'list', items: sliced });
     },
     list_set_at: (interpId, list, index, value) => {
       const interp = interpreters.get(interpId);
       const listObj = interp.get(list);
+      // For set_at, we need a native list - can't shimmer and modify
       if (listObj?.type === 'list' && index < listObj.items.length) {
         listObj.items[index] = value;
+        interp.invalidateStringCache(listObj);
         return TCL_OK;
       }
       return TCL_ERROR;
@@ -728,9 +791,11 @@ async function createFeather(wasmSource) {
     list_splice: (interpId, list, first, deleteCount, insertions) => {
       const interp = interpreters.get(interpId);
       const listObj = interp.get(list);
+      // For splice, we need a native list - can't shimmer and modify
       if (listObj?.type === 'list') {
         const toInsert = interp.getList(insertions);
         listObj.items.splice(Number(first), Number(deleteCount), ...toInsert);
+        interp.invalidateStringCache(listObj);
       }
       return list;
     },
@@ -875,11 +940,14 @@ async function createFeather(wasmSource) {
       return TCL_OK;
     },
     interp_set_return_options: (interpId, options) => {
+      const interp = interpreters.get(interpId);
+      interp.returnOptions.set('current', options);
       return TCL_OK;
     },
     interp_get_return_options: (interpId, code) => {
       const interp = interpreters.get(interpId);
-      return interp.store({ type: 'dict', entries: [] });
+      const opts = interp.returnOptions.get('current');
+      return opts || 0;
     },
     interp_get_script: (interpId) => {
       const interp = interpreters.get(interpId);
@@ -942,14 +1010,11 @@ async function createFeather(wasmSource) {
       const nameStr = interp.getString(name);
       const traces = interp.traces[kindStr]?.get(nameStr) || [];
       const items = traces.map(t => {
-        const pair = interp.store({
-          type: 'list',
-          items: [
-            interp.store({ type: 'string', value: t.ops }),
-            t.script
-          ]
-        });
-        return pair;
+        // Split ops into individual elements, then append script
+        const ops = t.ops.split(/\s+/).filter(o => o);
+        const subItems = ops.map(op => interp.store({ type: 'string', value: op }));
+        subItems.push(t.script);
+        return interp.store({ type: 'list', items: subItems });
       });
       return interp.store({ type: 'list', items });
     },
@@ -957,28 +1022,27 @@ async function createFeather(wasmSource) {
     // Foreign object operations
     foreign_is_foreign: (interpId, obj) => {
       const interp = interpreters.get(interpId);
-      const o = interp.get(obj);
-      return o?.type === 'foreign' ? 1 : 0;
+      return interp.isForeign(obj) ? 1 : 0;
     },
     foreign_type_name: (interpId, obj) => {
       const interp = interpreters.get(interpId);
-      const o = interp.get(obj);
-      if (o?.type !== 'foreign') return 0;
-      return interp.store({ type: 'string', value: o.typeName });
+      const typeName = interp.getForeignTypeName(obj);
+      if (!typeName) return 0;
+      return interp.store({ type: 'string', value: typeName });
     },
     foreign_string_rep: (interpId, obj) => {
       const interp = interpreters.get(interpId);
-      const o = interp.get(obj);
-      if (o?.type !== 'foreign') return 0;
-      return interp.store({ type: 'string', value: o.stringRep || `<${o.typeName}:${obj}>` });
+      const instance = interp.getForeignInstance(obj);
+      if (!instance) return 0;
+      return interp.store({ type: 'string', value: instance.handleName || `<${instance.typeName}:${obj}>` });
     },
     foreign_methods: (interpId, obj) => {
       const interp = interpreters.get(interpId);
-      const o = interp.get(obj);
-      if (o?.type !== 'foreign') return interp.store({ type: 'list', items: [] });
-      const typeDef = interp.foreignTypes.get(o.typeName);
+      const typeName = interp.getForeignTypeName(obj);
+      if (!typeName) return interp.store({ type: 'list', items: [] });
+      const typeDef = interp.foreignTypes.get(typeName);
       if (!typeDef) return interp.store({ type: 'list', items: [] });
-      const methods = Object.keys(typeDef.methods || {});
+      const methods = Object.keys(typeDef.methods || {}).concat(['destroy']);
       return interp.store({ type: 'list', items: methods.map(m => interp.store({ type: 'string', value: m })) });
     },
     foreign_invoke: (interpId, obj, method, args) => {
@@ -1239,9 +1303,19 @@ async function createFeather(wasmSource) {
       interpreters.get(interpId).foreignTypes.set(typeName, typeDef);
     },
 
-    createForeign(interpId, typeName, value, stringRep) {
+    createForeign(interpId, typeName, value, handleName) {
       const interp = interpreters.get(interpId);
-      return interp.store({ type: 'foreign', typeName, value, stringRep });
+      const objHandle = interp.store({ type: 'foreign', typeName, value, stringRep: handleName });
+      // Register the instance in foreignInstances so it can be looked up by handle name
+      if (handleName) {
+        interp.foreignInstances.set(handleName, { typeName, value, objHandle, handleName });
+      }
+      return objHandle;
+    },
+
+    destroyForeign(interpId, handleName) {
+      const interp = interpreters.get(interpId);
+      interp.foreignInstances.delete(handleName);
     },
 
     eval(interpId, script) {
