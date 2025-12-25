@@ -51,7 +51,14 @@ Feather is for **short, interactive programs** - similar to bash. It's the thin 
 
 ## Runs Everywhere
 
-Feather compiles to **WebAssembly**, running in browsers and any WASM runtime. The Go implementation serves as the reference host.
+Feather is designed to be embedded into host language.
+
+The core implementation provides the language semantics, but all memory allocations,
+I/O, Unicode and floating point operations are provided by the host.
+
+Chances are that if you are embedding a scripting language in 2025, your host language
+already _has_ an implementation of everything and duplicating Unicode tables or
+getting two event loops to play nice with each other is more trouble than it's worth.
 
 <div class="runs-everywhere-cards">
   <div class="platform-card">
@@ -59,8 +66,9 @@ Feather compiles to **WebAssembly**, running in browsers and any WASM runtime. T
       <img src="/go-logo.svg" alt="Go Logo" class="platform-logo" />
     </div>
     <div class="platform-text">
-      <h3>Go</h3>
-      <p>Reference implementation. Embed Feather in any Go application with a simple API.</p>
+      <h3 data-status="alpha">Go</h3>
+      <p>The reference host implementation, with an easy embedding API.</p>
+	  <p>Quickly expose functions and structs from your program for manipulation through Feather.</p>
     </div>
   </div>
   <div class="platform-card">
@@ -68,8 +76,29 @@ Feather compiles to **WebAssembly**, running in browsers and any WASM runtime. T
       <img src="/webassembly-logo.svg" alt="WebAssembly Logo" class="platform-logo" />
     </div>
     <div class="platform-text">
-      <h3>JavaScript / WASM</h3>
+      <h3 data-status="alpha">JavaScript / WASM</h3>
       <p>Run in browsers and Node.js via WebAssembly. Works anywhere WASM runs.</p>
+	  <p>Host bindings for the node.js and the browser are provided.</p>
+    </div>
+  </div>
+  <div class="platform-card">
+    <div class="platform-logo-col">
+      <img src="/swift-logo.svg" alt="Swift Logo" class="platform-logo" />
+    </div>
+    <div class="platform-text">
+      <h3 data-status="planned">Swift</h3>
+      <p>Host bindings for Swift, to allow end users of apps to change their behavior at runtime.</p>
+      <p>Make any app as configurable as neovim and Emacs.</p>
+    </div>
+  </div>
+  <div class="platform-card">
+    <div class="platform-logo-col">
+      <img src="/java-logo.svg" alt="Java Logo" class="platform-logo" />
+    </div>
+    <div class="platform-text">
+      <h3 data-status="planned">Java</h3>
+      <p>Java is pretty dynamic already, but not jshell is clunky and other languages bring their own implementation of everything.</p>
+      <p>Target use cases: runtime configuration of webserver, user-scriptable cross-platform GUI apps.</p>
     </div>
   </div>
 </div>
@@ -83,8 +112,9 @@ Feather compiles to **WebAssembly**, running in browsers and any WASM runtime. T
 }
 
 .platform-card {
-  flex: 1;
-  min-width: 320px;
+  flex: 1 1 calc(33% - 24px);
+  max-width: calc(33% - 12px);
+  min-width: 280px;
   padding: 24px;
   border-radius: 12px;
   background: var(--vp-c-bg-soft);
@@ -92,6 +122,20 @@ Feather compiles to **WebAssembly**, running in browsers and any WASM runtime. T
   display: flex;
   gap: 20px;
   align-items: center;
+}
+
+@media (max-width: 1024px) {
+  .platform-card {
+    flex: 1 1 calc(50% - 24px);
+    max-width: calc(50% - 12px);
+  }
+}
+
+@media (max-width: 640px) {
+  .platform-card {
+    flex: 1 1 100%;
+    max-width: 100%;
+  }
 }
 
 .platform-logo-col {
@@ -113,6 +157,30 @@ Feather compiles to **WebAssembly**, running in browsers and any WASM runtime. T
 .platform-text h3 {
   margin: 0 0 8px 0;
   font-size: 1.2em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.platform-text h3::after {
+  content: attr(data-status);
+  font-size: 0.65em;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--vp-c-gray-2);
+  color: var(--vp-c-text-2);
+}
+
+.platform-text h3[data-status="alpha"]::after {
+  background: var(--vp-c-green-soft);
+  color: var(--vp-c-green-1);
+}
+
+.platform-text h3[data-status="planned"]::after {
+  background: var(--vp-c-yellow-soft);
+  color: var(--vp-c-yellow-1);
 }
 
 .platform-text p {
