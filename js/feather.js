@@ -596,25 +596,81 @@ async function createFeather(wasmSource) {
       const interp = interpreters.get(interpId);
       const oldN = interp.getString(oldName);
       const newN = interp.getString(newName);
+
+      // Helper to split qualified name into namespace path and simple name
+      const splitQualified = (name) => {
+        if (name.startsWith('::')) {
+          const withoutLeading = name.slice(2);
+          const lastSep = withoutLeading.lastIndexOf('::');
+          if (lastSep !== -1) {
+            return [withoutLeading.slice(0, lastSep), withoutLeading.slice(lastSep + 2)];
+          }
+          return ['', withoutLeading]; // global namespace
+        }
+        return ['', name]; // unqualified = global
+      };
+
+      const [oldNsPath, oldSimple] = splitQualified(oldN);
+      const oldNs = interp.namespaces.get(oldNsPath);
+
+      // Check if command exists in namespace
+      if (!oldNs?.commands.has(oldSimple)) {
+        // Also check legacy procs/builtins maps
+        if (!interp.procs.has(oldN) && !interp.builtins.has(oldN)) {
+          interp.result = interp.store({ type: 'string', value: `can't rename "${displayName(oldN)}": command doesn't exist` });
+          return TCL_ERROR;
+        }
+      }
+
+      // Check if target already exists (before we do anything)
+      if (newN) {
+        const [newNsPath, newSimple] = splitQualified(newN);
+        const newNs = interp.namespaces.get(newNsPath);
+        if (newNs?.commands.has(newSimple)) {
+          interp.result = interp.store({ type: 'string', value: `can't rename to "${displayName(newN)}": command already exists` });
+          return TCL_ERROR;
+        }
+      }
+
       // Determine the operation for trace firing
       const op = newN ? 'rename' : 'delete';
-      if (interp.procs.has(oldN)) {
-        // Fire command traces before the rename/delete
-        fireCmdTraces(interp, oldN, newN, op);
+
+      // Get the command from namespace or legacy maps
+      let cmd = oldNs?.commands.get(oldSimple);
+      let isBuiltin = false;
+      if (!cmd && interp.procs.has(oldN)) {
         const proc = interp.procs.get(oldN);
-        interp.procs.delete(oldN);
-        if (newN) interp.procs.set(newN, proc);
-        return TCL_OK;
+        cmd = { kind: TCL_CMD_PROC, fn: 0, params: proc.params, body: proc.body };
+      } else if (!cmd && interp.builtins.has(oldN)) {
+        cmd = { kind: TCL_CMD_BUILTIN, fn: interp.builtins.get(oldN) };
+        isBuiltin = true;
       }
-      if (interp.builtins.has(oldN)) {
-        // Fire command traces before the rename/delete
-        fireCmdTraces(interp, oldN, newN, op);
-        const fn = interp.builtins.get(oldN);
-        interp.builtins.delete(oldN);
-        if (newN) interp.builtins.set(newN, fn);
-        return TCL_OK;
+
+      if (!cmd) return TCL_ERROR;
+
+      // Fire command traces before the rename/delete
+      fireCmdTraces(interp, oldN, newN, op);
+
+      // Delete from old location
+      if (oldNs) oldNs.commands.delete(oldSimple);
+      interp.procs.delete(oldN);
+      interp.builtins.delete(oldSimple);
+
+      // Add to new location if not deleting
+      if (newN) {
+        const [newNsPath, newSimple] = splitQualified(newN);
+        const newNs = interp.ensureNamespace('::' + newNsPath);
+        newNs.commands.set(newSimple, cmd);
+
+        // Also update legacy maps
+        if (cmd.kind === TCL_CMD_PROC) {
+          interp.procs.set(newN, { params: cmd.params, body: cmd.body });
+        } else if (cmd.kind === TCL_CMD_BUILTIN) {
+          interp.builtins.set(newSimple, cmd.fn);
+        }
       }
-      return TCL_ERROR;
+
+      return TCL_OK;
     },
 
     // String operations
