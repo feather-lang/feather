@@ -193,6 +193,18 @@ static FeatherResult c_dbl_get(FeatherInterp interp, FeatherObj obj, double *out
     return goDoubleGet(interp, obj, out);
 }
 
+static FeatherDoubleClass c_dbl_classify(double val) {
+    return goDoubleClassify(val);
+}
+
+static FeatherObj c_dbl_format(FeatherInterp interp, double val, char specifier, int precision) {
+    return goDoubleFormat(interp, val, specifier, precision);
+}
+
+static FeatherResult c_dbl_math(FeatherInterp interp, FeatherMathOp op, double a, double b, double *out) {
+    return goDoubleMath(interp, op, a, b, out);
+}
+
 static FeatherResult c_frame_push(FeatherInterp interp, FeatherObj cmd, FeatherObj args) {
     return goFramePush(interp, cmd, args);
 }
@@ -498,6 +510,9 @@ FeatherHostOps make_host_ops(void) {
 
     ops.dbl.create = c_dbl_create;
     ops.dbl.get = c_dbl_get;
+    ops.dbl.classify = c_dbl_classify;
+    ops.dbl.format = c_dbl_format;
+    ops.dbl.math = c_dbl_math;
 
     ops.interp.set_result = c_interp_set_result;
     ops.interp.get_result = c_interp_get_result;

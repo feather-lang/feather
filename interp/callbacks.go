@@ -23,8 +23,10 @@ static inline int call_list_compare(FeatherInterp interp, FeatherObj a, FeatherO
 import "C"
 
 import (
+	"math"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -942,6 +944,129 @@ func goDoubleGet(interp C.FeatherInterp, obj C.FeatherObj, out *C.double) C.Feat
 		return C.TCL_ERROR
 	}
 	*out = C.double(val)
+	return C.TCL_OK
+}
+
+//export goDoubleClassify
+func goDoubleClassify(val C.double) C.FeatherDoubleClass {
+	v := float64(val)
+	if math.IsNaN(v) {
+		return C.FEATHER_DBL_NAN
+	}
+	if math.IsInf(v, 1) {
+		return C.FEATHER_DBL_INF
+	}
+	if math.IsInf(v, -1) {
+		return C.FEATHER_DBL_NEG_INF
+	}
+	if v == 0 {
+		return C.FEATHER_DBL_ZERO
+	}
+	return C.FEATHER_DBL_NORMAL
+}
+
+//export goDoubleFormat
+func goDoubleFormat(interp C.FeatherInterp, val C.double, specifier C.char, precision C.int) C.FeatherObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	v := float64(val)
+	spec := byte(specifier)
+	prec := int(precision)
+
+	// Handle special values
+	if math.IsNaN(v) {
+		return C.FeatherObj(i.internString("NaN"))
+	}
+	if math.IsInf(v, 1) {
+		return C.FeatherObj(i.internString("Inf"))
+	}
+	if math.IsInf(v, -1) {
+		return C.FeatherObj(i.internString("-Inf"))
+	}
+
+	// Default precision
+	if prec < 0 {
+		prec = 6
+	}
+
+	// Format based on specifier
+	var format byte
+	switch spec {
+	case 'e', 'E':
+		format = spec
+	case 'f', 'F':
+		format = 'f'
+	case 'g', 'G':
+		format = spec
+	default:
+		format = 'g'
+	}
+
+	result := strconv.FormatFloat(v, format, prec, 64)
+	return C.FeatherObj(i.internString(result))
+}
+
+//export goDoubleMath
+func goDoubleMath(interp C.FeatherInterp, op C.FeatherMathOp, a C.double, b C.double, out *C.double) C.FeatherResult {
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	va := float64(a)
+	vb := float64(b)
+
+	var result float64
+	switch op {
+	case C.FEATHER_MATH_SQRT:
+		result = math.Sqrt(va)
+	case C.FEATHER_MATH_EXP:
+		result = math.Exp(va)
+	case C.FEATHER_MATH_LOG:
+		result = math.Log(va)
+	case C.FEATHER_MATH_LOG10:
+		result = math.Log10(va)
+	case C.FEATHER_MATH_SIN:
+		result = math.Sin(va)
+	case C.FEATHER_MATH_COS:
+		result = math.Cos(va)
+	case C.FEATHER_MATH_TAN:
+		result = math.Tan(va)
+	case C.FEATHER_MATH_ASIN:
+		result = math.Asin(va)
+	case C.FEATHER_MATH_ACOS:
+		result = math.Acos(va)
+	case C.FEATHER_MATH_ATAN:
+		result = math.Atan(va)
+	case C.FEATHER_MATH_SINH:
+		result = math.Sinh(va)
+	case C.FEATHER_MATH_COSH:
+		result = math.Cosh(va)
+	case C.FEATHER_MATH_TANH:
+		result = math.Tanh(va)
+	case C.FEATHER_MATH_FLOOR:
+		result = math.Floor(va)
+	case C.FEATHER_MATH_CEIL:
+		result = math.Ceil(va)
+	case C.FEATHER_MATH_ROUND:
+		result = math.Round(va)
+	case C.FEATHER_MATH_ABS:
+		result = math.Abs(va)
+	case C.FEATHER_MATH_POW:
+		result = math.Pow(va, vb)
+	case C.FEATHER_MATH_ATAN2:
+		result = math.Atan2(va, vb)
+	case C.FEATHER_MATH_FMOD:
+		result = math.Mod(va, vb)
+	case C.FEATHER_MATH_HYPOT:
+		result = math.Hypot(va, vb)
+	default:
+		i.result = i.internString("unknown math operation")
+		return C.TCL_ERROR
+	}
+
+	*out = C.double(result)
 	return C.TCL_OK
 }
 
