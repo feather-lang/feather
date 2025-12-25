@@ -1203,16 +1203,25 @@ async function createFeather(wasmSource) {
         return TCL_OK;
       }
       const str = interp.getString(obj).trim();
+      // Handle special values first
+      if (str === 'NaN') {
+        writeF64(outPtr, NaN);
+        return TCL_OK;
+      }
+      if (str === '+Inf' || str === 'Inf') {
+        writeF64(outPtr, Infinity);
+        return TCL_OK;
+      }
+      if (str === '-Inf') {
+        writeF64(outPtr, -Infinity);
+        return TCL_OK;
+      }
       // Must be a valid numeric string (parseFloat is too lenient - "0y" parses as 0)
       if (!/^-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(str)) {
         interp.result = interp.store({ type: 'string', value: `expected floating-point number but got "${str}"` });
         return TCL_ERROR;
       }
       const val = parseFloat(str);
-      if (isNaN(val)) {
-        interp.result = interp.store({ type: 'string', value: `expected floating-point number but got "${str}"` });
-        return TCL_ERROR;
-      }
       writeF64(outPtr, val);
       return TCL_OK;
     },
@@ -1307,7 +1316,7 @@ async function createFeather(wasmSource) {
         case 12: result = Math.tanh(a); break;    // FEATHER_MATH_TANH
         case 13: result = Math.floor(a); break;   // FEATHER_MATH_FLOOR
         case 14: result = Math.ceil(a); break;    // FEATHER_MATH_CEIL
-        case 15: result = Math.round(a); break;   // FEATHER_MATH_ROUND
+        case 15: result = a < 0 ? -Math.round(-a) : Math.round(a); break;   // FEATHER_MATH_ROUND (away from zero)
         case 16: result = Math.abs(a); break;     // FEATHER_MATH_ABS
         case 17: result = Math.pow(a, b); break;  // FEATHER_MATH_POW
         case 18: result = Math.atan2(a, b); break;// FEATHER_MATH_ATAN2
