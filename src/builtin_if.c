@@ -56,15 +56,6 @@ static FeatherResult eval_condition(const FeatherHostOps *ops, FeatherInterp int
   return TCL_ERROR;
 }
 
-// Helper to check if a string equals a keyword
-static int str_eq(const char *s, size_t len, const char *keyword) {
-  size_t i = 0;
-  while (i < len && keyword[i] && s[i] == keyword[i]) {
-    i++;
-  }
-  return i == len && keyword[i] == '\0';
-}
-
 FeatherResult feather_builtin_if(const FeatherHostOps *ops, FeatherInterp interp,
                           FeatherObj cmd, FeatherObj args) {
   (void)cmd;
@@ -87,7 +78,7 @@ FeatherResult feather_builtin_if(const FeatherHostOps *ops, FeatherInterp interp
     // Check for 'else' keyword
     size_t condLen;
     const char *condStr = ops->string.get(interp, condition, &condLen);
-    if (str_eq(condStr, condLen, "else")) {
+    if (feather_str_eq(condStr, condLen, "else")) {
       // else clause - must have body
       if (ops->list.length(interp, argsCopy) == 0) {
         FeatherObj msg = ops->string.intern(interp,
@@ -100,7 +91,7 @@ FeatherResult feather_builtin_if(const FeatherHostOps *ops, FeatherInterp interp
     }
 
     // Check for 'elseif' keyword
-    if (str_eq(condStr, condLen, "elseif")) {
+    if (feather_str_eq(condStr, condLen, "elseif")) {
       // elseif - get the actual condition
       if (ops->list.length(interp, argsCopy) == 0) {
         FeatherObj msg = ops->string.intern(interp,
@@ -124,7 +115,7 @@ FeatherResult feather_builtin_if(const FeatherHostOps *ops, FeatherInterp interp
     size_t nextLen;
     const char *nextStr = ops->string.get(interp, next, &nextLen);
     FeatherObj body;
-    if (str_eq(nextStr, nextLen, "then")) {
+    if (feather_str_eq(nextStr, nextLen, "then")) {
       // Skip 'then', get body
       if (ops->list.length(interp, argsCopy) == 0) {
         FeatherObj msg = ops->string.intern(interp,

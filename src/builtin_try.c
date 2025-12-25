@@ -4,16 +4,6 @@
 // Helper macro
 #define S(lit) (lit), feather_strlen(lit)
 
-// Helper to check if a string equals a literal
-static int str_eq(const char *s, size_t len, const char *lit) {
-  size_t lit_len = feather_strlen(lit);
-  if (len != lit_len) return 0;
-  for (size_t i = 0; i < len; i++) {
-    if (s[i] != lit[i]) return 0;
-  }
-  return 1;
-}
-
 // Parse return code from string: ok=0, error=1, return=2, break=3, continue=4
 // Returns -1 if invalid
 static int parse_code(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj codeObj) {
@@ -26,11 +16,11 @@ static int parse_code(const FeatherHostOps *ops, FeatherInterp interp, FeatherOb
   size_t len;
   const char *str = ops->string.get(interp, codeObj, &len);
 
-  if (str_eq(str, len, "ok")) return 0;
-  if (str_eq(str, len, "error")) return 1;
-  if (str_eq(str, len, "return")) return 2;
-  if (str_eq(str, len, "break")) return 3;
-  if (str_eq(str, len, "continue")) return 4;
+  if (feather_str_eq(str, len, "ok")) return 0;
+  if (feather_str_eq(str, len, "error")) return 1;
+  if (feather_str_eq(str, len, "return")) return 2;
+  if (feather_str_eq(str, len, "break")) return 3;
+  if (feather_str_eq(str, len, "continue")) return 4;
 
   return -1; // invalid
 }
@@ -78,7 +68,7 @@ static FeatherObj get_errorcode(const FeatherHostOps *ops, FeatherInterp interp,
     size_t keyLen;
     const char *keyStr = ops->string.get(interp, key, &keyLen);
 
-    if (str_eq(keyStr, keyLen, "-errorcode")) {
+    if (feather_str_eq(keyStr, keyLen, "-errorcode")) {
       return val;
     }
   }
@@ -126,14 +116,14 @@ FeatherResult feather_builtin_try(const FeatherHostOps *ops, FeatherInterp inter
       FeatherObj secondLast = ops->list.at(interp, args, argc - 2);
       size_t slen;
       const char *sstr = ops->string.get(interp, secondLast, &slen);
-      if (str_eq(sstr, slen, "finally")) {
+      if (feather_str_eq(sstr, slen, "finally")) {
         finallyScript = lastArg;
         handlerEnd = argc - 2;
       }
     }
 
     // Check if last arg itself is "finally" (missing script)
-    if (str_eq(str, len, "finally") && finallyScript == 0) {
+    if (feather_str_eq(str, len, "finally") && finallyScript == 0) {
       FeatherObj msg = ops->string.intern(
           interp, S("wrong # args to finally clause: must be \"finally script\""));
       ops->interp.set_result(interp, msg);
@@ -164,12 +154,12 @@ FeatherResult feather_builtin_try(const FeatherHostOps *ops, FeatherInterp inter
         size_t keyLen;
         const char *keyStr = ops->string.get(interp, key, &keyLen);
 
-        if (str_eq(keyStr, keyLen, "-code")) {
+        if (feather_str_eq(keyStr, keyLen, "-code")) {
           int64_t intVal;
           if (ops->integer.get(interp, val, &intVal) == TCL_OK) {
             returnCode = (int)intVal;
           }
-        } else if (str_eq(keyStr, keyLen, "-level")) {
+        } else if (feather_str_eq(keyStr, keyLen, "-level")) {
           int64_t intVal;
           if (ops->integer.get(interp, val, &intVal) == TCL_OK) {
             level = (int)intVal;
@@ -200,7 +190,7 @@ FeatherResult feather_builtin_try(const FeatherHostOps *ops, FeatherInterp inter
     size_t typeLen;
     const char *typeStr = ops->string.get(interp, handlerType, &typeLen);
 
-    if (str_eq(typeStr, typeLen, "on")) {
+    if (feather_str_eq(typeStr, typeLen, "on")) {
       // on code variableList script
       if (i + 3 > handlerEnd) {
         FeatherObj msg = ops->string.intern(
@@ -283,7 +273,7 @@ FeatherResult feather_builtin_try(const FeatherHostOps *ops, FeatherInterp inter
       }
 
       i += 4;
-    } else if (str_eq(typeStr, typeLen, "trap")) {
+    } else if (feather_str_eq(typeStr, typeLen, "trap")) {
       // trap pattern variableList script
       if (i + 3 > handlerEnd) {
         FeatherObj msg = ops->string.intern(
@@ -360,7 +350,7 @@ FeatherResult feather_builtin_try(const FeatherHostOps *ops, FeatherInterp inter
       }
 
       i += 4;
-    } else if (str_eq(typeStr, typeLen, "finally")) {
+    } else if (feather_str_eq(typeStr, typeLen, "finally")) {
       // finally must be at the end - if we got here, it's malformed
       FeatherObj msg = ops->string.intern(
           interp, S("finally clause must be at the end"));

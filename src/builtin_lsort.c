@@ -81,17 +81,6 @@ static int compare_elements(FeatherInterp interp, FeatherObj a, FeatherObj b, vo
   return result;
 }
 
-// Helper to check string equality
-static int str_eq(const char *s, size_t len, const char *lit) {
-  size_t llen = 0;
-  while (lit[llen]) llen++;
-  if (len != llen) return 0;
-  for (size_t i = 0; i < len; i++) {
-    if (s[i] != lit[i]) return 0;
-  }
-  return 1;
-}
-
 FeatherResult feather_builtin_lsort(const FeatherHostOps *ops, FeatherInterp interp,
                              FeatherObj cmd, FeatherObj args) {
   (void)cmd;
@@ -121,19 +110,19 @@ FeatherResult feather_builtin_lsort(const FeatherHostOps *ops, FeatherInterp int
     const char *str = ops->string.get(interp, arg, &len);
 
     if (len > 0 && str[0] == '-') {
-      if (str_eq(str, len, "-ascii")) {
+      if (feather_str_eq(str, len, "-ascii")) {
         ctx.mode = SORT_ASCII;
-      } else if (str_eq(str, len, "-integer")) {
+      } else if (feather_str_eq(str, len, "-integer")) {
         ctx.mode = SORT_INTEGER;
-      } else if (str_eq(str, len, "-real")) {
+      } else if (feather_str_eq(str, len, "-real")) {
         ctx.mode = SORT_REAL;
-      } else if (str_eq(str, len, "-increasing")) {
+      } else if (feather_str_eq(str, len, "-increasing")) {
         ctx.decreasing = 0;
-      } else if (str_eq(str, len, "-decreasing")) {
+      } else if (feather_str_eq(str, len, "-decreasing")) {
         ctx.decreasing = 1;
-      } else if (str_eq(str, len, "-nocase")) {
+      } else if (feather_str_eq(str, len, "-nocase")) {
         ctx.nocase = 1;
-      } else if (str_eq(str, len, "-unique")) {
+      } else if (feather_str_eq(str, len, "-unique")) {
         unique = 1;
       } else {
         FeatherObj msg = ops->string.intern(interp, "bad option \"", 12);

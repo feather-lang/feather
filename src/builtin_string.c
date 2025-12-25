@@ -1,17 +1,6 @@
 #include "feather.h"
 #include "internal.h"
 
-// Helper to check string equality
-static int str_eq(const char *s, size_t len, const char *lit) {
-  size_t llen = 0;
-  while (lit[llen]) llen++;
-  if (len != llen) return 0;
-  for (size_t i = 0; i < len; i++) {
-    if (s[i] != lit[i]) return 0;
-  }
-  return 1;
-}
-
 // Parse an index like "end", "end-N", or integer
 static FeatherResult parse_index(const FeatherHostOps *ops, FeatherInterp interp,
                              FeatherObj indexObj, size_t strLen, int64_t *out) {
@@ -150,7 +139,7 @@ static FeatherResult string_match(const FeatherHostOps *ops, FeatherInterp inter
     FeatherObj first = ops->list.at(interp, args, 0);
     size_t len;
     const char *str = ops->string.get(interp, first, &len);
-    if (str_eq(str, len, "-nocase")) {
+    if (feather_str_eq(str, len, "-nocase")) {
       nocase = 1;
       ops->list.shift(interp, args);
       argc--;
@@ -333,7 +322,7 @@ static FeatherResult string_map(const FeatherHostOps *ops, FeatherInterp interp,
     FeatherObj first = ops->list.at(interp, args, 0);
     size_t len;
     const char *str = ops->string.get(interp, first, &len);
-    if (str_eq(str, len, "-nocase")) {
+    if (feather_str_eq(str, len, "-nocase")) {
       nocase = 1;
       ops->list.shift(interp, args);
       argc--;
@@ -438,25 +427,25 @@ FeatherResult feather_builtin_string(const FeatherHostOps *ops, FeatherInterp in
   size_t len;
   const char *subcmdStr = ops->string.get(interp, subcmd, &len);
 
-  if (str_eq(subcmdStr, len, "length")) {
+  if (feather_str_eq(subcmdStr, len, "length")) {
     return string_length(ops, interp, args);
-  } else if (str_eq(subcmdStr, len, "index")) {
+  } else if (feather_str_eq(subcmdStr, len, "index")) {
     return string_index(ops, interp, args);
-  } else if (str_eq(subcmdStr, len, "range")) {
+  } else if (feather_str_eq(subcmdStr, len, "range")) {
     return string_range(ops, interp, args);
-  } else if (str_eq(subcmdStr, len, "match")) {
+  } else if (feather_str_eq(subcmdStr, len, "match")) {
     return string_match(ops, interp, args);
-  } else if (str_eq(subcmdStr, len, "toupper")) {
+  } else if (feather_str_eq(subcmdStr, len, "toupper")) {
     return string_toupper(ops, interp, args);
-  } else if (str_eq(subcmdStr, len, "tolower")) {
+  } else if (feather_str_eq(subcmdStr, len, "tolower")) {
     return string_tolower(ops, interp, args);
-  } else if (str_eq(subcmdStr, len, "trim")) {
+  } else if (feather_str_eq(subcmdStr, len, "trim")) {
     return string_trim(ops, interp, args);
-  } else if (str_eq(subcmdStr, len, "trimleft")) {
+  } else if (feather_str_eq(subcmdStr, len, "trimleft")) {
     return string_trimleft(ops, interp, args);
-  } else if (str_eq(subcmdStr, len, "trimright")) {
+  } else if (feather_str_eq(subcmdStr, len, "trimright")) {
     return string_trimright(ops, interp, args);
-  } else if (str_eq(subcmdStr, len, "map")) {
+  } else if (feather_str_eq(subcmdStr, len, "map")) {
     return string_map(ops, interp, args);
   } else {
     FeatherObj msg = ops->string.intern(interp, "unknown or ambiguous subcommand \"", 33);

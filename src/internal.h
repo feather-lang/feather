@@ -6,6 +6,13 @@
 // Internal forward declarations go here
 
 /**
+ * feather_str_eq compares a length-delimited string against a null-terminated literal.
+ *
+ * Returns 1 if equal, 0 otherwise.
+ */
+int feather_str_eq(const char *s, size_t len, const char *lit);
+
+/**
  * feather_lookup_builtin looks up a builtin command by name.
  * Returns NULL if no builtin with that name exists.
  */

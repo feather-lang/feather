@@ -2,22 +2,6 @@
 #include "feather.h"
 
 /**
- * Helper to check if a string equals a literal.
- */
-static int str_eq(const char *s, size_t len, const char *lit) {
-  size_t lit_len = feather_strlen(lit);
-  if (len != lit_len) {
-    return 0;
-  }
-  for (size_t i = 0; i < len; i++) {
-    if (s[i] != lit[i]) {
-      return 0;
-    }
-  }
-  return 1;
-}
-
-/**
  * trace add variable name ops script
  * trace add command name ops script
  */
@@ -41,7 +25,7 @@ static FeatherResult trace_add(const FeatherHostOps *ops, FeatherInterp interp,
   // Validate kind
   size_t kindLen;
   const char *kindStr = ops->string.get(interp, kind, &kindLen);
-  if (!str_eq(kindStr, kindLen, "variable") && !str_eq(kindStr, kindLen, "command")) {
+  if (!feather_str_eq(kindStr, kindLen, "variable") && !feather_str_eq(kindStr, kindLen, "command")) {
     FeatherObj msg = ops->string.intern(interp, "bad type \"", 10);
     msg = ops->string.concat(interp, msg, kind);
     msg = ops->string.concat(interp, msg,
@@ -69,7 +53,7 @@ static FeatherResult trace_add(const FeatherHostOps *ops, FeatherInterp interp,
 
   // For command traces, normalize the name to fully qualified form
   FeatherObj traceName = name;
-  if (str_eq(kindStr, kindLen, "command")) {
+  if (feather_str_eq(kindStr, kindLen, "command")) {
     size_t nameLen;
     const char *nameStr = ops->string.get(interp, name, &nameLen);
     // If unqualified, prepend ::
@@ -112,7 +96,7 @@ static FeatherResult trace_remove(const FeatherHostOps *ops, FeatherInterp inter
   // Validate kind
   size_t kindLen;
   const char *kindStr = ops->string.get(interp, kind, &kindLen);
-  if (!str_eq(kindStr, kindLen, "variable") && !str_eq(kindStr, kindLen, "command")) {
+  if (!feather_str_eq(kindStr, kindLen, "variable") && !feather_str_eq(kindStr, kindLen, "command")) {
     FeatherObj msg = ops->string.intern(interp, "bad type \"", 10);
     msg = ops->string.concat(interp, msg, kind);
     msg = ops->string.concat(interp, msg,
@@ -135,7 +119,7 @@ static FeatherResult trace_remove(const FeatherHostOps *ops, FeatherInterp inter
 
   // For command traces, normalize the name to fully qualified form
   FeatherObj traceName = name;
-  if (str_eq(kindStr, kindLen, "command")) {
+  if (feather_str_eq(kindStr, kindLen, "command")) {
     size_t nameLen;
     const char *nameStr = ops->string.get(interp, name, &nameLen);
     if (!feather_is_qualified(nameStr, nameLen)) {
@@ -174,7 +158,7 @@ static FeatherResult trace_info(const FeatherHostOps *ops, FeatherInterp interp,
   // Validate kind
   size_t kindLen;
   const char *kindStr = ops->string.get(interp, kind, &kindLen);
-  if (!str_eq(kindStr, kindLen, "variable") && !str_eq(kindStr, kindLen, "command")) {
+  if (!feather_str_eq(kindStr, kindLen, "variable") && !feather_str_eq(kindStr, kindLen, "command")) {
     FeatherObj msg = ops->string.intern(interp, "bad type \"", 10);
     msg = ops->string.concat(interp, msg, kind);
     msg = ops->string.concat(interp, msg,
@@ -185,7 +169,7 @@ static FeatherResult trace_info(const FeatherHostOps *ops, FeatherInterp interp,
 
   // For command traces, normalize the name to fully qualified form
   FeatherObj traceName = name;
-  if (str_eq(kindStr, kindLen, "command")) {
+  if (feather_str_eq(kindStr, kindLen, "command")) {
     size_t nameLen;
     const char *nameStr = ops->string.get(interp, name, &nameLen);
     if (!feather_is_qualified(nameStr, nameLen)) {
@@ -218,13 +202,13 @@ FeatherResult feather_builtin_trace(const FeatherHostOps *ops, FeatherInterp int
   size_t subcmdLen;
   const char *subcmdStr = ops->string.get(interp, subcmd, &subcmdLen);
 
-  if (str_eq(subcmdStr, subcmdLen, "add")) {
+  if (feather_str_eq(subcmdStr, subcmdLen, "add")) {
     return trace_add(ops, interp, args);
   }
-  if (str_eq(subcmdStr, subcmdLen, "remove")) {
+  if (feather_str_eq(subcmdStr, subcmdLen, "remove")) {
     return trace_remove(ops, interp, args);
   }
-  if (str_eq(subcmdStr, subcmdLen, "info")) {
+  if (feather_str_eq(subcmdStr, subcmdLen, "info")) {
     return trace_info(ops, interp, args);
   }
 

@@ -1,15 +1,5 @@
 #include "feather.h"
 #include "internal.h"
-
-// Helper to check string equality
-static int str_eq(const char *s, size_t len, const char *keyword) {
-  size_t i = 0;
-  while (i < len && keyword[i] && s[i] == keyword[i]) {
-    i++;
-  }
-  return i == len && keyword[i] == '\0';
-}
-
 // Parse a code name or integer into a FeatherResult value
 // Returns TCL_OK on success and sets *code, TCL_ERROR on failure
 static FeatherResult parse_code(const FeatherHostOps *ops, FeatherInterp interp,
@@ -18,23 +8,23 @@ static FeatherResult parse_code(const FeatherHostOps *ops, FeatherInterp interp,
   const char *str = ops->string.get(interp, codeObj, &len);
 
   // Check named codes
-  if (str_eq(str, len, "ok")) {
+  if (feather_str_eq(str, len, "ok")) {
     *code = TCL_OK;
     return TCL_OK;
   }
-  if (str_eq(str, len, "error")) {
+  if (feather_str_eq(str, len, "error")) {
     *code = TCL_ERROR;
     return TCL_OK;
   }
-  if (str_eq(str, len, "return")) {
+  if (feather_str_eq(str, len, "return")) {
     *code = TCL_RETURN;
     return TCL_OK;
   }
-  if (str_eq(str, len, "break")) {
+  if (feather_str_eq(str, len, "break")) {
     *code = TCL_BREAK;
     return TCL_OK;
   }
-  if (str_eq(str, len, "continue")) {
+  if (feather_str_eq(str, len, "continue")) {
     *code = TCL_CONTINUE;
     return TCL_OK;
   }
@@ -81,7 +71,7 @@ FeatherResult feather_builtin_return(const FeatherHostOps *ops, FeatherInterp in
       ops->list.shift(interp, argsCopy);
       argc--;
 
-      if (str_eq(argStr, argLen, "-code")) {
+      if (feather_str_eq(argStr, argLen, "-code")) {
         // Need value
         if (argc == 0) {
           FeatherObj msg = ops->string.intern(interp, "-code requires a value", 22);
@@ -93,7 +83,7 @@ FeatherResult feather_builtin_return(const FeatherHostOps *ops, FeatherInterp in
         if (parse_code(ops, interp, codeArg, &code) != TCL_OK) {
           return TCL_ERROR;
         }
-      } else if (str_eq(argStr, argLen, "-level")) {
+      } else if (feather_str_eq(argStr, argLen, "-level")) {
         // Need value
         if (argc == 0) {
           FeatherObj msg = ops->string.intern(interp, "-level requires a value", 23);
@@ -127,7 +117,7 @@ FeatherResult feather_builtin_return(const FeatherHostOps *ops, FeatherInterp in
           return TCL_ERROR;
         }
         level = (int)levelVal;
-      } else if (str_eq(argStr, argLen, "-options")) {
+      } else if (feather_str_eq(argStr, argLen, "-options")) {
         // -options takes a dictionary - skip for now, just consume value
         if (argc == 0) {
           FeatherObj msg = ops->string.intern(interp, "-options requires a value", 25);

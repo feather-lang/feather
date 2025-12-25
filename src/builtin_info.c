@@ -26,22 +26,6 @@ static FeatherObj get_display_name(const FeatherHostOps *ops, FeatherInterp inte
 }
 
 /**
- * Helper to check if a string equals a literal.
- */
-static int str_eq(const char *s, size_t len, const char *lit) {
-  size_t lit_len = feather_strlen(lit);
-  if (len != lit_len) {
-    return 0;
-  }
-  for (size_t i = 0; i < len; i++) {
-    if (s[i] != lit[i]) {
-      return 0;
-    }
-  }
-  return 1;
-}
-
-/**
  * info exists varName
  */
 static FeatherResult info_exists(const FeatherHostOps *ops, FeatherInterp interp,
@@ -834,46 +818,46 @@ FeatherResult feather_builtin_info(const FeatherHostOps *ops, FeatherInterp inte
   size_t subcmdLen;
   const char *subcmdStr = ops->string.get(interp, subcmd, &subcmdLen);
 
-  if (str_eq(subcmdStr, subcmdLen, "exists")) {
+  if (feather_str_eq(subcmdStr, subcmdLen, "exists")) {
     return info_exists(ops, interp, args);
   }
-  if (str_eq(subcmdStr, subcmdLen, "level")) {
+  if (feather_str_eq(subcmdStr, subcmdLen, "level")) {
     return info_level(ops, interp, args);
   }
-  if (str_eq(subcmdStr, subcmdLen, "commands")) {
+  if (feather_str_eq(subcmdStr, subcmdLen, "commands")) {
     return info_commands(ops, interp, args);
   }
-  if (str_eq(subcmdStr, subcmdLen, "procs")) {
+  if (feather_str_eq(subcmdStr, subcmdLen, "procs")) {
     return info_procs(ops, interp, args);
   }
-  if (str_eq(subcmdStr, subcmdLen, "body")) {
+  if (feather_str_eq(subcmdStr, subcmdLen, "body")) {
     return info_body(ops, interp, args);
   }
-  if (str_eq(subcmdStr, subcmdLen, "args")) {
+  if (feather_str_eq(subcmdStr, subcmdLen, "args")) {
     return info_args(ops, interp, args);
   }
-  if (str_eq(subcmdStr, subcmdLen, "frame")) {
+  if (feather_str_eq(subcmdStr, subcmdLen, "frame")) {
     return info_frame(ops, interp, args);
   }
-  if (str_eq(subcmdStr, subcmdLen, "default")) {
+  if (feather_str_eq(subcmdStr, subcmdLen, "default")) {
     return info_default(ops, interp, args);
   }
-  if (str_eq(subcmdStr, subcmdLen, "locals")) {
+  if (feather_str_eq(subcmdStr, subcmdLen, "locals")) {
     return info_locals(ops, interp, args);
   }
-  if (str_eq(subcmdStr, subcmdLen, "globals")) {
+  if (feather_str_eq(subcmdStr, subcmdLen, "globals")) {
     return info_globals(ops, interp, args);
   }
-  if (str_eq(subcmdStr, subcmdLen, "vars")) {
+  if (feather_str_eq(subcmdStr, subcmdLen, "vars")) {
     return info_vars(ops, interp, args);
   }
-  if (str_eq(subcmdStr, subcmdLen, "script")) {
+  if (feather_str_eq(subcmdStr, subcmdLen, "script")) {
     return info_script(ops, interp, args);
   }
-  if (str_eq(subcmdStr, subcmdLen, "type")) {
+  if (feather_str_eq(subcmdStr, subcmdLen, "type")) {
     return info_type(ops, interp, args);
   }
-  if (str_eq(subcmdStr, subcmdLen, "methods")) {
+  if (feather_str_eq(subcmdStr, subcmdLen, "methods")) {
     return info_methods(ops, interp, args);
   }
 

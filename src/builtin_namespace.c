@@ -1,15 +1,6 @@
 #include "feather.h"
 #include "internal.h"
 
-// Helper to check if a string equals a literal
-static int str_eq(const char *s, size_t len, const char *lit) {
-  size_t i = 0;
-  while (i < len && lit[i] && s[i] == lit[i]) {
-    i++;
-  }
-  return i == len && lit[i] == '\0';
-}
-
 // Resolve a namespace path (relative or absolute) to an absolute path
 static FeatherObj resolve_ns_path(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj path) {
   size_t len;
@@ -441,21 +432,21 @@ FeatherResult feather_builtin_namespace(const FeatherHostOps *ops, FeatherInterp
   size_t subcmd_len;
   const char *subcmd_str = ops->string.get(interp, subcmd, &subcmd_len);
 
-  if (str_eq(subcmd_str, subcmd_len, "current")) {
+  if (feather_str_eq(subcmd_str, subcmd_len, "current")) {
     return ns_current(ops, interp, args);
-  } else if (str_eq(subcmd_str, subcmd_len, "eval")) {
+  } else if (feather_str_eq(subcmd_str, subcmd_len, "eval")) {
     return ns_eval(ops, interp, args);
-  } else if (str_eq(subcmd_str, subcmd_len, "exists")) {
+  } else if (feather_str_eq(subcmd_str, subcmd_len, "exists")) {
     return ns_exists(ops, interp, args);
-  } else if (str_eq(subcmd_str, subcmd_len, "children")) {
+  } else if (feather_str_eq(subcmd_str, subcmd_len, "children")) {
     return ns_children(ops, interp, args);
-  } else if (str_eq(subcmd_str, subcmd_len, "parent")) {
+  } else if (feather_str_eq(subcmd_str, subcmd_len, "parent")) {
     return ns_parent(ops, interp, args);
-  } else if (str_eq(subcmd_str, subcmd_len, "delete")) {
+  } else if (feather_str_eq(subcmd_str, subcmd_len, "delete")) {
     return ns_delete(ops, interp, args);
-  } else if (str_eq(subcmd_str, subcmd_len, "export")) {
+  } else if (feather_str_eq(subcmd_str, subcmd_len, "export")) {
     return ns_export(ops, interp, args);
-  } else if (str_eq(subcmd_str, subcmd_len, "import")) {
+  } else if (feather_str_eq(subcmd_str, subcmd_len, "import")) {
     return ns_import(ops, interp, args);
   } else {
     FeatherObj msg = ops->string.intern(interp,

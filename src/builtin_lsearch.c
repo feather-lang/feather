@@ -62,17 +62,6 @@ static int glob_match_nocase(const char *pattern, size_t plen,
   return p == plen;
 }
 
-// Helper to check string equality
-static int str_eq(const char *s, size_t len, const char *lit) {
-  size_t llen = 0;
-  while (lit[llen]) llen++;
-  if (len != llen) return 0;
-  for (size_t i = 0; i < len; i++) {
-    if (s[i] != lit[i]) return 0;
-  }
-  return 1;
-}
-
 // Check if element matches pattern
 static int element_matches(const FeatherHostOps *ops, FeatherInterp interp,
                            FeatherObj element, FeatherObj pattern,
@@ -137,19 +126,19 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
     size_t len;
     const char *str = ops->string.get(interp, arg, &len);
 
-    if (str_eq(str, len, "-exact")) {
+    if (feather_str_eq(str, len, "-exact")) {
       mode = MATCH_EXACT;
-    } else if (str_eq(str, len, "-glob")) {
+    } else if (feather_str_eq(str, len, "-glob")) {
       mode = MATCH_GLOB;
-    } else if (str_eq(str, len, "-regexp")) {
+    } else if (feather_str_eq(str, len, "-regexp")) {
       mode = MATCH_REGEXP;
-    } else if (str_eq(str, len, "-nocase")) {
+    } else if (feather_str_eq(str, len, "-nocase")) {
       nocase = 1;
-    } else if (str_eq(str, len, "-all")) {
+    } else if (feather_str_eq(str, len, "-all")) {
       all = 1;
-    } else if (str_eq(str, len, "-inline")) {
+    } else if (feather_str_eq(str, len, "-inline")) {
       inlineResult = 1;
-    } else if (str_eq(str, len, "-not")) {
+    } else if (feather_str_eq(str, len, "-not")) {
       negate = 1;
     } else {
       FeatherObj msg = ops->string.intern(interp, "bad option \"", 12);

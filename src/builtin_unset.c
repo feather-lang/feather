@@ -1,17 +1,6 @@
 #include "feather.h"
 #include "internal.h"
 
-// Helper to check string equality
-static int str_eq(const char *s, size_t len, const char *lit) {
-  size_t llen = 0;
-  while (lit[llen]) llen++;
-  if (len != llen) return 0;
-  for (size_t i = 0; i < len; i++) {
-    if (s[i] != lit[i]) return 0;
-  }
-  return 1;
-}
-
 FeatherResult feather_builtin_unset(const FeatherHostOps *ops, FeatherInterp interp,
                              FeatherObj cmd, FeatherObj args) {
   (void)cmd;
@@ -32,10 +21,10 @@ FeatherResult feather_builtin_unset(const FeatherHostOps *ops, FeatherInterp int
     size_t len;
     const char *str = ops->string.get(interp, first, &len);
 
-    if (str_eq(str, len, "-nocomplain")) {
+    if (feather_str_eq(str, len, "-nocomplain")) {
       nocomplain = 1;
       ops->list.shift(interp, args);
-    } else if (str_eq(str, len, "--")) {
+    } else if (feather_str_eq(str, len, "--")) {
       ops->list.shift(interp, args);
       break;
     } else {
