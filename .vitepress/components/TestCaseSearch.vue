@@ -99,6 +99,12 @@ const allTests = ref([])
 const parseError = ref(null)
 const query = ref('')
 
+function setQuery(q) {
+  query.value = q
+}
+
+defineExpose({ setQuery })
+
 const RETURN_CODE_NAMES = {
   [TCL_OK]: 'TCL_OK',
   [TCL_ERROR]: 'TCL_ERROR',
