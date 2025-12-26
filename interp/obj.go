@@ -129,3 +129,10 @@ func NewDict() *Obj {
 func NewForeign(typeName string, value any) *Obj {
 	return &Obj{intrep: &ForeignType{TypeName: typeName, Value: value}}
 }
+
+// SetBytes sets the string representation directly (used by Interp for handle-based naming).
+func (o *Obj) SetBytes(s string) {
+	if o != nil {
+		o.bytes = s
+	}
+}

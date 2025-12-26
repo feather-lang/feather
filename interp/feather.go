@@ -11,7 +11,6 @@ import "C"
 import (
 	"fmt"
 	"runtime/cgo"
-	"strconv"
 	"strings"
 	"unsafe"
 )
@@ -130,7 +129,7 @@ type TraceEntry struct {
 // Interp represents a TCL interpreter instance
 type Interp struct {
 	handle         FeatherInterp
-	objects        map[FeatherObj]*Object
+	objects        map[FeatherObj]*Obj
 	globalNS       FeatherObj              // global namespace object (FeatherObj handle for "::")
 	namespaces     map[string]*Namespace // namespace path -> Namespace
 	globalNamespace *Namespace           // the global namespace "::"
@@ -154,29 +153,10 @@ type Interp struct {
 	ForeignRegistry *ForeignRegistry
 }
 
-// Object represents a TCL object
-type Object struct {
-	stringVal string
-	cstr      *C.char // cached C string for passing to C code
-	intVal    int64
-	isInt     bool
-	dblVal    float64
-	isDouble  bool
-	listItems []FeatherObj
-	isList    bool
-	dictItems map[string]FeatherObj // key → value mapping
-	dictOrder []string          // keys in insertion order
-	isDict    bool
-	// Foreign object support
-	isForeign    bool   // true if this is a foreign (host-language) object
-	foreignType  string // type name, e.g., "Mux", "Connection"
-	foreignValue any    // the actual Go value
-}
-
 // NewInterp creates a new interpreter
 func NewInterp() *Interp {
 	interp := &Interp{
-		objects:    make(map[FeatherObj]*Object),
+		objects:    make(map[FeatherObj]*Obj),
 		namespaces: make(map[string]*Namespace),
 		varTraces:  make(map[string][]TraceEntry),
 		cmdTraces:  make(map[string][]TraceEntry),
@@ -277,11 +257,13 @@ func (i *Interp) Parse(script string) ParseResult {
 	var resultStr string
 	var errorMsg string
 	if obj := i.getObject(i.result); obj != nil {
-		resultStr = i.listToString(obj)
+		resultStr = i.objToString(obj)
 		// For parse errors, extract the error message (4th element) directly from the list
-		if ParseStatus(status) == ParseError && obj.isList && len(obj.listItems) >= 4 {
-			if msgObj := i.getObject(obj.listItems[3]); msgObj != nil {
-				errorMsg = msgObj.stringVal
+		if ParseStatus(status) == ParseError {
+			if listItems, err := AsList(obj); err == nil && len(listItems) >= 4 {
+				if msgObj := listItems[3]; msgObj != nil {
+					errorMsg = msgObj.String()
+				}
 			}
 		}
 	}
@@ -293,111 +275,118 @@ func (i *Interp) Parse(script string) ParseResult {
 	}
 }
 
-// listToString converts a list object to its TCL string representation for display.
+// objToString converts an *Obj to its TCL string representation for display.
 // This includes outer braces for non-empty lists (used for parse result display).
-func (i *Interp) listToString(obj *Object) string {
+func (i *Interp) objToString(obj *Obj) string {
 	if obj == nil {
 		return ""
 	}
-	if !obj.isList {
-		if obj.isInt {
-			return fmt.Sprintf("%d", obj.intVal)
-		}
-		return obj.stringVal
-	}
-	// Build TCL list representation: {elem1 elem2 ...}
-	var result string
-	for idx, itemHandle := range obj.listItems {
-		itemObj := i.getObject(itemHandle)
-		if itemObj == nil {
-			continue
-		}
-		if idx > 0 {
-			result += " "
-		}
-		// Handle different object types
-		if itemObj.isInt {
-			result += fmt.Sprintf("%d", itemObj.intVal)
-		} else if itemObj.isList {
-			result += i.listToString(itemObj)
-		} else {
-			// Quote strings that contain spaces or are empty
-			if len(itemObj.stringVal) == 0 || strings.ContainsAny(itemObj.stringVal, " \t\n") {
-				result += "{" + itemObj.stringVal + "}"
-			} else {
-				result += itemObj.stringVal
+	// Try list first
+	if listItems, err := AsList(obj); err == nil {
+		// Build TCL list representation: {elem1 elem2 ...}
+		var result string
+		for idx, itemObj := range listItems {
+			if itemObj == nil {
+				continue
+			}
+			if idx > 0 {
+				result += " "
+			}
+			// Handle different object types based on intrep
+			switch itemObj.intrep.(type) {
+			case IntType:
+				result += itemObj.String()
+			case ListType:
+				result += i.objToString(itemObj)
+			default:
+				// Quote strings that contain spaces or are empty
+				s := itemObj.String()
+				if len(s) == 0 || strings.ContainsAny(s, " \t\n") {
+					result += "{" + s + "}"
+				} else {
+					result += s
+				}
 			}
 		}
+		if len(listItems) > 0 {
+			result = "{" + result + "}"
+		}
+		return result
 	}
-	if len(obj.listItems) > 0 {
-		result = "{" + result + "}"
+	// Check for int type
+	if _, ok := obj.intrep.(IntType); ok {
+		return obj.String()
 	}
-	return result
+	// Default: return string value
+	return obj.String()
 }
 
-// listToValue converts a list object to its TCL value string representation.
+// objToValue converts an *Obj to its TCL value string representation.
 // This does NOT include outer braces (used when returning list as a value).
-func (i *Interp) listToValue(obj *Object) string {
+func (i *Interp) objToValue(obj *Obj) string {
 	if obj == nil {
 		return ""
 	}
-	if !obj.isList {
-		if obj.isInt {
-			return fmt.Sprintf("%d", obj.intVal)
+	// Try list first
+	if listItems, err := AsList(obj); err == nil {
+		// Build TCL list value: elem1 elem2 ...
+		// Elements with spaces are braced, but the list itself is not wrapped
+		var result string
+		for idx, itemObj := range listItems {
+			if itemObj == nil {
+				continue
+			}
+			if idx > 0 {
+				result += " "
+			}
+			// Handle different object types based on intrep
+			switch itemObj.intrep.(type) {
+			case IntType:
+				result += itemObj.String()
+			case DoubleType:
+				result += itemObj.String()
+			case ListType:
+				// Nested lists need to be braced
+				nested := i.objToValue(itemObj)
+				nestedList, _ := AsList(itemObj)
+				if len(nestedList) > 0 || strings.ContainsAny(nested, " \t\n") {
+					result += "{" + nested + "}"
+				} else {
+					result += nested
+				}
+			default:
+				// Quote strings that contain spaces, special chars, or are empty
+				s := itemObj.String()
+				if len(s) == 0 || strings.ContainsAny(s, " \t\n{}") {
+					result += "{" + s + "}"
+				} else {
+					result += s
+				}
+			}
 		}
-		return obj.stringVal
+		return result
 	}
-	// Build TCL list value: elem1 elem2 ...
-	// Elements with spaces are braced, but the list itself is not wrapped
-	var result string
-	for idx, itemHandle := range obj.listItems {
-		itemObj := i.getObject(itemHandle)
-		if itemObj == nil {
-			continue
-		}
-		if idx > 0 {
-			result += " "
-		}
-		// Handle different object types
-		if itemObj.isInt {
-			result += fmt.Sprintf("%d", itemObj.intVal)
-		} else if itemObj.isDouble {
-			// Format double - ensure decimal point for round numbers, but not for NaN/Inf
-			s := strconv.FormatFloat(itemObj.dblVal, 'g', -1, 64)
-			if !strings.Contains(s, ".") && !strings.Contains(s, "e") &&
-				!strings.Contains(s, "NaN") && !strings.Contains(s, "Inf") {
-				s += ".0"
-			}
-			result += s
-		} else if itemObj.isList {
-			// Nested lists need to be braced
-			nested := i.listToValue(itemObj)
-			if len(itemObj.listItems) > 0 || strings.ContainsAny(nested, " \t\n") {
-				result += "{" + nested + "}"
-			} else {
-				result += nested
-			}
-		} else {
-			// Quote strings that contain spaces, special chars, or are empty
-			if len(itemObj.stringVal) == 0 || strings.ContainsAny(itemObj.stringVal, " \t\n{}") {
-				result += "{" + itemObj.stringVal + "}"
-			} else {
-				result += itemObj.stringVal
-			}
-		}
+	// Check for int type
+	if _, ok := obj.intrep.(IntType); ok {
+		return obj.String()
 	}
-	return result
+	// Default: return string value
+	return obj.String()
 }
 
-// dictToValue converts a dict object to its TCL string representation.
+// dictObjToValue converts a dict *Obj to its TCL string representation.
 // Dicts are represented as lists: key1 value1 key2 value2 ...
-func (i *Interp) dictToValue(obj *Object) string {
-	if obj == nil || !obj.isDict {
+func (i *Interp) dictObjToValue(obj *Obj) string {
+	if obj == nil {
+		return ""
+	}
+	d, ok := obj.intrep.(*DictType)
+	if !ok {
 		return ""
 	}
 	var result string
 	first := true
-	for _, key := range obj.dictOrder {
+	for _, key := range d.Order {
 		if !first {
 			result += " "
 		}
@@ -410,8 +399,8 @@ func (i *Interp) dictToValue(obj *Object) string {
 		}
 		result += " "
 		// Get value and convert to string
-		if valHandle, ok := obj.dictItems[key]; ok {
-			valStr := i.GetString(valHandle)
+		if val, ok := d.Items[key]; ok {
+			valStr := val.String()
 			// Quote value if needed
 			if len(valStr) == 0 || strings.ContainsAny(valStr, " \t\n{}") {
 				result += "{" + valStr + "}"
@@ -533,33 +522,72 @@ func (i *Interp) getResultInfo(h FeatherObj) ResultInfo {
 	}
 
 	info := ResultInfo{
-		String:      i.GetString(h),
-		IsInt:       obj.isInt,
-		IsDouble:    obj.isDouble,
-		IsList:      obj.isList,
-		IsDict:      obj.isDict,
-		IsForeign:   obj.isForeign,
-		ForeignType: obj.foreignType,
+		String: obj.String(),
 	}
 
-	if obj.isInt {
-		info.IntVal = obj.intVal
-	}
-	if obj.isDouble {
-		info.DoubleVal = obj.dblVal
-	}
-	if obj.isList {
-		info.ListItems = make([]ResultInfo, len(obj.listItems))
-		for idx, item := range obj.listItems {
-			info.ListItems[idx] = i.getResultInfo(item)
+	// Check type based on intrep
+	switch t := obj.intrep.(type) {
+	case IntType:
+		info.IsInt = true
+		info.IntVal = int64(t)
+	case DoubleType:
+		info.IsDouble = true
+		info.DoubleVal = float64(t)
+	case ListType:
+		info.IsList = true
+		info.ListItems = make([]ResultInfo, len(t))
+		for idx, item := range t {
+			info.ListItems[idx] = i.objToResultInfo(item)
 		}
-	}
-	if obj.isDict {
-		info.DictKeys = obj.dictOrder
-		info.DictValues = make(map[string]ResultInfo, len(obj.dictItems))
-		for k, v := range obj.dictItems {
-			info.DictValues[k] = i.getResultInfo(v)
+	case *DictType:
+		info.IsDict = true
+		info.DictKeys = t.Order
+		info.DictValues = make(map[string]ResultInfo, len(t.Items))
+		for k, v := range t.Items {
+			info.DictValues[k] = i.objToResultInfo(v)
 		}
+	case *ForeignType:
+		info.IsForeign = true
+		info.ForeignType = t.TypeName
+	}
+
+	return info
+}
+
+// objToResultInfo returns information about an *Obj for inspection.
+func (i *Interp) objToResultInfo(obj *Obj) ResultInfo {
+	if obj == nil {
+		return ResultInfo{String: ""}
+	}
+
+	info := ResultInfo{
+		String: obj.String(),
+	}
+
+	// Check type based on intrep
+	switch t := obj.intrep.(type) {
+	case IntType:
+		info.IsInt = true
+		info.IntVal = int64(t)
+	case DoubleType:
+		info.IsDouble = true
+		info.DoubleVal = float64(t)
+	case ListType:
+		info.IsList = true
+		info.ListItems = make([]ResultInfo, len(t))
+		for idx, item := range t {
+			info.ListItems[idx] = i.objToResultInfo(item)
+		}
+	case *DictType:
+		info.IsDict = true
+		info.DictKeys = t.Order
+		info.DictValues = make(map[string]ResultInfo, len(t.Items))
+		for k, v := range t.Items {
+			info.DictValues[k] = i.objToResultInfo(v)
+		}
+	case *ForeignType:
+		info.IsForeign = true
+		info.ForeignType = t.TypeName
 	}
 
 	return info
@@ -569,7 +597,7 @@ func (i *Interp) getResultInfo(h FeatherObj) ResultInfo {
 func (i *Interp) internString(s string) FeatherObj {
 	id := i.nextID
 	i.nextID++
-	i.objects[id] = &Object{stringVal: s}
+	i.objects[id] = NewString(s)
 	return id
 }
 
@@ -578,18 +606,69 @@ func (i *Interp) InternString(s string) FeatherObj {
 	return i.internString(s)
 }
 
+// registerObj stores an *Obj and returns its handle.
+// Used when we need to give C a handle to an existing *Obj.
+func (i *Interp) registerObj(obj *Obj) FeatherObj {
+	if obj == nil {
+		return 0
+	}
+	id := i.nextID
+	i.nextID++
+	i.objects[id] = obj
+	return id
+}
+
+// createListFromHandles creates a new list from a slice of handles.
+// Used by callbacks that work with FeatherObj handles.
+func (i *Interp) createListFromHandles(handles []FeatherObj) FeatherObj {
+	items := make([]*Obj, len(handles))
+	for idx, h := range handles {
+		items[idx] = i.getObject(h)
+	}
+	return i.registerObj(&Obj{intrep: ListType(items)})
+}
+
+// getListItems returns the list items as *Obj slice.
+// Performs shimmering if needed. Returns nil on error.
+func (i *Interp) getListItems(h FeatherObj) []*Obj {
+	obj := i.getObject(h)
+	if obj == nil {
+		return nil
+	}
+	if items, err := AsList(obj); err == nil {
+		return items
+	}
+	// Try shimmering via GetList (which parses strings)
+	if handles, err := i.GetList(h); err == nil {
+		items := make([]*Obj, len(handles))
+		for idx, h := range handles {
+			items[idx] = i.getObject(h)
+		}
+		return items
+	}
+	return nil
+}
+
+// setListItems sets the list items directly.
+func (i *Interp) setListItems(h FeatherObj, items []*Obj) {
+	obj := i.getObject(h)
+	if obj == nil {
+		return
+	}
+	obj.intrep = ListType(items)
+	obj.Invalidate()
+}
+
 // NewForeign creates a new foreign object with the given type name and Go value.
 // The string representation is generated as "<TypeName:id>".
 // Returns the handle to the new foreign object.
 func (i *Interp) NewForeign(typeName string, value any) FeatherObj {
 	id := i.nextID
 	i.nextID++
-	i.objects[id] = &Object{
-		stringVal:    fmt.Sprintf("<%s:%d>", typeName, id),
-		isForeign:    true,
-		foreignType:  typeName,
-		foreignValue: value,
-	}
+	obj := NewForeign(typeName, value)
+	// Override the string representation to include the handle ID
+	obj.bytes = fmt.Sprintf("<%s:%d>", typeName, id)
+	i.objects[id] = obj
 	return id
 }
 
@@ -597,13 +676,13 @@ func (i *Interp) NewForeign(typeName string, value any) FeatherObj {
 // Also checks if the string representation is a foreign handle name.
 func (i *Interp) IsForeign(h FeatherObj) bool {
 	if obj := i.getObject(h); obj != nil {
-		if obj.isForeign {
+		if _, ok := obj.intrep.(*ForeignType); ok {
 			return true
 		}
 		// Check if string value is a foreign handle name
 		if i.ForeignRegistry != nil {
 			i.ForeignRegistry.mu.RLock()
-			_, ok := i.ForeignRegistry.instances[obj.stringVal]
+			_, ok := i.ForeignRegistry.instances[obj.String()]
 			i.ForeignRegistry.mu.RUnlock()
 			if ok {
 				return true
@@ -617,13 +696,13 @@ func (i *Interp) IsForeign(h FeatherObj) bool {
 // Also checks if the string representation is a foreign handle name.
 func (i *Interp) GetForeignType(h FeatherObj) string {
 	if obj := i.getObject(h); obj != nil {
-		if obj.isForeign {
-			return obj.foreignType
+		if ft, ok := obj.intrep.(*ForeignType); ok {
+			return ft.TypeName
 		}
 		// Check if string value is a foreign handle name
 		if i.ForeignRegistry != nil {
 			i.ForeignRegistry.mu.RLock()
-			instance, ok := i.ForeignRegistry.instances[obj.stringVal]
+			instance, ok := i.ForeignRegistry.instances[obj.String()]
 			i.ForeignRegistry.mu.RUnlock()
 			if ok {
 				return instance.typeName
@@ -635,14 +714,16 @@ func (i *Interp) GetForeignType(h FeatherObj) string {
 
 // GetForeignValue returns the Go value of a foreign object, or nil if not foreign.
 func (i *Interp) GetForeignValue(h FeatherObj) any {
-	if obj := i.getObject(h); obj != nil && obj.isForeign {
-		return obj.foreignValue
+	if obj := i.getObject(h); obj != nil {
+		if ft, ok := obj.intrep.(*ForeignType); ok {
+			return ft.Value
+		}
 	}
 	return nil
 }
 
 // getObject retrieves an object by handle
-func (i *Interp) getObject(h FeatherObj) *Object {
+func (i *Interp) getObject(h FeatherObj) *Obj {
 	return i.objects[h]
 }
 
@@ -650,33 +731,7 @@ func (i *Interp) getObject(h FeatherObj) *Object {
 // Performs shimmering: converts int/double/list/dict representations to string as needed.
 func (i *Interp) GetString(h FeatherObj) string {
 	if obj := i.getObject(h); obj != nil {
-		// Shimmer: int → string
-		if obj.isInt && obj.stringVal == "" {
-			obj.stringVal = fmt.Sprintf("%d", obj.intVal)
-		}
-		// Shimmer: double → string (always include decimal point for round numbers)
-		if obj.isDouble && obj.stringVal == "" {
-			s := strconv.FormatFloat(obj.dblVal, 'g', -1, 64)
-			// Go uses +Inf/-Inf, but TCL uses Inf/-Inf
-			if s == "+Inf" {
-				s = "Inf"
-			}
-			// Add .0 for round numbers, but not for NaN/Inf
-			if !strings.Contains(s, ".") && !strings.Contains(s, "e") &&
-				!strings.Contains(s, "NaN") && !strings.Contains(s, "Inf") {
-				s += ".0"
-			}
-			obj.stringVal = s
-		}
-		// Shimmer: list → string (use listToValue for proper TCL semantics)
-		if obj.isList && obj.stringVal == "" {
-			obj.stringVal = i.listToValue(obj)
-		}
-		// Shimmer: dict → string (key-value pairs in insertion order)
-		if obj.isDict && obj.stringVal == "" {
-			obj.stringVal = i.dictToValue(obj)
-		}
-		return obj.stringVal
+		return obj.String()
 	}
 	return ""
 }
@@ -704,25 +759,7 @@ func (i *Interp) GetInt(h FeatherObj) (int64, error) {
 	if obj == nil {
 		return 0, fmt.Errorf("nil object")
 	}
-	// Already an integer
-	if obj.isInt {
-		return obj.intVal, nil
-	}
-	// Shimmer from double if available
-	if obj.isDouble {
-		obj.intVal = int64(obj.dblVal)
-		obj.isInt = true
-		return obj.intVal, nil
-	}
-	// Shimmer: string → int
-	val, err := strconv.ParseInt(obj.stringVal, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("expected integer but got %q", obj.stringVal)
-	}
-	// Cache the parsed value
-	obj.intVal = val
-	obj.isInt = true
-	return val, nil
+	return AsInt(obj)
 }
 
 // GetDouble returns the floating-point representation of an object.
@@ -733,28 +770,10 @@ func (i *Interp) GetDouble(h FeatherObj) (float64, error) {
 	if obj == nil {
 		return 0, fmt.Errorf("nil object")
 	}
-	// Already a double
-	if obj.isDouble {
-		return obj.dblVal, nil
-	}
-	// Shimmer from int if available
-	if obj.isInt {
-		obj.dblVal = float64(obj.intVal)
-		obj.isDouble = true
-		return obj.dblVal, nil
-	}
-	// Shimmer: string → double
-	val, err := strconv.ParseFloat(obj.stringVal, 64)
-	if err != nil {
-		return 0, fmt.Errorf("expected floating-point number but got %q", obj.stringVal)
-	}
-	// Cache the parsed value
-	obj.dblVal = val
-	obj.isDouble = true
-	return val, nil
+	return AsDouble(obj)
 }
 
-// GetList returns the list representation of an object.
+// GetList returns the list representation of an object as handles.
 // Performs shimmering: parses string representation as list if needed.
 // Returns an error if the value cannot be converted to a list.
 func (i *Interp) GetList(h FeatherObj) ([]FeatherObj, error) {
@@ -762,23 +781,30 @@ func (i *Interp) GetList(h FeatherObj) ([]FeatherObj, error) {
 	if obj == nil {
 		return nil, fmt.Errorf("nil object")
 	}
-	// Already a list
-	if obj.isList {
-		return obj.listItems, nil
+	// Try to get list via AsList (works for ListType)
+	if list, err := AsList(obj); err == nil {
+		// Convert []*Obj to []FeatherObj handles
+		handles := make([]FeatherObj, len(list))
+		for idx, item := range list {
+			handles[idx] = i.registerObj(item)
+		}
+		return handles, nil
 	}
-	// Shimmer: string → list
-	// Parse the string as a TCL list
-	items, err := i.parseList(obj.stringVal)
+	// Shimmer: string → list via parseList
+	items, err := i.parseList(obj.String())
 	if err != nil {
 		return nil, err
 	}
-	// Cache the parsed list
-	obj.listItems = items
-	obj.isList = true
+	// Convert parsed items to *Obj and store as ListType
+	objItems := make([]*Obj, len(items))
+	for idx, h := range items {
+		objItems[idx] = i.getObject(h)
+	}
+	obj.intrep = ListType(objItems)
 	return items, nil
 }
 
-// GetDict returns the dict representation of an object.
+// GetDict returns the dict representation of an object as handles.
 // Performs shimmering: parses string/list representation as dict if needed.
 // Returns an error if the value cannot be converted to a dict (odd number of elements).
 func (i *Interp) GetDict(h FeatherObj) (map[string]FeatherObj, []string, error) {
@@ -786,9 +812,14 @@ func (i *Interp) GetDict(h FeatherObj) (map[string]FeatherObj, []string, error) 
 	if obj == nil {
 		return nil, nil, fmt.Errorf("nil object")
 	}
-	// Already a dict
-	if obj.isDict {
-		return obj.dictItems, obj.dictOrder, nil
+	// Try to get dict via AsDict (works for DictType)
+	if d, err := AsDict(obj); err == nil {
+		// Convert map[string]*Obj to map[string]FeatherObj handles
+		handles := make(map[string]FeatherObj, len(d.Items))
+		for k, v := range d.Items {
+			handles[k] = i.registerObj(v)
+		}
+		return handles, d.Order, nil
 	}
 	// Shimmer: string/list → dict
 	// First get as list (which handles parsing if needed)
@@ -801,11 +832,11 @@ func (i *Interp) GetDict(h FeatherObj) (map[string]FeatherObj, []string, error) 
 		return nil, nil, fmt.Errorf("missing value to go with key")
 	}
 	// Build dict
-	dictItems := make(map[string]FeatherObj)
+	dictItems := make(map[string]*Obj)
 	var dictOrder []string
 	for j := 0; j < len(items); j += 2 {
 		key := i.GetString(items[j])
-		val := items[j+1]
+		val := i.getObject(items[j+1])
 		// If key already exists, update value but keep order position
 		if _, exists := dictItems[key]; !exists {
 			dictOrder = append(dictOrder, key)
@@ -813,24 +844,35 @@ func (i *Interp) GetDict(h FeatherObj) (map[string]FeatherObj, []string, error) 
 		dictItems[key] = val
 	}
 	// Cache the parsed dict
-	obj.dictItems = dictItems
-	obj.dictOrder = dictOrder
-	obj.isDict = true
-	return dictItems, dictOrder, nil
+	obj.intrep = &DictType{Items: dictItems, Order: dictOrder}
+	// Return handles
+	handles := make(map[string]FeatherObj, len(dictItems))
+	for k, v := range dictItems {
+		handles[k] = i.registerObj(v)
+	}
+	return handles, dictOrder, nil
 }
 
 // IsNativeDict returns true if the object has a native dict representation
 // (not just convertible to dict via shimmering).
 func (i *Interp) IsNativeDict(h FeatherObj) bool {
 	obj := i.getObject(h)
-	return obj != nil && obj.isDict
+	if obj == nil {
+		return false
+	}
+	_, ok := obj.intrep.(*DictType)
+	return ok
 }
 
 // IsNativeList returns true if the object has a native list representation
 // (not just convertible to list via shimmering).
 func (i *Interp) IsNativeList(h FeatherObj) bool {
 	obj := i.getObject(h)
-	return obj != nil && obj.isList
+	if obj == nil {
+		return false
+	}
+	_, ok := obj.intrep.(ListType)
+	return ok
 }
 
 // parseList parses a TCL list string into a slice of object handles.
@@ -915,17 +957,15 @@ func (i *Interp) SetErrorString(s string) {
 // SetVar sets a variable by name to a string value in the current frame.
 func (i *Interp) SetVar(name, value string) {
 	frame := i.frames[i.active]
-	frame.locals.vars[name] = i.nextID
-	i.objects[i.nextID] = &Object{stringVal: value}
-	i.nextID++
+	frame.locals.vars[name] = i.registerObj(NewString(value))
 }
 
 // GetVar returns the string value of a variable from the current frame, or empty string if not found.
 func (i *Interp) GetVar(name string) string {
 	frame := i.frames[i.active]
 	if val, ok := frame.locals.vars[name]; ok {
-		if obj := i.objects[val]; obj != nil {
-			return obj.stringVal
+		if obj := i.getObject(val); obj != nil {
+			return obj.String()
 		}
 	}
 	return ""

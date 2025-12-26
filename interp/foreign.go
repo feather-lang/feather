@@ -171,7 +171,7 @@ func (i *Interp) foreignConstructor(typeName string, cmd FeatherObj, args []Feat
 
 	// Update string representation to be the handle name
 	if obj := i.getObject(objHandle); obj != nil {
-		obj.stringVal = handleName
+		obj.bytes = handleName
 	}
 
 	// Store the instance
@@ -462,7 +462,7 @@ func (i *Interp) convertResult(result reflect.Value) FeatherResult {
 
 	case reflect.Slice:
 		// Convert slice to list
-		list := i.createList()
+		list := i.NewListObj()
 		for j := 0; j < result.Len(); j++ {
 			elem := result.Index(j)
 			var elemHandle FeatherObj
@@ -470,17 +470,17 @@ func (i *Interp) convertResult(result reflect.Value) FeatherResult {
 			case reflect.String:
 				elemHandle = i.internString(elem.String())
 			case reflect.Int, reflect.Int64:
-				elemHandle = i.createInt(elem.Int())
+				elemHandle = i.NewIntObj(elem.Int())
 			default:
 				elemHandle = i.internString(fmt.Sprintf("%v", elem.Interface()))
 			}
-			list = i.listPush(list, elemHandle)
+			list = i.ListAppendObj(list, elemHandle)
 		}
 		i.SetResult(list)
 
 	case reflect.Map:
 		// Convert map to dict
-		dict := i.createDict()
+		dict := i.NewDictObj()
 		iter := result.MapRange()
 		for iter.Next() {
 			key := fmt.Sprintf("%v", iter.Key().Interface())
@@ -490,11 +490,11 @@ func (i *Interp) convertResult(result reflect.Value) FeatherResult {
 			case reflect.String:
 				valHandle = i.internString(val.String())
 			case reflect.Int, reflect.Int64:
-				valHandle = i.createInt(val.Int())
+				valHandle = i.NewIntObj(val.Int())
 			default:
 				valHandle = i.internString(fmt.Sprintf("%v", val.Interface()))
 			}
-			dict = i.dictSet(dict, key, valHandle)
+			dict = i.DictSetObj(dict, key, valHandle)
 		}
 		i.SetResult(dict)
 
@@ -540,9 +540,7 @@ func (i *Interp) foreignDestroy(handleName string) FeatherResult {
 
 	// Clear the foreign object
 	if obj := i.getObject(instance.objHandle); obj != nil {
-		obj.foreignValue = nil
-		obj.isForeign = false
-		obj.foreignType = ""
+		obj.intrep = nil // Clear the foreign type
 	}
 
 	// Remove the command
@@ -604,121 +602,108 @@ func (i *Interp) GetForeignStringRep(obj FeatherObj) string {
 
 // Helper methods for creating TCL values
 
-// NewList creates an empty list object.
-func (i *Interp) NewList() FeatherObj {
-	id := i.nextID
-	i.nextID++
-	i.objects[id] = &Object{isList: true, listItems: []FeatherObj{}}
-	return id
+// NewListObj creates an empty list object.
+func (i *Interp) NewListObj() FeatherObj {
+	return i.registerObj(NewList())
 }
 
-// ListAppend appends an item to a list and returns the list.
+// ListAppendObj appends an item to a list and returns the list.
 // If the object is not a list, returns it unchanged.
-func (i *Interp) ListAppend(list FeatherObj, item FeatherObj) FeatherObj {
+func (i *Interp) ListAppendObj(list FeatherObj, item FeatherObj) FeatherObj {
 	obj := i.getObject(list)
-	if obj != nil && obj.isList {
-		obj.listItems = append(obj.listItems, item)
-		obj.stringVal = "" // invalidate string cache
+	if obj == nil {
+		return list
 	}
+	itemObj := i.getObject(item)
+	if itemObj == nil {
+		return list
+	}
+	ListAppend(obj, itemObj)
 	return list
 }
 
-// NewInt creates an integer object.
-func (i *Interp) NewInt(val int64) FeatherObj {
-	id := i.nextID
-	i.nextID++
-	i.objects[id] = &Object{intVal: val, isInt: true}
-	return id
+// NewIntObj creates an integer object.
+func (i *Interp) NewIntObj(val int64) FeatherObj {
+	return i.registerObj(NewInt(val))
 }
 
-// NewDouble creates a floating-point object.
-func (i *Interp) NewDouble(val float64) FeatherObj {
-	id := i.nextID
-	i.nextID++
-	i.objects[id] = &Object{dblVal: val, isDouble: true}
-	return id
+// NewDoubleObj creates a floating-point object.
+func (i *Interp) NewDoubleObj(val float64) FeatherObj {
+	return i.registerObj(NewDouble(val))
 }
 
-// NewDict creates an empty dict object.
-func (i *Interp) NewDict() FeatherObj {
-	id := i.nextID
-	i.nextID++
-	i.objects[id] = &Object{
-		isDict:    true,
-		dictItems: make(map[string]FeatherObj),
-		dictOrder: []string{},
-	}
-	return id
+// NewDictObj creates an empty dict object.
+func (i *Interp) NewDictObj() FeatherObj {
+	return i.registerObj(NewDict())
 }
 
-// DictSet sets a key-value pair in a dict and returns the dict.
+// DictSetObj sets a key-value pair in a dict and returns the dict.
 // If the object is not a dict, returns it unchanged.
-func (i *Interp) DictSet(dict FeatherObj, key string, val FeatherObj) FeatherObj {
+func (i *Interp) DictSetObj(dict FeatherObj, key string, val FeatherObj) FeatherObj {
 	obj := i.getObject(dict)
-	if obj != nil && obj.isDict {
-		if _, exists := obj.dictItems[key]; !exists {
-			obj.dictOrder = append(obj.dictOrder, key)
-		}
-		obj.dictItems[key] = val
-		obj.stringVal = "" // invalidate string cache
+	if obj == nil {
+		return dict
 	}
+	valObj := i.getObject(val)
+	if valObj == nil {
+		return dict
+	}
+	DictSet(obj, key, valObj)
 	return dict
 }
 
-// DictGet retrieves a value from a dict by key.
-// Returns the value and true if found, or 0 and false if not found.
-func (i *Interp) DictGet(dict FeatherObj, key string) (FeatherObj, bool) {
+// DictGetObj retrieves a value from a dict by key.
+// Returns the handle and true if found, or 0 and false if not found.
+func (i *Interp) DictGetObj(dict FeatherObj, key string) (FeatherObj, bool) {
 	obj := i.getObject(dict)
-	if obj != nil && obj.isDict {
-		val, ok := obj.dictItems[key]
-		return val, ok
+	if obj == nil {
+		return 0, false
 	}
-	return 0, false
+	val, ok := DictGet(obj, key)
+	if !ok || val == nil {
+		return 0, false
+	}
+	// Register the value to get a handle
+	return i.registerObj(val), true
 }
 
-// Type returns the native type of an object: "string", "int", "double", "list", "dict",
-// or the foreign type name if it's a foreign object.
+// Type returns the native type of an object.
 func (i *Interp) Type(h FeatherObj) string {
 	obj := i.getObject(h)
 	if obj == nil {
 		return "string"
 	}
-	if obj.isForeign {
-		return obj.foreignType
-	}
-	if obj.isDict {
-		return "dict"
-	}
-	if obj.isList {
-		return "list"
-	}
-	if obj.isDouble {
-		return "double"
-	}
-	if obj.isInt {
-		return "int"
-	}
-	return "string"
+	return obj.Type()
 }
 
-// Aliases for internal use (to avoid breaking existing code)
+// Exported aliases for use by the top-level feather package
 
-func (i *Interp) createList() FeatherObj {
-	return i.NewList()
+// NewList creates an empty list object (alias for NewListObj).
+func (i *Interp) NewList() FeatherObj {
+	return i.NewListObj()
 }
 
-func (i *Interp) listPush(list FeatherObj, item FeatherObj) FeatherObj {
-	return i.ListAppend(list, item)
+// ListAppend appends an item to a list (alias for ListAppendObj).
+func (i *Interp) ListAppend(list FeatherObj, item FeatherObj) FeatherObj {
+	return i.ListAppendObj(list, item)
 }
 
-func (i *Interp) createInt(val int64) FeatherObj {
-	return i.NewInt(val)
+// NewInt creates an integer object (alias for NewIntObj).
+func (i *Interp) NewInt(val int64) FeatherObj {
+	return i.NewIntObj(val)
 }
 
-func (i *Interp) createDict() FeatherObj {
-	return i.NewDict()
+// NewDouble creates a floating-point object (alias for NewDoubleObj).
+func (i *Interp) NewDouble(val float64) FeatherObj {
+	return i.NewDoubleObj(val)
 }
 
-func (i *Interp) dictSet(dict FeatherObj, key string, val FeatherObj) FeatherObj {
-	return i.DictSet(dict, key, val)
+// NewDict creates an empty dict object (alias for NewDictObj).
+func (i *Interp) NewDict() FeatherObj {
+	return i.NewDictObj()
+}
+
+// DictSet sets a key-value pair in a dict (alias for DictSetObj).
+func (i *Interp) DictSet(dict FeatherObj, key string, val FeatherObj) FeatherObj {
+	return i.DictSetObj(dict, key, val)
 }

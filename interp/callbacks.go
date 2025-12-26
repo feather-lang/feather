@@ -46,9 +46,13 @@ func goBindUnknown(interp C.FeatherInterp, cmd C.FeatherObj, args C.FeatherObj, 
 	var argSlice []FeatherObj
 	if args != 0 {
 		o := i.getObject(FeatherObj(args))
-		if o != nil && o.isList {
-			argSlice = make([]FeatherObj, len(o.listItems))
-			copy(argSlice, o.listItems)
+		if o != nil {
+			if list, err := AsList(o); err == nil {
+				argSlice = make([]FeatherObj, len(list))
+				for idx, item := range list {
+					argSlice[idx] = i.registerObj(item)
+				}
+			}
 		}
 	}
 
@@ -300,10 +304,7 @@ func goListCreate(interp C.FeatherInterp) C.FeatherObj {
 	if i == nil {
 		return 0
 	}
-	id := i.nextID
-	i.nextID++
-	i.objects[id] = &Object{isList: true, listItems: []FeatherObj{}}
-	return C.FeatherObj(id)
+	return C.FeatherObj(i.registerObj(NewList()))
 }
 
 //export goListIsNil
@@ -325,14 +326,12 @@ func goListFrom(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 	if err != nil {
 		return 0
 	}
-	// Create a new list with copied items
-	id := i.nextID
-	i.nextID++
-	// Make a copy of the items slice
-	copiedItems := make([]FeatherObj, len(items))
-	copy(copiedItems, items)
-	i.objects[id] = &Object{isList: true, listItems: copiedItems}
-	return C.FeatherObj(id)
+	// Create a new list with copied items as *Obj
+	copiedItems := make([]*Obj, len(items))
+	for idx, h := range items {
+		copiedItems[idx] = i.getObject(h)
+	}
+	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(copiedItems)}))
 }
 
 //export goListPush
@@ -341,25 +340,26 @@ func goListPush(interp C.FeatherInterp, list C.FeatherObj, item C.FeatherObj) C.
 	if i == nil {
 		return list
 	}
-	// Use GetList for shimmering (string → list)
-	_, err := i.GetList(FeatherObj(list))
-	if err != nil {
-		return list
-	}
 	o := i.getObject(FeatherObj(list))
 	if o == nil {
 		return list
 	}
-	o.listItems = append(o.listItems, FeatherObj(item))
-	// Invalidate string and dict representations (list is now authoritative)
-	o.stringVal = ""
-	o.isDict = false
-	o.dictItems = nil
-	o.dictOrder = nil
-	if o.cstr != nil {
-		C.free(unsafe.Pointer(o.cstr))
-		o.cstr = nil
+	itemObj := i.getObject(FeatherObj(item))
+	if itemObj == nil {
+		return list
 	}
+	// Ensure it's a list, shimmer if needed
+	listItems, err := AsList(o)
+	if err != nil {
+		// Try parsing from string
+		if _, err := i.GetList(FeatherObj(list)); err != nil {
+			return list
+		}
+		listItems, _ = AsList(o)
+	}
+	// Append and update intrep
+	o.intrep = ListType(append(listItems, itemObj))
+	o.Invalidate()
 	return list
 }
 
@@ -369,27 +369,25 @@ func goListPop(interp C.FeatherInterp, list C.FeatherObj) C.FeatherObj {
 	if i == nil {
 		return 0
 	}
-	// Use GetList for shimmering (string → list)
-	items, err := i.GetList(FeatherObj(list))
-	if err != nil || len(items) == 0 {
-		return 0
-	}
 	o := i.getObject(FeatherObj(list))
 	if o == nil {
 		return 0
 	}
-	last := o.listItems[len(items)-1]
-	o.listItems = o.listItems[:len(items)-1]
-	// Invalidate string and dict representations (list is now authoritative)
-	o.stringVal = ""
-	o.isDict = false
-	o.dictItems = nil
-	o.dictOrder = nil
-	if o.cstr != nil {
-		C.free(unsafe.Pointer(o.cstr))
-		o.cstr = nil
+	// Ensure it's a list
+	listItems, err := AsList(o)
+	if err != nil {
+		if _, err := i.GetList(FeatherObj(list)); err != nil {
+			return 0
+		}
+		listItems, _ = AsList(o)
 	}
-	return C.FeatherObj(last)
+	if len(listItems) == 0 {
+		return 0
+	}
+	last := listItems[len(listItems)-1]
+	o.intrep = ListType(listItems[:len(listItems)-1])
+	o.Invalidate()
+	return C.FeatherObj(i.registerObj(last))
 }
 
 //export goListUnshift
@@ -398,26 +396,25 @@ func goListUnshift(interp C.FeatherInterp, list C.FeatherObj, item C.FeatherObj)
 	if i == nil {
 		return list
 	}
-	// Use GetList for shimmering (string → list)
-	_, err := i.GetList(FeatherObj(list))
-	if err != nil {
-		return list
-	}
 	o := i.getObject(FeatherObj(list))
 	if o == nil {
 		return list
 	}
-	// Prepend item to the list
-	o.listItems = append([]FeatherObj{FeatherObj(item)}, o.listItems...)
-	// Invalidate string and dict representations (list is now authoritative)
-	o.stringVal = ""
-	o.isDict = false
-	o.dictItems = nil
-	o.dictOrder = nil
-	if o.cstr != nil {
-		C.free(unsafe.Pointer(o.cstr))
-		o.cstr = nil
+	itemObj := i.getObject(FeatherObj(item))
+	if itemObj == nil {
+		return list
 	}
+	// Ensure it's a list
+	listItems, err := AsList(o)
+	if err != nil {
+		if _, err := i.GetList(FeatherObj(list)); err != nil {
+			return list
+		}
+		listItems, _ = AsList(o)
+	}
+	// Prepend item to the list
+	o.intrep = ListType(append([]*Obj{itemObj}, listItems...))
+	o.Invalidate()
 	return list
 }
 
@@ -427,27 +424,25 @@ func goListShift(interp C.FeatherInterp, list C.FeatherObj) C.FeatherObj {
 	if i == nil {
 		return 0
 	}
-	// Use GetList for shimmering (string → list)
-	items, err := i.GetList(FeatherObj(list))
-	if err != nil || len(items) == 0 {
-		return 0
-	}
 	o := i.getObject(FeatherObj(list))
 	if o == nil {
 		return 0
 	}
-	first := o.listItems[0]
-	o.listItems = o.listItems[1:]
-	// Invalidate string and dict representations (list is now authoritative)
-	o.stringVal = ""
-	o.isDict = false
-	o.dictItems = nil
-	o.dictOrder = nil
-	if o.cstr != nil {
-		C.free(unsafe.Pointer(o.cstr))
-		o.cstr = nil
+	// Ensure it's a list
+	listItems, err := AsList(o)
+	if err != nil {
+		if _, err := i.GetList(FeatherObj(list)); err != nil {
+			return 0
+		}
+		listItems, _ = AsList(o)
 	}
-	return C.FeatherObj(first)
+	if len(listItems) == 0 {
+		return 0
+	}
+	first := listItems[0]
+	o.intrep = ListType(listItems[1:])
+	o.Invalidate()
+	return C.FeatherObj(i.registerObj(first))
 }
 
 //export goListLength
@@ -506,20 +501,15 @@ func goListSlice(interp C.FeatherInterp, list C.FeatherObj, first C.size_t, last
 
 	// Empty result if invalid range
 	if f > l || length == 0 {
-		id := i.nextID
-		i.nextID++
-		i.objects[id] = &Object{isList: true, listItems: []FeatherObj{}}
-		return C.FeatherObj(id)
+		return C.FeatherObj(i.registerObj(NewList()))
 	}
 
-	// Create new list with sliced items
-	slicedItems := make([]FeatherObj, l-f+1)
-	copy(slicedItems, items[f:l+1])
-
-	id := i.nextID
-	i.nextID++
-	i.objects[id] = &Object{isList: true, listItems: slicedItems}
-	return C.FeatherObj(id)
+	// Create new list with sliced items - convert FeatherObj handles to *Obj
+	slicedObjs := make([]*Obj, l-f+1)
+	for idx, h := range items[f : l+1] {
+		slicedObjs[idx] = i.getObject(h)
+	}
+	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(slicedObjs)}))
 }
 
 //export goListSetAt
@@ -529,34 +519,31 @@ func goListSetAt(interp C.FeatherInterp, list C.FeatherObj, index C.size_t, valu
 		return C.TCL_ERROR
 	}
 
-	// Use GetList for shimmering (string → list)
-	items, err := i.GetList(FeatherObj(list))
-	if err != nil {
-		return C.TCL_ERROR
-	}
-
-	idx := int(index)
-	if idx < 0 || idx >= len(items) {
-		return C.TCL_ERROR
-	}
-
 	o := i.getObject(FeatherObj(list))
 	if o == nil {
 		return C.TCL_ERROR
 	}
 
-	// Mutate in place
-	o.listItems[idx] = FeatherObj(value)
-
-	// Invalidate string and dict representations (list is now authoritative)
-	o.stringVal = ""
-	o.isDict = false
-	o.dictItems = nil
-	o.dictOrder = nil
-	if o.cstr != nil {
-		C.free(unsafe.Pointer(o.cstr))
-		o.cstr = nil
+	// Use AsList for direct access, or GetList for shimmering (string → list)
+	listItems, err := AsList(o)
+	if err != nil {
+		if _, err := i.GetList(FeatherObj(list)); err != nil {
+			return C.TCL_ERROR
+		}
+		listItems, _ = AsList(o)
 	}
+
+	idx := int(index)
+	if idx < 0 || idx >= len(listItems) {
+		return C.TCL_ERROR
+	}
+
+	// Mutate in place using ListSet helper
+	valueObj := i.getObject(FeatherObj(value))
+	if valueObj == nil {
+		return C.TCL_ERROR
+	}
+	ListSet(o, idx, valueObj)
 
 	return C.TCL_OK
 }
@@ -568,21 +555,40 @@ func goListSplice(interp C.FeatherInterp, list C.FeatherObj, first C.size_t, del
 		return 0
 	}
 
-	items, err := i.GetList(FeatherObj(list))
-	if err != nil {
+	o := i.getObject(FeatherObj(list))
+	if o == nil {
 		return 0
+	}
+
+	// Get list items via shimmering
+	listItems, err := AsList(o)
+	if err != nil {
+		if _, err := i.GetList(FeatherObj(list)); err != nil {
+			return 0
+		}
+		listItems, _ = AsList(o)
 	}
 
 	f := int(first)
 	dc := int(deleteCount)
-	length := len(items)
+	length := len(listItems)
 
 	// Get insertion items
-	var insertItems []FeatherObj
+	var insertObjs []*Obj
 	if insertions != 0 {
-		insertItems, err = i.GetList(FeatherObj(insertions))
-		if err != nil {
-			insertItems = []FeatherObj{}
+		insObj := i.getObject(FeatherObj(insertions))
+		if insObj != nil {
+			insItems, err := AsList(insObj)
+			if err != nil {
+				if insHandles, err := i.GetList(FeatherObj(insertions)); err == nil {
+					insertObjs = make([]*Obj, len(insHandles))
+					for idx, h := range insHandles {
+						insertObjs[idx] = i.getObject(h)
+					}
+				}
+			} else {
+				insertObjs = insItems
+			}
 		}
 	}
 
@@ -599,19 +605,16 @@ func goListSplice(interp C.FeatherInterp, list C.FeatherObj, first C.size_t, del
 		dc = length - f
 	}
 
-	// Build new list: [0:first] + insertItems + [first+deleteCount:]
-	newLen := length - dc + len(insertItems)
-	newItems := make([]FeatherObj, 0, newLen)
-	newItems = append(newItems, items[:f]...)
-	newItems = append(newItems, insertItems...)
+	// Build new list: [0:first] + insertObjs + [first+deleteCount:]
+	newLen := length - dc + len(insertObjs)
+	newItems := make([]*Obj, 0, newLen)
+	newItems = append(newItems, listItems[:f]...)
+	newItems = append(newItems, insertObjs...)
 	if f+dc < length {
-		newItems = append(newItems, items[f+dc:]...)
+		newItems = append(newItems, listItems[f+dc:]...)
 	}
 
-	id := i.nextID
-	i.nextID++
-	i.objects[id] = &Object{isList: true, listItems: newItems}
-	return C.FeatherObj(id)
+	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(newItems)}))
 }
 
 // ListSortContext holds context for list sorting
@@ -631,19 +634,22 @@ func goListSort(interp C.FeatherInterp, list C.FeatherObj, cmpFunc unsafe.Pointe
 		return C.TCL_ERROR
 	}
 
-	// Use GetList for shimmering (string → list)
-	items, err := i.GetList(FeatherObj(list))
-	if err != nil {
-		return C.TCL_ERROR
-	}
-
-	if len(items) <= 1 {
-		return C.TCL_OK // Already sorted
-	}
-
 	o := i.getObject(FeatherObj(list))
 	if o == nil {
 		return C.TCL_ERROR
+	}
+
+	// Get list items via shimmering
+	listItems, err := AsList(o)
+	if err != nil {
+		if _, err := i.GetList(FeatherObj(list)); err != nil {
+			return C.TCL_ERROR
+		}
+		listItems, _ = AsList(o)
+	}
+
+	if len(listItems) <= 1 {
+		return C.TCL_OK // Already sorted
 	}
 
 	// Set up sort context
@@ -654,23 +660,20 @@ func goListSort(interp C.FeatherInterp, list C.FeatherObj, cmpFunc unsafe.Pointe
 	}
 
 	// Sort using Go's sort with the C comparison function
-	sort.Slice(o.listItems, func(a, b int) bool {
-		result := C.call_list_compare(currentSortCtx.interp, C.FeatherObj(o.listItems[a]), C.FeatherObj(o.listItems[b]),
+	// We need to sort the underlying slice and register handles for comparison
+	sort.Slice(listItems, func(a, b int) bool {
+		handleA := i.registerObj(listItems[a])
+		handleB := i.registerObj(listItems[b])
+		result := C.call_list_compare(currentSortCtx.interp, C.FeatherObj(handleA), C.FeatherObj(handleB),
 			currentSortCtx.cmpFunc, currentSortCtx.ctx)
 		return result < 0
 	})
 
 	currentSortCtx = nil
 
-	// Invalidate string and dict representations (list is now authoritative)
-	o.stringVal = ""
-	o.isDict = false
-	o.dictItems = nil
-	o.dictOrder = nil
-	if o.cstr != nil {
-		C.free(unsafe.Pointer(o.cstr))
-		o.cstr = nil
-	}
+	// Update the internal representation and invalidate string rep
+	o.intrep = ListType(listItems)
+	o.Invalidate()
 
 	return C.TCL_OK
 }
@@ -683,14 +686,7 @@ func goDictCreate(interp C.FeatherInterp) C.FeatherObj {
 	if i == nil {
 		return 0
 	}
-	id := i.nextID
-	i.nextID++
-	i.objects[id] = &Object{
-		isDict:    true,
-		dictItems: make(map[string]FeatherObj),
-		dictOrder: []string{},
-	}
-	return C.FeatherObj(id)
+	return C.FeatherObj(i.registerObj(NewDict()))
 }
 
 //export goDictIsDict
@@ -700,8 +696,10 @@ func goDictIsDict(interp C.FeatherInterp, obj C.FeatherObj) C.int {
 		return 0
 	}
 	o := i.getObject(FeatherObj(obj))
-	if o != nil && o.isDict {
-		return 1
+	if o != nil {
+		if _, ok := o.intrep.(*DictType); ok {
+			return 1
+		}
 	}
 	return 0
 }
@@ -717,21 +715,14 @@ func goDictFrom(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 	if err != nil {
 		return 0 // Return nil on error
 	}
-	// Create new dict object with copied data
-	id := i.nextID
-	i.nextID++
-	newItems := make(map[string]FeatherObj, len(dictItems))
-	for k, v := range dictItems {
-		newItems[k] = v
+	// Create new dict object with copied *Obj values
+	newItems := make(map[string]*Obj, len(dictItems))
+	for k, h := range dictItems {
+		newItems[k] = i.getObject(h)
 	}
 	newOrder := make([]string, len(dictOrder))
 	copy(newOrder, dictOrder)
-	i.objects[id] = &Object{
-		isDict:    true,
-		dictItems: newItems,
-		dictOrder: newOrder,
-	}
-	return C.FeatherObj(id)
+	return C.FeatherObj(i.registerObj(&Obj{intrep: &DictType{Items: newItems, Order: newOrder}}))
 }
 
 //export goDictGet
@@ -740,11 +731,20 @@ func goDictGet(interp C.FeatherInterp, dict C.FeatherObj, key C.FeatherObj) C.Fe
 	if i == nil {
 		return 0
 	}
+	o := i.getObject(FeatherObj(dict))
+	if o == nil {
+		return 0
+	}
+	// Try direct dict access first
+	keyStr := i.GetString(FeatherObj(key))
+	if val, ok := DictGet(o, keyStr); ok {
+		return C.FeatherObj(i.registerObj(val))
+	}
+	// Try shimmering if needed
 	dictItems, _, err := i.GetDict(FeatherObj(dict))
 	if err != nil {
 		return 0
 	}
-	keyStr := i.GetString(FeatherObj(key))
 	if val, ok := dictItems[keyStr]; ok {
 		return C.FeatherObj(val)
 	}
@@ -762,26 +762,18 @@ func goDictSet(interp C.FeatherInterp, dict C.FeatherObj, key C.FeatherObj, valu
 		return 0
 	}
 	// Ensure it's a dict (shimmer if needed)
-	if !o.isDict {
+	if _, ok := o.intrep.(*DictType); !ok {
 		_, _, err := i.GetDict(FeatherObj(dict))
 		if err != nil {
 			return 0
 		}
 	}
 	keyStr := i.GetString(FeatherObj(key))
-	// Add to order if new key
-	if _, exists := o.dictItems[keyStr]; !exists {
-		o.dictOrder = append(o.dictOrder, keyStr)
+	valueObj := i.getObject(FeatherObj(value))
+	if valueObj == nil {
+		return 0
 	}
-	o.dictItems[keyStr] = FeatherObj(value)
-	// Invalidate string and list caches (dict is now authoritative)
-	o.stringVal = ""
-	o.isList = false
-	o.listItems = nil
-	if o.cstr != nil {
-		C.free(unsafe.Pointer(o.cstr))
-		o.cstr = nil
-	}
+	DictSet(o, keyStr, valueObj)
 	return dict
 }
 
@@ -813,30 +805,28 @@ func goDictRemove(interp C.FeatherInterp, dict C.FeatherObj, key C.FeatherObj) C
 		return 0
 	}
 	// Ensure it's a dict
-	if !o.isDict {
+	d, ok := o.intrep.(*DictType)
+	if !ok {
 		_, _, err := i.GetDict(FeatherObj(dict))
 		if err != nil {
 			return 0
 		}
+		d, _ = o.intrep.(*DictType)
+	}
+	if d == nil {
+		return 0
 	}
 	keyStr := i.GetString(FeatherObj(key))
 	// Remove from map
-	delete(o.dictItems, keyStr)
+	delete(d.Items, keyStr)
 	// Remove from order
-	for idx, k := range o.dictOrder {
+	for idx, k := range d.Order {
 		if k == keyStr {
-			o.dictOrder = append(o.dictOrder[:idx], o.dictOrder[idx+1:]...)
+			d.Order = append(d.Order[:idx], d.Order[idx+1:]...)
 			break
 		}
 	}
-	// Invalidate string and list caches (dict is now authoritative)
-	o.stringVal = ""
-	o.isList = false
-	o.listItems = nil
-	if o.cstr != nil {
-		C.free(unsafe.Pointer(o.cstr))
-		o.cstr = nil
-	}
+	o.Invalidate()
 	return dict
 }
 
@@ -863,15 +853,12 @@ func goDictKeys(interp C.FeatherInterp, dict C.FeatherObj) C.FeatherObj {
 	if err != nil {
 		return 0
 	}
-	// Create list of keys
-	id := i.nextID
-	i.nextID++
-	items := make([]FeatherObj, len(dictOrder))
+	// Create list of keys as *Obj
+	items := make([]*Obj, len(dictOrder))
 	for idx, key := range dictOrder {
-		items[idx] = i.internString(key)
+		items[idx] = NewString(key)
 	}
-	i.objects[id] = &Object{isList: true, listItems: items}
-	return C.FeatherObj(id)
+	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(items)}))
 }
 
 //export goDictValues
@@ -885,14 +872,11 @@ func goDictValues(interp C.FeatherInterp, dict C.FeatherObj) C.FeatherObj {
 		return 0
 	}
 	// Create list of values in key order
-	id := i.nextID
-	i.nextID++
-	items := make([]FeatherObj, len(dictOrder))
+	items := make([]*Obj, len(dictOrder))
 	for idx, key := range dictOrder {
-		items[idx] = dictItems[key]
+		items[idx] = i.getObject(dictItems[key])
 	}
-	i.objects[id] = &Object{isList: true, listItems: items}
-	return C.FeatherObj(id)
+	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(items)}))
 }
 
 //export goIntCreate
@@ -901,10 +885,7 @@ func goIntCreate(interp C.FeatherInterp, val C.int64_t) C.FeatherObj {
 	if i == nil {
 		return 0
 	}
-	id := i.nextID
-	i.nextID++
-	i.objects[id] = &Object{intVal: int64(val), isInt: true}
-	return C.FeatherObj(id)
+	return C.FeatherObj(i.registerObj(NewInt(int64(val))))
 }
 
 //export goIntGet
@@ -927,10 +908,7 @@ func goDoubleCreate(interp C.FeatherInterp, val C.double) C.FeatherObj {
 	if i == nil {
 		return 0
 	}
-	id := i.nextID
-	i.nextID++
-	i.objects[id] = &Object{dblVal: float64(val), isDouble: true}
-	return C.FeatherObj(id)
+	return C.FeatherObj(i.registerObj(NewDouble(float64(val))))
 }
 
 //export goDoubleGet
@@ -1086,11 +1064,7 @@ func goFramePush(interp C.FeatherInterp, cmd C.FeatherObj, args C.FeatherObj) C.
 	}
 	if newLevel >= limit {
 		// Set error message and return error
-		errMsg := "too many nested evaluations (infinite loop?)"
-		id := i.nextID
-		i.nextID++
-		i.objects[id] = &Object{stringVal: errMsg}
-		i.result = id
+		i.result = i.internString("too many nested evaluations (infinite loop?)")
 		return C.TCL_ERROR
 	}
 	// Inherit namespace from current frame
@@ -1195,7 +1169,7 @@ func goVarGet(interp C.FeatherInterp, name C.FeatherObj) C.FeatherObj {
 		return 0
 	}
 	frame := i.frames[i.active]
-	varName := nameObj.stringVal
+	varName := nameObj.String()
 	originalVarName := varName // Save for trace firing
 	// Follow links to find the actual variable location
 	for {
@@ -1250,7 +1224,7 @@ func goVarSet(interp C.FeatherInterp, name C.FeatherObj, value C.FeatherObj) {
 		return
 	}
 	frame := i.frames[i.active]
-	varName := nameObj.stringVal
+	varName := nameObj.String()
 	originalVarName := varName // Save for trace firing
 	// Follow links to find the actual variable location
 	for {
@@ -1299,7 +1273,7 @@ func goVarUnset(interp C.FeatherInterp, name C.FeatherObj) {
 		return
 	}
 	frame := i.frames[i.active]
-	varName := nameObj.stringVal
+	varName := nameObj.String()
 	originalVarName := varName // Save for trace firing
 	// Follow links to find the actual variable location
 	for {
@@ -1348,7 +1322,7 @@ func goVarExists(interp C.FeatherInterp, name C.FeatherObj) C.FeatherResult {
 		return C.TCL_ERROR
 	}
 	frame := i.frames[i.active]
-	varName := nameObj.stringVal
+	varName := nameObj.String()
 	// Follow links to find the actual variable location
 	for {
 		if link, ok := frame.links[varName]; ok {
@@ -1388,9 +1362,9 @@ func goVarLink(interp C.FeatherInterp, local C.FeatherObj, target_level C.size_t
 		return
 	}
 	frame := i.frames[i.active]
-	frame.links[localObj.stringVal] = varLink{
+	frame.links[localObj.String()] = varLink{
 		targetLevel: int(target_level),
-		targetName:  targetObj.stringVal,
+		targetName:  targetObj.String(),
 	}
 }
 
@@ -1612,10 +1586,7 @@ func goProcNames(interp C.FeatherInterp, namespace C.FeatherObj) C.FeatherObj {
 	ns, ok := i.namespaces[nsPath]
 	if !ok {
 		// Return empty list
-		id := i.nextID
-		i.nextID++
-		i.objects[id] = &Object{isList: true, listItems: []FeatherObj{}}
-		return C.FeatherObj(id)
+		return C.FeatherObj(i.registerObj(NewList()))
 	}
 
 	// Collect command names and build fully-qualified names
@@ -1634,15 +1605,12 @@ func goProcNames(interp C.FeatherInterp, namespace C.FeatherObj) C.FeatherObj {
 	// Sort for consistent ordering
 	sort.Strings(names)
 
-	// Create a list object with all names
-	items := make([]FeatherObj, len(names))
+	// Create a list object with all names as *Obj
+	items := make([]*Obj, len(names))
 	for idx, name := range names {
-		items[idx] = i.internString(name)
+		items[idx] = NewString(name)
 	}
-	id := i.nextID
-	i.nextID++
-	i.objects[id] = &Object{isList: true, listItems: items}
-	return C.FeatherObj(id)
+	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(items)}))
 }
 
 //export goProcResolveNamespace
@@ -1961,10 +1929,7 @@ func goNsChildren(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherObj {
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
 		// Return empty list
-		id := i.nextID
-		i.nextID++
-		i.objects[id] = &Object{isList: true, listItems: []FeatherObj{}}
-		return C.FeatherObj(id)
+		return C.FeatherObj(i.registerObj(NewList()))
 	}
 
 	// Collect and sort child names for consistent ordering
@@ -1974,17 +1939,13 @@ func goNsChildren(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherObj {
 	}
 	sort.Strings(names)
 
-	// Build list of full paths
-	items := make([]FeatherObj, len(names))
+	// Build list of full paths as *Obj
+	items := make([]*Obj, len(names))
 	for idx, name := range names {
 		child := ns.children[name]
-		items[idx] = i.internString(child.fullPath)
+		items[idx] = NewString(child.fullPath)
 	}
-
-	id := i.nextID
-	i.nextID++
-	i.objects[id] = &Object{isList: true, listItems: items}
-	return C.FeatherObj(id)
+	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(items)}))
 }
 
 //export goNsGetVar
@@ -2152,10 +2113,7 @@ func goNsListCommands(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherObj 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
 		// Return empty list
-		id := i.nextID
-		i.nextID++
-		i.objects[id] = &Object{isList: true, listItems: []FeatherObj{}}
-		return C.FeatherObj(id)
+		return C.FeatherObj(i.registerObj(NewList()))
 	}
 
 	names := make([]string, 0, len(ns.commands))
@@ -2164,15 +2122,11 @@ func goNsListCommands(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherObj 
 	}
 	sort.Strings(names)
 
-	items := make([]FeatherObj, len(names))
+	items := make([]*Obj, len(names))
 	for idx, name := range names {
-		items[idx] = i.internString(name)
+		items[idx] = NewString(name)
 	}
-
-	id := i.nextID
-	i.nextID++
-	i.objects[id] = &Object{isList: true, listItems: items}
-	return C.FeatherObj(id)
+	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(items)}))
 }
 
 //export goFrameSetNamespace
@@ -2284,16 +2238,12 @@ func goVarNames(interp C.FeatherInterp, ns C.FeatherObj) C.FeatherObj {
 	// Sort for consistent ordering
 	sort.Strings(names)
 
-	// Create list of names
-	items := make([]FeatherObj, len(names))
+	// Create list of names as *Obj
+	items := make([]*Obj, len(names))
 	for idx, name := range names {
-		items[idx] = i.internString(name)
+		items[idx] = NewString(name)
 	}
-
-	id := i.nextID
-	i.nextID++
-	i.objects[id] = &Object{isList: true, listItems: items}
-	return C.FeatherObj(id)
+	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(items)}))
 }
 
 //export goTraceAdd
@@ -2374,29 +2324,25 @@ func goTraceInfo(interp C.FeatherInterp, kind C.FeatherObj, name C.FeatherObj) C
 		entries = i.cmdTraces[nameStr]
 	}
 
-	// Build list of {ops... script} sublists
+	// Build list of {ops... script} sublists as *Obj
 	// Format: each trace is {op1 op2 ... script} where ops are individual elements
-	items := make([]FeatherObj, 0, len(entries))
+	items := make([]*Obj, 0, len(entries))
 	for _, entry := range entries {
 		// Split ops into individual elements
 		ops := strings.Fields(entry.ops)
-		subItems := make([]FeatherObj, 0, len(ops)+1)
+		subItems := make([]*Obj, 0, len(ops)+1)
 		for _, op := range ops {
-			subItems = append(subItems, i.internString(op))
+			subItems = append(subItems, NewString(op))
 		}
-		// Add the script at the end
-		subItems = append(subItems, entry.script)
-
-		subId := i.nextID
-		i.nextID++
-		i.objects[subId] = &Object{isList: true, listItems: subItems}
-		items = append(items, subId)
+		// Add the script at the end (need to wrap the handle)
+		scriptObj := i.getObject(entry.script)
+		if scriptObj == nil {
+			scriptObj = NewString("")
+		}
+		subItems = append(subItems, scriptObj)
+		items = append(items, &Obj{intrep: ListType(subItems)})
 	}
-
-	id := i.nextID
-	i.nextID++
-	i.objects[id] = &Object{isList: true, listItems: items}
-	return C.FeatherObj(id)
+	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(items)}))
 }
 
 //export goNsGetExports
@@ -2410,22 +2356,15 @@ func goNsGetExports(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherObj {
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
 		// Return empty list
-		id := i.nextID
-		i.nextID++
-		i.objects[id] = &Object{isList: true, listItems: []FeatherObj{}}
-		return C.FeatherObj(id)
+		return C.FeatherObj(i.registerObj(NewList()))
 	}
 
-	// Return export patterns as a list
-	items := make([]FeatherObj, len(ns.exportPatterns))
+	// Return export patterns as a list of *Obj
+	items := make([]*Obj, len(ns.exportPatterns))
 	for idx, pattern := range ns.exportPatterns {
-		items[idx] = i.internString(pattern)
+		items[idx] = NewString(pattern)
 	}
-
-	id := i.nextID
-	i.nextID++
-	i.objects[id] = &Object{isList: true, listItems: items}
-	return C.FeatherObj(id)
+	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(items)}))
 }
 
 //export goNsSetExports
@@ -2585,11 +2524,15 @@ func goForeignStringRep(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 		return 0
 	}
 	o := i.getObject(FeatherObj(obj))
-	if o == nil || !o.isForeign {
+	if o == nil {
 		return 0
 	}
-	// Return the cached string representation
-	return C.FeatherObj(i.internString(o.stringVal))
+	// Check if this is a foreign object
+	if _, ok := o.intrep.(*ForeignType); !ok {
+		return 0
+	}
+	// Return the string representation
+	return C.FeatherObj(i.internString(o.String()))
 }
 
 //export goForeignMethods
@@ -2605,12 +2548,12 @@ func goForeignMethods(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 
 	// Determine the foreign type name
 	var typeName string
-	if o.isForeign {
-		typeName = o.foreignType
+	if ft, ok := o.intrep.(*ForeignType); ok {
+		typeName = ft.TypeName
 	} else if i.ForeignRegistry != nil {
 		// Check if string value is a foreign handle name
 		i.ForeignRegistry.mu.RLock()
-		if instance, ok := i.ForeignRegistry.instances[o.stringVal]; ok {
+		if instance, ok := i.ForeignRegistry.instances[o.String()]; ok {
 			typeName = instance.typeName
 		}
 		i.ForeignRegistry.mu.RUnlock()
@@ -2632,15 +2575,12 @@ func goForeignMethods(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 		}
 		i.ForeignRegistry.mu.RUnlock()
 	}
-	// Build a list of method names
-	id := i.nextID
-	i.nextID++
-	methodHandles := make([]FeatherObj, len(methods))
+	// Build a list of method names as *Obj
+	methodObjs := make([]*Obj, len(methods))
 	for j, m := range methods {
-		methodHandles[j] = i.internString(m)
+		methodObjs[j] = NewString(m)
 	}
-	i.objects[id] = &Object{isList: true, listItems: methodHandles}
-	return C.FeatherObj(id)
+	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(methodObjs)}))
 }
 
 //export goForeignInvoke
@@ -2650,7 +2590,11 @@ func goForeignInvoke(interp C.FeatherInterp, obj C.FeatherObj, method C.FeatherO
 		return C.TCL_ERROR
 	}
 	o := i.getObject(FeatherObj(obj))
-	if o == nil || !o.isForeign {
+	if o == nil {
+		i.SetResult(i.internString("not a foreign object"))
+		return C.TCL_ERROR
+	}
+	if _, ok := o.intrep.(*ForeignType); !ok {
 		i.SetResult(i.internString("not a foreign object"))
 		return C.TCL_ERROR
 	}
@@ -2668,11 +2612,14 @@ func goForeignDestroy(interp C.FeatherInterp, obj C.FeatherObj) {
 		return
 	}
 	o := i.getObject(FeatherObj(obj))
-	if o == nil || !o.isForeign {
+	if o == nil {
+		return
+	}
+	ft, ok := o.intrep.(*ForeignType)
+	if !ok {
 		return
 	}
 	// Clear the foreign value to allow GC
-	o.foreignValue = nil
-	o.isForeign = false
-	o.foreignType = ""
+	ft.Value = nil
+	o.intrep = nil
 }
