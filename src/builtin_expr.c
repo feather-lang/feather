@@ -1840,6 +1840,13 @@ FeatherResult feather_builtin_expr(const FeatherHostOps *ops, FeatherInterp inte
     return TCL_ERROR;
   }
 
+  // Check for NaN result - TCL expr errors on NaN (unless checked by isnan)
+  if (result.is_double && ops->dbl.classify(result.dbl_val) == FEATHER_DBL_NAN) {
+    FeatherObj msg = ops->string.intern(interp, "domain error: argument not in valid range", 41);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
   // Return result
   FeatherObj result_obj = get_obj(&parser, &result);
   ops->interp.set_result(interp, result_obj);

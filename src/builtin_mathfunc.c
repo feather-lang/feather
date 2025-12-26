@@ -145,12 +145,46 @@ FeatherResult feather_builtin_mathfunc_ceil(const FeatherHostOps *ops, FeatherIn
 
 FeatherResult feather_builtin_mathfunc_round(const FeatherHostOps *ops, FeatherInterp interp,
                                              FeatherObj cmd, FeatherObj args) {
-  return unary_math(ops, interp, args, "tcl::mathfunc::round", FEATHER_MATH_ROUND);
+  double arg, result;
+  if (get_one_double(ops, interp, args, "tcl::mathfunc::round", &arg) != TCL_OK) {
+    return TCL_ERROR;
+  }
+  if (ops->dbl.math(interp, FEATHER_MATH_ROUND, arg, 0, &result) != TCL_OK) {
+    return TCL_ERROR;
+  }
+  /* TCL round() always returns an integer */
+  ops->interp.set_result(interp, ops->integer.create(interp, (int64_t)result));
+  return TCL_OK;
 }
 
 FeatherResult feather_builtin_mathfunc_abs(const FeatherHostOps *ops, FeatherInterp interp,
                                            FeatherObj cmd, FeatherObj args) {
-  return unary_math(ops, interp, args, "tcl::mathfunc::abs", FEATHER_MATH_ABS);
+  /* TCL abs() returns int for int input, double for double input */
+  /* Check if arg is an integer first */
+  size_t argc = ops->list.length(interp, args);
+  if (argc != 1) {
+    FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"tcl::mathfunc::abs value\"", 50);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+  FeatherObj arg = ops->list.at(interp, args, 0);
+  int64_t ival;
+  if (ops->integer.get(interp, arg, &ival) == TCL_OK) {
+    /* Integer argument - return integer result */
+    if (ival < 0) ival = -ival;
+    ops->interp.set_result(interp, ops->integer.create(interp, ival));
+    return TCL_OK;
+  }
+  /* Fall back to double */
+  double dval, result;
+  if (ops->dbl.get(interp, arg, &dval) != TCL_OK) {
+    return TCL_ERROR;
+  }
+  if (ops->dbl.math(interp, FEATHER_MATH_ABS, dval, 0, &result) != TCL_OK) {
+    return TCL_ERROR;
+  }
+  ops->interp.set_result(interp, ops->dbl.create(interp, result));
+  return TCL_OK;
 }
 
 /* Binary math functions */

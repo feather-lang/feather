@@ -625,6 +625,12 @@ FeatherResult feather_builtin_format(const FeatherHostOps *ops, FeatherInterp in
         if (ops->dbl.get(interp, value, &dblVal) != TCL_OK) {
           return TCL_ERROR;
         }
+        // TCL format errors on NaN
+        if (ops->dbl.classify(dblVal) == FEATHER_DBL_NAN) {
+          FeatherObj msg = ops->string.intern(interp, "floating point value is Not a Number", 36);
+          ops->interp.set_result(interp, msg);
+          return TCL_ERROR;
+        }
         int precision = spec.precision;
         if (precision == -2) precision = 6; // Default
         if (precision == -1) precision = 0;
