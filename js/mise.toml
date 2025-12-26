@@ -13,10 +13,12 @@ zig wasm-ld --no-entry \
   --export=feather_get_ops \
   --export=alloc \
   --export=free \
+  --export=feather_arena_reset \
+  --export=feather_arena_used \
   --export=wasm_call_compare \
   --import-memory \
   -o feather.wasm \
-  $(for f in ../src/*.c wasm_alloc.c; do
+  $(for f in ../src/*.c; do
     zig cc -target wasm32-freestanding -Os -c -DFEATHER_WASM_BUILD -I ../src -o /tmp/$(basename $f .c).o $f
     echo /tmp/$(basename $f .c).o
   done)

@@ -26,8 +26,14 @@ const DEFAULT_RECURSION_LIMIT = 200;
 class FeatherInterp {
   constructor(id) {
     this.id = id;
-    this.objects = new Map();
-    this.nextHandle = 1;
+    
+    // Scratch arena - reset after each top-level eval
+    this.scratch = {
+      objects: new Map(),
+      nextHandle: 1,
+    };
+    this.evalDepth = 0;  // Track nested eval depth
+    
     this.result = 0;
     // Global namespace - shared between namespace storage and frame 0
     const globalNS = { vars: new Map(), children: new Map(), exports: [], commands: new Map() };
@@ -47,8 +53,8 @@ class FeatherInterp {
   }
 
   store(obj) {
-    const handle = this.nextHandle++;
-    this.objects.set(handle, obj);
+    const handle = this.scratch.nextHandle++;
+    this.scratch.objects.set(handle, obj);
     return handle;
   }
 
@@ -59,7 +65,59 @@ class FeatherInterp {
   }
 
   get(handle) {
-    return this.objects.get(handle);
+    return this.scratch.objects.get(handle);
+  }
+
+  resetScratch() {
+    this.scratch = { objects: new Map(), nextHandle: 1 };
+  }
+
+  /**
+   * Materialize a handle into a persistent value (deep copy).
+   * Use when storing in procs, namespaces, traces, etc.
+   */
+  materialize(handle) {
+    if (handle === 0) return null;
+    const obj = this.get(handle);
+    if (!obj) return null;
+    
+    if (obj.type === 'string') return { type: 'string', value: obj.value };
+    if (obj.type === 'int') return { type: 'int', value: obj.value };
+    if (obj.type === 'double') return { type: 'double', value: obj.value };
+    if (obj.type === 'list') {
+      return { type: 'list', items: obj.items.map(h => this.materialize(h)) };
+    }
+    if (obj.type === 'dict') {
+      return { 
+        type: 'dict', 
+        entries: obj.entries.map(([k, v]) => [this.materialize(k), this.materialize(v)])
+      };
+    }
+    if (obj.type === 'foreign') {
+      // Foreign objects can't be fully materialized; store reference info
+      return { type: 'foreign', typeName: obj.typeName, stringRep: obj.stringRep };
+    }
+    // Fallback
+    return { type: 'string', value: this.getString(handle) };
+  }
+
+  /**
+   * Wrap a materialized value into a fresh scratch handle.
+   * Use when retrieving from persistent storage.
+   */
+  wrap(value) {
+    if (value === null || value === undefined) return 0;
+    
+    if (value.type === 'list') {
+      const items = value.items.map(item => this.wrap(item));
+      return this.store({ type: 'list', items });
+    }
+    if (value.type === 'dict') {
+      const entries = value.entries.map(([k, v]) => [this.wrap(k), this.wrap(v)]);
+      return this.store({ type: 'dict', entries });
+    }
+    // Primitives: string, int, double, foreign
+    return this.store({ ...value });
   }
 
   getString(handle) {
