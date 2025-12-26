@@ -358,6 +358,83 @@ The `math` operation uses a `FeatherMathOp` enum to select the operation. Unary 
 
 **Binary:** `pow`, `atan2`, `fmod`, `hypot`
 
+## Memory Management
+
+The WASM build uses arena-based memory management to avoid memory leaks.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        WASM Linear Memory                        │
+├─────────────────────────────────────────────────────────────────┤
+│  Static Data  │  Scratch Arena (reset after eval)               │
+│               │  ← heap_base                    ← heap_ptr      │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                     JS FeatherInterp                             │
+├──────────────────────────┬──────────────────────────────────────┤
+│   Persistent Storage     │   Scratch Arena                      │
+│   (actual JS values)     │   (handles, reset after eval)        │
+├──────────────────────────┼──────────────────────────────────────┤
+│ namespaces.vars: Map     │ scratch.objects: Map<handle, obj>    │
+│   "x" → {type,value}     │   42 → {type: 'string', value: ''}   │
+│ procs: Map               │ scratch.nextHandle: number           │
+│   "foo" → {params,body}  │                                      │
+│ traces: Map              │                                      │
+└──────────────────────────┴──────────────────────────────────────┘
+```
+
+### Two-Arena Design
+
+- **Scratch Arena**: Reset after each top-level eval. Holds temporary handles and WASM allocations.
+- **Persistent Storage**: Lives forever. Holds materialized JS values for variables, procs, namespaces, and traces.
+
+### Materialize/Wrap Pattern
+
+When storing values persistently (procs, variables, traces):
+```javascript
+// materialize() - deep copy handle to persistent value
+const materialized = interp.materialize(handle);
+interp.procs.set(name, { params: materialized, body: materialized });
+```
+
+When retrieving from persistent storage:
+```javascript
+// wrap() - create fresh scratch handle from persistent value
+return interp.wrap(proc.params);
+```
+
+### Arena Reset
+
+Reset happens automatically after each top-level eval completes:
+```javascript
+eval(interpId, script) {
+  interp.evalDepth++;
+  try {
+    // ... execute script ...
+  } finally {
+    interp.evalDepth--;
+    if (interp.evalDepth === 0) {
+      interp.resetScratch();          // Clear JS handles
+      wasmInstance.exports.feather_arena_reset();  // Clear WASM memory
+    }
+  }
+}
+```
+
+Nested evals (e.g., from traces) do not trigger reset until the outermost eval completes.
+
+### Memory Diagnostics
+
+```javascript
+feather.memoryStats(interpId);
+// Returns: { scratchHandles, wasmArenaUsed, namespaceCount, procCount, evalDepth }
+
+feather.forceReset(interpId);  // Manual reset (throws if mid-eval)
+```
+
 ## Known Limitations
 
 The import-based approach cannot call WASM function pointers directly, which affects:

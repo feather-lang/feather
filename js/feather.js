@@ -68,13 +68,19 @@ class FeatherInterp {
     return this.scratch.objects.get(handle);
   }
 
+  /**
+   * Reset the scratch arena, reclaiming all handle memory.
+   * Only call at top-level eval boundaries (evalDepth === 0).
+   * Invalidates all handles from previous allocations.
+   */
   resetScratch() {
     this.scratch = { objects: new Map(), nextHandle: 1 };
   }
 
   /**
    * Materialize a handle into a persistent value (deep copy).
-   * Use when storing in procs, namespaces, traces, etc.
+   * Handles are only valid during a single eval. To store values
+   * persistently (in procs, namespaces, traces), materialize them.
    */
   materialize(handle) {
     if (handle === 0) return null;
@@ -103,7 +109,8 @@ class FeatherInterp {
 
   /**
    * Wrap a materialized value into a fresh scratch handle.
-   * Use when retrieving from persistent storage.
+   * When retrieving from persistent storage, wrap values to get
+   * handles that C code can use during this eval.
    */
   wrap(value) {
     if (value === null || value === undefined) return 0;
