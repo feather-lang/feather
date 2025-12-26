@@ -370,16 +370,32 @@ static ExprValue parse_command(ExprParser *p) {
     return make_error();
   }
 
-  // Try to preserve numeric type from command result
+  // Try to preserve numeric type from command result.
+  // Check the string representation to distinguish 2 (int) from 2.0 (double).
+  // The string representation preserves the original type from the inner expr.
   FeatherObj result_obj = p->ops->interp.get_result(p->interp);
-  double dval;
-  if (p->ops->dbl.get(p->interp, result_obj, &dval) == TCL_OK) {
-    // Check if it's actually an integer (no fractional part)
+  size_t str_len;
+  const char *str = p->ops->string.get(p->interp, result_obj, &str_len);
+
+  // Check if string contains a decimal point or exponent (marks it as float)
+  int looks_like_float = 0;
+  for (size_t i = 0; i < str_len; i++) {
+    if (str[i] == '.' || str[i] == 'e' || str[i] == 'E') {
+      looks_like_float = 1;
+      break;
+    }
+  }
+
+  if (looks_like_float) {
+    double dval;
+    if (p->ops->dbl.get(p->interp, result_obj, &dval) == TCL_OK) {
+      return make_double(dval);
+    }
+  } else {
     int64_t ival;
-    if (p->ops->integer.get(p->interp, result_obj, &ival) == TCL_OK && (double)ival == dval) {
+    if (p->ops->integer.get(p->interp, result_obj, &ival) == TCL_OK) {
       return make_int(ival);
     }
-    return make_double(dval);
   }
   return make_str(result_obj);
 }
