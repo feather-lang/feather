@@ -245,22 +245,22 @@ func convertResult(i *interp.Interp, result reflect.Value) interp.FeatherResult 
 
 	switch result.Kind() {
 	case reflect.String:
-		i.SetResultString(result.String())
+		i.SetResult(i.InternString(result.String()))
 
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		i.SetResultString(fmt.Sprintf("%d", result.Int()))
+		i.SetResult(i.NewInt(result.Int()))
 
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		i.SetResultString(fmt.Sprintf("%d", result.Uint()))
+		i.SetResult(i.NewInt(int64(result.Uint())))
 
 	case reflect.Float32, reflect.Float64:
-		i.SetResultString(fmt.Sprintf("%g", result.Float()))
+		i.SetResult(i.NewDouble(result.Float()))
 
 	case reflect.Bool:
 		if result.Bool() {
-			i.SetResultString("1")
+			i.SetResult(i.NewInt(1))
 		} else {
-			i.SetResultString("0")
+			i.SetResult(i.NewInt(0))
 		}
 
 	case reflect.Slice:

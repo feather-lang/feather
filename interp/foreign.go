@@ -191,8 +191,8 @@ func (i *Interp) foreignConstructor(typeName string, cmd FeatherObj, args []Feat
 		return interp.foreignMethodDispatch(handleName, cmd, args)
 	})
 
-	// Return the handle name
-	i.SetResultString(handleName)
+	// Return the handle object (preserves foreign type)
+	i.SetResult(objHandle)
 	return ResultOK
 }
 
@@ -442,22 +442,22 @@ func (i *Interp) convertResult(result reflect.Value) FeatherResult {
 
 	switch result.Kind() {
 	case reflect.String:
-		i.SetResultString(result.String())
+		i.SetResult(i.internString(result.String()))
 
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		i.SetResultString(fmt.Sprintf("%d", result.Int()))
+		i.SetResult(i.NewIntObj(result.Int()))
 
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		i.SetResultString(fmt.Sprintf("%d", result.Uint()))
+		i.SetResult(i.NewIntObj(int64(result.Uint())))
 
 	case reflect.Float32, reflect.Float64:
-		i.SetResultString(fmt.Sprintf("%g", result.Float()))
+		i.SetResult(i.NewDoubleObj(result.Float()))
 
 	case reflect.Bool:
 		if result.Bool() {
-			i.SetResultString("1")
+			i.SetResult(i.NewIntObj(1))
 		} else {
-			i.SetResultString("0")
+			i.SetResult(i.NewIntObj(0))
 		}
 
 	case reflect.Slice:

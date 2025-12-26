@@ -868,6 +868,66 @@ func (i *Interp) GetDict(h FeatherObj) (map[string]FeatherObj, []string, error) 
 	return handles, dictOrder, nil
 }
 
+// ListLen returns the number of elements in a list object.
+//
+// If the object is not already a list, it parses the string representation.
+// Returns 0 if the object is nil, empty, or cannot be converted to a list.
+//
+// Note: For dicts, this returns the number of key-value pairs times 2
+// (the list representation length).
+func (i *Interp) ListLen(h FeatherObj) int {
+	items, err := i.GetList(h)
+	if err != nil {
+		return 0
+	}
+	return len(items)
+}
+
+// ListIndex returns the element at the given zero-based index in a list.
+//
+// If the object is not already a list, it parses the string representation.
+// Returns 0 (invalid handle) if:
+//   - The index is negative or out of bounds
+//   - The object cannot be converted to a list
+//   - The object handle is invalid
+func (i *Interp) ListIndex(h FeatherObj, idx int) FeatherObj {
+	items, err := i.GetList(h)
+	if err != nil || idx < 0 || idx >= len(items) {
+		return 0
+	}
+	return items[idx]
+}
+
+// DictGet retrieves the value for a key in a dict object.
+//
+// If the object is not already a dict, it attempts to convert from list
+// representation (must have even number of elements).
+//
+// Returns (handle, true) if the key exists, (0, false) otherwise.
+// Also returns (0, false) if the object cannot be converted to a dict.
+func (i *Interp) DictGet(h FeatherObj, key string) (FeatherObj, bool) {
+	items, _, err := i.GetDict(h)
+	if err != nil {
+		return 0, false
+	}
+	val, ok := items[key]
+	return val, ok
+}
+
+// DictKeys returns all keys of a dict object in insertion order.
+//
+// If the object is not already a dict, it attempts to convert from list
+// representation.
+//
+// Returns nil if the object cannot be converted to a dict.
+func (i *Interp) DictKeys(h FeatherObj) []string {
+	_, order, err := i.GetDict(h)
+	if err != nil {
+		return nil
+	}
+	return order
+}
+
 // IsNativeDict returns true if the object has a native dict representation
 // (not just convertible to dict via shimmering).
 func (i *Interp) IsNativeDict(h FeatherObj) bool {
@@ -984,6 +1044,16 @@ func (i *Interp) GetVar(name string) string {
 		}
 	}
 	return ""
+}
+
+// GetVarHandle returns the object handle for a variable, preserving its type.
+// Returns 0 if the variable is not found.
+func (i *Interp) GetVarHandle(name string) FeatherObj {
+	frame := i.frames[i.active]
+	if val, ok := frame.locals.vars[name]; ok {
+		return val
+	}
+	return 0
 }
 
 func getInterp(h C.FeatherInterp) *Interp {
