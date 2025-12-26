@@ -36,6 +36,7 @@ export default defineConfig({
         text: "About",
         items: [
           { text: "Philosophy", link: "/philosophy" },
+          { text: "Credits", link: "/credits" },
         ],
       },
     ],

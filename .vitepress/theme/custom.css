@@ -1,4 +1,16 @@
+/* Feroniapi headline font - SIL OFL licensed by Julienne Richard */
+@font-face {
+  font-family: 'Feroniapi';
+  src: url('/Feroniapi-MediumItalic.woff2') format('woff2');
+  font-weight: 500;
+  font-style: italic;
+  font-display: swap;
+}
+
 :root {
+  /* Headline font */
+  --vp-font-family-headline: 'Feroniapi', Georgia, serif;
+
   /* Brand colors - based on Feather logo gradient (olive-green to teal) */
   --vp-c-brand-1: #4a7c23;
   --vp-c-brand-2: #5a9428;
@@ -26,4 +38,13 @@
 /* Button hover enhancement */
 .VPButton.brand:hover {
   background-color: var(--vp-c-brand-2);
+}
+
+/* Headlines use Feroniapi */
+.VPHero .name,
+.VPHero .text,
+.VPFeature .title,
+h1, h2, h3 {
+  font-family: var(--vp-font-family-headline);
+  font-style: italic;
 }
