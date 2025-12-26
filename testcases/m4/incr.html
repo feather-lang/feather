@@ -1,0 +1,186 @@
+<test-suite>
+  <!--
+    M4: incr command
+
+    The incr command increments a variable by an amount (default 1).
+    Syntax: incr varName ?increment?
+  -->
+
+  <!-- ============================================= -->
+  <!-- Basic increment                               -->
+  <!-- ============================================= -->
+
+  <test-case name="incr with no increment adds 1">
+    <script>set x 0
+incr x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="incr from 5 to 6">
+    <script>set x 5
+incr x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>6</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="incr multiple times">
+    <script>set x 0
+incr x
+incr x
+incr x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="incr returns new value">
+    <script>set x 10
+set result [incr x]
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>11</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Increment with explicit amount                -->
+  <!-- ============================================= -->
+
+  <test-case name="incr by 5">
+    <script>set x 0
+incr x 5</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="incr by 10">
+    <script>set x 5
+incr x 10</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>15</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="incr by negative amount decrements">
+    <script>set x 10
+incr x -3</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>7</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="incr by zero">
+    <script>set x 42
+incr x 0</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Negative numbers                              -->
+  <!-- ============================================= -->
+
+  <test-case name="incr negative number">
+    <script>set x -5
+incr x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-4</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="incr to negative">
+    <script>set x 0
+incr x -1</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Variable from expression                      -->
+  <!-- ============================================= -->
+
+  <test-case name="incr with variable increment">
+    <script>set x 0
+set amount 7
+incr x $amount</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>7</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Error cases                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="incr with no arguments errors">
+    <script>incr</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "incr varName ?increment?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="incr too many arguments errors">
+    <script>set x 0
+incr x 1 2</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "incr varName ?increment?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="incr undefined variable errors">
+    <script>incr undefined</script>
+    <return>TCL_ERROR</return>
+    <error>can't read "undefined": no such variable</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="incr non-integer variable errors">
+    <script>set x hello
+incr x</script>
+    <return>TCL_ERROR</return>
+    <error>expected integer but got "hello"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="incr with non-integer increment errors">
+    <script>set x 0
+incr x hello</script>
+    <return>TCL_ERROR</return>
+    <error>expected integer but got "hello"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

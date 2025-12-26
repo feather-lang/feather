@@ -1,0 +1,80 @@
+<test-suite>
+  <!-- M15: list command - construct lists -->
+
+  <!-- ============================================= -->
+  <!-- Basic list construction                       -->
+  <!-- ============================================= -->
+
+  <test-case name="list with no arguments">
+    <script>list</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="list with one element">
+    <script>list a</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="list with multiple elements">
+    <script>list a b c</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="list with spaces in element">
+    <script>list "hello world" foo</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{hello world} foo</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="list with braces in element">
+    <script>list {a b} c</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{a b} c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="list with empty string element">
+    <script>list "" a</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{} a</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="list preserves exact values">
+    <script>list 123 abc {x y z}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>123 abc {x y z}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="list result can be indexed">
+    <script>lindex [list a b c] 1</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>b</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

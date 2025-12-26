@@ -1,0 +1,783 @@
+<test-suite>
+  <!--
+    M3: proc with implicit return
+
+    TCL procedures return the result of their last evaluated command
+    automatically - no explicit 'return' is needed.
+
+    Tests progress from basic to complex:
+    1. Basic proc definition and invocation
+    2. Procs with parameters
+    3. Procs with expressions (using available operators: comparisons, bitwise, logical)
+    4. Multi-command bodies
+    5. Procs calling procs
+    6. Variable scoping
+    7. Error cases
+
+    Note: expr currently only supports comparison (<,<=,>,>=,==,!=),
+    bitwise (&,|), and logical (&&,||) operators - no arithmetic.
+  -->
+
+  <!-- ============================================= -->
+  <!-- Basic proc definition and invocation         -->
+  <!-- ============================================= -->
+
+  <test-case name="simplest proc returns constant">
+    <script>proc greet {} {
+    set x hello
+}
+greet</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc with empty body returns empty string">
+    <script>proc nothing {} {}
+nothing</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc returns result of single expr">
+    <script>proc fortytwo {} {
+    expr 42
+}
+fortytwo</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Procs with parameters                        -->
+  <!-- ============================================= -->
+
+  <test-case name="proc with one parameter">
+    <script>proc identity {x} {
+    set x $x
+}
+identity hello</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc with two parameters">
+    <script>proc first {a b} {
+    set a $a
+}
+first hello world</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc with two parameters returns second">
+    <script>proc second {a b} {
+    set b $b
+}
+second hello world</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc with three parameters">
+    <script>proc middle {a b c} {
+    set b $b
+}
+middle first second third</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>second</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc parameter can be integer">
+    <script>proc echo_num {n} {
+    expr $n
+}
+echo_num 42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Procs with expressions (comparisons)         -->
+  <!-- ============================================= -->
+
+  <test-case name="proc compares parameter to constant">
+    <script>proc is_big {x} {
+    expr {$x > 100}
+}
+is_big 200</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc compares parameter to constant returns false">
+    <script>proc is_big {x} {
+    expr {$x > 100}
+}
+is_big 50</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc compares two parameters">
+    <script>proc less {a b} {
+    expr {$a < $b}
+}
+less 3 5</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc checks equality of parameters">
+    <script>proc equal {a b} {
+    expr {$a == $b}
+}
+equal 7 7</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc with logical expression">
+    <script>proc both_positive {a b} {
+    expr {$a > 0 && $b > 0}
+}
+both_positive 5 3</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc with logical or">
+    <script>proc either_positive {a b} {
+    expr {$a > 0 || $b > 0}
+}
+either_positive -5 3</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc with bitwise and">
+    <script>proc bit_and {a b} {
+    expr {$a & $b}
+}
+bit_and 5 3</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Multi-command bodies - implicit return       -->
+  <!-- ============================================= -->
+
+  <test-case name="proc with multiple commands returns last">
+    <script>proc multi {} {
+    set x 1
+    set y 2
+    set z 3
+}
+multi</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc uses earlier assignments in later commands">
+    <script>proc compute {} {
+    set a 10
+    set b 20
+    expr {$a < $b}
+}
+compute</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc builds up result through multiple steps">
+    <script>proc stepwise {n} {
+    set a $n
+    set b $a
+    set c $b
+    set d $c
+}
+stepwise hello</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc intermediate results are local">
+    <script>proc calc {x} {
+    set temp $x
+    set result $temp
+}
+calc 99</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>99</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Procs calling other procs                    -->
+  <!-- ============================================= -->
+
+  <test-case name="proc calls another proc">
+    <script>proc inner {} {
+    set x 42
+}
+proc outer {} {
+    inner
+}
+outer</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc passes argument to another proc">
+    <script>proc identity {x} {
+    set x $x
+}
+proc wrapper {x} {
+    identity $x
+}
+wrapper hello</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="three-level proc call chain">
+    <script>proc a {} {
+    set x from_a
+}
+proc b {} {
+    a
+}
+proc c {} {
+    b
+}
+c</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>from_a</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc uses result of nested call in expression">
+    <script>proc one {} {
+    expr 1
+}
+proc check {} {
+    expr {[one] == 1}
+}
+check</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc passes through nested proc result">
+    <script>proc inner {x} {
+    set x $x
+}
+proc outer {x} {
+    inner [inner $x]
+}
+outer test</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>test</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Variable scoping - local vs global           -->
+  <!-- ============================================= -->
+
+  <test-case name="proc has its own local scope">
+    <script>set x global_value
+proc get_local {} {
+    set x local_value
+}
+get_local</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>local_value</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc does not modify outer variable">
+    <script>set x before
+proc modify {} {
+    set x inside
+}
+modify
+set x $x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>before</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="parameter shadows outer variable">
+    <script>set x outer_value
+proc shadow {x} {
+    set x $x
+}
+shadow param_value</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>param_value</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="nested procs have independent scopes">
+    <script>proc outer {} {
+    set x outer_x
+    inner
+}
+proc inner {} {
+    set x inner_x
+}
+outer</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>inner_x</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="outer scope unchanged after proc call">
+    <script>set x original
+proc modify {} {
+    set x changed
+}
+modify
+set result $x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>original</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Redefining procs                             -->
+  <!-- ============================================= -->
+
+  <test-case name="redefining a proc replaces it">
+    <script>proc greet {} {
+    set x hello
+}
+proc greet {} {
+    set x goodbye
+}
+greet</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>goodbye</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="redefining can change parameter count">
+    <script>proc f {a} {
+    set a $a
+}
+proc f {a b} {
+    expr {$a == $b}
+}
+f 3 3</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Error cases                                  -->
+  <!-- ============================================= -->
+
+  <test-case name="proc with no arguments errors">
+    <script>proc</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "proc name args body"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="proc with only name errors">
+    <script>proc foo</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "proc name args body"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="proc with only name and args errors">
+    <script>proc foo {}</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "proc name args body"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="proc with too many arguments errors">
+    <script>proc foo {} {} extra</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "proc name args body"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="calling undefined proc errors">
+    <script>undefined_proc</script>
+    <return>TCL_ERROR</return>
+    <error>invalid command name "undefined_proc"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="proc with too few arguments errors">
+    <script>proc add {a b} {
+    expr {$a == $b}
+}
+add 5</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "add a b"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="proc with too many arguments errors">
+    <script>proc greet {name} {
+    set name $name
+}
+greet Alice Bob</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "greet name"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="proc with zero args called with args errors">
+    <script>proc noop {} {}
+noop extra</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "noop"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="error in proc body propagates">
+    <script>proc bad {} {
+    expr {$undefined}
+}
+bad</script>
+    <return>TCL_ERROR</return>
+    <error>can't read "undefined": no such variable</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="proc calling undefined proc errors">
+    <script>proc caller {} {
+    nonexistent
+}
+caller</script>
+    <return>TCL_ERROR</return>
+    <error>invalid command name "nonexistent"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="infinite recursion is caught">
+    <script>proc recurse {} {
+    recurse
+}
+recurse</script>
+    <return>TCL_ERROR</return>
+    <error>too many nested evaluations (infinite loop?)</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Nested proc definitions                      -->
+  <!-- Procs defined inside other procs still go    -->
+  <!-- into the global namespace, not lexically     -->
+  <!-- scoped to the enclosing proc.                -->
+  <!-- ============================================= -->
+
+  <test-case name="proc defined inside proc is globally visible">
+    <script>proc define_helper {} {
+    proc helper {} {
+        set x from_helper
+    }
+}
+define_helper
+helper</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>from_helper</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="nested proc definition does not exist before outer runs">
+    <script>proc define_inner {} {
+    proc inner_proc {} {
+        set x inner
+    }
+}
+inner_proc</script>
+    <return>TCL_ERROR</return>
+    <error>invalid command name "inner_proc"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="nested proc can be called after outer defines it">
+    <script>proc setup {} {
+    proc greet {name} {
+        set name $name
+    }
+}
+setup
+greet world</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc defined inside proc can redefine existing proc">
+    <script>proc target {} {
+    set x original
+}
+proc redefiner {} {
+    proc target {} {
+        set x redefined
+    }
+}
+redefiner
+target</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>redefined</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="multiple nested proc definitions">
+    <script>proc factory {} {
+    proc one {} { set x 1 }
+    proc two {} { set x 2 }
+    proc three {} { set x 3 }
+}
+factory
+one</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="deeply nested proc definition">
+    <script>proc outer {} {
+    proc middle {} {
+        proc inner {} {
+            set x deep
+        }
+    }
+}
+outer
+middle
+inner</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>deep</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Special args parameter for variadic procs    -->
+  <!-- When last param is "args", it collects all   -->
+  <!-- remaining arguments as a list.               -->
+  <!-- ============================================= -->
+
+  <test-case name="args collects all arguments as list">
+    <script>proc varargs {args} {
+    set args $args
+}
+varargs a b c</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="args with no arguments gives empty list">
+    <script>proc varargs {args} {
+    set args $args
+}
+varargs</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="args with single argument">
+    <script>proc varargs {args} {
+    set args $args
+}
+varargs single</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>single</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="args after required parameter">
+    <script>proc with_required {first args} {
+    set first $first
+}
+with_required hello world extra</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="args after required parameter returns args list">
+    <script>proc with_required {first args} {
+    set args $args
+}
+with_required hello world extra</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>world extra</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="args after multiple required parameters">
+    <script>proc multi_req {a b args} {
+    set args $args
+}
+multi_req 1 2 3 4 5</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3 4 5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="args can be empty after required params">
+    <script>proc with_required {first args} {
+    set args $args
+}
+with_required only</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="required param still required with args">
+    <script>proc need_one {required args} {
+    set required $required
+}
+need_one</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "need_one required ?arg ...?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="args only special when last parameter">
+    <script>proc args_not_last {args other} {
+    set args $args
+}
+args_not_last first second</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>first</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

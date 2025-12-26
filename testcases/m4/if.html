@@ -1,0 +1,345 @@
+<test-suite>
+  <!--
+    M4: if command
+
+    The if command provides conditional execution with support for:
+    - then (optional keyword)
+    - elseif clauses
+    - else clause
+    - Boolean literals: 1/0, true/false, yes/no
+  -->
+
+  <!-- ============================================= -->
+  <!-- Basic if - true condition                     -->
+  <!-- ============================================= -->
+
+  <test-case name="if with true numeric condition">
+    <script>if {1} {
+    set x yes
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>yes</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="if with false numeric condition">
+    <script>if {0} {
+    set x yes
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="if with expression condition">
+    <script>if {1 == 1} {
+    set x equal
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>equal</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="if with false expression condition">
+    <script>if {1 == 2} {
+    set x equal
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="if with variable in condition">
+    <script>set x 5
+if {$x > 3} {
+    set result big
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>big</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Boolean literals                              -->
+  <!-- ============================================= -->
+
+  <test-case name="if with true literal">
+    <script>if {true} {
+    set x yes
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>yes</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="if with false literal">
+    <script>if {false} {
+    set x yes
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="if with yes literal">
+    <script>if {yes} {
+    set x affirmed
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>affirmed</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="if with no literal">
+    <script>if {no} {
+    set x affirmed
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- if-else                                       -->
+  <!-- ============================================= -->
+
+  <test-case name="if-else takes then branch when true">
+    <script>if {1} {
+    set x then
+} else {
+    set x else
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>then</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="if-else takes else branch when false">
+    <script>if {0} {
+    set x then
+} else {
+    set x else
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>else</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="if-else with expression condition">
+    <script>set n 10
+if {$n < 5} {
+    set x small
+} else {
+    set x large
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>large</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Optional then keyword                         -->
+  <!-- ============================================= -->
+
+  <test-case name="if with then keyword">
+    <script>if {1} then {
+    set x yes
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>yes</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="if-then-else">
+    <script>if {0} then {
+    set x then
+} else {
+    set x else
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>else</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- elseif chains                                 -->
+  <!-- ============================================= -->
+
+  <test-case name="if-elseif takes first match">
+    <script>set x 1
+if {$x == 1} {
+    set r one
+} elseif {$x == 2} {
+    set r two
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>one</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="if-elseif takes second match">
+    <script>set x 2
+if {$x == 1} {
+    set r one
+} elseif {$x == 2} {
+    set r two
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>two</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="if-elseif-else with else taken">
+    <script>set x 3
+if {$x == 1} {
+    set r one
+} elseif {$x == 2} {
+    set r two
+} else {
+    set r other
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>other</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="multiple elseif clauses">
+    <script>set x 4
+if {$x == 1} {
+    set r one
+} elseif {$x == 2} {
+    set r two
+} elseif {$x == 3} {
+    set r three
+} elseif {$x == 4} {
+    set r four
+} else {
+    set r other
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>four</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="if-elseif with no match returns empty">
+    <script>set x 5
+if {$x == 1} {
+    set r one
+} elseif {$x == 2} {
+    set r two
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Nested if                                     -->
+  <!-- ============================================= -->
+
+  <test-case name="nested if statements">
+    <script>set x 1
+set y 2
+if {$x == 1} {
+    if {$y == 2} {
+        set r both
+    } else {
+        set r only_x
+    }
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>both</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Error cases                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="if with no arguments errors">
+    <script>if</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "if expr1 ?then? body1 ?elseif expr2 ?then? body2 ...? ?else bodyN?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="if with only condition errors">
+    <script>if {1}</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "if expr1 ?then? body1 ?elseif expr2 ?then? body2 ...? ?else bodyN?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="if with invalid condition">
+    <script>if {$undefined} {
+    set x yes
+}</script>
+    <return>TCL_ERROR</return>
+    <error>can't read "undefined": no such variable</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="else without body errors">
+    <script>if {0} {
+    set x then
+} else</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "if expr1 ?then? body1 ?elseif expr2 ?then? body2 ...? ?else bodyN?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="elseif without condition errors">
+    <script>if {0} {
+    set x then
+} elseif</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "if expr1 ?then? body1 ?elseif expr2 ?then? body2 ...? ?else bodyN?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

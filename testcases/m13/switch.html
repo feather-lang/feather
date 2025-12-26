@@ -1,0 +1,352 @@
+<test-suite>
+  <!--
+    M13: switch command (multi-way branch)
+
+    The switch command matches a string against patterns and executes
+    the corresponding body.
+
+    Syntax: switch ?options? string pattern body ?pattern body ...?
+    Or:     switch ?options? string {pattern body ?pattern body ...?}
+
+    Options:
+      -exact  : use exact string matching (default)
+      -glob   : use glob-style pattern matching
+      -regexp : use regular expression matching
+      --      : marks end of options
+  -->
+
+  <!-- ============================================= -->
+  <!-- Basic exact matching                          -->
+  <!-- ============================================= -->
+
+  <test-case name="switch matches first pattern">
+    <script>switch a {
+    a { set result "matched a" }
+    b { set result "matched b" }
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>matched a</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="switch matches second pattern">
+    <script>switch b {
+    a { set result "matched a" }
+    b { set result "matched b" }
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>matched b</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="switch with no match returns empty">
+    <script>switch c {
+    a { set result "matched a" }
+    b { set result "matched b" }
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="switch with default pattern">
+    <script>switch xyz {
+    a { set result "matched a" }
+    b { set result "matched b" }
+    default { set result "no match" }
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>no match</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="switch default only matches when nothing else does">
+    <script>switch a {
+    a { set result "matched a" }
+    default { set result "no match" }
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>matched a</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="switch returns result of body">
+    <script>set x [switch a {
+    a { expr {1 + 2} }
+    b { expr {3 + 4} }
+}]
+set x $x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Fall-through with -                           -->
+  <!-- ============================================= -->
+
+  <test-case name="switch fall-through with dash">
+    <script>switch b {
+    a -
+    b -
+    c { set result "matched a, b, or c" }
+    d { set result "matched d" }
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>matched a, b, or c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="switch fall-through continues to next body">
+    <script>switch a {
+    a -
+    b { set result "matched a or b" }
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>matched a or b</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- -exact option                                 -->
+  <!-- ============================================= -->
+
+  <test-case name="switch -exact matches exactly">
+    <script>switch -exact abc {
+    abc { set result "matched" }
+    ab { set result "partial" }
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>matched</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="switch -exact with glob chars is literal">
+    <script>switch -exact {a*} {
+    a* { set result "matched star" }
+    abc { set result "matched abc" }
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>matched star</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- -glob option                                  -->
+  <!-- ============================================= -->
+
+  <test-case name="switch -glob matches with star">
+    <script>switch -glob abcdef {
+    abc* { set result "matched prefix" }
+    xyz* { set result "matched xyz" }
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>matched prefix</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="switch -glob matches with question">
+    <script>switch -glob abc {
+    a?c { set result "matched" }
+    xyz { set result "no match" }
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>matched</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="switch -glob with character class">
+    <script>switch -glob a5c {
+    a[0-9]c { set result "matched digit" }
+    abc { set result "matched abc" }
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>matched digit</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="switch -glob with star matches empty">
+    <script>switch -glob "" {
+    * { set result "matched" }
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>matched</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- -regexp option                                -->
+  <!-- ============================================= -->
+
+  <test-case name="switch -regexp basic match">
+    <script>switch -regexp abc123 {
+    {^abc} { set result "matched prefix" }
+    {xyz$} { set result "matched suffix" }
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>matched prefix</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="switch -regexp with digit class">
+    <script>switch -regexp test42 {
+    {[0-9]+$} { set result "ends with digits" }
+    {^[a-z]+$} { set result "all letters" }
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>ends with digits</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- -- option marker                              -->
+  <!-- ============================================= -->
+
+  <test-case name="switch -- allows pattern starting with dash">
+    <script>switch -- -foo {
+    -foo { set result "matched" }
+    bar { set result "no match" }
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>matched</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="switch -glob -- with dash pattern">
+    <script>switch -glob -- -test {
+    -* { set result "matched dash prefix" }
+}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>matched dash prefix</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Inline pattern-body pairs                     -->
+  <!-- ============================================= -->
+
+  <test-case name="switch with inline patterns">
+    <script>switch x a {result a} b {result b} x {set result "matched x"}
+set result $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>matched x</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Error cases                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="switch with no arguments errors">
+    <script>switch</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "switch ?options? string pattern body ... ?default body?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="switch with only string errors">
+    <script>switch foo</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "switch ?options? string pattern body ... ?default body?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="switch with uneven pattern-body pairs errors">
+    <script>switch foo {
+    a { result a }
+    b
+}</script>
+    <return>TCL_ERROR</return>
+    <error>extra switch pattern with no body</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="switch with unknown option errors">
+    <script>switch -unknown foo {
+    a { result a }
+}</script>
+    <return>TCL_ERROR</return>
+    <error>bad option "-unknown": must be -exact, -glob, -regexp, or --</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="error in body propagates">
+    <script>switch a {
+    a { error "body error" }
+}</script>
+    <return>TCL_ERROR</return>
+    <error>body error</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="switch default not last errors">
+    <script>switch foo {
+    default { set result "default" }
+    a { set result "a" }
+}</script>
+    <return>TCL_ERROR</return>
+    <error>default pattern must be last</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

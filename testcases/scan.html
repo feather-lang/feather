@@ -1,0 +1,610 @@
+<test-suite>
+  <!-- scan command tests -->
+
+  <!-- Basic inline mode (no varNames, returns list) -->
+
+  <test-case name="scan: inline decimal">
+    <script>
+scan "42" %d
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: inline multiple decimals">
+    <script>
+scan "10 20 30" "%d %d %d"
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10 20 30</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: inline string">
+    <script>
+scan "hello" %s
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: inline multiple strings">
+    <script>
+scan "foo bar baz" "%s %s %s"
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>foo bar baz</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Variable assignment mode (returns count) -->
+
+  <test-case name="scan: single variable">
+    <script>
+set count [scan "123" %d x]
+list $count $x
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1 123</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: multiple variables">
+    <script>
+set count [scan "10 20" "%d %d" a b]
+list $count $a $b
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2 10 20</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: returns 0 on no match at start">
+    <script>
+scan "abc" %d x
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: partial match returns count">
+    <script>
+set count [scan "42 abc" "%d %d" a b]
+list $count $a
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1 42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Decimal conversion %d -->
+
+  <test-case name="scan: negative decimal">
+    <script>
+scan "-42" %d
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: decimal with leading whitespace">
+    <script>
+scan "   123" %d
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>123</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: decimal with plus sign">
+    <script>
+scan "+99" %d
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>99</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Octal conversion %o -->
+
+  <test-case name="scan: octal">
+    <script>
+scan "77" %o
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>63</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: octal 10">
+    <script>
+scan "10" %o
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>8</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Hexadecimal conversion %x -->
+
+  <test-case name="scan: hexadecimal lowercase">
+    <script>
+scan "ff" %x
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>255</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: hexadecimal uppercase">
+    <script>
+scan "FF" %X
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>255</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: hexadecimal with 0x prefix">
+    <script>
+scan "0x1a" %x
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>26</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Binary conversion %b -->
+
+  <test-case name="scan: binary">
+    <script>
+scan "1010" %b
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: binary 11111111">
+    <script>
+scan "11111111" %b
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>255</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Integer with auto-base %i -->
+
+  <test-case name="scan: auto-base decimal">
+    <script>
+scan "42" %i
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: auto-base octal">
+    <script>
+scan "010" %i
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>8</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: auto-base hexadecimal">
+    <script>
+scan "0x10" %i
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>16</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Character conversion %c -->
+
+  <test-case name="scan: character to unicode">
+    <script>
+scan "A" %c
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>65</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: space character">
+    <script>
+scan " " %c
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>32</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: newline character">
+    <script>
+scan "\n" %c
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Floating point conversions %f %e %g -->
+
+  <test-case name="scan: float simple">
+    <script>
+scan "3.14" %f
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3.14</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: float negative">
+    <script>
+scan "-2.5" %f
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-2.5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: float scientific notation">
+    <script>
+scan "1.5e2" %e
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>150.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: float negative exponent">
+    <script>
+scan "5e-2" %g
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0.05</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Width specifier -->
+
+  <test-case name="scan: width limit decimal">
+    <script>
+scan "12345" %2d
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>12</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: width limit string">
+    <script>
+scan "hello" %3s
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hel</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: RGB color parsing">
+    <script>
+scan "#FF8000" "#%2x%2x%2x"
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>255 128 0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Assignment suppression %* -->
+
+  <test-case name="scan: suppress assignment inline">
+    <script>
+scan "10 20 30" "%d %*d %d"
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10 30</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: suppress with variables">
+    <script>
+set count [scan "a b c" "%s %*s %s" first last]
+list $count $first $last
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2 a c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Character set %[...] -->
+
+  <test-case name="scan: character set digits">
+    <script>
+scan "123abc" {%[0-9]}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>123</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: character set letters">
+    <script>
+scan "abc123" {%[a-z]}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>abc</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: negated character set">
+    <script>
+scan "hello world" {%[^ ]}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: character set with multiple chars">
+    <script>
+scan "aeiou123" {%[aeiou]}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>aeiou</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Count of characters scanned %n -->
+
+  <test-case name="scan: count characters scanned">
+    <script>
+scan "hello world" "%s%n"
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello 5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: count with leading whitespace">
+    <script>
+scan "   hello" "%s%n"
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello 8</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Positional specifiers %n$ -->
+
+  <test-case name="scan: positional specifiers">
+    <script>
+scan "a b" "%2\$s %1\$s"
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>b a</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Literal matching -->
+
+  <test-case name="scan: literal prefix">
+    <script>
+scan "value=42" "value=%d"
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: literal between values">
+    <script>
+scan "x=10,y=20" "x=%d,y=%d"
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10 20</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: time parsing">
+    <script>
+set count [scan "08:30" "%d:%d" hours minutes]
+list $count $hours $minutes
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2 8 30</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Empty string and edge cases -->
+
+  <test-case name="scan: empty string returns empty list inline">
+    <script>
+scan "" %d
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: empty string returns -1 with variables">
+    <script>
+scan "" %d x
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Unsigned conversion %u -->
+
+  <test-case name="scan: unsigned decimal">
+    <script>
+scan "42" %u
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Practical examples -->
+
+  <test-case name="scan: parse coordinate">
+    <script>
+scan "(5.2,-4.0)" "(%f,%f)"
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>5.2 -4.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: parse date">
+    <script>
+scan "2024-12-25" "%d-%d-%d"
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2024 12 25</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: parse key value pair">
+    <script>
+scan "name=John" {%[^=]=%s}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>name John</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Error cases -->
+
+  <test-case name="scan: no arguments">
+    <script>
+catch {scan} msg
+set msg
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>wrong # args: should be "scan string format ?varName ...?"</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: only string argument">
+    <script>
+catch {scan "hello"} msg
+set msg
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>wrong # args: should be "scan string format ?varName ...?"</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

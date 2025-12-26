@@ -1,0 +1,714 @@
+<test-suite>
+  <!--
+    M5: format command
+
+    The format command generates a formatted string similar to C sprintf.
+    It supports:
+    - Basic string substitution (%s)
+    - Integer formatting (%d, %i, %u, %o, %x, %X, %b)
+    - Character conversion (%c)
+    - Floating point (%f, %e, %E, %g, %G)
+    - Literal percent (%%)
+    - Field width and precision
+    - Flags (-, +, space, 0, #)
+    - Positional specifiers (%n$)
+  -->
+
+  <!-- ============================================= -->
+  <!-- Basic string substitution                     -->
+  <!-- ============================================= -->
+
+  <test-case name="format with no specifiers returns format string">
+    <script>format "hello world"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %s substitutes string">
+    <script>format "%s" hello</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format with multiple %s">
+    <script>format "%s %s" hello world</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %s with empty string">
+    <script>format "%s" ""</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Integer formatting                            -->
+  <!-- ============================================= -->
+
+  <test-case name="format %d with positive integer">
+    <script>format "%d" 42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %d with negative integer">
+    <script>format "%d" -42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %d with zero">
+    <script>format "%d" 0</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %i is same as %d">
+    <script>format "%i" 42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %u with positive integer">
+    <script>format "%u" 42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %o outputs octal">
+    <script>format "%o" 8</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %o with larger number">
+    <script>format "%o" 63</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>77</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %x outputs lowercase hex">
+    <script>format "%x" 255</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>ff</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %X outputs uppercase hex">
+    <script>format "%X" 255</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>FF</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %x with zero">
+    <script>format "%x" 0</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %b outputs binary">
+    <script>format "%b" 5</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>101</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %b with larger number">
+    <script>format "%b" 255</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>11111111</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Character conversion                          -->
+  <!-- ============================================= -->
+
+  <test-case name="format %c converts integer to character">
+    <script>format "%c" 65</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>A</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %c with lowercase letter">
+    <script>format "%c" 97</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %c with space">
+    <script>format "%c" 32</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout> </stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Literal percent                               -->
+  <!-- ============================================= -->
+
+  <test-case name="format %% outputs literal percent">
+    <script>format "%%"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>%</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format with %% and other specifiers">
+    <script>format "%d%%" 50</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>50%</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Field width                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="format with field width pads with spaces">
+    <script>format "%5d" 42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>   42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format with field width smaller than value">
+    <script>format "%2d" 12345</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>12345</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %s with field width">
+    <script>format "%10s" hello</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>     hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format with * for field width">
+    <script>format "%*d" 5 42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>   42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Flags: left justify (-)                       -->
+  <!-- ============================================= -->
+
+  <test-case name="format with - flag left justifies">
+    <script>format "%-5d" 42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42   </stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %-s left justifies string">
+    <script>format "%-10s" hello</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello     </stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Flags: plus sign (+)                          -->
+  <!-- ============================================= -->
+
+  <test-case name="format with + flag shows plus for positive">
+    <script>format "%+d" 42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>+42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format with + flag keeps minus for negative">
+    <script>format "%+d" -42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Flags: space                                  -->
+  <!-- ============================================= -->
+
+  <test-case name="format with space flag adds space for positive">
+    <script>format "% d" 42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout> 42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format with space flag keeps minus for negative">
+    <script>format "% d" -42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Flags: zero padding (0)                       -->
+  <!-- ============================================= -->
+
+  <test-case name="format with 0 flag pads with zeros">
+    <script>format "%05d" 42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>00042</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format with 0 flag and negative number">
+    <script>format "%05d" -42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-0042</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %08x with zero padding">
+    <script>format "%08x" 255</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>000000ff</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Flags: alternate form (#)                     -->
+  <!-- ============================================= -->
+
+  <test-case name="format %#x adds 0x prefix">
+    <script>format "%#x" 255</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0xff</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %#X adds 0x prefix with uppercase digits">
+    <script>format "%#X" 255</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0xFF</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %#x with zero has no prefix">
+    <script>format "%#x" 0</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %#o adds 0o prefix">
+    <script>format "%#o" 8</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0o10</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %#o with zero has no prefix">
+    <script>format "%#o" 0</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %#b adds 0b prefix">
+    <script>format "%#b" 5</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0b101</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %#b with zero has no prefix">
+    <script>format "%#b" 0</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Precision                                     -->
+  <!-- ============================================= -->
+
+  <test-case name="format %.3s truncates string">
+    <script>format "%.3s" hello</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hel</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %.10s with short string">
+    <script>format "%.10s" hello</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %.5d pads with leading zeros">
+    <script>format "%.5d" 42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>00042</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format with * for precision">
+    <script>format "%.*s" 3 hello</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hel</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format with field width and precision">
+    <script>format "%10.3s" hello</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>       hel</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Floating point formatting                     -->
+  <!-- ============================================= -->
+
+  <test-case name="format %f with integer">
+    <script>format "%f" 42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42.000000</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %f with decimal">
+    <script>format "%f" 3.14159</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3.141590</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %.2f limits decimal places">
+    <script>format "%.2f" 3.14159</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3.14</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %.0f with no decimal places">
+    <script>format "%.0f" 3.7</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>4</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %e scientific notation">
+    <script>format "%e" 12345.6789</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1.234568e+04</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %E uppercase scientific notation">
+    <script>format "%E" 12345.6789</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1.234568E+04</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %g uses shorter form">
+    <script>format "%g" 0.00001234</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1.234e-05</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %g for normal numbers">
+    <script>format "%g" 123.456</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>123.456</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Special floating-point values (IEEE 754)      -->
+  <!-- ============================================= -->
+
+  <test-case name="format %f positive infinity">
+    <script>format "%f" [expr {exp(1000)}]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>Inf</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %f negative infinity">
+    <script>format "%f" [expr {-exp(1000)}]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-Inf</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %f NaN">
+    <script>format "%f" [expr {sqrt(-1)}]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>NaN</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %e positive infinity">
+    <script>format "%e" [expr {exp(1000)}]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>Inf</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format %g NaN">
+    <script>format "%g" [expr {sqrt(-1)}]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>NaN</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Positional specifiers                         -->
+  <!-- ============================================= -->
+
+  <test-case name="format with positional specifier">
+    <script>format {%2$s %1$s} hello world</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>world hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format with repeated positional specifier">
+    <script>format {%1$s %1$s} hello</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format positional with integers">
+    <script>format {%2$d + %1$d = %3$d} 1 2 3</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2 + 1 = 3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Complex combinations                          -->
+  <!-- ============================================= -->
+
+  <test-case name="format with mixed specifiers">
+    <script>format "Name: %s, Age: %d" Alice 30</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>Name: Alice, Age: 30</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format table-like output">
+    <script>format "%-10s %5d" Item 42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>Item          42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format hex color">
+    <script>format "#%02X%02X%02X" 255 128 0</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>#FF8000</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Error cases                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="format with missing argument">
+    <script>format "%s %s" hello</script>
+    <return>TCL_ERROR</return>
+    <error>not enough arguments for all format specifiers</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="format with non-integer for %d">
+    <script>format "%d" hello</script>
+    <return>TCL_ERROR</return>
+    <error>expected integer but got "hello"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="format with no arguments">
+    <script>format</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "format formatString ?arg ...?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="format with invalid specifier">
+    <script>format "%q" hello</script>
+    <return>TCL_ERROR</return>
+    <error>format string ended in middle of field specifier</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="format mixing positional and sequential">
+    <script>format {%s %2$s} hello world</script>
+    <return>TCL_ERROR</return>
+    <error>cannot mix "%" and "%n$" conversion specifiers</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="format with invalid positional index">
+    <script>format {%0$s} hello</script>
+    <return>TCL_ERROR</return>
+    <error>"%n$" argument index out of range</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

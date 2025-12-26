@@ -1,0 +1,86 @@
+<test-suite>
+  <!-- M15: lappend command - append elements to a list variable -->
+
+  <!-- ============================================= -->
+  <!-- Basic lappend operations                      -->
+  <!-- ============================================= -->
+
+  <test-case name="lappend to new variable">
+    <script>lappend x a b c
+set x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lappend to existing variable">
+    <script>set x {a b}
+lappend x c d</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c d</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lappend returns new value">
+    <script>set x {a}
+lappend x b</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lappend with no values">
+    <script>set x {a b c}
+lappend x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lappend creates empty list if var nonexistent and no values">
+    <script>unset -nocomplain y
+lappend y</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lappend with space in element">
+    <script>set x {}
+lappend x "hello world"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{hello world}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lappend to empty string var">
+    <script>set x ""
+lappend x a</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lappend wrong args">
+    <script>lappend</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "lappend varName ?value ...?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

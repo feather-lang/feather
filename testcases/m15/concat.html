@@ -1,0 +1,80 @@
+<test-suite>
+  <!-- M15: concat command - concatenate lists -->
+
+  <!-- ============================================= -->
+  <!-- Basic concat operations                       -->
+  <!-- ============================================= -->
+
+  <test-case name="concat two lists">
+    <script>concat {a b} {c d}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c d</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="concat three lists">
+    <script>concat {a} {b} {c}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="concat single list">
+    <script>concat {a b c}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="concat no args">
+    <script>concat</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="concat with empty list">
+    <script>concat {a b} {} {c d}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c d</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="concat strips outer braces">
+    <script>concat {{a b}} {c}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{a b} c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="concat trims whitespace">
+    <script>concat "  a b  " "  c d  "</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c d</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="concat plain strings">
+    <script>concat hello world</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

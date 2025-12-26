@@ -1,0 +1,279 @@
+<test-suite>
+  <!--
+    M6: IEEE 754 special floating-point values in expr
+    
+    This tests that expr properly handles division by zero to produce
+    Inf, -Inf, and NaN values according to IEEE 754 semantics.
+  -->
+
+  <!-- ============================================= -->
+  <!-- Division by zero producing Inf/NaN           -->
+  <!-- ============================================= -->
+
+  <test-case name="positive float divided by zero produces Inf">
+    <script>expr {1.0/0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>Inf</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="negative float divided by zero produces -Inf">
+    <script>expr {-1.0/0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-Inf</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="zero divided by zero produces NaN">
+    <script>expr {0.0/0}</script>
+    <return>TCL_ERROR</return>
+    <error>domain error: argument not in valid range</error>
+    <stdout>domain error: argument not in valid range</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="integer division by zero still errors">
+    <script>expr {10/0}</script>
+    <return>TCL_ERROR</return>
+    <error>divide by zero</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Fractional exponents use host pow            -->
+  <!-- ============================================= -->
+
+  <test-case name="square root via exponentiation">
+    <script>expr {4.0 ** 0.5}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="negative base with fractional exponent produces NaN">
+    <script>expr {-1.0 ** 0.5}</script>
+    <return>TCL_ERROR</return>
+    <error>domain error: argument not in valid range</error>
+    <stdout>domain error: argument not in valid range</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Multiple operations produce correct results  -->
+  <!-- ============================================= -->
+
+  <test-case name="chained division by zero">
+    <script>expr {1.0/0 + 1.0/0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>Inf</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="Inf minus Inf via division is NaN">
+    <script>expr {1.0/0 - 1.0/0}</script>
+    <return>TCL_ERROR</return>
+    <error>domain error: argument not in valid range</error>
+    <stdout>domain error: argument not in valid range</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="NaN propagates through division">
+    <script>expr {(0.0/0) / 2.0}</script>
+    <return>TCL_ERROR</return>
+    <error>domain error: argument not in valid range</error>
+    <stdout>domain error: argument not in valid range</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- NaN/Inf arithmetic operations                 -->
+  <!-- ============================================= -->
+
+  <test-case name="NaN plus number is NaN">
+    <script>expr {(0.0/0) + 5.0}</script>
+    <return>TCL_ERROR</return>
+    <error>domain error: argument not in valid range</error>
+    <stdout>domain error: argument not in valid range</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="NaN times number is NaN">
+    <script>expr {(0.0/0) * 5.0}</script>
+    <return>TCL_ERROR</return>
+    <error>domain error: argument not in valid range</error>
+    <stdout>domain error: argument not in valid range</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="Inf plus number is Inf">
+    <script>expr {(1.0/0) + 100.0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>Inf</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="Inf times positive is Inf">
+    <script>expr {(1.0/0) * 2.0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>Inf</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="Inf times negative is -Inf">
+    <script>expr {(1.0/0) * -2.0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-Inf</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="Inf times zero is NaN">
+    <script>expr {(1.0/0) * 0.0}</script>
+    <return>TCL_ERROR</return>
+    <error>domain error: argument not in valid range</error>
+    <stdout>domain error: argument not in valid range</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- NaN comparison behavior                       -->
+  <!-- ============================================= -->
+
+  <test-case name="NaN not equal to itself">
+    <script>expr {(0.0/0) == (0.0/0)}</script>
+    <return>TCL_ERROR</return>
+    <error>domain error: argument not in valid range</error>
+    <stdout>domain error: argument not in valid range</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="NaN not less than itself">
+    <script>expr {(0.0/0) < (0.0/0)}</script>
+    <return>TCL_ERROR</return>
+    <error>domain error: argument not in valid range</error>
+    <stdout>domain error: argument not in valid range</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="NaN not greater than itself">
+    <script>expr {(0.0/0) > (0.0/0)}</script>
+    <return>TCL_ERROR</return>
+    <error>domain error: argument not in valid range</error>
+    <stdout>domain error: argument not in valid range</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="NaN != NaN is true">
+    <script>expr {(0.0/0) != (0.0/0)}</script>
+    <return>TCL_ERROR</return>
+    <error>domain error: argument not in valid range</error>
+    <stdout>domain error: argument not in valid range</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Inf comparison behavior                       -->
+  <!-- ============================================= -->
+
+  <test-case name="Inf equals Inf">
+    <script>expr {(1.0/0) == (1.0/0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="Inf greater than any finite number">
+    <script>expr {(1.0/0) > 1e308}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="-Inf less than any finite number">
+    <script>expr {(-1.0/0) < -1e308}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Command substitution with special values      -->
+  <!-- ============================================= -->
+
+  <test-case name="Inf via command substitution in arithmetic">
+    <script>expr {[expr {1.0/0}] + 1}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>Inf</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="NaN via command substitution in arithmetic">
+    <script>expr {[expr {0.0/0}] * 2}</script>
+    <return>TCL_ERROR</return>
+    <error>domain error: argument not in valid range</error>
+    <stdout>domain error: argument not in valid range</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="-Inf via command substitution">
+    <script>expr {[expr {-1.0/0}] - 1}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-Inf</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="nested command substitution with Inf">
+    <script>expr {[expr {[expr {1.0/0}] * 2}] + 0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>Inf</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="Inf from function in command substitution">
+    <script>expr {[expr {log(0)}] - 1}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-Inf</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

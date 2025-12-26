@@ -1,0 +1,86 @@
+<test-suite>
+  <!-- M15: append command - append to string variable -->
+
+  <!-- ============================================= -->
+  <!-- Basic append operations                       -->
+  <!-- ============================================= -->
+
+  <test-case name="append to existing var">
+    <script>set x "hello"
+append x " world"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="append to new var">
+    <script>append y "hello"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="append multiple values">
+    <script>set x "a"
+append x "b" "c" "d"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>abcd</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="append no values returns current">
+    <script>set x "hello"
+append x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="append creates empty var if no values">
+    <script>unset -nocomplain z
+append z</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="append modifies variable">
+    <script>set x "foo"
+append x "bar"
+set x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>foobar</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="append empty string">
+    <script>set x "hello"
+append x ""</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="append wrong args">
+    <script>append</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "append varName ?value ...?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

@@ -1,0 +1,106 @@
+<test-suite>
+  <!-- M15: lrange command - extract range from list -->
+
+  <!-- ============================================= -->
+  <!-- Basic range extraction                        -->
+  <!-- ============================================= -->
+
+  <test-case name="lrange basic">
+    <script>lrange {a b c d e} 1 3</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>b c d</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lrange first element">
+    <script>lrange {a b c} 0 0</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lrange last element">
+    <script>lrange {a b c} 2 2</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lrange entire list">
+    <script>lrange {a b c} 0 2</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lrange with end keyword">
+    <script>lrange {a b c d e} 2 end</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>c d e</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lrange with end-N">
+    <script>lrange {a b c d e} 1 end-1</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>b c d</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lrange past end">
+    <script>lrange {a b c} 0 100</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lrange negative start">
+    <script>lrange {a b c d e} -5 2</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lrange start greater than end">
+    <script>lrange {a b c} 2 1</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lrange empty list">
+    <script>lrange {} 0 10</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lrange wrong args">
+    <script>lrange {a b} 0</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "lrange list first last"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

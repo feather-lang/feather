@@ -1,0 +1,161 @@
+<test-suite>
+  <!-- Basic quoted string with no substitution -->
+  <test-case name="expr quoted string literal">
+    <script>expr {"hello"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Variable substitution in quoted strings -->
+  <test-case name="expr quoted string with variable">
+    <script>set x 5
+expr {"value is $x"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>value is 5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="expr quoted string variable at start">
+    <script>set name world
+expr {"$name"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="expr quoted string multiple variables">
+    <script>set a hello
+set b world
+expr {"$a $b"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="expr quoted string braced variable">
+    <script>set abc 123
+expr {"${abc}xyz"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>123xyz</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Command substitution in quoted strings -->
+  <test-case name="expr quoted string with command">
+    <script>expr {"result is [expr 2+3]"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>result is 5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="expr quoted string command at start">
+    <script>expr {"[expr 1+1]"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="expr quoted string nested commands">
+    <script>expr {"[expr [expr 1+1]+3]"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Backslash substitution in quoted strings -->
+  <test-case name="expr quoted string with backslash n">
+    <script>expr {"hello\nworld"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello
+world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="expr quoted string with backslash t">
+    <script>expr {"hello\tworld"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello	world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="expr quoted string escaped dollar">
+    <script>set x 5
+expr {"the price is \$x"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>the price is $x</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="expr quoted string escaped bracket">
+    <script>expr {"use \[brackets\]"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>use [brackets]</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Mixed substitutions -->
+  <test-case name="expr quoted string mixed variable and command">
+    <script>set x 10
+expr {"$x plus 5 is [expr $x+5]"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10 plus 5 is 15</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Using quoted strings in arithmetic expressions -->
+  <test-case name="expr arithmetic with quoted string variable">
+    <script>set x 10
+expr {2 + "$x"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>12</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="expr string comparison with substitution">
+    <script>set a hello
+expr {"$a" eq "hello"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="expr string comparison with command substitution">
+    <script>expr {"[expr 1+1]" eq "2"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+</test-suite>

@@ -1,0 +1,565 @@
+<test-suite>
+  <!--
+    Foreign Object Support (feather-specific)
+
+    Tests for the DefineType API and foreign object functionality.
+    The Counter type is registered in the default interpreter for testing.
+  -->
+
+  <!-- ============================================= -->
+  <!-- Basic object creation                         -->
+  <!-- ============================================= -->
+
+  <test-case name="Counter new creates an object">
+    <script>string match counter* [Counter new]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="Counter new returns handle name">
+    <script>set c [Counter new]
+string match counter* $c</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="Multiple Counter new creates different handles">
+    <script>set c1 [Counter new]
+set c2 [Counter new]
+expr {$c1 ne $c2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Method calls                                  -->
+  <!-- ============================================= -->
+
+  <test-case name="get returns initial value 0">
+    <script>set c [Counter new]
+$c get</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="set changes value">
+    <script>set c [Counter new]
+$c set 42
+$c get</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="incr increments and returns new value">
+    <script>set c [Counter new]
+$c incr</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="incr multiple times">
+    <script>set c [Counter new]
+$c incr
+$c incr
+$c incr</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="add adds amount and returns">
+    <script>set c [Counter new]
+$c set 10
+$c add 5</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>15</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="add with negative amount">
+    <script>set c [Counter new]
+$c set 10
+$c add -3</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>7</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Object independence                           -->
+  <!-- ============================================= -->
+
+  <test-case name="different counters have independent state">
+    <script>set c1 [Counter new]
+set c2 [Counter new]
+$c1 set 100
+$c2 set 200
+list [$c1 get] [$c2 get]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>100 200</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="modifying one counter does not affect another">
+    <script>set c1 [Counter new]
+set c2 [Counter new]
+$c1 set 10
+$c2 set 20
+$c1 incr
+$c1 incr
+$c1 incr
+list [$c1 get] [$c2 get]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>13 20</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Object-as-command pattern                     -->
+  <!-- ============================================= -->
+
+  <test-case name="handle name works as command">
+    <script>Counter new
+counter1 get</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="variable expansion works with methods">
+    <script>set c [Counter new]
+$c set 42
+$c get</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="object can be passed to proc">
+    <script>proc useCounter {counter} {
+    $counter set 100
+    return [$counter get]
+}
+set c [Counter new]
+useCounter $c</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>100</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc can return object handle">
+    <script>proc makeCounter {} {
+    return [Counter new]
+}
+set c [makeCounter]
+$c set 42
+$c get</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Destroy                                       -->
+  <!-- ============================================= -->
+
+  <test-case name="destroy removes object">
+    <script>set c [Counter new]
+$c destroy</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="destroyed object cannot be used">
+    <script>set c [Counter new]
+$c destroy
+catch {$c get} err
+string match {invalid command name "counter*"} $err</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="destroying one object does not affect others">
+    <script>set c1 [Counter new]
+set c2 [Counter new]
+$c1 set 10
+$c2 set 20
+$c1 destroy
+$c2 get</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>20</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Error cases                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="Counter without subcommand errors">
+    <script>Counter</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "Counter subcommand ?arg ...?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="Counter with unknown subcommand errors">
+    <script>Counter foo</script>
+    <return>TCL_ERROR</return>
+    <error>unknown subcommand "foo": must be new</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="object without method errors">
+    <script>set c [Counter new]
+catch {$c} err
+string match {wrong # args: should be "counter* method *"} $err</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="unknown method errors">
+    <script>set c [Counter new]
+catch {$c nonexistent} err
+string match {unknown method "nonexistent": must be *} $err</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="set with no argument errors">
+    <script>set c [Counter new]
+$c set</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: expected 1, got 0</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="set with too many arguments errors">
+    <script>set c [Counter new]
+$c set 1 2</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: expected 1, got 2</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="set with non-integer errors">
+    <script>set c [Counter new]
+$c set hello</script>
+    <return>TCL_ERROR</return>
+    <error>argument 1: expected integer but got "hello"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="add with non-integer errors">
+    <script>set c [Counter new]
+$c add world</script>
+    <return>TCL_ERROR</return>
+    <error>argument 1: expected integer but got "world"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Complex scenarios                             -->
+  <!-- ============================================= -->
+
+  <test-case name="counter in loop">
+    <script>set c [Counter new]
+for {set i 0} {$i < 5} {incr i} {
+    $c incr
+}
+$c get</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="counter in foreach">
+    <script>set c [Counter new]
+foreach x {1 2 3 4 5} {
+    $c add $x
+}
+$c get</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>15</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="multiple counters in list">
+    <script>set counters [list [Counter new] [Counter new] [Counter new]]
+foreach c $counters {
+    $c incr
+}
+set results [list]
+foreach c $counters {
+    lappend results [$c get]
+}
+set results</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1 1 1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="counter accumulator pattern">
+    <script>proc sum {nums} {
+    set acc [Counter new]
+    foreach n $nums {
+        $acc add $n
+    }
+    set result [$acc get]
+    $acc destroy
+    return $result
+}
+sum {10 20 30 40}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>100</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="conditional counter operations">
+    <script>set c [Counter new]
+set values {1 -2 3 -4 5}
+foreach v $values {
+    if {$v > 0} {
+        $c add $v
+    }
+}
+$c get</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>9</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- info type integration                         -->
+  <!-- ============================================= -->
+
+  <test-case name="info type returns Counter for foreign object">
+    <script>set c [Counter new]
+info type $c</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>Counter</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info type returns string for plain string">
+    <script>info type hello</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>string</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info type returns int for integer">
+    <script>info type 42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>int</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info type returns list for list value">
+    <script>info type [list a b c]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>list</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info type returns dict for dict value">
+    <script>info type [dict create a 1 b 2]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>dict</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info type wrong args - no arguments">
+    <script>info type</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "info type value"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="info type wrong args - too many">
+    <script>info type a b</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "info type value"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- info methods integration                      -->
+  <!-- ============================================= -->
+
+  <test-case name="info methods returns method list for foreign object">
+    <script>set c [Counter new]
+set methods [info methods $c]
+expr {[llength $methods] > 0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info methods includes get method">
+    <script>set c [Counter new]
+set methods [info methods $c]
+expr {"get" in $methods}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info methods includes set method">
+    <script>set c [Counter new]
+set methods [info methods $c]
+expr {"set" in $methods}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info methods includes incr method">
+    <script>set c [Counter new]
+set methods [info methods $c]
+expr {"incr" in $methods}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info methods includes destroy method">
+    <script>set c [Counter new]
+set methods [info methods $c]
+expr {"destroy" in $methods}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info methods returns empty list for string">
+    <script>info methods hello</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info methods returns empty list for integer">
+    <script>info methods 42</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info methods returns empty list for list">
+    <script>info methods [list a b c]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info methods wrong args - no arguments">
+    <script>info methods</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "info methods value"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="info methods wrong args - too many">
+    <script>info methods a b</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "info methods value"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

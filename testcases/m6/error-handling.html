@@ -1,0 +1,342 @@
+<test-suite>
+  <!--
+    M6: Error Handling
+
+    The error command raises an error with a message.
+    The catch command captures return codes and results.
+
+    error message ?info? ?code?
+      - Sets the result to message and returns TCL_ERROR
+      - Optional info is stored in errorInfo
+      - Optional code is stored in errorCode
+
+    catch script ?resultVar? ?optionsVar?
+      - Evaluates script and captures the return code
+      - If resultVar is provided, stores the result/error in it
+      - If optionsVar is provided, stores return options dict
+      - Returns the return code as an integer (0=ok, 1=error, etc.)
+  -->
+
+  <!-- ============================================= -->
+  <!-- Basic error command                           -->
+  <!-- ============================================= -->
+
+  <test-case name="error raises an error with message">
+    <script>error "something went wrong"</script>
+    <return>TCL_ERROR</return>
+    <error>something went wrong</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="error in a procedure">
+    <script>proc divide {a b} {
+    if {$b == 0} {
+        error "division by zero"
+    }
+    expr {$a / $b}
+}
+divide 10 0</script>
+    <return>TCL_ERROR</return>
+    <error>division by zero</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="error stops execution">
+    <script>proc fail {} {
+    error "fail"
+    set x unreachable
+}
+fail</script>
+    <return>TCL_ERROR</return>
+    <error>fail</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="error with empty message">
+    <script>error ""</script>
+    <return>TCL_ERROR</return>
+    <error></error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="error wrong args - no arguments">
+    <script>error</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "error message ?info? ?code?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="error wrong args - too many arguments">
+    <script>error a b c d</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "error message ?info? ?code?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Basic catch command                           -->
+  <!-- ============================================= -->
+
+  <test-case name="catch returns 0 on success">
+    <script>catch {set x 5}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="catch returns 1 on error">
+    <script>catch {error "fail"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="catch captures undefined variable error">
+    <script>catch {set x $undefined}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="catch returns 2 for return code">
+    <script>catch {return -code return}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="catch returns 3 for break code">
+    <script>catch {return -code break}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="catch returns 4 for continue code">
+    <script>catch {return -code continue}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>4</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- catch with resultVar                          -->
+  <!-- ============================================= -->
+
+  <test-case name="catch stores result in resultVar on success">
+    <script>catch {expr {2 + 3}} result
+set result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="catch stores error message in resultVar on error">
+    <script>catch {error "oops"} result
+set result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>oops</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="catch returns code and stores result">
+    <script>set code [catch {expr {10 / 2}} result]
+expr {$code == 0 && $result == 5}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="catch with if to handle errors">
+    <script>if {[catch {error "fail"} result]} {
+    set result "caught"
+}
+set result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>caught</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="catch stores undefined variable error">
+    <script>catch {set x $undefined} result
+set result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>can't read "undefined": no such variable</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- catch with optionsVar                         -->
+  <!-- ============================================= -->
+
+  <test-case name="catch stores options dict on success">
+    <script>catch {expr {1 + 1}} result opts
+lindex $opts 1</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="catch stores options dict on error">
+    <script>catch {error "fail"} result opts
+lindex $opts 1</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- catch error cases                             -->
+  <!-- ============================================= -->
+
+  <test-case name="catch wrong args - no arguments">
+    <script>catch</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "catch script ?resultVar? ?optionsVar?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="catch wrong args - too many arguments">
+    <script>catch {set x 1} a b c</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "catch script ?resultVar? ?optionsVar?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Integration tests                             -->
+  <!-- ============================================= -->
+
+  <test-case name="divide by zero example from roadmap">
+    <script>proc divide {a b} {
+    if {$b == 0} {
+        error "division by zero"
+    }
+    expr {$a / $b}
+}
+
+if {[catch {divide 10 0} result]} {
+    set result "error caught"
+}
+set result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>error caught</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="catch successful division">
+    <script>proc divide {a b} {
+    if {$b == 0} {
+        error "division by zero"
+    }
+    expr {$a / $b}
+}
+
+if {[catch {divide 10 2} result]} {
+    set result "error caught"
+}
+set result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="nested catch">
+    <script>catch {
+    catch {error "inner"} inner_result
+    set inner_result
+} outer_result
+set outer_result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>inner</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="catch in a loop">
+    <script>set errors 0
+set i 0
+while {$i < 3} {
+    if {[catch {
+        if {$i == 1} {
+            error "fail at 1"
+        }
+    }]} {
+        incr errors
+    }
+    incr i
+}
+set errors</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="catch does not affect outer scope on success">
+    <script>set x before
+catch {set y inner}
+set x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>before</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="catch does not propagate error">
+    <script>proc test {} {
+    if {[catch {error "fail"}]} {
+        return caught
+    }
+    return uncaught
+}
+test</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>caught</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

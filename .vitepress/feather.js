@@ -69,7 +69,13 @@ class FeatherInterp {
     if (typeof obj === 'string') return obj;
     if (obj.type === 'string') return obj.value;
     if (obj.type === 'int') return String(obj.value);
-    if (obj.type === 'double') return String(obj.value);
+    if (obj.type === 'double') {
+      // Format special values to match Go's strconv format
+      if (Number.isNaN(obj.value)) return 'NaN';
+      if (obj.value === Infinity) return '+Inf';
+      if (obj.value === -Infinity) return '-Inf';
+      return String(obj.value);
+    }
     if (obj.type === 'list') return obj.items.map(h => this.quoteListElement(this.getString(h))).join(' ');
     if (obj.type === 'dict') {
       const parts = [];
@@ -193,7 +199,9 @@ class FeatherInterp {
       if (i >= str.length) break;
 
       let word = '';
+      let wasBraced = false;
       if (str[i] === '{') {
+        wasBraced = true;
         let depth = 1;
         i++;
         const start = i;
@@ -205,6 +213,7 @@ class FeatherInterp {
         word = str.slice(start, i);
         i++;
       } else if (str[i] === '"') {
+        wasBraced = true;
         i++;
         const start = i;
         while (i < str.length && str[i] !== '"') {
@@ -218,7 +227,7 @@ class FeatherInterp {
           word += str[i++];
         }
       }
-      if (word !== '') items.push(this.store({ type: 'string', value: word }));
+      if (word !== '' || wasBraced) items.push(this.store({ type: 'string', value: word }));
     }
     return items;
   }
@@ -443,7 +452,7 @@ async function createFeather(wasmSource) {
         }
       } else if (entry?.nsLink) {
         const ns = interp.getNamespace(entry.nsLink.ns);
-        if (ns) ns.vars.set(entry.nsLink.name, value);
+        if (ns) ns.vars.set(entry.nsLink.name, { value });
       } else {
         frame.vars.set(varName, { value });
       }
@@ -763,7 +772,7 @@ async function createFeather(wasmSource) {
       const nsPath = interp.getString(ns);
       const varName = interp.getString(name);
       const namespace = interp.ensureNamespace(nsPath);
-      namespace.vars.set(varName, value);
+      namespace.vars.set(varName, { value });
     },
     feather_host_ns_var_exists: (interpId, ns, name) => {
       const interp = interpreters.get(interpId);
@@ -1197,17 +1206,130 @@ async function createFeather(wasmSource) {
         return TCL_OK;
       }
       const str = interp.getString(obj).trim();
+      // Handle special values first
+      if (str === 'NaN') {
+        writeF64(outPtr, NaN);
+        return TCL_OK;
+      }
+      if (str === '+Inf' || str === 'Inf') {
+        writeF64(outPtr, Infinity);
+        return TCL_OK;
+      }
+      if (str === '-Inf') {
+        writeF64(outPtr, -Infinity);
+        return TCL_OK;
+      }
       // Must be a valid numeric string (parseFloat is too lenient - "0y" parses as 0)
       if (!/^-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(str)) {
         interp.result = interp.store({ type: 'string', value: `expected floating-point number but got "${str}"` });
         return TCL_ERROR;
       }
       const val = parseFloat(str);
-      if (isNaN(val)) {
-        interp.result = interp.store({ type: 'string', value: `expected floating-point number but got "${str}"` });
-        return TCL_ERROR;
-      }
       writeF64(outPtr, val);
+      return TCL_OK;
+    },
+    feather_host_dbl_classify: (val) => {
+      if (Number.isNaN(val)) return 4;  // FEATHER_DBL_NAN
+      if (val === Infinity) return 2;   // FEATHER_DBL_INF
+      if (val === -Infinity) return 3;  // FEATHER_DBL_NEG_INF
+      if (val === 0) return 1;          // FEATHER_DBL_ZERO
+      return 0;                         // FEATHER_DBL_NORMAL
+    },
+    feather_host_dbl_format: (interpId, val, specifier, precision) => {
+      const interp = interpreters.get(interpId);
+      const spec = String.fromCharCode(specifier);
+      const prec = precision < 0 ? 6 : precision;
+
+      // Handle special values
+      if (Number.isNaN(val)) {
+        return interp.store({ type: 'string', value: 'NaN' });
+      }
+      if (val === Infinity) {
+        return interp.store({ type: 'string', value: 'Inf' });
+      }
+      if (val === -Infinity) {
+        return interp.store({ type: 'string', value: '-Inf' });
+      }
+
+      // Helper to pad exponent to at least 2 digits (TCL format)
+      const padExponent = (s) => {
+        return s.replace(/e([+-])(\d)$/, 'e$10$2');
+      };
+
+      // Format based on specifier
+      let result;
+      switch (spec) {
+        case 'e':
+        case 'E':
+          result = padExponent(val.toExponential(prec));
+          if (spec === 'E') result = result.toUpperCase();
+          break;
+        case 'f':
+        case 'F':
+          result = val.toFixed(prec);
+          break;
+        case 'g':
+        case 'G':
+        default: {
+          // TCL %g: use exponential if exponent < -4 or >= precision
+          const absVal = Math.abs(val);
+          let exponent = 0;
+          if (absVal !== 0) {
+            exponent = Math.floor(Math.log10(absVal));
+          }
+          const sigfigs = prec > 0 ? prec : 6;
+          
+          if (exponent < -4 || exponent >= sigfigs) {
+            // Use exponential notation
+            result = val.toExponential(sigfigs - 1);
+            // Trim trailing zeros before 'e' (TCL %g behavior)
+            result = result.replace(/(\.\d*?)0+(e)/, '$1$2').replace(/\.(e)/, '$1');
+            result = padExponent(result);
+          } else {
+            // Use fixed notation with trailing zeros trimmed
+            const decimalPlaces = sigfigs - exponent - 1;
+            result = val.toFixed(Math.max(0, decimalPlaces));
+            // Remove trailing zeros after decimal point
+            if (result.includes('.')) {
+              result = result.replace(/\.?0+$/, '');
+            }
+          }
+          if (spec === 'G') result = result.toUpperCase();
+          break;
+        }
+      }
+      return interp.store({ type: 'string', value: result });
+    },
+    feather_host_dbl_math: (interpId, op, a, b, outPtr) => {
+      const interp = interpreters.get(interpId);
+      let result;
+      switch (op) {
+        case 0:  result = Math.sqrt(a); break;    // FEATHER_MATH_SQRT
+        case 1:  result = Math.exp(a); break;     // FEATHER_MATH_EXP
+        case 2:  result = Math.log(a); break;     // FEATHER_MATH_LOG
+        case 3:  result = Math.log10(a); break;   // FEATHER_MATH_LOG10
+        case 4:  result = Math.sin(a); break;     // FEATHER_MATH_SIN
+        case 5:  result = Math.cos(a); break;     // FEATHER_MATH_COS
+        case 6:  result = Math.tan(a); break;     // FEATHER_MATH_TAN
+        case 7:  result = Math.asin(a); break;    // FEATHER_MATH_ASIN
+        case 8:  result = Math.acos(a); break;    // FEATHER_MATH_ACOS
+        case 9:  result = Math.atan(a); break;    // FEATHER_MATH_ATAN
+        case 10: result = Math.sinh(a); break;    // FEATHER_MATH_SINH
+        case 11: result = Math.cosh(a); break;    // FEATHER_MATH_COSH
+        case 12: result = Math.tanh(a); break;    // FEATHER_MATH_TANH
+        case 13: result = Math.floor(a); break;   // FEATHER_MATH_FLOOR
+        case 14: result = Math.ceil(a); break;    // FEATHER_MATH_CEIL
+        case 15: result = a < 0 ? -Math.round(-a) : Math.round(a); break;   // FEATHER_MATH_ROUND (away from zero)
+        case 16: result = Math.abs(a); break;     // FEATHER_MATH_ABS
+        case 17: result = Math.pow(a, b); break;  // FEATHER_MATH_POW
+        case 18: result = Math.atan2(a, b); break;// FEATHER_MATH_ATAN2
+        case 19: result = a % b; break;           // FEATHER_MATH_FMOD
+        case 20: result = Math.hypot(a, b); break;// FEATHER_MATH_HYPOT
+        default:
+          interp.result = interp.store({ type: 'string', value: 'unknown math operation' });
+          return TCL_ERROR;
+      }
+      writeF64(outPtr, result);
       return TCL_OK;
     },
 

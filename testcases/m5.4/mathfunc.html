@@ -1,0 +1,807 @@
+<test-suite>
+  <!--
+    M7: Comprehensive math function tests
+    
+    Tests for tcl::mathfunc::* functions including:
+    - Trigonometric functions (sin, cos, tan, asin, acos, atan, atan2)
+    - Hyperbolic functions (sinh, cosh, tanh)
+    - Exponential/logarithmic functions (exp, log, log10, pow)
+    - Rounding functions (floor, ceil, round)
+    - Other functions (sqrt, abs, fmod, hypot, double, int, wide, isnan, isinf)
+  -->
+
+  <!-- ============================================= -->
+  <!-- Trigonometric functions                       -->
+  <!-- ============================================= -->
+
+  <test-case name="sin(0) returns 0">
+    <script>expr {sin(0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="sin(pi/2) returns 1">
+    <script>expr {sin(3.141592653589793 / 2)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="cos(0) returns 1">
+    <script>expr {cos(0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="cos(pi) returns -1">
+    <script>expr {cos(3.141592653589793)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-1.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="tan(0) returns 0">
+    <script>expr {tan(0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="tan(pi/4) close to 1">
+    <script>expr {round(tan(3.141592653589793 / 4))}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Inverse trigonometric functions               -->
+  <!-- ============================================= -->
+
+  <test-case name="asin(0) returns 0">
+    <script>expr {asin(0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="asin(1) returns pi/2">
+    <script>expr {asin(1)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1.5707963267948966</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="acos(1) returns 0">
+    <script>expr {acos(1)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="acos(0) returns pi/2">
+    <script>expr {acos(0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1.5707963267948966</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="atan(0) returns 0">
+    <script>expr {atan(0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="atan(1) returns pi/4">
+    <script>expr {atan(1)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0.7853981633974483</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="atan2(1, 1) returns pi/4">
+    <script>expr {atan2(1, 1)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0.7853981633974483</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="atan2(0, 1) returns 0">
+    <script>expr {atan2(0, 1)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="atan2(1, 0) returns pi/2">
+    <script>expr {atan2(1, 0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1.5707963267948966</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Hyperbolic functions                          -->
+  <!-- ============================================= -->
+
+  <test-case name="sinh(0) returns 0">
+    <script>expr {sinh(0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="sinh(1) returns ~1.175">
+    <script>expr {sinh(1)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1.1752011936438014</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="cosh(0) returns 1">
+    <script>expr {cosh(0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="cosh(1) returns ~1.543">
+    <script>expr {cosh(1)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1.5430806348152437</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="tanh(0) returns 0">
+    <script>expr {tanh(0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="tanh(1) returns ~0.762">
+    <script>expr {tanh(1)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0.7615941559557649</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Exponential and logarithmic functions         -->
+  <!-- ============================================= -->
+
+  <test-case name="log(1) returns 0">
+    <script>expr {log(1)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="log(e) returns 1">
+    <script>expr {log(2.718281828459045)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="log10(1) returns 0">
+    <script>expr {log10(1)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="log10(10) returns 1">
+    <script>expr {log10(10)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="log10(100) returns 2">
+    <script>expr {log10(100)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="pow(2, 3) returns 8">
+    <script>expr {pow(2, 3)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>8.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="pow(2, 0.5) returns sqrt(2)">
+    <script>expr {pow(2, 0.5)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1.4142135623730951</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="pow(10, -1) returns 0.1">
+    <script>expr {pow(10, -1)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0.1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Square root function                          -->
+  <!-- ============================================= -->
+
+  <test-case name="sqrt(0) returns 0">
+    <script>expr {sqrt(0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="sqrt(1) returns 1">
+    <script>expr {sqrt(1)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="sqrt(4) returns 2">
+    <script>expr {sqrt(4)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="sqrt(2) returns ~1.414">
+    <script>expr {sqrt(2)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1.4142135623730951</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="sqrt(-1) returns NaN">
+    <script>expr {sqrt(-1)}</script>
+    <return>TCL_ERROR</return>
+    <error>domain error: argument not in valid range</error>
+    <stdout>domain error: argument not in valid range</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Rounding functions                            -->
+  <!-- ============================================= -->
+
+  <test-case name="floor(3.7) returns 3">
+    <script>expr {floor(3.7)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="floor(-3.7) returns -4">
+    <script>expr {floor(-3.7)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-4.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="floor(3.0) returns 3">
+    <script>expr {floor(3.0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="ceil(3.2) returns 4">
+    <script>expr {ceil(3.2)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>4.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="ceil(-3.2) returns -3">
+    <script>expr {ceil(-3.2)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-3.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="ceil(3.0) returns 3">
+    <script>expr {ceil(3.0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="round(3.4) returns 3">
+    <script>expr {round(3.4)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="round(3.5) returns 4">
+    <script>expr {round(3.5)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>4</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="round(-3.5) returns -4">
+    <script>expr {round(-3.5)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-4</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Absolute value function                       -->
+  <!-- ============================================= -->
+
+  <test-case name="abs(5) returns 5">
+    <script>expr {abs(5)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="abs(-5) returns 5">
+    <script>expr {abs(-5)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="abs(3.14) returns 3.14">
+    <script>expr {abs(3.14)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3.14</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="abs(-3.14) returns 3.14">
+    <script>expr {abs(-3.14)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3.14</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="abs(0) returns 0">
+    <script>expr {abs(0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Modulo and hypot functions                    -->
+  <!-- ============================================= -->
+
+  <test-case name="fmod(10.5, 3) returns 1.5">
+    <script>expr {fmod(10.5, 3)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1.5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="fmod(7.5, 2.5) returns 0">
+    <script>expr {fmod(7.5, 2.5)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="fmod(-10.5, 3) returns -1.5">
+    <script>expr {fmod(-10.5, 3)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-1.5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="hypot(3, 4) returns 5">
+    <script>expr {hypot(3, 4)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>5.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="hypot(5, 12) returns 13">
+    <script>expr {hypot(5, 12)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>13.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="hypot(1, 1) returns sqrt(2)">
+    <script>expr {hypot(1, 1)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1.4142135623730951</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Type conversion functions                     -->
+  <!-- ============================================= -->
+
+  <test-case name="double(42) returns 42.0">
+    <script>expr {double(42)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="int(3.7) returns 3">
+    <script>expr {int(3.7)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="int(-3.7) returns -3">
+    <script>expr {int(-3.7)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="wide(42) returns 42">
+    <script>expr {wide(42)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="wide(3.7) returns 3">
+    <script>expr {wide(3.7)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Special value detection functions             -->
+  <!-- ============================================= -->
+
+  <test-case name="isnan(1.0) returns 0">
+    <script>expr {isnan(1.0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="isnan(0.0/0.0) returns 1">
+    <script>expr {isnan(0.0/0.0)}</script>
+    <return>TCL_ERROR</return>
+    <error>domain error: argument not in valid range</error>
+    <stdout>domain error: argument not in valid range</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="isnan(sqrt(-1)) returns 1">
+    <script>expr {isnan(sqrt(-1))}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="isinf(1.0) returns 0">
+    <script>expr {isinf(1.0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="isinf(1.0/0.0) returns 1">
+    <script>expr {isinf(1.0/0.0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="isinf(-1.0/0.0) returns 1">
+    <script>expr {isinf(-1.0/0.0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Edge cases and special values                 -->
+  <!-- ============================================= -->
+
+  <test-case name="log(0) returns -Inf">
+    <script>expr {log(0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-Inf</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="log(-1) returns NaN">
+    <script>expr {log(-1)}</script>
+    <return>TCL_ERROR</return>
+    <error>domain error: argument not in valid range</error>
+    <stdout>domain error: argument not in valid range</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="asin(2) returns NaN (domain error)">
+    <script>expr {asin(2)}</script>
+    <return>TCL_ERROR</return>
+    <error>domain error: argument not in valid range</error>
+    <stdout>domain error: argument not in valid range</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="acos(2) returns NaN (domain error)">
+    <script>expr {acos(2)}</script>
+    <return>TCL_ERROR</return>
+    <error>domain error: argument not in valid range</error>
+    <stdout>domain error: argument not in valid range</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="pow(-1, 0.5) returns NaN">
+    <script>expr {pow(-1, 0.5)}</script>
+    <return>TCL_ERROR</return>
+    <error>domain error: argument not in valid range</error>
+    <stdout>domain error: argument not in valid range</stdout>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="exp(1000) returns +Inf">
+    <script>expr {exp(1000)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>Inf</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="exp(-1000) returns 0">
+    <script>expr {exp(-1000)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Complex expressions with math functions       -->
+  <!-- ============================================= -->
+
+  <test-case name="exp and log are inverses">
+    <script>expr {log(exp(5))}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>5.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="sqrt via pow">
+    <script>expr {pow(16, 0.5)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>4.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="nested math functions">
+    <script>expr {floor(sqrt(10))}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="ceil of log">
+    <script>expr {ceil(log(100))}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>5.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Function results in arithmetic               -->
+  <!-- ============================================= -->
+
+  <test-case name="sin squared plus cos squared equals 1">
+    <script>expr {sin(1)*sin(1) + cos(1)*cos(1)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="exp(1) * exp(1) equals e squared">
+    <script>expr {int(exp(1)*exp(1))}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>7</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="function result multiplication preserves float type">
+    <script>expr {sin(1) * 2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1.682941969615793</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Command substitution type preservation       -->
+  <!-- ============================================= -->
+
+  <test-case name="command substitution preserves double type in arithmetic">
+    <script>expr {[expr {sin(1)}] * 2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1.682941969615793</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="command substitution preserves integer type in arithmetic">
+    <script>expr {[expr {2 + 3}] * 4}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>20</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="nested command substitution preserves float">
+    <script>expr {[expr {[expr {1.5}] + 0.5}] * 2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>4.0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

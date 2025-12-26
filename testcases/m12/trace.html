@@ -1,0 +1,247 @@
+<test-suite>
+  <!--
+    M12: Trace Support
+
+    trace add type name ops command    - add a trace
+    trace remove type name ops command - remove a trace
+    trace info type name               - list traces on name
+
+    Type is 'variable' or 'command'.
+    For variables, ops is a list of: read, write, unset
+    For commands, ops is a list of: rename, delete
+
+    Variable traces are invoked as: command name1 name2 op
+      - name1: variable name
+      - name2: empty (array element, not supported)
+      - op: "read", "write", or "unset"
+
+    Command traces are invoked as: command oldName newName op
+      - oldName: original command name
+      - newName: new name (empty for delete)
+      - op: "rename" or "delete"
+  -->
+
+  <!-- ============================================= -->
+  <!-- trace add/info variable                       -->
+  <!-- ============================================= -->
+
+  <test-case name="trace add variable registers a trace">
+    <script>set traceLog ""
+proc myTrace {name1 name2 op} {
+    global traceLog
+    set traceLog "$name1 $op"
+}
+trace add variable x write myTrace
+trace info variable x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{write myTrace}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="trace info variable returns empty for untraced variable">
+    <script>trace info variable untraced_var</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="trace add variable multiple operations">
+    <script>proc myTrace {name1 name2 op} {}
+trace add variable x {read write} myTrace
+trace info variable x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{read write myTrace}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- trace remove variable                         -->
+  <!-- ============================================= -->
+
+  <test-case name="trace remove variable removes a trace">
+    <script>proc myTrace {name1 name2 op} {}
+trace add variable x write myTrace
+trace remove variable x write myTrace
+trace info variable x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- variable trace firing                         -->
+  <!-- ============================================= -->
+
+  <test-case name="write trace fires on variable set">
+    <script>set ::traceLog ""
+proc writeTrace {name1 name2 op} {
+    set ::traceLog "write:$name1"
+}
+trace add variable x write writeTrace
+set x hello
+set ::traceLog</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>write:x</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="read trace fires on variable read">
+    <script>set ::traceLog ""
+proc readTrace {name1 name2 op} {
+    set ::traceLog "read:$name1"
+}
+set x hello
+trace add variable x read readTrace
+expr {$x}
+set ::traceLog</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>read:x</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="multiple traces fire in order">
+    <script>set ::traceLog ""
+proc trace1 {name1 name2 op} {
+    if {$::traceLog == ""} {
+        set ::traceLog "t1"
+    } else {
+        set ::traceLog "$::traceLog,t1"
+    }
+}
+proc trace2 {name1 name2 op} {
+    if {$::traceLog == ""} {
+        set ::traceLog "t2"
+    } else {
+        set ::traceLog "$::traceLog,t2"
+    }
+}
+trace add variable x write trace1
+trace add variable x write trace2
+set x hello
+set ::traceLog</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>t1,t2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- trace add/info command                        -->
+  <!-- ============================================= -->
+
+  <test-case name="trace add command registers a trace">
+    <script>proc myProc {} {}
+proc myTrace {oldName newName op} {}
+trace add command myProc rename myTrace
+trace info command myProc</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{rename myTrace}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="trace info command returns empty for untraced command">
+    <script>proc someProc {} {}
+trace info command someProc</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- command trace firing                          -->
+  <!-- ============================================= -->
+
+  <test-case name="rename trace fires on command rename">
+    <script>set ::traceLog ""
+proc cmdTrace {oldName newName op} {
+    set ::traceLog "$op:$oldName->$newName"
+}
+proc myProc {} {}
+trace add command myProc rename cmdTrace
+rename myProc newProc
+set ::traceLog</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>rename:myProc->newProc</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="delete trace fires on command delete">
+    <script>set ::traceLog ""
+proc cmdTrace {oldName newName op} {
+    set ::traceLog "$op:$oldName"
+}
+proc myProc {} {}
+trace add command myProc delete cmdTrace
+rename myProc ""
+set ::traceLog</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>delete:myProc</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- trace error cases                             -->
+  <!-- ============================================= -->
+
+  <test-case name="trace with no subcommand">
+    <script>trace</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "trace subcommand ?arg ...?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="trace with unknown subcommand">
+    <script>trace unknown</script>
+    <return>TCL_ERROR</return>
+    <error>unknown or ambiguous subcommand "unknown": must be add, info, or remove</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="trace add with bad type">
+    <script>trace add badtype x {write} myTrace</script>
+    <return>TCL_ERROR</return>
+    <error>bad type "badtype": must be command or variable</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="trace add with missing arguments">
+    <script>trace add variable</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "trace add type name ops command"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="trace info with bad type">
+    <script>trace info badtype x</script>
+    <return>TCL_ERROR</return>
+    <error>bad type "badtype": must be command or variable</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

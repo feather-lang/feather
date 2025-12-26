@@ -1,0 +1,425 @@
+<test-suite>
+  <!-- M5.1: Extended expr features -->
+
+  <!-- ============================================= -->
+  <!-- Math operators: + - * / %                    -->
+  <!-- ============================================= -->
+
+  <test-case name="addition of integers">
+    <script>expr {3 + 5}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>8</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subtraction of integers">
+    <script>expr {10 - 4}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>6</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="multiplication of integers">
+    <script>expr {7 * 6}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="division of integers">
+    <script>expr {20 / 4}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="modulo of integers">
+    <script>expr {17 % 5}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="division by zero errors">
+    <script>expr {5 / 0}</script>
+    <return>TCL_ERROR</return>
+    <error>divide by zero</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="modulo by zero errors">
+    <script>expr {5 % 0}</script>
+    <return>TCL_ERROR</return>
+    <error>divide by zero</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Exponentiation: **                           -->
+  <!-- ============================================= -->
+
+  <test-case name="exponentiation 2**3">
+    <script>expr {2 ** 3}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>8</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="exponentiation 3**0">
+    <script>expr {3 ** 0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="exponentiation right-to-left: 2**3**2 = 2**9 = 512">
+    <script>expr {2 ** 3 ** 2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>512</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Bitwise XOR: ^                               -->
+  <!-- ============================================= -->
+
+  <test-case name="bitwise xor 5 ^ 3 = 6">
+    <script>expr {5 ^ 3}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>6</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="bitwise xor 15 ^ 15 = 0">
+    <script>expr {15 ^ 15}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Unary operators: ~ !                         -->
+  <!-- ============================================= -->
+
+  <test-case name="bitwise not ~0 = -1">
+    <script>expr {~0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="logical not !0 = 1">
+    <script>expr {!0}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="logical not !1 = 0">
+    <script>expr {!1}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="logical not !42 = 0">
+    <script>expr {!42}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Ternary operator: ? :                        -->
+  <!-- ============================================= -->
+
+  <test-case name="ternary true branch">
+    <script>expr {1 ? 10 : 20}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="ternary false branch">
+    <script>expr {0 ? 10 : 20}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>20</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="nested ternary">
+    <script>expr {1 ? (0 ? 1 : 2) : 3}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="ternary with comparison">
+    <script>set x 5
+expr {$x > 3 ? 100 : 200}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>100</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- String equality operators: eq ne             -->
+  <!-- ============================================= -->
+
+  <test-case name="eq returns 1 when strings equal">
+    <script>expr {"hello" eq "hello"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="eq returns 0 when strings differ">
+    <script>expr {"hello" eq "world"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="ne returns 1 when strings differ">
+    <script>expr {"hello" ne "world"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="ne returns 0 when strings equal">
+    <script>expr {"hello" ne "hello"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="eq with braced strings">
+    <script>expr {{foo bar} eq {foo bar}}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- String comparison operators: lt gt le ge     -->
+  <!-- ============================================= -->
+
+  <test-case name="lt returns 1 when first string less">
+    <script>expr {"abc" lt "abd"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lt returns 0 when first string greater">
+    <script>expr {"abd" lt "abc"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="gt returns 1 when first string greater">
+    <script>expr {"xyz" gt "abc"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="le returns 1 when strings equal">
+    <script>expr {"abc" le "abc"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="ge returns 1 when strings equal">
+    <script>expr {"abc" ge "abc"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Math functions                               -->
+  <!-- ============================================= -->
+
+  <test-case name="exp(0) returns 1">
+    <script>expr {exp(0)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="exp(1) returns e">
+    <script>expr {exp(1)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2.718281828459045</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="exp(5) returns e^5">
+    <script>expr {exp(5)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>148.4131591025766</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="exp with variable">
+    <script>set n 3
+expr {exp($n)}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>20.085536923187668</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Number formats                               -->
+  <!-- ============================================= -->
+
+  <test-case name="hexadecimal number">
+    <script>expr {0xff}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>255</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="binary number">
+    <script>expr {0b1010}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="octal number">
+    <script>expr {0o17}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>15</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="number with underscores">
+    <script>expr {1_000_000}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1000000</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Complex expressions                          -->
+  <!-- ============================================= -->
+
+  <test-case name="arithmetic with variables">
+    <script>set a 10
+set b 3
+expr {$a * $b + 5}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>35</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="precedence: * before +">
+    <script>expr {2 + 3 * 4}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>14</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="parentheses override precedence">
+    <script>expr {(2 + 3) * 4}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>20</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="combined string and numeric ops">
+    <script>set x 5
+expr {$x > 3 && "yes" eq "yes"}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

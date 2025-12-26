@@ -26,6 +26,13 @@ export default defineConfig({
         ],
       },
       {
+        text: "Testing",
+        items: [
+          { text: "Run Tests", link: "/tests/run" },
+          { text: "Find Tests", link: "/tests/find" },
+        ],
+      },
+      {
         text: "About",
         items: [
           { text: "Philosophy", link: "/philosophy" },

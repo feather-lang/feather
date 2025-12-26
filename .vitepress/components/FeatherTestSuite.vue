@@ -144,6 +144,18 @@ function normalizeLines(content) {
   return lines.slice(start, end).join('\n')
 }
 
+// For scripts: only strip leading/trailing empty lines, preserve internal whitespace
+function normalizeScript(content) {
+  if (!content) return ''
+  const lines = content.split('\n')
+  let start = 0
+  while (start < lines.length && lines[start].trim() === '') start++
+  let end = lines.length
+  while (end > start && lines[end - 1].trim() === '') end--
+  if (start >= end) return ''
+  return lines.slice(start, end).join('\n')
+}
+
 function decodeHtmlEntities(text) {
   const textarea = document.createElement('textarea')
   textarea.innerHTML = text
@@ -166,8 +178,8 @@ function parseTestSuite(source) {
       }
 
       const name = el.getAttribute('name') ?? ''
-      const scriptField = getField('script')
-      const script = scriptField.value ?? ''
+      const scriptRaw = el.querySelector('script')?.textContent ?? ''
+      const script = normalizeScript(decodeHtmlEntities(scriptRaw))
       
       const returnField = getField('return')
       const resultField = getField('result')

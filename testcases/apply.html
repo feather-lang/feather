@@ -1,0 +1,499 @@
+<test-suite>
+  <!-- apply command tests -->
+
+  <!-- Basic apply with two-element list {args body} -->
+
+  <test-case name="apply: basic no arguments">
+    <script>
+apply {{} {return hello}}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: single argument">
+    <script>
+apply {{x} {return $x}} world
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: multiple arguments">
+    <script>
+apply {{a b c} {return "$a $b $c"}} one two three
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>one two three</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: expression in body">
+    <script>
+apply {{x y} {expr {$x + $y}}} 3 4
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>7</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Default argument values -->
+
+  <test-case name="apply: default argument used">
+    <script>
+apply {{x {y 10}} {expr {$x + $y}}} 5
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>15</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: default argument overridden">
+    <script>
+apply {{x {y 10}} {expr {$x + $y}}} 5 20
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>25</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: multiple defaults">
+    <script>
+apply {{{a 1} {b 2} {c 3}} {expr {$a + $b + $c}}}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>6</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- args special parameter -->
+
+  <test-case name="apply: args collects remaining">
+    <script>
+apply {{x args} {return [list $x $args]}} a b c d
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a {b c d}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: args with no extra">
+    <script>
+apply {{x args} {return [list $x $args]}} only
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>only {}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: args only">
+    <script>
+apply {args {return $args}} a b c
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: args empty">
+    <script>
+apply {args {return $args}}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Three-element list with namespace -->
+
+  <test-case name="apply: with namespace access">
+    <script>
+namespace eval myns {
+    variable val 42
+}
+apply {{} {variable val; return $val} myns}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: with nested namespace">
+    <script>
+namespace eval outer::inner {
+    variable x nested
+}
+apply {{} {variable x; return $x} outer::inner}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>nested</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: namespace relative to global">
+    <script>
+namespace eval testns {
+    variable data fromns
+}
+apply {{} {variable data; return $data} ::testns}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>fromns</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Variable scoping -->
+
+  <test-case name="apply: local variables are local">
+    <script>
+set x outer
+apply {{} {set x inner}}
+set x
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>outer</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: access global via global command">
+    <script>
+set g 100
+apply {{} {global g; return $g}}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>100</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: modify global via global command">
+    <script>
+set g 100
+apply {{val} {global g; set g $val}} 200
+set g
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>200</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Nested apply calls -->
+
+  <test-case name="apply: nested apply">
+    <script>
+apply {{x} {apply {{y} {expr {$y * 2}}} $x}} 5
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: deeply nested">
+    <script>
+apply {{a} {
+    apply {{b} {
+        apply {{c} {return $c}} $b
+    }} $a
+}} deep
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>deep</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Return and control flow -->
+
+  <test-case name="apply: explicit return">
+    <script>
+apply {{x} {return [expr {$x * 2}]}} 7
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>14</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: implicit return last value">
+    <script>
+apply {{x} {set y [expr {$x + 1}]; expr {$y * 2}}} 4
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: early return">
+    <script>
+apply {{x} {
+    if {$x < 0} {return negative}
+    return positive
+}} -5
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>negative</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Error cases -->
+
+  <test-case name="apply: too few elements in func">
+    <script>
+catch {apply {body}} msg
+set msg
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>can't interpret "body" as a lambda expression</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: too many elements in func">
+    <script>
+catch {apply {a b c d}} msg
+set msg
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>can't interpret "a b c d" as a lambda expression</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: empty func list">
+    <script>
+catch {apply {}} msg
+set msg
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>can't interpret "" as a lambda expression</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: wrong number of arguments - too few">
+    <script>
+catch {apply {{x y} {expr {$x + $y}}} 1} msg
+set msg
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>wrong # args: should be "apply lambdaExpr x y"</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: wrong number of arguments - too many">
+    <script>
+catch {apply {{x} {return $x}} a b} msg
+set msg
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>wrong # args: should be "apply lambdaExpr x"</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: no arguments to apply">
+    <script>
+catch {apply} msg
+set msg
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>wrong # args: should be "apply lambdaExpr ?arg ...?"</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Practical examples from man page -->
+
+  <test-case name="apply: map example - string length">
+    <script>
+proc map {lambda list} {
+    set result {}
+    foreach item $list {
+        lappend result [apply $lambda $item]
+    }
+    return $result
+}
+map {x {string length $x}} {a bb ccc}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1 2 3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: map example - arithmetic">
+    <script>
+proc map {lambda list} {
+    set result {}
+    foreach item $list {
+        lappend result [apply $lambda $item]
+    }
+    return $result
+}
+map {x {expr {$x * $x}}} {1 2 3 4 5}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1 4 9 16 25</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: filter example">
+    <script>
+proc filter {lambda list} {
+    set result {}
+    foreach item $list {
+        if {[apply $lambda $item]} {
+            lappend result $item
+        }
+    }
+    return $result
+}
+filter {x {expr {$x > 3}}} {1 2 3 4 5 6}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>4 5 6</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: reduce/fold example">
+    <script>
+proc reduce {lambda init list} {
+    set acc $init
+    foreach item $list {
+        set acc [apply $lambda $acc $item]
+    }
+    return $acc
+}
+reduce {{a b} {expr {$a + $b}}} 0 {1 2 3 4 5}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>15</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Edge cases -->
+
+  <test-case name="apply: empty body">
+    <script>
+apply {{} {}}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: body with only comments">
+    <script>
+apply {{} {
+    # this is a comment
+}}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: argument shadows outer variable">
+    <script>
+set x original
+set result [apply {{x} {return "arg is $x"}} shadowed]
+list $result $x
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{arg is shadowed} original</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: upvar to caller">
+    <script>
+proc test {} {
+    set local myvalue
+    apply {{varname} {upvar 1 $varname v; return $v}} local
+}
+test
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>myvalue</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="apply: info level inside apply">
+    <script>
+proc outer {} {
+    apply {{} {info level}}
+}
+outer
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>
