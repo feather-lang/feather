@@ -335,8 +335,8 @@ async function createFeather(wasmSource) {
       if (!ops.includes(op)) continue;
 
       // Build the command: script name1 name2 op
-      const scriptStr = interp.getString(trace.script);
-      const cmd = `${scriptStr} ${varName} {} ${op}`;
+      // trace.script is now stored as string directly
+      const cmd = `${trace.script} ${varName} {} ${op}`;
       const [ptr, len] = writeString(cmd);
       wasmInstance.exports.feather_script_eval(0, interp.id, ptr, len, 0);
       wasmInstance.exports.free(ptr);
@@ -368,12 +368,12 @@ async function createFeather(wasmSource) {
 
       // Build the command: script oldName newName op
       // Use display names (strip :: for global namespace commands)
-      const scriptStr = interp.getString(trace.script);
+      // trace.script is now stored as string directly
       const displayOld = displayName(oldName);
       const displayNew = displayName(newName);
       // Empty strings must be properly quoted with {}
       const quotedNew = displayNew === '' ? '{}' : displayNew;
-      const cmd = `${scriptStr} ${displayOld} ${quotedNew} ${op}`;
+      const cmd = `${trace.script} ${displayOld} ${quotedNew} ${op}`;
       const [ptr, len] = writeString(cmd);
       wasmInstance.exports.feather_script_eval(0, interp.id, ptr, len, 0);
       wasmInstance.exports.free(ptr);
@@ -416,6 +416,10 @@ async function createFeather(wasmSource) {
   // Host function implementations - provided as WASM imports
   const hostImports = {
     // Frame operations
+    // NOTE: Frame cmd/args store raw handles. This is safe because:
+    // 1. Frames are always popped before eval returns
+    // 2. Arena reset only happens at top-level eval completion
+    // 3. If we ever support frame introspection across evals, revisit this
     feather_host_frame_push: (interpId, cmd, args) => {
       const interp = interpreters.get(interpId);
       // Check recursion limit
@@ -1499,10 +1503,12 @@ async function createFeather(wasmSource) {
       const kindStr = interp.getString(kind);
       const nameStr = interp.getString(name);
       const opsStr = interp.getString(ops);
+      // Materialize script as string for persistent storage
+      const scriptStr = interp.getString(script);
       const traces = interp.traces[kindStr];
       if (!traces) return TCL_ERROR;
       if (!traces.has(nameStr)) traces.set(nameStr, []);
-      traces.get(nameStr).push({ ops: opsStr, script });
+      traces.get(nameStr).push({ ops: opsStr, script: scriptStr });
       return TCL_OK;
     },
     feather_host_trace_remove: (interpId, kind, name, ops, script) => {
@@ -1513,7 +1519,8 @@ async function createFeather(wasmSource) {
       const traces = interp.traces[kindStr]?.get(nameStr);
       if (!traces) return TCL_ERROR;
       const scriptStr = interp.getString(script);
-      const idx = traces.findIndex(t => t.ops === opsStr && interp.getString(t.script) === scriptStr);
+      // trace.script is now stored as string, compare directly
+      const idx = traces.findIndex(t => t.ops === opsStr && t.script === scriptStr);
       if (idx >= 0) {
         traces.splice(idx, 1);
         return TCL_OK;
@@ -1529,7 +1536,8 @@ async function createFeather(wasmSource) {
         // Split ops into individual elements, then append script
         const ops = t.ops.split(/\s+/).filter(o => o);
         const subItems = ops.map(op => interp.store({ type: 'string', value: op }));
-        subItems.push(t.script);
+        // t.script is now stored as string, wrap it as a handle
+        subItems.push(interp.store({ type: 'string', value: t.script }));
         return interp.store({ type: 'list', items: subItems });
       });
       return interp.store({ type: 'list', items });
