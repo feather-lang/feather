@@ -615,4 +615,18 @@ FeatherResult feather_builtin_format(const FeatherHostOps *ops, FeatherInterp in
 FeatherResult feather_builtin_scan(const FeatherHostOps *ops, FeatherInterp interp,
                               FeatherObj cmd, FeatherObj args);
 
+/**
+ * feather_builtin_subst implements the TCL 'subst' command.
+ *
+ * Usage:
+ *   subst ?-nobackslashes? ?-nocommands? ?-novariables? string
+ *
+ * Performs backslash, command, and variable substitutions on string.
+ * Options disable specific substitution types.
+ * Handles break (stops substitution), continue (empty substitution),
+ * and return (substitutes returned value) exceptions specially.
+ */
+FeatherResult feather_builtin_subst(const FeatherHostOps *ops, FeatherInterp interp,
+                                    FeatherObj cmd, FeatherObj args);
+
 #endif

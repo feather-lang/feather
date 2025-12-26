@@ -61,6 +61,7 @@
 #include "builtin_set.c"
 #include "builtin_split.c"
 #include "builtin_string.c"
+#include "builtin_subst.c"
 #include "builtin_switch.c"
 #include "builtin_tailcall.c"
 #include "builtin_throw.c"
