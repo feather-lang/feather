@@ -1,48 +1,9 @@
 #include "feather.h"
 #include "internal.h"
-
-// Parse an index like "end", "end-N", or integer
-static FeatherResult parse_index(const FeatherHostOps *ops, FeatherInterp interp,
-                             FeatherObj indexObj, size_t strLen, int64_t *out) {
-  size_t len;
-  const char *str = ops->string.get(interp, indexObj, &len);
-
-  if (len == 3 && str[0] == 'e' && str[1] == 'n' && str[2] == 'd') {
-    *out = (int64_t)strLen - 1;
-    return TCL_OK;
-  }
-
-  if (len > 4 && str[0] == 'e' && str[1] == 'n' && str[2] == 'd' && str[3] == '-') {
-    int64_t offset = 0;
-    for (size_t i = 4; i < len; i++) {
-      if (str[i] < '0' || str[i] > '9') {
-        FeatherObj msg = ops->string.intern(interp, "bad index \"", 11);
-        msg = ops->string.concat(interp, msg, indexObj);
-        FeatherObj suffix = ops->string.intern(interp, "\"", 1);
-        msg = ops->string.concat(interp, msg, suffix);
-        ops->interp.set_result(interp, msg);
-        return TCL_ERROR;
-      }
-      offset = offset * 10 + (str[i] - '0');
-    }
-    *out = (int64_t)strLen - 1 - offset;
-    return TCL_OK;
-  }
-
-  if (ops->integer.get(interp, indexObj, out) != TCL_OK) {
-    FeatherObj msg = ops->string.intern(interp, "bad index \"", 11);
-    msg = ops->string.concat(interp, msg, indexObj);
-    FeatherObj suffix = ops->string.intern(interp, "\"", 1);
-    msg = ops->string.concat(interp, msg, suffix);
-    ops->interp.set_result(interp, msg);
-    return TCL_ERROR;
-  }
-
-  return TCL_OK;
-}
+#include "index_parse.h"
 
 // Default whitespace characters for trim
-static int is_whitespace(char c) {
+static int string_is_whitespace(char c) {
   return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f';
 }
 
@@ -85,7 +46,7 @@ static FeatherResult string_index(const FeatherHostOps *ops, FeatherInterp inter
   size_t charLen = ops->rune.length(interp, strObj);
 
   int64_t index;
-  if (parse_index(ops, interp, indexObj, charLen, &index) != TCL_OK) {
+  if (feather_parse_index(ops, interp, indexObj, charLen, &index) != TCL_OK) {
     return TCL_ERROR;
   }
 
@@ -115,10 +76,10 @@ static FeatherResult string_range(const FeatherHostOps *ops, FeatherInterp inter
   size_t charLen = ops->rune.length(interp, strObj);
 
   int64_t first, last;
-  if (parse_index(ops, interp, firstObj, charLen, &first) != TCL_OK) {
+  if (feather_parse_index(ops, interp, firstObj, charLen, &first) != TCL_OK) {
     return TCL_ERROR;
   }
-  if (parse_index(ops, interp, lastObj, charLen, &last) != TCL_OK) {
+  if (feather_parse_index(ops, interp, lastObj, charLen, &last) != TCL_OK) {
     return TCL_ERROR;
   }
 
@@ -231,7 +192,7 @@ static FeatherResult string_trim(const FeatherHostOps *ops, FeatherInterp interp
   // Find start (skip leading trim chars)
   size_t start = 0;
   while (start < len) {
-    int shouldTrim = chars ? in_charset(str[start], chars, charsLen) : is_whitespace(str[start]);
+    int shouldTrim = chars ? in_charset(str[start], chars, charsLen) : string_is_whitespace(str[start]);
     if (!shouldTrim) break;
     start++;
   }
@@ -239,7 +200,7 @@ static FeatherResult string_trim(const FeatherHostOps *ops, FeatherInterp interp
   // Find end (skip trailing trim chars)
   size_t end = len;
   while (end > start) {
-    int shouldTrim = chars ? in_charset(str[end - 1], chars, charsLen) : is_whitespace(str[end - 1]);
+    int shouldTrim = chars ? in_charset(str[end - 1], chars, charsLen) : string_is_whitespace(str[end - 1]);
     if (!shouldTrim) break;
     end--;
   }
@@ -271,7 +232,7 @@ static FeatherResult string_trimleft(const FeatherHostOps *ops, FeatherInterp in
 
   size_t start = 0;
   while (start < len) {
-    int shouldTrim = chars ? in_charset(str[start], chars, charsLen) : is_whitespace(str[start]);
+    int shouldTrim = chars ? in_charset(str[start], chars, charsLen) : string_is_whitespace(str[start]);
     if (!shouldTrim) break;
     start++;
   }
@@ -303,7 +264,7 @@ static FeatherResult string_trimright(const FeatherHostOps *ops, FeatherInterp i
 
   size_t end = len;
   while (end > 0) {
-    int shouldTrim = chars ? in_charset(str[end - 1], chars, charsLen) : is_whitespace(str[end - 1]);
+    int shouldTrim = chars ? in_charset(str[end - 1], chars, charsLen) : string_is_whitespace(str[end - 1]);
     if (!shouldTrim) break;
     end--;
   }

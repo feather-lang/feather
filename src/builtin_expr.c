@@ -168,7 +168,7 @@ static FeatherObj get_obj(ExprParser *p, ExprValue *v) {
   return 0;
 }
 
-static void skip_whitespace(ExprParser *p) {
+static void expr_skip_whitespace(ExprParser *p) {
   while (p->pos < p->end) {
     char c = *p->pos;
     if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
@@ -635,7 +635,7 @@ static ExprValue parse_function_call(ExprParser *p, const char *name, size_t nam
   FeatherObj args = p->ops->list.create(p->interp);
 
   // Parse arguments
-  skip_whitespace(p);
+  expr_skip_whitespace(p);
   while (p->pos < p->end && *p->pos != ')') {
     ExprValue arg = parse_ternary(p);
     if (p->has_error) return make_error();
@@ -646,10 +646,10 @@ static ExprValue parse_function_call(ExprParser *p, const char *name, size_t nam
       args = p->ops->list.push(p->interp, args, arg_obj);
     }
 
-    skip_whitespace(p);
+    expr_skip_whitespace(p);
     if (p->pos < p->end && *p->pos == ',') {
       p->pos++;
-      skip_whitespace(p);
+      expr_skip_whitespace(p);
     }
   }
 
@@ -725,7 +725,7 @@ static ExprValue parse_function_call(ExprParser *p, const char *name, size_t nam
 
 // Parse primary: number, variable, command, boolean, braced/quoted string, paren, function call
 static ExprValue parse_primary(ExprParser *p) {
-  skip_whitespace(p);
+  expr_skip_whitespace(p);
 
   if (p->has_error || p->pos >= p->end) {
     if (!p->has_error) set_syntax_error(p);
@@ -739,7 +739,7 @@ static ExprValue parse_primary(ExprParser *p) {
     p->pos++;
     ExprValue val = parse_ternary(p);
     if (p->has_error) return make_error();
-    skip_whitespace(p);
+    expr_skip_whitespace(p);
     if (p->pos >= p->end || *p->pos != ')') {
       set_paren_error(p);
       return make_error();
@@ -785,7 +785,7 @@ static ExprValue parse_primary(ExprParser *p) {
     size_t len = p->pos - start;
 
     // Check for function call
-    skip_whitespace(p);
+    expr_skip_whitespace(p);
     if (p->pos < p->end && *p->pos == '(') {
       return parse_function_call(p, start, len);
     }
@@ -864,7 +864,7 @@ static int is_number_start(ExprParser *p) {
 
 // Parse unary: - + ~ ! followed by unary
 static ExprValue parse_unary(ExprParser *p) {
-  skip_whitespace(p);
+  expr_skip_whitespace(p);
   if (p->has_error) return make_error();
 
   if (p->pos < p->end) {
@@ -959,7 +959,7 @@ static ExprValue parse_exponentiation(ExprParser *p) {
   ExprValue left = parse_unary(p);
   if (p->has_error) return make_error();
 
-  skip_whitespace(p);
+  expr_skip_whitespace(p);
   if (p->pos + 1 < p->end && p->pos[0] == '*' && p->pos[1] == '*') {
     p->pos += 2;
     ExprValue right = parse_exponentiation(p); // right-to-left
@@ -1021,7 +1021,7 @@ static ExprValue parse_multiplicative(ExprParser *p) {
   if (p->has_error) return make_error();
 
   while (1) {
-    skip_whitespace(p);
+    expr_skip_whitespace(p);
     if (p->pos >= p->end) break;
 
     char c = *p->pos;
@@ -1124,7 +1124,7 @@ static ExprValue parse_additive(ExprParser *p) {
   if (p->has_error) return make_error();
 
   while (1) {
-    skip_whitespace(p);
+    expr_skip_whitespace(p);
     if (p->pos >= p->end) break;
 
     char c = *p->pos;
@@ -1202,7 +1202,7 @@ static ExprValue parse_shift(ExprParser *p) {
   if (p->has_error) return make_error();
 
   while (1) {
-    skip_whitespace(p);
+    expr_skip_whitespace(p);
     if (p->pos >= p->end) break;
 
     // Left shift <<
@@ -1244,7 +1244,7 @@ static ExprValue parse_comparison(ExprParser *p) {
   if (p->has_error) return make_error();
 
   while (1) {
-    skip_whitespace(p);
+    expr_skip_whitespace(p);
     if (p->pos >= p->end) break;
 
     char c = *p->pos;
@@ -1460,7 +1460,7 @@ static ExprValue parse_equality(ExprParser *p) {
   if (p->has_error) return make_error();
 
   while (1) {
-    skip_whitespace(p);
+    expr_skip_whitespace(p);
     if (p->pos >= p->end) break;
 
     // String equality operators: eq, ne
@@ -1562,7 +1562,7 @@ static ExprValue parse_bitwise_and(ExprParser *p) {
   if (p->has_error) return make_error();
 
   while (1) {
-    skip_whitespace(p);
+    expr_skip_whitespace(p);
     if (p->pos >= p->end) break;
 
     // Single & (not &&)
@@ -1590,7 +1590,7 @@ static ExprValue parse_bitwise_xor(ExprParser *p) {
   if (p->has_error) return make_error();
 
   while (1) {
-    skip_whitespace(p);
+    expr_skip_whitespace(p);
     if (p->pos >= p->end) break;
 
     if (*p->pos == '^') {
@@ -1617,7 +1617,7 @@ static ExprValue parse_bitwise_or(ExprParser *p) {
   if (p->has_error) return make_error();
 
   while (1) {
-    skip_whitespace(p);
+    expr_skip_whitespace(p);
     if (p->pos >= p->end) break;
 
     // Single | (not ||)
@@ -1645,7 +1645,7 @@ static ExprValue parse_logical_and(ExprParser *p) {
   if (p->has_error) return make_error();
 
   while (1) {
-    skip_whitespace(p);
+    expr_skip_whitespace(p);
     if (p->pos >= p->end) break;
 
     if (p->pos + 1 < p->end && p->pos[0] == '&' && p->pos[1] == '&') {
@@ -1688,7 +1688,7 @@ static ExprValue parse_logical_or(ExprParser *p) {
   if (p->has_error) return make_error();
 
   while (1) {
-    skip_whitespace(p);
+    expr_skip_whitespace(p);
     if (p->pos >= p->end) break;
 
     if (p->pos + 1 < p->end && p->pos[0] == '|' && p->pos[1] == '|') {
@@ -1730,7 +1730,7 @@ static ExprValue parse_ternary(ExprParser *p) {
   ExprValue cond = parse_logical_or(p);
   if (p->has_error) return make_error();
 
-  skip_whitespace(p);
+  expr_skip_whitespace(p);
   if (p->pos < p->end && *p->pos == '?') {
     p->pos++;
     int64_t cv;
@@ -1747,7 +1747,7 @@ static ExprValue parse_ternary(ExprParser *p) {
       result = parse_ternary(p);
       if (p->has_error) return make_error();
 
-      skip_whitespace(p);
+      expr_skip_whitespace(p);
       if (p->pos >= p->end || *p->pos != ':') {
         set_syntax_error(p);
         return make_error();
@@ -1765,7 +1765,7 @@ static ExprValue parse_ternary(ExprParser *p) {
       p->skip_mode = saved_skip;
       if (p->has_error) return make_error();
 
-      skip_whitespace(p);
+      expr_skip_whitespace(p);
       if (p->pos >= p->end || *p->pos != ':') {
         set_syntax_error(p);
         return make_error();
@@ -1826,7 +1826,7 @@ FeatherResult feather_builtin_expr(const FeatherHostOps *ops, FeatherInterp inte
   ExprValue result = parse_ternary(&parser);
 
   // Check for trailing content
-  skip_whitespace(&parser);
+  expr_skip_whitespace(&parser);
   if (!parser.has_error && parser.pos < parser.end) {
     if (*parser.pos == ')') {
       set_close_paren_error(&parser);

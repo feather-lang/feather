@@ -1,27 +1,20 @@
 #include "feather.h"
 #include "internal.h"
+#include "charclass.h"
 
-static int is_digit(char c) {
-  return c >= '0' && c <= '9';
-}
-
-static int is_whitespace(char c) {
+static int scan_is_whitespace(char c) {
   return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f';
 }
 
-static int is_hex_digit(char c) {
-  return is_digit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
-}
-
-static int is_octal_digit(char c) {
-  return c >= '0' && c <= '7';
+static int scan_is_hex_digit(char c) {
+  return feather_is_digit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }
 
 static int is_binary_digit(char c) {
   return c == '0' || c == '1';
 }
 
-static int hex_value(char c) {
+static int scan_hex_value(char c) {
   if (c >= '0' && c <= '9') return c - '0';
   if (c >= 'a' && c <= 'f') return 10 + c - 'a';
   if (c >= 'A' && c <= 'F') return 10 + c - 'A';
@@ -59,7 +52,7 @@ static int parse_scan_spec(const char *fmt, size_t len, ScanSpec *spec) {
   }
 
   size_t posStart = pos;
-  while (pos < len && is_digit(fmt[pos])) {
+  while (pos < len && feather_is_digit(fmt[pos])) {
     pos++;
   }
   if (pos > posStart && pos < len && fmt[pos] == '$') {
@@ -79,7 +72,7 @@ static int parse_scan_spec(const char *fmt, size_t len, ScanSpec *spec) {
     pos++;
   }
 
-  while (pos < len && is_digit(fmt[pos])) {
+  while (pos < len && feather_is_digit(fmt[pos])) {
     spec->width = spec->width * 10 + (fmt[pos] - '0');
     pos++;
   }
@@ -150,9 +143,9 @@ static int parse_scan_spec(const char *fmt, size_t len, ScanSpec *spec) {
   return -1;
 }
 
-static int skip_whitespace(const char *str, size_t len, size_t *pos) {
+static int scan_skip_whitespace(const char *str, size_t len, size_t *pos) {
   size_t start = *pos;
-  while (*pos < len && is_whitespace(str[*pos])) {
+  while (*pos < len && scan_is_whitespace(str[*pos])) {
     (*pos)++;
   }
   return (int)(*pos - start);
@@ -186,12 +179,12 @@ static int scan_integer(const char *str, size_t len, size_t *pos, int base, int 
     char c = str[*pos];
     int d = -1;
 
-    if (base == 10 && is_digit(c)) {
+    if (base == 10 && feather_is_digit(c)) {
       d = c - '0';
-    } else if (base == 8 && is_octal_digit(c)) {
+    } else if (base == 8 && feather_is_octal_digit(c)) {
       d = c - '0';
-    } else if (base == 16 && is_hex_digit(c)) {
-      d = hex_value(c);
+    } else if (base == 16 && scan_is_hex_digit(c)) {
+      d = scan_hex_value(c);
     } else if (base == 2 && is_binary_digit(c)) {
       d = c - '0';
     } else {
@@ -247,12 +240,12 @@ static int scan_auto_integer(const char *str, size_t len, size_t *pos, int width
     char c = str[*pos];
     int d = -1;
 
-    if (base == 10 && is_digit(c)) {
+    if (base == 10 && feather_is_digit(c)) {
       d = c - '0';
-    } else if (base == 8 && is_octal_digit(c)) {
+    } else if (base == 8 && feather_is_octal_digit(c)) {
       d = c - '0';
-    } else if (base == 16 && is_hex_digit(c)) {
-      d = hex_value(c);
+    } else if (base == 16 && scan_is_hex_digit(c)) {
+      d = scan_hex_value(c);
     } else {
       break;
     }
@@ -290,7 +283,7 @@ static int scan_float(const char *str, size_t len, size_t *pos, int width, doubl
   double val = 0.0;
   int digits = 0;
 
-  while (*pos < len && consumed < max && is_digit(str[*pos])) {
+  while (*pos < len && consumed < max && feather_is_digit(str[*pos])) {
     val = val * 10.0 + (str[*pos] - '0');
     digits++;
     (*pos)++;
@@ -301,7 +294,7 @@ static int scan_float(const char *str, size_t len, size_t *pos, int width, doubl
     (*pos)++;
     consumed++;
     double frac = 0.1;
-    while (*pos < len && consumed < max && is_digit(str[*pos])) {
+    while (*pos < len && consumed < max && feather_is_digit(str[*pos])) {
       val += (str[*pos] - '0') * frac;
       frac *= 0.1;
       digits++;
@@ -328,7 +321,7 @@ static int scan_float(const char *str, size_t len, size_t *pos, int width, doubl
       consumed++;
     }
     int exp = 0;
-    while (*pos < len && consumed < max && is_digit(str[*pos])) {
+    while (*pos < len && consumed < max && feather_is_digit(str[*pos])) {
       exp = exp * 10 + (str[*pos] - '0');
       (*pos)++;
       consumed++;
@@ -353,7 +346,7 @@ static int scan_string(const char *str, size_t len, size_t *pos, int width,
   int max = width > 0 ? width : (int)(len - *pos);
   int consumed = 0;
 
-  while (*pos < len && consumed < max && !is_whitespace(str[*pos])) {
+  while (*pos < len && consumed < max && !scan_is_whitespace(str[*pos])) {
     if (*outlen < bufsize - 1) {
       buf[(*outlen)++] = str[*pos];
     }
@@ -428,9 +421,9 @@ FeatherResult feather_builtin_scan(const FeatherHostOps *ops, FeatherInterp inte
   while (fmtPos < fmtLen) {
     char fc = fmt[fmtPos];
 
-    if (is_whitespace(fc)) {
+    if (scan_is_whitespace(fc)) {
       fmtPos++;
-      skip_whitespace(str, strLen, &strPos);
+      scan_skip_whitespace(str, strLen, &strPos);
       continue;
     }
 
@@ -500,7 +493,7 @@ FeatherResult feather_builtin_scan(const FeatherHostOps *ops, FeatherInterp inte
     }
 
     if (spec.specifier != 'c' && spec.specifier != '[') {
-      skip_whitespace(str, strLen, &strPos);
+      scan_skip_whitespace(str, strLen, &strPos);
     }
 
     anyConversionAttempted = 1;

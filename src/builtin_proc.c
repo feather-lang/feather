@@ -1,29 +1,7 @@
 #include "feather.h"
 #include "internal.h"
-
-/**
- * Helper to get the display name for a command.
- * Strips leading "::" for global namespace commands (e.g., "::set" -> "set")
- * but preserves the full path for nested namespaces (e.g., "::foo::bar" stays as-is).
- */
-static FeatherObj get_display_name(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj name) {
-  size_t len;
-  const char *str = ops->string.get(interp, name, &len);
-
-  // Check if it starts with ::
-  if (len > 2 && str[0] == ':' && str[1] == ':') {
-    // Check if there's another :: after the initial one (nested namespace)
-    for (size_t i = 2; i + 1 < len; i++) {
-      if (str[i] == ':' && str[i + 1] == ':') {
-        // Nested namespace - return as-is
-        return name;
-      }
-    }
-    // Global namespace only - strip the leading ::
-    return ops->string.intern(interp, str + 2, len - 2);
-  }
-  return name;
-}
+#include "namespace_util.h"
+#include "charclass.h"
 
 FeatherResult feather_builtin_proc(const FeatherHostOps *ops, FeatherInterp interp,
                            FeatherObj cmd, FeatherObj args) {
@@ -98,10 +76,6 @@ FeatherResult feather_builtin_proc(const FeatherHostOps *ops, FeatherInterp inte
   return TCL_OK;
 }
 
-// Helper to check if a string equals "args"
-static int is_args_param(const char *s, size_t len) {
-  return len == 4 && s[0] == 'a' && s[1] == 'r' && s[2] == 'g' && s[3] == 's';
-}
 
 FeatherResult feather_invoke_proc(const FeatherHostOps *ops, FeatherInterp interp,
                           FeatherObj name, FeatherObj args) {
@@ -131,7 +105,7 @@ FeatherResult feather_invoke_proc(const FeatherHostOps *ops, FeatherInterp inter
     if (lastParam != 0) {
       size_t lastLen;
       const char *lastStr = ops->string.get(interp, lastParam, &lastLen);
-      is_variadic = is_args_param(lastStr, lastLen);
+      is_variadic = feather_is_args_param(lastStr, lastLen);
     }
   }
 
@@ -151,7 +125,7 @@ FeatherResult feather_invoke_proc(const FeatherHostOps *ops, FeatherInterp inter
   if (!args_ok) {
     // Build error message: wrong # args: should be "name param1 param2 ..."
     // Use display name to strip :: for global namespace commands
-    FeatherObj displayName = get_display_name(ops, interp, name);
+    FeatherObj displayName = feather_get_display_name(ops, interp, name);
 
     FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"", 25);
     msg = ops->string.concat(interp, msg, displayName);

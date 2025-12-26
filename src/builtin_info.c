@@ -1,29 +1,6 @@
 #include "internal.h"
 #include "feather.h"
-
-/**
- * Helper to get the display name for a command.
- * Strips leading "::" for global namespace commands (e.g., "::set" -> "set")
- * but preserves the full path for nested namespaces (e.g., "::foo::bar" stays as-is).
- */
-static FeatherObj get_display_name(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj name) {
-  size_t len;
-  const char *str = ops->string.get(interp, name, &len);
-
-  // Check if it starts with ::
-  if (len > 2 && str[0] == ':' && str[1] == ':') {
-    // Check if there's another :: after the initial one (nested namespace)
-    for (size_t i = 2; i + 1 < len; i++) {
-      if (str[i] == ':' && str[i + 1] == ':') {
-        // Nested namespace - return as-is
-        return name;
-      }
-    }
-    // Global namespace only - strip the leading ::
-    return ops->string.intern(interp, str + 2, len - 2);
-  }
-  return name;
-}
+#include "namespace_util.h"
 
 /**
  * info exists varName
@@ -131,7 +108,7 @@ static FeatherResult info_level(const FeatherHostOps *ops, FeatherInterp interp,
   // Build result list: {cmd arg1 arg2 ...}
   // Use display name for the command (strips :: for global namespace)
   FeatherObj result = ops->list.create(interp);
-  FeatherObj displayCmd = get_display_name(ops, interp, cmd);
+  FeatherObj displayCmd = feather_get_display_name(ops, interp, cmd);
   result = ops->list.push(interp, result, displayCmd);
 
   // Append all arguments
@@ -424,7 +401,7 @@ static FeatherResult info_frame(const FeatherHostOps *ops, FeatherInterp interp,
   }
 
   // Use display name for the command (strips :: for global namespace)
-  FeatherObj displayCmd = get_display_name(ops, interp, cmd);
+  FeatherObj displayCmd = feather_get_display_name(ops, interp, cmd);
 
   // Build result dictionary as a list: {key value key value ...}
   FeatherObj result = ops->list.create(interp);

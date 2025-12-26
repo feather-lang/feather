@@ -6,7 +6,7 @@
 
 // Parse return code from string: ok=0, error=1, return=2, break=3, continue=4
 // Returns -1 if invalid
-static int parse_code(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj codeObj) {
+static int try_parse_code(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj codeObj) {
   // Try as integer first
   int64_t intVal;
   if (ops->integer.get(interp, codeObj, &intVal) == TCL_OK) {
@@ -204,7 +204,7 @@ FeatherResult feather_builtin_try(const FeatherHostOps *ops, FeatherInterp inter
       FeatherObj script = ops->list.at(interp, args, i + 3);
 
       // Parse the code
-      int code = parse_code(ops, interp, codeObj);
+      int code = try_parse_code(ops, interp, codeObj);
       if (code < 0) {
         // Build error message
         FeatherObj prefix = ops->string.intern(interp, S("bad completion code \""));

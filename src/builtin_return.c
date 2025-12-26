@@ -2,7 +2,7 @@
 #include "internal.h"
 // Parse a code name or integer into a FeatherResult value
 // Returns TCL_OK on success and sets *code, TCL_ERROR on failure
-static FeatherResult parse_code(const FeatherHostOps *ops, FeatherInterp interp,
+static FeatherResult return_parse_code(const FeatherHostOps *ops, FeatherInterp interp,
                             FeatherObj codeObj, int *code) {
   size_t len;
   const char *str = ops->string.get(interp, codeObj, &len);
@@ -80,7 +80,7 @@ FeatherResult feather_builtin_return(const FeatherHostOps *ops, FeatherInterp in
         }
         FeatherObj codeArg = ops->list.shift(interp, argsCopy);
         argc--;
-        if (parse_code(ops, interp, codeArg, &code) != TCL_OK) {
+        if (return_parse_code(ops, interp, codeArg, &code) != TCL_OK) {
           return TCL_ERROR;
         }
       } else if (feather_str_eq(argStr, argLen, "-level")) {

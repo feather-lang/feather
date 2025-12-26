@@ -1,7 +1,8 @@
 #include "feather.h"
 #include "host.h"
+#include "charclass.h"
 
-static int is_whitespace(char c) {
+static int parse_is_whitespace(char c) {
   return c == ' ' || c == '\t';
 }
 
@@ -10,14 +11,10 @@ static int is_command_terminator(char c) {
 }
 
 static int is_word_terminator(char c) {
-  return is_whitespace(c) || is_command_terminator(c);
+  return parse_is_whitespace(c) || is_command_terminator(c);
 }
 
-static int is_octal_digit(char c) {
-  return c >= '0' && c <= '7';
-}
-
-static int is_hex_digit(char c) {
+static int parse_is_hex_digit(char c) {
   return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }
 
@@ -33,7 +30,7 @@ static int is_namespace_sep(const char *p, const char *end) {
   return (p + 1 < end) && (p[0] == ':') && (p[1] == ':');
 }
 
-static int hex_value(char c) {
+static int parse_hex_value(char c) {
   if (c >= '0' && c <= '9') return c - '0';
   if (c >= 'a' && c <= 'f') return 10 + c - 'a';
   if (c >= 'A' && c <= 'F') return 10 + c - 'A';
@@ -69,7 +66,7 @@ static size_t process_backslash(const char *pos, const char *end,
       // Backslash-newline: consume newline and following whitespace, produce space
       size_t consumed = 1;
       const char *p = pos + 1;
-      while (p < end && is_whitespace(*p)) {
+      while (p < end && parse_is_whitespace(*p)) {
         p++;
         consumed++;
       }
@@ -83,8 +80,8 @@ static size_t process_backslash(const char *pos, const char *end,
       int value = 0;
       const char *p = pos + 1;
       int digits = 0;
-      while (p < end && is_hex_digit(*p) && digits < 2) {
-        value = value * 16 + hex_value(*p);
+      while (p < end && parse_is_hex_digit(*p) && digits < 2) {
+        value = value * 16 + parse_hex_value(*p);
         p++;
         consumed++;
         digits++;
@@ -105,8 +102,8 @@ static size_t process_backslash(const char *pos, const char *end,
       int value = 0;
       const char *p = pos + 1;
       int digits = 0;
-      while (p < end && is_hex_digit(*p) && digits < 4) {
-        value = value * 16 + hex_value(*p);
+      while (p < end && parse_is_hex_digit(*p) && digits < 4) {
+        value = value * 16 + parse_hex_value(*p);
         p++;
         consumed++;
         digits++;
@@ -138,8 +135,8 @@ static size_t process_backslash(const char *pos, const char *end,
       unsigned int value = 0;
       const char *p = pos + 1;
       int digits = 0;
-      while (p < end && is_hex_digit(*p) && digits < 8) {
-        unsigned int new_val = value * 16 + hex_value(*p);
+      while (p < end && parse_is_hex_digit(*p) && digits < 8) {
+        unsigned int new_val = value * 16 + parse_hex_value(*p);
         if (new_val > 0x10FFFF) break;
         value = new_val;
         p++;
@@ -174,13 +171,13 @@ static size_t process_backslash(const char *pos, const char *end,
       return 1;
     }
     default:
-      if (is_octal_digit(c)) {
+      if (feather_is_octal_digit(c)) {
         // Octal escape: \ooo (1-3 octal digits, max 0377)
         int value = c - '0';
         size_t consumed = 1;
         const char *p = pos + 1;
         int digits = 1;
-        while (p < end && is_octal_digit(*p) && digits < 3) {
+        while (p < end && feather_is_octal_digit(*p) && digits < 3) {
           int new_val = value * 8 + (*p - '0');
           if (new_val > 0377) break;
           value = new_val;
@@ -591,7 +588,7 @@ static size_t skip_whitespace_and_comments(const char *script, size_t len, size_
 
   while (s < end) {
     // Skip whitespace
-    if (is_whitespace(*s)) {
+    if (parse_is_whitespace(*s)) {
       s++;
       continue;
     }
@@ -599,7 +596,7 @@ static size_t skip_whitespace_and_comments(const char *script, size_t len, size_
     // Skip backslash-newline continuation
     if (*s == '\\' && s + 1 < end && s[1] == '\n') {
       s += 2;
-      while (s < end && is_whitespace(*s)) {
+      while (s < end && parse_is_whitespace(*s)) {
         s++;
       }
       continue;
@@ -783,7 +780,7 @@ static FeatherObj parse_word(const FeatherHostOps *ops, FeatherInterp interp,
         if (*p == '\n') {
           // Backslash-newline in bare word acts as word terminator
           p++;
-          while (p < end && is_whitespace(*p)) {
+          while (p < end && parse_is_whitespace(*p)) {
             p++;
           }
           break;
@@ -971,7 +968,7 @@ FeatherParseStatus feather_parse_command(const FeatherHostOps *ops, FeatherInter
     pos = script + ctx->pos;
 
     // Skip whitespace between words (but not command terminators)
-    while (pos < end && is_whitespace(*pos)) {
+    while (pos < end && parse_is_whitespace(*pos)) {
       pos++;
       ctx->pos++;
     }
@@ -980,7 +977,7 @@ FeatherParseStatus feather_parse_command(const FeatherHostOps *ops, FeatherInter
     while (pos < end && *pos == '\\' && pos + 1 < end && pos[1] == '\n') {
       pos += 2;
       ctx->pos += 2;
-      while (pos < end && is_whitespace(*pos)) {
+      while (pos < end && parse_is_whitespace(*pos)) {
         pos++;
         ctx->pos++;
       }

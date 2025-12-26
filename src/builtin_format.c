@@ -1,10 +1,6 @@
 #include "feather.h"
 #include "internal.h"
-
-// Helper: check if character is a digit
-static int is_digit(char c) {
-  return c >= '0' && c <= '9';
-}
+#include "charclass.h"
 
 // Helper: convert integer to string representation
 // Returns pointer to static buffer, caller should use immediately
@@ -134,7 +130,7 @@ static int parse_format_spec(const char *fmt, size_t len, FormatSpec *spec) {
 
   // Check for positional specifier (n$)
   size_t posStart = pos;
-  while (pos < len && is_digit(fmt[pos])) {
+  while (pos < len && feather_is_digit(fmt[pos])) {
     pos++;
   }
   if (pos > posStart && pos < len && fmt[pos] == '$') {
@@ -175,7 +171,7 @@ static int parse_format_spec(const char *fmt, size_t len, FormatSpec *spec) {
     spec->width = -1;
     pos++;
   } else {
-    while (pos < len && is_digit(fmt[pos])) {
+    while (pos < len && feather_is_digit(fmt[pos])) {
       spec->width = spec->width * 10 + (fmt[pos] - '0');
       pos++;
     }
@@ -190,7 +186,7 @@ static int parse_format_spec(const char *fmt, size_t len, FormatSpec *spec) {
       spec->precision = -1;
       pos++;
     } else {
-      while (pos < len && is_digit(fmt[pos])) {
+      while (pos < len && feather_is_digit(fmt[pos])) {
         spec->precision = spec->precision * 10 + (fmt[pos] - '0');
         pos++;
       }

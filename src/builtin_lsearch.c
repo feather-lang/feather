@@ -1,5 +1,6 @@
 #include "feather.h"
 #include "internal.h"
+#include "charclass.h"
 
 // Match mode
 typedef enum {
@@ -8,13 +9,7 @@ typedef enum {
   MATCH_REGEXP
 } MatchMode;
 
-// Helper for case-insensitive compare
-static int char_tolower(int c) {
-  if (c >= 'A' && c <= 'Z') return c + 32;
-  return c;
-}
-
-static int compare_nocase(const FeatherHostOps *ops, FeatherInterp interp,
+static int lsearch_compare_nocase(const FeatherHostOps *ops, FeatherInterp interp,
                           FeatherObj a, FeatherObj b) {
   size_t lenA, lenB;
   const char *strA = ops->string.get(interp, a, &lenA);
@@ -22,8 +17,8 @@ static int compare_nocase(const FeatherHostOps *ops, FeatherInterp interp,
 
   if (lenA != lenB) return 0;
   for (size_t i = 0; i < lenA; i++) {
-    int ca = char_tolower((unsigned char)strA[i]);
-    int cb = char_tolower((unsigned char)strB[i]);
+    int ca = feather_char_tolower((unsigned char)strA[i]);
+    int cb = feather_char_tolower((unsigned char)strB[i]);
     if (ca != cb) return 0;
   }
   return 1;
@@ -41,8 +36,8 @@ static int glob_match_nocase(const char *pattern, size_t plen,
 
   while (s < slen) {
     if (p < plen && (pattern[p] == '?' ||
-                     char_tolower((unsigned char)pattern[p]) ==
-                     char_tolower((unsigned char)string[s]))) {
+                     feather_char_tolower((unsigned char)pattern[p]) ==
+                     feather_char_tolower((unsigned char)string[s]))) {
       p++;
       s++;
     } else if (p < plen && pattern[p] == '*') {
@@ -71,7 +66,7 @@ static int element_matches(const FeatherHostOps *ops, FeatherInterp interp,
   switch (mode) {
     case MATCH_EXACT:
       if (nocase) {
-        matches = compare_nocase(ops, interp, element, pattern);
+        matches = lsearch_compare_nocase(ops, interp, element, pattern);
       } else {
         matches = (ops->string.compare(interp, element, pattern) == 0);
       }

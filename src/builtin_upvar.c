@@ -1,60 +1,6 @@
 #include "feather.h"
 #include "internal.h"
-
-// Parse a level specification and compute the absolute frame level
-// Level can be:
-//   N     - relative level (N levels up from current)
-//   #N    - absolute frame level
-// Returns TCL_OK on success and sets *absLevel, TCL_ERROR on failure
-static FeatherResult parse_level(const FeatherHostOps *ops, FeatherInterp interp,
-                              FeatherObj levelObj, size_t currentLevel,
-                              size_t stackSize, size_t *absLevel) {
-  size_t len;
-  const char *str = ops->string.get(interp, levelObj, &len);
-
-  if (len > 0 && str[0] == '#') {
-    // Absolute level: #N
-    // Parse the number after #
-    int64_t absVal = 0;
-    for (size_t i = 1; i < len; i++) {
-      if (str[i] < '0' || str[i] > '9') {
-        goto bad_level;
-      }
-      absVal = absVal * 10 + (str[i] - '0');
-    }
-    if (absVal < 0 || (size_t)absVal >= stackSize) {
-      goto bad_level;
-    }
-    *absLevel = (size_t)absVal;
-    return TCL_OK;
-  } else {
-    // Relative level: N levels up
-    int64_t relVal;
-    if (ops->integer.get(interp, levelObj, &relVal) != TCL_OK) {
-      goto bad_level;
-    }
-    if (relVal < 0) {
-      goto bad_level;
-    }
-    // currentLevel - relVal = target level
-    if ((size_t)relVal > currentLevel) {
-      goto bad_level;
-    }
-    *absLevel = currentLevel - (size_t)relVal;
-    return TCL_OK;
-  }
-
-bad_level:
-  {
-    FeatherObj msg1 = ops->string.intern(interp, "bad level \"", 11);
-    FeatherObj msg2 = ops->string.intern(interp, str, len);
-    FeatherObj msg3 = ops->string.intern(interp, "\"", 1);
-    FeatherObj msg = ops->string.concat(interp, msg1, msg2);
-    msg = ops->string.concat(interp, msg, msg3);
-    ops->interp.set_result(interp, msg);
-    return TCL_ERROR;
-  }
-}
+#include "level_parse.h"
 
 FeatherResult feather_builtin_upvar(const FeatherHostOps *ops, FeatherInterp interp,
                              FeatherObj cmd, FeatherObj args) {
@@ -113,7 +59,7 @@ FeatherResult feather_builtin_upvar(const FeatherHostOps *ops, FeatherInterp int
     if (looksLikeLevel) {
       // Try to parse as level
       size_t parsedLevel;
-      if (parse_level(ops, interp, first, currentLevel, stackSize, &parsedLevel) == TCL_OK) {
+      if (feather_parse_level(ops, interp, first, currentLevel, stackSize, &parsedLevel) == TCL_OK) {
         targetLevel = parsedLevel;
         ops->list.shift(interp, argsCopy);
         argc--;

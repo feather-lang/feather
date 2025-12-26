@@ -1,5 +1,6 @@
 #include "feather.h"
 #include "internal.h"
+#include "charclass.h"
 
 // Sort mode
 typedef enum {
@@ -17,13 +18,7 @@ typedef struct {
   int decreasing;
 } SortContext;
 
-// Helper for case-insensitive compare
-static int char_tolower(int c) {
-  if (c >= 'A' && c <= 'Z') return c + 32;
-  return c;
-}
-
-static int compare_nocase(const FeatherHostOps *ops, FeatherInterp interp,
+static int lsort_compare_nocase(const FeatherHostOps *ops, FeatherInterp interp,
                           FeatherObj a, FeatherObj b) {
   size_t lenA, lenB;
   const char *strA = ops->string.get(interp, a, &lenA);
@@ -31,8 +26,8 @@ static int compare_nocase(const FeatherHostOps *ops, FeatherInterp interp,
 
   size_t minLen = lenA < lenB ? lenA : lenB;
   for (size_t i = 0; i < minLen; i++) {
-    int ca = char_tolower((unsigned char)strA[i]);
-    int cb = char_tolower((unsigned char)strB[i]);
+    int ca = feather_char_tolower((unsigned char)strA[i]);
+    int cb = feather_char_tolower((unsigned char)strB[i]);
     if (ca != cb) return ca - cb;
   }
   if (lenA < lenB) return -1;
@@ -48,7 +43,7 @@ static int compare_elements(FeatherInterp interp, FeatherObj a, FeatherObj b, vo
   switch (ctx->mode) {
     case SORT_ASCII:
       if (ctx->nocase) {
-        result = compare_nocase(ctx->ops, interp, a, b);
+        result = lsort_compare_nocase(ctx->ops, interp, a, b);
       } else {
         result = ctx->ops->string.compare(interp, a, b);
       }

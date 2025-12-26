@@ -2,7 +2,6 @@ package interp
 
 /*
 #cgo CFLAGS: -I${SRCDIR}/../src
-#cgo LDFLAGS: ${SRCDIR}/../build/libfeather.a
 #include "feather.h"
 #include <stdlib.h>
 */

@@ -2,7 +2,7 @@
 #include "internal.h"
 
 // Helper to check if char is whitespace
-static int is_whitespace(char c) {
+static int concat_is_whitespace(char c) {
   return c == ' ' || c == '\t' || c == '\n' || c == '\r';
 }
 
@@ -28,11 +28,11 @@ FeatherResult feather_builtin_concat(const FeatherHostOps *ops, FeatherInterp in
 
     // Trim leading whitespace
     size_t start = 0;
-    while (start < len && is_whitespace(str[start])) start++;
+    while (start < len && concat_is_whitespace(str[start])) start++;
 
     // Trim trailing whitespace
     size_t end = len;
-    while (end > start && is_whitespace(str[end - 1])) end--;
+    while (end > start && concat_is_whitespace(str[end - 1])) end--;
 
     // Skip empty segments
     if (start >= end) continue;

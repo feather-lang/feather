@@ -1,9 +1,6 @@
 #include "feather.h"
 #include "internal.h"
-
-static int is_args_param(const char *s, size_t len) {
-  return len == 4 && s[0] == 'a' && s[1] == 'r' && s[2] == 'g' && s[3] == 's';
-}
+#include "charclass.h"
 
 FeatherResult feather_builtin_apply(const FeatherHostOps *ops, FeatherInterp interp,
                                     FeatherObj cmd, FeatherObj args) {
@@ -58,7 +55,7 @@ FeatherResult feather_builtin_apply(const FeatherHostOps *ops, FeatherInterp int
     size_t paramListLen = ops->list.length(interp, param);
     if (paramListLen == 2) {
       optional_params++;
-    } else if (is_args_param(paramStr, paramLen)) {
+    } else if (feather_is_args_param(paramStr, paramLen)) {
       is_variadic = 1;
     } else {
       required_params++;
@@ -81,7 +78,7 @@ FeatherResult feather_builtin_apply(const FeatherHostOps *ops, FeatherInterp int
 
       msg = ops->string.concat(interp, msg, ops->string.intern(interp, " ", 1));
 
-      if (is_args_param(paramStr, paramLen) && paramListLen == 1) {
+      if (feather_is_args_param(paramStr, paramLen) && paramListLen == 1) {
         msg = ops->string.concat(interp, msg, ops->string.intern(interp, "?arg ...?", 9));
       } else if (paramListLen == 2) {
         FeatherObj paramName = ops->list.at(interp, param, 0);
@@ -130,7 +127,7 @@ FeatherResult feather_builtin_apply(const FeatherHostOps *ops, FeatherInterp int
 
     size_t paramListLen = ops->list.length(interp, param);
 
-    if (is_args_param(paramStr, paramLen) && paramListLen == 1) {
+    if (feather_is_args_param(paramStr, paramLen) && paramListLen == 1) {
       FeatherObj collectedArgs = ops->list.create(interp);
       while (arg_index < provided_argc) {
         FeatherObj arg = ops->list.shift(interp, argsCopy);
