@@ -1673,12 +1673,14 @@ async function createFeather(wasmSource) {
 
       const status = wasmInstance.exports.feather_parse_command(0, interpId, ctxPtr);
 
-      wasmInstance.exports.free(ctxPtr);
-      wasmInstance.exports.free(ptr);
+      // Note: don't free ctxPtr/ptr - they're in arena, will be reset
 
       // Convert TCL_PARSE_DONE to TCL_PARSE_OK (empty script is OK)
       if (status === TCL_PARSE_DONE) {
         interp.result = interp.store({ type: 'list', items: [] });
+        // Reset arenas (parse is always top-level)
+        interp.resetScratch();
+        wasmInstance.exports.feather_arena_reset();
         return { status: TCL_PARSE_OK, result: '' };
       }
 
@@ -1694,73 +1696,92 @@ async function createFeather(wasmSource) {
         }
       }
 
+      // Reset arenas (parse is always top-level)
+      interp.resetScratch();
+      wasmInstance.exports.feather_arena_reset();
+
       return { status, result: resultStr ? `{${resultStr}}` : '', errorMessage };
     },
 
     eval(interpId, script) {
-      const [ptr, len] = writeString(script);
-      const result = wasmInstance.exports.feather_script_eval(0, interpId, ptr, len, 0);
-      wasmInstance.exports.free(ptr);
-
       const interp = interpreters.get(interpId);
-      if (result === TCL_OK) {
-        return interp.getString(interp.result);
-      }
-      // Handle TCL_RETURN at top level - apply the return options
-      if (result === TCL_RETURN) {
-        // Get return options and apply the code
-        let code = TCL_OK;
-        const opts = interp.returnOptions.get('current');
-        if (opts) {
-          const items = interp.getList(opts);
-          for (let j = 0; j + 1 < items.length; j += 2) {
-            const key = interp.getString(items[j]);
-            if (key === '-code') {
-              const codeStr = interp.getString(items[j + 1]);
-              const codeVal = parseInt(codeStr, 10);
-              if (!isNaN(codeVal)) {
-                code = codeVal;
+      interp.evalDepth++;
+      
+      try {
+        const [ptr, len] = writeString(script);
+        const result = wasmInstance.exports.feather_script_eval(0, interpId, ptr, len, 0);
+        // Note: don't free ptr - it's in arena, will be reset
+        
+        // Capture result BEFORE reset (getString returns plain JS string)
+        const resultValue = interp.getString(interp.result);
+        
+        if (result === TCL_OK) {
+          return resultValue;
+        }
+        // Handle TCL_RETURN at top level - apply the return options
+        if (result === TCL_RETURN) {
+          // Get return options and apply the code
+          let code = TCL_OK;
+          const opts = interp.returnOptions.get('current');
+          if (opts) {
+            const items = interp.getList(opts);
+            for (let j = 0; j + 1 < items.length; j += 2) {
+              const key = interp.getString(items[j]);
+              if (key === '-code') {
+                const codeStr = interp.getString(items[j + 1]);
+                const codeVal = parseInt(codeStr, 10);
+                if (!isNaN(codeVal)) {
+                  code = codeVal;
+                }
               }
             }
           }
+          // Apply the extracted code
+          if (code === TCL_OK) {
+            return resultValue;
+          }
+          if (code === TCL_ERROR) {
+            const error = new Error(resultValue);
+            error.code = TCL_ERROR;
+            throw error;
+          }
+          if (code === TCL_BREAK) {
+            const error = new Error('invoked "break" outside of a loop');
+            error.code = TCL_BREAK;
+            throw error;
+          }
+          if (code === TCL_CONTINUE) {
+            const error = new Error('invoked "continue" outside of a loop');
+            error.code = TCL_CONTINUE;
+            throw error;
+          }
+          // For other codes, treat as ok
+          return resultValue;
         }
-        // Apply the extracted code
-        if (code === TCL_OK) {
-          return interp.getString(interp.result);
-        }
-        if (code === TCL_ERROR) {
-          const error = new Error(interp.getString(interp.result));
-          error.code = TCL_ERROR;
-          throw error;
-        }
-        if (code === TCL_BREAK) {
+        // Convert break/continue outside loop to specific error messages
+        if (result === TCL_BREAK) {
           const error = new Error('invoked "break" outside of a loop');
-          error.code = TCL_BREAK;
+          error.code = result;
           throw error;
         }
-        if (code === TCL_CONTINUE) {
+        if (result === TCL_CONTINUE) {
           const error = new Error('invoked "continue" outside of a loop');
-          error.code = TCL_CONTINUE;
+          error.code = result;
           throw error;
         }
-        // For other codes, treat as ok
-        return interp.getString(interp.result);
-      }
-      // Convert break/continue outside loop to specific error messages
-      if (result === TCL_BREAK) {
-        const error = new Error('invoked "break" outside of a loop');
+        // For TCL_ERROR and other codes, use the result message
+        const error = new Error(resultValue);
         error.code = result;
         throw error;
+      } finally {
+        interp.evalDepth--;
+        
+        // Reset arenas only at top-level completion
+        if (interp.evalDepth === 0) {
+          interp.resetScratch();
+          wasmInstance.exports.feather_arena_reset();
+        }
       }
-      if (result === TCL_CONTINUE) {
-        const error = new Error('invoked "continue" outside of a loop');
-        error.code = result;
-        throw error;
-      }
-      // For TCL_ERROR and other codes, use the result message
-      const error = new Error(interp.getString(interp.result));
-      error.code = result;
-      throw error;
     },
 
     getResult(interpId) {
