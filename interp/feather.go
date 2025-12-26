@@ -151,6 +151,10 @@ type Interp struct {
 	// ForeignRegistry stores foreign type definitions for the high-level API.
 	// Set by DefineType when registering foreign types.
 	ForeignRegistry *ForeignRegistry
+
+	// unknownHandler is called when a command is not found in Commands.
+	// If nil, the default behavior is to return an error.
+	unknownHandler CommandFunc
 }
 
 // NewInterp creates a new interpreter
@@ -217,8 +221,19 @@ func (i *Interp) dispatch(cmd FeatherObj, args []FeatherObj) FeatherResult {
 	if fn, ok := i.Commands[cmdStr]; ok {
 		return fn(i, cmd, args)
 	}
+	if i.unknownHandler != nil {
+		return i.unknownHandler(i, cmd, args)
+	}
 	i.SetErrorString("invalid command name \"" + cmdStr + "\"")
 	return ResultError
+}
+
+// SetUnknownHandler sets a handler that is called when a command is not found.
+// The handler receives the command name and arguments, and can implement
+// custom command resolution (e.g., auto-loading, dynamic dispatch).
+// Set to nil to restore default behavior (return error).
+func (i *Interp) SetUnknownHandler(fn CommandFunc) {
+	i.unknownHandler = fn
 }
 
 // DefaultRecursionLimit is the default maximum call stack depth.

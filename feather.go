@@ -263,6 +263,26 @@ func (i *Interp) Register(name string, fn any) {
 	i.i.Register(name, wrapper)
 }
 
+// SetUnknownHandler sets a handler that is called when a command is not found.
+// The handler receives the command name and arguments, and can implement
+// custom command resolution (e.g., auto-loading, dynamic dispatch).
+// Set to nil to restore default behavior (return error).
+func (i *Interp) SetUnknownHandler(fn CommandFunc) {
+	i.i.SetUnknownHandler(func(ii *interp.Interp, cmd interp.FeatherObj, args []interp.FeatherObj) interp.FeatherResult {
+		objArgs := make([]Object, len(args))
+		for j, h := range args {
+			objArgs[j] = Object{ii, h}
+		}
+		r := fn(i, Object{ii, cmd}, objArgs)
+		if r.code == interp.ResultError {
+			ii.SetErrorString(r.val)
+		} else {
+			ii.SetResultString(r.val)
+		}
+		return r.code
+	})
+}
+
 // Parse checks if a script is syntactically complete.
 // Returns ParseOK, ParseIncomplete, or ParseError.
 func (i *Interp) Parse(script string) ParseResult {
