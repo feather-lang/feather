@@ -26,8 +26,14 @@ const DEFAULT_RECURSION_LIMIT = 200;
 class FeatherInterp {
   constructor(id) {
     this.id = id;
-    this.objects = new Map();
-    this.nextHandle = 1;
+    
+    // Scratch arena - reset after each top-level eval
+    this.scratch = {
+      objects: new Map(),
+      nextHandle: 1,
+    };
+    this.evalDepth = 0;  // Track nested eval depth
+    
     this.result = 0;
     // Global namespace - shared between namespace storage and frame 0
     const globalNS = { vars: new Map(), children: new Map(), exports: [], commands: new Map() };
@@ -47,8 +53,8 @@ class FeatherInterp {
   }
 
   store(obj) {
-    const handle = this.nextHandle++;
-    this.objects.set(handle, obj);
+    const handle = this.scratch.nextHandle++;
+    this.scratch.objects.set(handle, obj);
     return handle;
   }
 
@@ -59,7 +65,66 @@ class FeatherInterp {
   }
 
   get(handle) {
-    return this.objects.get(handle);
+    return this.scratch.objects.get(handle);
+  }
+
+  /**
+   * Reset the scratch arena, reclaiming all handle memory.
+   * Only call at top-level eval boundaries (evalDepth === 0).
+   * Invalidates all handles from previous allocations.
+   */
+  resetScratch() {
+    this.scratch = { objects: new Map(), nextHandle: 1 };
+  }
+
+  /**
+   * Materialize a handle into a persistent value (deep copy).
+   * Handles are only valid during a single eval. To store values
+   * persistently (in procs, namespaces, traces), materialize them.
+   */
+  materialize(handle) {
+    if (handle === 0) return null;
+    const obj = this.get(handle);
+    if (!obj) return null;
+    
+    if (obj.type === 'string') return { type: 'string', value: obj.value };
+    if (obj.type === 'int') return { type: 'int', value: obj.value };
+    if (obj.type === 'double') return { type: 'double', value: obj.value };
+    if (obj.type === 'list') {
+      return { type: 'list', items: obj.items.map(h => this.materialize(h)) };
+    }
+    if (obj.type === 'dict') {
+      return { 
+        type: 'dict', 
+        entries: obj.entries.map(([k, v]) => [this.materialize(k), this.materialize(v)])
+      };
+    }
+    if (obj.type === 'foreign') {
+      // Foreign objects can't be fully materialized; store reference info
+      return { type: 'foreign', typeName: obj.typeName, stringRep: obj.stringRep };
+    }
+    // Fallback
+    return { type: 'string', value: this.getString(handle) };
+  }
+
+  /**
+   * Wrap a materialized value into a fresh scratch handle.
+   * When retrieving from persistent storage, wrap values to get
+   * handles that C code can use during this eval.
+   */
+  wrap(value) {
+    if (value === null || value === undefined) return 0;
+    
+    if (value.type === 'list') {
+      const items = value.items.map(item => this.wrap(item));
+      return this.store({ type: 'list', items });
+    }
+    if (value.type === 'dict') {
+      const entries = value.entries.map(([k, v]) => [this.wrap(k), this.wrap(v)]);
+      return this.store({ type: 'dict', entries });
+    }
+    // Primitives: string, int, double, foreign
+    return this.store({ ...value });
   }
 
   getString(handle) {
@@ -70,11 +135,14 @@ class FeatherInterp {
     if (obj.type === 'string') return obj.value;
     if (obj.type === 'int') return String(obj.value);
     if (obj.type === 'double') {
-      // Format special values to match Go's strconv format
+      // Format special values to match TCL's format
       if (Number.isNaN(obj.value)) return 'NaN';
-      if (obj.value === Infinity) return '+Inf';
+      if (obj.value === Infinity) return 'Inf';
       if (obj.value === -Infinity) return '-Inf';
-      return String(obj.value);
+      // TCL requires floats to always have a decimal point
+      const s = String(obj.value);
+      if (s.includes('.') || s.includes('e') || s.includes('E')) return s;
+      return s + '.0';
     }
     if (obj.type === 'list') return obj.items.map(h => this.quoteListElement(this.getString(h))).join(' ');
     if (obj.type === 'dict') {
@@ -277,8 +345,8 @@ async function createFeather(wasmSource) {
       if (!ops.includes(op)) continue;
 
       // Build the command: script name1 name2 op
-      const scriptStr = interp.getString(trace.script);
-      const cmd = `${scriptStr} ${varName} {} ${op}`;
+      // trace.script is now stored as string directly
+      const cmd = `${trace.script} ${varName} {} ${op}`;
       const [ptr, len] = writeString(cmd);
       wasmInstance.exports.feather_script_eval(0, interp.id, ptr, len, 0);
       wasmInstance.exports.free(ptr);
@@ -310,12 +378,12 @@ async function createFeather(wasmSource) {
 
       // Build the command: script oldName newName op
       // Use display names (strip :: for global namespace commands)
-      const scriptStr = interp.getString(trace.script);
+      // trace.script is now stored as string directly
       const displayOld = displayName(oldName);
       const displayNew = displayName(newName);
       // Empty strings must be properly quoted with {}
       const quotedNew = displayNew === '' ? '{}' : displayNew;
-      const cmd = `${scriptStr} ${displayOld} ${quotedNew} ${op}`;
+      const cmd = `${trace.script} ${displayOld} ${quotedNew} ${op}`;
       const [ptr, len] = writeString(cmd);
       wasmInstance.exports.feather_script_eval(0, interp.id, ptr, len, 0);
       wasmInstance.exports.free(ptr);
@@ -358,6 +426,10 @@ async function createFeather(wasmSource) {
   // Host function implementations - provided as WASM imports
   const hostImports = {
     // Frame operations
+    // NOTE: Frame cmd/args store raw handles. This is safe because:
+    // 1. Frames are always popped before eval returns
+    // 2. Arena reset only happens at top-level eval completion
+    // 3. If we ever support frame introspection across evals, revisit this
     feather_host_frame_push: (interpId, cmd, args) => {
       const interp = interpreters.get(interpId);
       // Check recursion limit
@@ -419,42 +491,44 @@ async function createFeather(wasmSource) {
       const frame = interp.currentFrame();
       const entry = frame.vars.get(varName);
       if (!entry) return 0;
-      let result;
+      let materialized;
       if (entry.link) {
         const targetFrame = interp.frames[entry.link.level];
         const targetEntry = targetFrame?.vars.get(entry.link.name);
         if (!targetEntry) return 0;
-        result = typeof targetEntry === 'object' && 'value' in targetEntry ? targetEntry.value : targetEntry;
+        materialized = typeof targetEntry === 'object' && 'value' in targetEntry ? targetEntry.value : targetEntry;
       } else if (entry.nsLink) {
         const ns = interp.getNamespace(entry.nsLink.ns);
         const nsEntry = ns?.vars.get(entry.nsLink.name);
         if (!nsEntry) return 0;
-        result = typeof nsEntry === 'object' && 'value' in nsEntry ? nsEntry.value : nsEntry;
+        materialized = typeof nsEntry === 'object' && 'value' in nsEntry ? nsEntry.value : nsEntry;
       } else {
-        result = entry.value || 0;
+        materialized = entry.value;
       }
+      if (!materialized) return 0;
       // Fire read traces
       fireVarTraces(interp, varName, 'read');
-      return result;
+      return interp.wrap(materialized);
     },
     feather_host_var_set: (interpId, name, value) => {
       const interp = interpreters.get(interpId);
       const varName = interp.getString(name);
       const frame = interp.currentFrame();
       const entry = frame.vars.get(varName);
+      const materialized = interp.materialize(value);
       if (entry?.link) {
         const targetFrame = interp.frames[entry.link.level];
         if (targetFrame) {
           let targetEntry = targetFrame.vars.get(entry.link.name);
           if (!targetEntry) targetEntry = {};
-          targetEntry.value = value;
+          targetEntry.value = materialized;
           targetFrame.vars.set(entry.link.name, targetEntry);
         }
       } else if (entry?.nsLink) {
         const ns = interp.getNamespace(entry.nsLink.ns);
-        if (ns) ns.vars.set(entry.nsLink.name, { value });
+        if (ns) ns.vars.set(entry.nsLink.name, { value: materialized });
       } else {
-        frame.vars.set(varName, { value });
+        frame.vars.set(varName, { value: materialized });
       }
       // Fire write traces
       fireVarTraces(interp, varName, 'write');
@@ -515,7 +589,12 @@ async function createFeather(wasmSource) {
     feather_host_proc_define: (interpId, name, params, body) => {
       const interp = interpreters.get(interpId);
       const procName = interp.getString(name);
-      interp.procs.set(procName, { params, body });
+      
+      // Materialize for persistent storage
+      const materializedParams = interp.materialize(params);
+      const materializedBody = interp.materialize(body);
+      
+      interp.procs.set(procName, { params: materializedParams, body: materializedBody });
 
       // Also store in namespace commands map for ns_list_commands
       // Extract namespace and simple name from qualified name (e.g., "::foo::bar" -> ns="foo", name="bar")
@@ -532,7 +611,7 @@ async function createFeather(wasmSource) {
         }
       }
       const namespace = interp.ensureNamespace('::' + nsPath);
-      namespace.commands.set(simpleName, { kind: TCL_CMD_PROC, fn: 0, params, body });
+      namespace.commands.set(simpleName, { kind: TCL_CMD_PROC, fn: 0, params: materializedParams, body: materializedBody });
     },
     feather_host_proc_exists: (interpId, name) => {
       const interp = interpreters.get(interpId);
@@ -544,7 +623,7 @@ async function createFeather(wasmSource) {
       // Try both qualified and simple names
       const proc = interp.procs.get(procName) || interp.procs.get(`::${procName}`);
       if (proc) {
-        writeI32(resultPtr, proc.params);
+        writeI32(resultPtr, interp.wrap(proc.params));
         return TCL_OK;
       }
       return TCL_ERROR;
@@ -555,7 +634,7 @@ async function createFeather(wasmSource) {
       // Try both qualified and simple names
       const proc = interp.procs.get(procName) || interp.procs.get(`::${procName}`);
       if (proc) {
-        writeI32(resultPtr, proc.body);
+        writeI32(resultPtr, interp.wrap(proc.body));
         return TCL_OK;
       }
       return TCL_ERROR;
@@ -765,14 +844,17 @@ async function createFeather(wasmSource) {
       if (!namespace) return 0;
       const entry = namespace.vars.get(varName);
       if (!entry) return 0;
-      return typeof entry === 'object' && 'value' in entry ? entry.value : entry;
+      const materialized = typeof entry === 'object' && 'value' in entry ? entry.value : entry;
+      if (!materialized) return 0;
+      return interp.wrap(materialized);
     },
     feather_host_ns_set_var: (interpId, ns, name, value) => {
       const interp = interpreters.get(interpId);
       const nsPath = interp.getString(ns);
       const varName = interp.getString(name);
       const namespace = interp.ensureNamespace(nsPath);
-      namespace.vars.set(varName, { value });
+      const materialized = interp.materialize(value);
+      namespace.vars.set(varName, { value: materialized });
     },
     feather_host_ns_var_exists: (interpId, ns, name) => {
       const interp = interpreters.get(interpId);
@@ -811,7 +893,12 @@ async function createFeather(wasmSource) {
       const nsPath = interp.getString(ns);
       const cmdName = interp.getString(name);
       const namespace = interp.ensureNamespace(nsPath);
-      namespace.commands.set(cmdName, { kind, fn, params, body });
+      namespace.commands.set(cmdName, { 
+        kind, 
+        fn, 
+        params: interp.materialize(params),
+        body: interp.materialize(body)
+      });
     },
     feather_host_ns_delete_command: (interpId, ns, name) => {
       const interp = interpreters.get(interpId);
@@ -1426,10 +1513,12 @@ async function createFeather(wasmSource) {
       const kindStr = interp.getString(kind);
       const nameStr = interp.getString(name);
       const opsStr = interp.getString(ops);
+      // Materialize script as string for persistent storage
+      const scriptStr = interp.getString(script);
       const traces = interp.traces[kindStr];
       if (!traces) return TCL_ERROR;
       if (!traces.has(nameStr)) traces.set(nameStr, []);
-      traces.get(nameStr).push({ ops: opsStr, script });
+      traces.get(nameStr).push({ ops: opsStr, script: scriptStr });
       return TCL_OK;
     },
     feather_host_trace_remove: (interpId, kind, name, ops, script) => {
@@ -1440,7 +1529,8 @@ async function createFeather(wasmSource) {
       const traces = interp.traces[kindStr]?.get(nameStr);
       if (!traces) return TCL_ERROR;
       const scriptStr = interp.getString(script);
-      const idx = traces.findIndex(t => t.ops === opsStr && interp.getString(t.script) === scriptStr);
+      // trace.script is now stored as string, compare directly
+      const idx = traces.findIndex(t => t.ops === opsStr && t.script === scriptStr);
       if (idx >= 0) {
         traces.splice(idx, 1);
         return TCL_OK;
@@ -1456,7 +1546,8 @@ async function createFeather(wasmSource) {
         // Split ops into individual elements, then append script
         const ops = t.ops.split(/\s+/).filter(o => o);
         const subItems = ops.map(op => interp.store({ type: 'string', value: op }));
-        subItems.push(t.script);
+        // t.script is now stored as string, wrap it as a handle
+        subItems.push(interp.store({ type: 'string', value: t.script }));
         return interp.store({ type: 'list', items: subItems });
       });
       return interp.store({ type: 'list', items });
@@ -1592,12 +1683,14 @@ async function createFeather(wasmSource) {
 
       const status = wasmInstance.exports.feather_parse_command(0, interpId, ctxPtr);
 
-      wasmInstance.exports.free(ctxPtr);
-      wasmInstance.exports.free(ptr);
+      // Note: don't free ctxPtr/ptr - they're in arena, will be reset
 
       // Convert TCL_PARSE_DONE to TCL_PARSE_OK (empty script is OK)
       if (status === TCL_PARSE_DONE) {
         interp.result = interp.store({ type: 'list', items: [] });
+        // Reset arenas (parse is always top-level)
+        interp.resetScratch();
+        wasmInstance.exports.feather_arena_reset();
         return { status: TCL_PARSE_OK, result: '' };
       }
 
@@ -1613,73 +1706,92 @@ async function createFeather(wasmSource) {
         }
       }
 
+      // Reset arenas (parse is always top-level)
+      interp.resetScratch();
+      wasmInstance.exports.feather_arena_reset();
+
       return { status, result: resultStr ? `{${resultStr}}` : '', errorMessage };
     },
 
     eval(interpId, script) {
-      const [ptr, len] = writeString(script);
-      const result = wasmInstance.exports.feather_script_eval(0, interpId, ptr, len, 0);
-      wasmInstance.exports.free(ptr);
-
       const interp = interpreters.get(interpId);
-      if (result === TCL_OK) {
-        return interp.getString(interp.result);
-      }
-      // Handle TCL_RETURN at top level - apply the return options
-      if (result === TCL_RETURN) {
-        // Get return options and apply the code
-        let code = TCL_OK;
-        const opts = interp.returnOptions.get('current');
-        if (opts) {
-          const items = interp.getList(opts);
-          for (let j = 0; j + 1 < items.length; j += 2) {
-            const key = interp.getString(items[j]);
-            if (key === '-code') {
-              const codeStr = interp.getString(items[j + 1]);
-              const codeVal = parseInt(codeStr, 10);
-              if (!isNaN(codeVal)) {
-                code = codeVal;
+      interp.evalDepth++;
+      
+      try {
+        const [ptr, len] = writeString(script);
+        const result = wasmInstance.exports.feather_script_eval(0, interpId, ptr, len, 0);
+        // Note: don't free ptr - it's in arena, will be reset
+        
+        // Capture result BEFORE reset (getString returns plain JS string)
+        const resultValue = interp.getString(interp.result);
+        
+        if (result === TCL_OK) {
+          return resultValue;
+        }
+        // Handle TCL_RETURN at top level - apply the return options
+        if (result === TCL_RETURN) {
+          // Get return options and apply the code
+          let code = TCL_OK;
+          const opts = interp.returnOptions.get('current');
+          if (opts) {
+            const items = interp.getList(opts);
+            for (let j = 0; j + 1 < items.length; j += 2) {
+              const key = interp.getString(items[j]);
+              if (key === '-code') {
+                const codeStr = interp.getString(items[j + 1]);
+                const codeVal = parseInt(codeStr, 10);
+                if (!isNaN(codeVal)) {
+                  code = codeVal;
+                }
               }
             }
           }
+          // Apply the extracted code
+          if (code === TCL_OK) {
+            return resultValue;
+          }
+          if (code === TCL_ERROR) {
+            const error = new Error(resultValue);
+            error.code = TCL_ERROR;
+            throw error;
+          }
+          if (code === TCL_BREAK) {
+            const error = new Error('invoked "break" outside of a loop');
+            error.code = TCL_BREAK;
+            throw error;
+          }
+          if (code === TCL_CONTINUE) {
+            const error = new Error('invoked "continue" outside of a loop');
+            error.code = TCL_CONTINUE;
+            throw error;
+          }
+          // For other codes, treat as ok
+          return resultValue;
         }
-        // Apply the extracted code
-        if (code === TCL_OK) {
-          return interp.getString(interp.result);
-        }
-        if (code === TCL_ERROR) {
-          const error = new Error(interp.getString(interp.result));
-          error.code = TCL_ERROR;
-          throw error;
-        }
-        if (code === TCL_BREAK) {
+        // Convert break/continue outside loop to specific error messages
+        if (result === TCL_BREAK) {
           const error = new Error('invoked "break" outside of a loop');
-          error.code = TCL_BREAK;
+          error.code = result;
           throw error;
         }
-        if (code === TCL_CONTINUE) {
+        if (result === TCL_CONTINUE) {
           const error = new Error('invoked "continue" outside of a loop');
-          error.code = TCL_CONTINUE;
+          error.code = result;
           throw error;
         }
-        // For other codes, treat as ok
-        return interp.getString(interp.result);
-      }
-      // Convert break/continue outside loop to specific error messages
-      if (result === TCL_BREAK) {
-        const error = new Error('invoked "break" outside of a loop');
+        // For TCL_ERROR and other codes, use the result message
+        const error = new Error(resultValue);
         error.code = result;
         throw error;
+      } finally {
+        interp.evalDepth--;
+        
+        // Reset arenas only at top-level completion
+        if (interp.evalDepth === 0) {
+          interp.resetScratch();
+          wasmInstance.exports.feather_arena_reset();
+        }
       }
-      if (result === TCL_CONTINUE) {
-        const error = new Error('invoked "continue" outside of a loop');
-        error.code = result;
-        throw error;
-      }
-      // For TCL_ERROR and other codes, use the result message
-      const error = new Error(interp.getString(interp.result));
-      error.code = result;
-      throw error;
     },
 
     getResult(interpId) {
@@ -1689,6 +1801,26 @@ async function createFeather(wasmSource) {
 
     destroy(interpId) {
       interpreters.delete(interpId);
+    },
+
+    memoryStats(interpId) {
+      const interp = interpreters.get(interpId);
+      return {
+        scratchHandles: interp.scratch.objects.size,
+        wasmArenaUsed: wasmInstance.exports.feather_arena_used(),
+        namespaceCount: interp.namespaces.size,
+        procCount: interp.procs.size,
+        evalDepth: interp.evalDepth,
+      };
+    },
+
+    forceReset(interpId) {
+      const interp = interpreters.get(interpId);
+      if (interp.evalDepth > 0) {
+        throw new Error('Cannot reset during eval');
+      }
+      interp.resetScratch();
+      wasmInstance.exports.feather_arena_reset();
     },
 
     get exports() {

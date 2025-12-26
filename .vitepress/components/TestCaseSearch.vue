@@ -276,6 +276,7 @@ async function runTest(tc) {
         exitCode = 0
       } catch (e) {
         errorStr = e.message || ''
+        stdout.push(errorStr)
         returnCode = 'TCL_ERROR'
         exitCode = 1
       }

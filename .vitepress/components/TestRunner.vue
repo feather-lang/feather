@@ -253,16 +253,17 @@ function runSingleTest(tc) {
     exitCode = 3
   } else {
     try {
-      const evalResult = feather.value.eval(interp, tc.script)
-      resultStr = evalResult || ''
-      if (evalResult !== '') stdout.push(evalResult)
-      returnCode = 'TCL_OK'
-      exitCode = 0
-    } catch (e) {
-      errorStr = e.message || ''
-      returnCode = 'TCL_ERROR'
-      exitCode = 1
-    }
+        const evalResult = feather.value.eval(interp, tc.script)
+        resultStr = evalResult || ''
+        if (evalResult !== '') stdout.push(evalResult)
+        returnCode = 'TCL_OK'
+        exitCode = 0
+      } catch (e) {
+        errorStr = e.message || ''
+        stdout.push(errorStr)
+        returnCode = 'TCL_ERROR'
+        exitCode = 1
+      }
   }
 
   feather.value.destroy(interp)
