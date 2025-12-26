@@ -575,7 +575,12 @@ async function createFeather(wasmSource) {
     feather_host_proc_define: (interpId, name, params, body) => {
       const interp = interpreters.get(interpId);
       const procName = interp.getString(name);
-      interp.procs.set(procName, { params, body });
+      
+      // Materialize for persistent storage
+      const materializedParams = interp.materialize(params);
+      const materializedBody = interp.materialize(body);
+      
+      interp.procs.set(procName, { params: materializedParams, body: materializedBody });
 
       // Also store in namespace commands map for ns_list_commands
       // Extract namespace and simple name from qualified name (e.g., "::foo::bar" -> ns="foo", name="bar")
@@ -592,7 +597,7 @@ async function createFeather(wasmSource) {
         }
       }
       const namespace = interp.ensureNamespace('::' + nsPath);
-      namespace.commands.set(simpleName, { kind: TCL_CMD_PROC, fn: 0, params, body });
+      namespace.commands.set(simpleName, { kind: TCL_CMD_PROC, fn: 0, params: materializedParams, body: materializedBody });
     },
     feather_host_proc_exists: (interpId, name) => {
       const interp = interpreters.get(interpId);
@@ -604,7 +609,7 @@ async function createFeather(wasmSource) {
       // Try both qualified and simple names
       const proc = interp.procs.get(procName) || interp.procs.get(`::${procName}`);
       if (proc) {
-        writeI32(resultPtr, proc.params);
+        writeI32(resultPtr, interp.wrap(proc.params));
         return TCL_OK;
       }
       return TCL_ERROR;
@@ -615,7 +620,7 @@ async function createFeather(wasmSource) {
       // Try both qualified and simple names
       const proc = interp.procs.get(procName) || interp.procs.get(`::${procName}`);
       if (proc) {
-        writeI32(resultPtr, proc.body);
+        writeI32(resultPtr, interp.wrap(proc.body));
         return TCL_OK;
       }
       return TCL_ERROR;
