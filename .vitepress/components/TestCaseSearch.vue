@@ -72,9 +72,9 @@
         </div>
       </div>
 
-      <div class="more-results" v-if="filteredTests.length > maxResults">
-        + {{ filteredTests.length - maxResults }} more results
-      </div>
+      <button class="more-results" v-if="filteredTests.length > displayLimit" @click="showMore">
+        + {{ filteredTests.length - displayLimit }} more results
+      </button>
     </div>
 
     <div class="no-results" v-else-if="query && filteredTests.length === 0">
@@ -98,9 +98,15 @@ const { feather, ready, error: wasmError } = useFeather()
 const allTests = ref([])
 const parseError = ref(null)
 const query = ref('')
+const displayLimit = ref(props.maxResults)
 
 function setQuery(q) {
   query.value = q
+  displayLimit.value = props.maxResults
+}
+
+function showMore() {
+  displayLimit.value += 10
 }
 
 defineExpose({ setQuery })
@@ -123,7 +129,7 @@ const filteredTests = computed(() => {
 })
 
 const displayedTests = computed(() => {
-  return filteredTests.value.slice(0, props.maxResults)
+  return filteredTests.value.slice(0, displayLimit.value)
 })
 
 function highlight(text) {
@@ -269,13 +275,8 @@ async function runTest(tc) {
         exitCode = 0
       } catch (e) {
         errorStr = e.message || ''
-        if (e.code === TCL_ERROR) {
-          returnCode = 'TCL_ERROR'
-          exitCode = 1
-        } else {
-          returnCode = RETURN_CODE_NAMES[e.code] || 'TCL_ERROR'
-          exitCode = e.code || 1
-        }
+        returnCode = 'TCL_ERROR'
+        exitCode = 1
       }
     }
 
@@ -522,11 +523,19 @@ watch(() => props.source, (newSource) => {
 }
 
 .more-results {
+  width: 100%;
   padding: 12px 16px;
   text-align: center;
   color: var(--vp-c-text-2);
   font-size: 14px;
   background: var(--vp-c-bg-soft);
   border-radius: 8px;
+  border: 1px solid var(--vp-c-divider);
+  cursor: pointer;
+}
+
+.more-results:hover {
+  border-color: var(--vp-c-brand-1);
+  color: var(--vp-c-brand-1);
 }
 </style>

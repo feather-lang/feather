@@ -284,13 +284,8 @@ async function runTest(idx, autoExpand = true) {
         exitCode = 0
       } catch (e) {
         errorStr = e.message || ''
-        if (e.code === TCL_ERROR) {
-          returnCode = 'TCL_ERROR'
-          exitCode = 1
-        } else {
-          returnCode = RETURN_CODE_NAMES[e.code] || 'TCL_ERROR'
-          exitCode = e.code || 1
-        }
+        returnCode = 'TCL_ERROR'
+        exitCode = 1
       }
     }
 
