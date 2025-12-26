@@ -44,7 +44,7 @@
 .VPHero .name,
 .VPHero .text,
 .VPFeature .title,
-h1, h2, h3 {
+h1, h2, h3:not(.platform-text h3) {
   font-family: var(--vp-font-family-headline);
   font-style: italic;
 }
