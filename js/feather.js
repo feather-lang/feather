@@ -1793,6 +1793,26 @@ async function createFeather(wasmSource) {
       interpreters.delete(interpId);
     },
 
+    memoryStats(interpId) {
+      const interp = interpreters.get(interpId);
+      return {
+        scratchHandles: interp.scratch.objects.size,
+        wasmArenaUsed: wasmInstance.exports.feather_arena_used(),
+        namespaceCount: interp.namespaces.size,
+        procCount: interp.procs.size,
+        evalDepth: interp.evalDepth,
+      };
+    },
+
+    forceReset(interpId) {
+      const interp = interpreters.get(interpId);
+      if (interp.evalDepth > 0) {
+        throw new Error('Cannot reset during eval');
+      }
+      interp.resetScratch();
+      wasmInstance.exports.feather_arena_reset();
+    },
+
     get exports() {
       return wasmInstance.exports;
     }
