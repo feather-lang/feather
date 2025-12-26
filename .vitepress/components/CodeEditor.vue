@@ -26,6 +26,10 @@ const props = defineProps({
   placeholder: {
     type: String,
     default: ''
+  },
+  height: {
+    type: String,
+    default: '280px'
   }
 })
 
@@ -159,7 +163,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .code-editor {
-  height: 280px;
+  height: v-bind(height);
   overflow: hidden;
 }
 

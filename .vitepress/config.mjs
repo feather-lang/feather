@@ -4,6 +4,7 @@ import { defineConfig } from "vitepress";
 export default defineConfig({
   srcDir: "md",
   head: [["link", { rel: "icon", href: "/feather-logo.png" }]],
+  ignoreDeadLinks: [/\.wasm$/, /\.js$/],
 
   title: "Feather Programming Language",
   description:
@@ -23,6 +24,7 @@ export default defineConfig({
         items: [
           { text: "Introduction", link: "/introduction" },
           { text: "In 5 Minutes", link: "/in-5-minutes" },
+          { text: "WASM", link: "/wasm" },
         ],
       },
       {
