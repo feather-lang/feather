@@ -1028,6 +1028,12 @@ func (i *Interp) SetErrorString(s string) {
 	i.result = i.internString(s)
 }
 
+// SetError sets the interpreter's result to the given object (for error results).
+// This is symmetric with SetResult but semantically indicates an error value.
+func (i *Interp) SetError(obj FeatherObj) {
+	i.result = obj
+}
+
 // SetVar sets a variable by name to a string value in the current frame.
 func (i *Interp) SetVar(name, value string) {
 	frame := i.frames[i.active]

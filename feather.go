@@ -715,7 +715,13 @@ func (i *Interp) RegisterCommand(name string, fn CommandFunc) {
 			objArgs[j] = Object{ii, h}
 		}
 		r := fn(i, Object{ii, cmd}, objArgs)
-		if r.code == interp.ResultError {
+		if r.isObj && r.obj != nil {
+			if r.code == interp.ResultError {
+				ii.SetError(r.obj.h)
+			} else {
+				ii.SetResult(r.obj.h)
+			}
+		} else if r.code == interp.ResultError {
 			ii.SetErrorString(r.val)
 		} else {
 			ii.SetResultString(r.val)
@@ -830,15 +836,18 @@ func (i *Interp) Internal() *interp.Interp {
 
 // Result represents the result of a command execution.
 //
-// Create results using [OK], [Error], or [Errorf].
+// Create results using [OK], [OKObj], [Error], [ErrorObj], or [Errorf].
 type Result struct {
-	code interp.FeatherResult
-	val  string
+	code  interp.FeatherResult
+	val   string        // used when obj is nil
+	obj   *Object       // used when non-nil (preserves type)
+	isObj bool          // true if obj should be used
 }
 
 // OK returns a successful result with a value.
 //
 // The value is auto-converted to a TCL string representation.
+// For [Object] values, use [OKObj] to preserve the object's internal type.
 //
 //	return feather.OK("success")
 //	return feather.OK(42)
@@ -847,11 +856,32 @@ func OK(v any) Result {
 	return Result{code: interp.ResultOK, val: toTclString(v)}
 }
 
+// OKObj returns a successful result with an Object, preserving its internal type.
+//
+// Use this instead of [OK] when you have an Object and want to preserve its
+// internal representation (int, list, dict, etc.) without string conversion.
+//
+//	list := interp.List(interp.String("a"), interp.String("b"))
+//	return feather.OKObj(list)
+func OKObj(obj Object) Result {
+	return Result{code: interp.ResultOK, obj: &obj, isObj: true}
+}
+
 // Error returns an error result with a message.
 //
 //	return feather.Error("something went wrong")
 func Error(msg string) Result {
 	return Result{code: interp.ResultError, val: msg}
+}
+
+// ErrorObj returns an error result with an Object, preserving its internal type.
+//
+// Use this when you need to return a structured error value rather than a string.
+//
+//	errDict := interp.DictKV("code", "404", "message", "not found")
+//	return feather.ErrorObj(errDict)
+func ErrorObj(obj Object) Result {
+	return Result{code: interp.ResultError, obj: &obj, isObj: true}
 }
 
 // Errorf returns a formatted error result.

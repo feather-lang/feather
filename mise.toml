@@ -61,8 +61,11 @@ depends = ["build:core", "build:harness", "build:feather-tester"]
 [tasks.test]
 description = "Run the test harness"
 depends = ["build"]
+usage = """
+arg "path" default="testcases/"
+"""
 run = """
-harness run --host bin/feather-tester testcases/
+harness run --host bin/feather-tester $usage_path
 """
 
 [tasks."test:js"]

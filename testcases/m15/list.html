@@ -77,4 +77,14 @@
     <exit-code>0</exit-code>
   </test-case>
 
+  <test-case name="proc returning list can be indexed">
+    <script>proc getlist {} { return {a b c} }
+lindex [getlist] 1</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>b</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
 </test-suite>
