@@ -12,7 +12,8 @@
 
     <div class="progress" v-if="running || completed > 0">
       <div class="progress-bar">
-        <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
+        <div class="progress-fill pass" :style="{ width: passPercent + '%' }"></div>
+        <div class="progress-fill fail" :style="{ width: failPercent + '%' }"></div>
       </div>
       <div class="progress-stats">
         <span class="completed">{{ completed }}/{{ totalTests }}</span>
@@ -133,9 +134,14 @@ const RETURN_CODE_NAMES = {
   [TCL_CONTINUE]: 'TCL_CONTINUE',
 }
 
-const progressPercent = computed(() => {
+const passPercent = computed(() => {
   if (totalTests.value === 0) return 0
-  return Math.round((completed.value / totalTests.value) * 100)
+  return (passed.value / totalTests.value) * 100
+})
+
+const failPercent = computed(() => {
+  if (totalTests.value === 0) return 0
+  return (failed.value / totalTests.value) * 100
 })
 
 function normalizeLines(content) {
@@ -403,12 +409,20 @@ watch(() => props.source, (newSource) => {
   border-radius: 4px;
   overflow: hidden;
   margin-bottom: 8px;
+  display: flex;
 }
 
 .progress-fill {
   height: 100%;
-  background: var(--vp-c-brand-1);
   transition: width 0.1s ease;
+}
+
+.progress-fill.pass {
+  background: #22c55e;
+}
+
+.progress-fill.fail {
+  background: #ef4444;
 }
 
 .progress-stats {
