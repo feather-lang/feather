@@ -571,12 +571,11 @@
   </test-case>
 
   <test-case name="format %f NaN">
-    <script>format "%f" [expr {sqrt(-1)}]</script>
-    <return>TCL_OK</return>
-    <error></error>
-    <stdout>NaN</stdout>
+    <script>format "%f" NaN</script>
+    <return>TCL_ERROR</return>
+    <error>floating point value is Not a Number</error>
     <stderr></stderr>
-    <exit-code>0</exit-code>
+    <exit-code>1</exit-code>
   </test-case>
 
   <test-case name="format %e positive infinity">
@@ -589,12 +588,11 @@
   </test-case>
 
   <test-case name="format %g NaN">
-    <script>format "%g" [expr {sqrt(-1)}]</script>
-    <return>TCL_OK</return>
-    <error></error>
-    <stdout>NaN</stdout>
+    <script>format "%g" NaN</script>
+    <return>TCL_ERROR</return>
+    <error>floating point value is Not a Number</error>
     <stderr></stderr>
-    <exit-code>0</exit-code>
+    <exit-code>1</exit-code>
   </test-case>
 
   <!-- ============================================= -->
