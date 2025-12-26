@@ -879,7 +879,12 @@ async function createFeather(wasmSource) {
       const nsPath = interp.getString(ns);
       const cmdName = interp.getString(name);
       const namespace = interp.ensureNamespace(nsPath);
-      namespace.commands.set(cmdName, { kind, fn, params, body });
+      namespace.commands.set(cmdName, { 
+        kind, 
+        fn, 
+        params: interp.materialize(params),
+        body: interp.materialize(body)
+      });
     },
     feather_host_ns_delete_command: (interpId, ns, name) => {
       const interp = interpreters.get(interpId);
