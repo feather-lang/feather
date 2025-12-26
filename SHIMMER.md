@@ -7,6 +7,13 @@ Two types, mirroring TCL:
 - `*Obj` — a Feather value
 - `ObjType` — interface for internal representation behavior
 
+**Design Constraints:**
+
+- No thread safety implied (like a regular Go map)
+- Shallow copy semantics for `Copy()` and `Dup()`
+- Nil `*Obj` returns zero values (0, "", empty list, etc.)
+- Equality is identity-based via handles
+
 ---
 
 ## The Object
@@ -14,10 +21,16 @@ Two types, mirroring TCL:
 ```go
 // Obj is a Feather value.
 type Obj struct {
-    bytes  string   // string representation ("" = invalid)
+    bytes  string   // string representation ("" = empty string if intrep == nil)
     intrep ObjType  // internal representation (nil = pure string)
+    cstr   *C.char  // cached C string for ops.string.get; freed on release
 }
 ```
+
+**String Representation Rules:**
+
+- `bytes == ""` with `intrep == nil` → empty string value
+- `bytes == ""` with `intrep != nil` → string rep needs regeneration via `UpdateString()`
 
 ---
 
@@ -308,6 +321,10 @@ func (o *Obj) Type() string {
 
 func (o *Obj) Invalidate() {
     o.bytes = ""
+    if o.cstr != nil {
+        C.free(unsafe.Pointer(o.cstr))
+        o.cstr = nil
+    }
 }
 
 func (o *Obj) Copy() *Obj {
@@ -352,12 +369,11 @@ func NewForeign(typeName string, value any) *Obj {
 
 ## List and Dict Operations (Free Functions)
 
+List operations are infallible — any value can become a list (wrapped as single element if needed).
+
 ```go
 func ListLen(o *Obj) int {
-    list, err := AsList(o)
-    if err != nil {
-        return 0
-    }
+    list, _ := AsList(o)
     return len(list)
 }
 
@@ -495,3 +511,20 @@ fmt.Println(i)                  // 3
 foreign := feather.NewForeign("Conn", myConn)
 _, err := feather.AsInt(foreign) // fails: no IntoInt, string "<Conn:0x...>" won't parse
 ```
+
+---
+
+## Integration
+
+This design lives entirely within the Go host (`interp/` package). The C interpreter
+continues to operate on opaque handles via `FeatherHostOps`.
+
+**Changes required:**
+
+- Replace internal value storage in `Interp` with `*Obj`
+- Update `FeatherHostOps` callback implementations to use `AsInt()`, `AsList()`, etc.
+- No changes to C code or builtins
+
+**Invalidation behavior** (matches TCL): mutating operations like `lset` regenerate
+the string representation. After `lset x 1 "modified"`, the string rep is recomputed
+from the list elements.
