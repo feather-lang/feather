@@ -657,6 +657,10 @@ func (i *Interp) GetString(h FeatherObj) string {
 		// Shimmer: double → string (always include decimal point for round numbers)
 		if obj.isDouble && obj.stringVal == "" {
 			s := strconv.FormatFloat(obj.dblVal, 'g', -1, 64)
+			// Go uses +Inf/-Inf, but TCL uses Inf/-Inf
+			if s == "+Inf" {
+				s = "Inf"
+			}
 			// Add .0 for round numbers, but not for NaN/Inf
 			if !strings.Contains(s, ".") && !strings.Contains(s, "e") &&
 				!strings.Contains(s, "NaN") && !strings.Contains(s, "Inf") {

@@ -1066,6 +1066,12 @@ func goDoubleMath(interp C.FeatherInterp, op C.FeatherMathOp, a C.double, b C.do
 		return C.TCL_ERROR
 	}
 
+	// Check for NaN result (domain error)
+	if math.IsNaN(result) {
+		i.result = i.internString("domain error: argument not in valid range")
+		return C.TCL_ERROR
+	}
+
 	*out = C.double(result)
 	return C.TCL_OK
 }

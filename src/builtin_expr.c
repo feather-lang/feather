@@ -86,6 +86,17 @@ static ExprValue make_error(void) {
   return v;
 }
 
+// Create a double ExprValue, but check for NaN and return error if so
+// This is used for arithmetic operations that can produce NaN (e.g., 0.0/0)
+static ExprValue make_double_checked(ExprParser *p, double val) {
+  if (p->ops->dbl.classify(val) == FEATHER_DBL_NAN) {
+    p->has_error = 1;
+    p->error_msg = p->ops->string.intern(p->interp, "domain error: argument not in valid range", 41);
+    return make_error();
+  }
+  return make_double(val);
+}
+
 // Get integer from ExprValue, shimmering if needed
 static int get_int(ExprParser *p, ExprValue *v, int64_t *out) {
   if (v->is_int) {
@@ -377,12 +388,22 @@ static ExprValue parse_command(ExprParser *p) {
   size_t str_len;
   const char *str = p->ops->string.get(p->interp, result_obj, &str_len);
 
-  // Check if string contains a decimal point or exponent (marks it as float)
+  // Check if string looks like a float:
+  // - Contains decimal point or exponent
+  // - Contains "Inf" or "NaN" (special IEEE 754 values)
   int looks_like_float = 0;
   for (size_t i = 0; i < str_len; i++) {
     if (str[i] == '.' || str[i] == 'e' || str[i] == 'E') {
       looks_like_float = 1;
       break;
+    }
+  }
+  // Also check for Inf, -Inf, NaN (special IEEE 754 values without decimal point)
+  if (!looks_like_float) {
+    if ((str_len == 3 && str[0] == 'I' && str[1] == 'n' && str[2] == 'f') ||
+        (str_len == 4 && str[0] == '-' && str[1] == 'I' && str[2] == 'n' && str[3] == 'f') ||
+        (str_len == 3 && str[0] == 'N' && str[1] == 'a' && str[2] == 'N')) {
+      looks_like_float = 1;
     }
   }
 
@@ -664,15 +685,40 @@ static ExprValue parse_function_call(ExprParser *p, const char *name, size_t nam
   }
 
   // Try to preserve numeric type from function result
+  // Use string representation to determine type (same as parse_command)
   FeatherObj result_obj = p->ops->interp.get_result(p->interp);
-  double dval;
-  if (p->ops->dbl.get(p->interp, result_obj, &dval) == TCL_OK) {
-    // Check if it's actually an integer (no fractional part)
+  size_t str_len;
+  const char *str = p->ops->string.get(p->interp, result_obj, &str_len);
+
+  // Check if string looks like a float:
+  // - Contains decimal point or exponent
+  // - Contains "Inf" or "NaN" (special IEEE 754 values)
+  int looks_like_float = 0;
+  for (size_t i = 0; i < str_len; i++) {
+    if (str[i] == '.' || str[i] == 'e' || str[i] == 'E') {
+      looks_like_float = 1;
+      break;
+    }
+  }
+  // Also check for Inf, -Inf, NaN (special IEEE 754 values without decimal point)
+  if (!looks_like_float) {
+    if ((str_len == 3 && str[0] == 'I' && str[1] == 'n' && str[2] == 'f') ||
+        (str_len == 4 && str[0] == '-' && str[1] == 'I' && str[2] == 'n' && str[3] == 'f') ||
+        (str_len == 3 && str[0] == 'N' && str[1] == 'a' && str[2] == 'N')) {
+      looks_like_float = 1;
+    }
+  }
+
+  if (looks_like_float) {
+    double dval;
+    if (p->ops->dbl.get(p->interp, result_obj, &dval) == TCL_OK) {
+      return make_double(dval);
+    }
+  } else {
     int64_t ival;
-    if (p->ops->integer.get(p->interp, result_obj, &ival) == TCL_OK && (double)ival == dval) {
+    if (p->ops->integer.get(p->interp, result_obj, &ival) == TCL_OK) {
       return make_int(ival);
     }
-    return make_double(dval);
   }
   return make_str(result_obj);
 }
@@ -993,7 +1039,9 @@ static ExprValue parse_multiplicative(ExprParser *p) {
           set_syntax_error(p);
           return make_error();
         }
-        left = make_double(lv * rv);
+        // NaN can occur from Inf * 0
+        left = make_double_checked(p, lv * rv);
+        if (p->has_error) return make_error();
       } else {
         int64_t lv, rv;
         if (!get_int(p, &left, &lv) || !get_int(p, &right, &rv)) {
@@ -1003,7 +1051,9 @@ static ExprValue parse_multiplicative(ExprParser *p) {
             set_syntax_error(p);
             return make_error();
           }
-          left = make_double(dlv * drv);
+          // NaN can occur from Inf * 0
+          left = make_double_checked(p, dlv * drv);
+          if (p->has_error) return make_error();
         } else {
           left = make_int(lv * rv);
         }
@@ -1020,7 +1070,9 @@ static ExprValue parse_multiplicative(ExprParser *p) {
           return make_error();
         }
         // IEEE 754: float division by zero produces Inf, -Inf, or NaN
-        left = make_double(lv / rv);
+        // NaN is treated as a domain error in TCL
+        left = make_double_checked(p, lv / rv);
+        if (p->has_error) return make_error();
       } else {
         // Integer division
         int64_t lv, rv;
@@ -1032,7 +1084,9 @@ static ExprValue parse_multiplicative(ExprParser *p) {
             return make_error();
           }
           // IEEE 754: float division by zero produces Inf, -Inf, or NaN
-          left = make_double(dlv / drv);
+          // NaN is treated as a domain error in TCL
+          left = make_double_checked(p, dlv / drv);
+          if (p->has_error) return make_error();
         } else {
           if (rv == 0) {
             set_error(p, "divide by zero", 14);
@@ -1085,7 +1139,9 @@ static ExprValue parse_additive(ExprParser *p) {
           set_syntax_error(p);
           return make_error();
         }
-        left = make_double(lv + rv);
+        // NaN can occur from Inf + (-Inf)
+        left = make_double_checked(p, lv + rv);
+        if (p->has_error) return make_error();
       } else {
         int64_t lv, rv;
         if (!get_int(p, &left, &lv) || !get_int(p, &right, &rv)) {
@@ -1095,7 +1151,9 @@ static ExprValue parse_additive(ExprParser *p) {
             set_syntax_error(p);
             return make_error();
           }
-          left = make_double(dlv + drv);
+          // NaN can occur from Inf + (-Inf)
+          left = make_double_checked(p, dlv + drv);
+          if (p->has_error) return make_error();
         } else {
           left = make_int(lv + rv);
         }
@@ -1111,7 +1169,9 @@ static ExprValue parse_additive(ExprParser *p) {
           set_syntax_error(p);
           return make_error();
         }
-        left = make_double(lv - rv);
+        // NaN can occur from Inf - Inf
+        left = make_double_checked(p, lv - rv);
+        if (p->has_error) return make_error();
       } else {
         int64_t lv, rv;
         if (!get_int(p, &left, &lv) || !get_int(p, &right, &rv)) {
@@ -1121,7 +1181,9 @@ static ExprValue parse_additive(ExprParser *p) {
             set_syntax_error(p);
             return make_error();
           }
-          left = make_double(dlv - drv);
+          // NaN can occur from Inf - Inf
+          left = make_double_checked(p, dlv - drv);
+          if (p->has_error) return make_error();
         } else {
           left = make_int(lv - rv);
         }
