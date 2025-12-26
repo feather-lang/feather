@@ -477,42 +477,44 @@ async function createFeather(wasmSource) {
       const frame = interp.currentFrame();
       const entry = frame.vars.get(varName);
       if (!entry) return 0;
-      let result;
+      let materialized;
       if (entry.link) {
         const targetFrame = interp.frames[entry.link.level];
         const targetEntry = targetFrame?.vars.get(entry.link.name);
         if (!targetEntry) return 0;
-        result = typeof targetEntry === 'object' && 'value' in targetEntry ? targetEntry.value : targetEntry;
+        materialized = typeof targetEntry === 'object' && 'value' in targetEntry ? targetEntry.value : targetEntry;
       } else if (entry.nsLink) {
         const ns = interp.getNamespace(entry.nsLink.ns);
         const nsEntry = ns?.vars.get(entry.nsLink.name);
         if (!nsEntry) return 0;
-        result = typeof nsEntry === 'object' && 'value' in nsEntry ? nsEntry.value : nsEntry;
+        materialized = typeof nsEntry === 'object' && 'value' in nsEntry ? nsEntry.value : nsEntry;
       } else {
-        result = entry.value || 0;
+        materialized = entry.value;
       }
+      if (!materialized) return 0;
       // Fire read traces
       fireVarTraces(interp, varName, 'read');
-      return result;
+      return interp.wrap(materialized);
     },
     feather_host_var_set: (interpId, name, value) => {
       const interp = interpreters.get(interpId);
       const varName = interp.getString(name);
       const frame = interp.currentFrame();
       const entry = frame.vars.get(varName);
+      const materialized = interp.materialize(value);
       if (entry?.link) {
         const targetFrame = interp.frames[entry.link.level];
         if (targetFrame) {
           let targetEntry = targetFrame.vars.get(entry.link.name);
           if (!targetEntry) targetEntry = {};
-          targetEntry.value = value;
+          targetEntry.value = materialized;
           targetFrame.vars.set(entry.link.name, targetEntry);
         }
       } else if (entry?.nsLink) {
         const ns = interp.getNamespace(entry.nsLink.ns);
-        if (ns) ns.vars.set(entry.nsLink.name, { value });
+        if (ns) ns.vars.set(entry.nsLink.name, { value: materialized });
       } else {
-        frame.vars.set(varName, { value });
+        frame.vars.set(varName, { value: materialized });
       }
       // Fire write traces
       fireVarTraces(interp, varName, 'write');
@@ -823,14 +825,17 @@ async function createFeather(wasmSource) {
       if (!namespace) return 0;
       const entry = namespace.vars.get(varName);
       if (!entry) return 0;
-      return typeof entry === 'object' && 'value' in entry ? entry.value : entry;
+      const materialized = typeof entry === 'object' && 'value' in entry ? entry.value : entry;
+      if (!materialized) return 0;
+      return interp.wrap(materialized);
     },
     feather_host_ns_set_var: (interpId, ns, name, value) => {
       const interp = interpreters.get(interpId);
       const nsPath = interp.getString(ns);
       const varName = interp.getString(name);
       const namespace = interp.ensureNamespace(nsPath);
-      namespace.vars.set(varName, { value });
+      const materialized = interp.materialize(value);
+      namespace.vars.set(varName, { value: materialized });
     },
     feather_host_ns_var_exists: (interpId, ns, name) => {
       const interp = interpreters.get(interpId);
