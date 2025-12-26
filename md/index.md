@@ -13,6 +13,9 @@ hero:
       text: Try It Live
       link: "#playground"
     - theme: alt
+      text: Use It
+      link: /wasm
+    - theme: alt
       text: GitHub
       link: https://github.com/feather-lang/feather
 
