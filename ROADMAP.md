@@ -244,3 +244,291 @@ Remove trampoline machinery and provide imports directly.
 6. Verify no regressions in test coverage
 
 **Verification:** All tests pass. Both native and WASM paths work correctly.
+
+---
+---
+
+# Plan: Implement Shimmering (SHIMMER.md)
+
+## Goal
+
+Replace the current value representation in the Go host with a proper TCL-style
+shimmering system where values lazily convert between representations.
+
+**Current state:**
+- `Object` struct in `interp/` has ad-hoc fields (`stringVal`, `intVal`, `isList`, `listItems`, etc.)
+- Shimmering logic is scattered across `Interp.GetString()`, `Interp.GetInt()`, `Interp.GetList()`
+- C string caching (`cstr *C.char`) is on the Object
+
+**Desired end state:**
+- Clean `*Obj` type with `bytes string`, `intrep ObjType`, `cstr *C.char`
+- `ObjType` interface for internal representations
+- Concrete types: `IntType`, `DoubleType`, `ListType`, `DictType`, `ForeignType`
+- Free-standing conversion functions: `AsInt()`, `AsDouble()`, `AsList()`, `AsDict()`, `AsBool()`
+- Callbacks use the new system transparently
+
+**Files involved:**
+- `interp/obj.go` (new) — `Obj`, `ObjType`, conversion interfaces
+- `interp/objtype_int.go` (new) — `IntType`
+- `interp/objtype_double.go` (new) — `DoubleType`
+- `interp/objtype_list.go` (new) — `ListType`
+- `interp/objtype_dict.go` (new) — `DictType`
+- `interp/objtype_foreign.go` (new) — `ForeignType`
+- `interp/convert.go` (new) — `AsInt()`, `AsList()`, etc.
+- `interp/interp.go` — update `Interp` to use `*Obj`
+- `interp/callbacks.go` — update callbacks to use new conversion functions
+
+**Benefits:**
+- Clean separation of concerns
+- Easy to add new types (just implement `ObjType` + optional conversion interfaces)
+- Direct type-to-type conversion without string round-trip
+- Matches TCL semantics
+
+---
+
+## S1: Create Obj and ObjType foundation
+
+Create the core types without any concrete implementations yet.
+
+**Files:** `interp/obj.go`
+
+**Tasks:**
+
+1. Define `Obj` struct:
+   ```go
+   type Obj struct {
+       bytes  string
+       intrep ObjType
+       cstr   *C.char
+   }
+   ```
+
+2. Define `ObjType` interface:
+   ```go
+   type ObjType interface {
+       Name() string
+       UpdateString() string
+       Dup() ObjType
+   }
+   ```
+
+3. Define conversion interfaces:
+   ```go
+   type IntoInt interface { IntoInt() (int64, bool) }
+   type IntoDouble interface { IntoDouble() (float64, bool) }
+   type IntoList interface { IntoList() ([]*Obj, bool) }
+   type IntoDict interface { IntoDict() (map[string]*Obj, []string, bool) }
+   type IntoBool interface { IntoBool() (bool, bool) }
+   ```
+
+4. Implement `Obj` methods: `String()`, `Type()`, `Invalidate()`, `Copy()`
+
+5. Implement `NewString()` constructor
+
+**Verification:** File compiles. `NewString("hello").String()` returns `"hello"`.
+
+---
+
+## S2: Implement IntType
+
+**Files:** `interp/objtype_int.go`
+
+**Tasks:**
+
+1. Define `IntType int64`
+2. Implement `ObjType`: `Name()`, `UpdateString()`, `Dup()`
+3. Implement `IntoInt`, `IntoDouble`, `IntoBool`
+4. Add `NewInt(v int64) *Obj` constructor to `obj.go`
+
+**Verification:**
+```go
+n := NewInt(42)
+n.String() == "42"
+n.Type() == "int"
+```
+
+---
+
+## S3: Implement DoubleType
+
+**Files:** `interp/objtype_double.go`
+
+**Tasks:**
+
+1. Define `DoubleType float64`
+2. Implement `ObjType`: `Name()`, `UpdateString()`, `Dup()`
+3. Implement `IntoInt`, `IntoDouble`
+4. Add `NewDouble(v float64) *Obj` constructor
+
+**Verification:**
+```go
+d := NewDouble(3.14)
+d.String() == "3.14"
+d.Type() == "double"
+```
+
+---
+
+## S4: Implement ListType
+
+**Files:** `interp/objtype_list.go`
+
+**Tasks:**
+
+1. Define `ListType []*Obj`
+2. Implement `ObjType`: `Name()`, `UpdateString()` (TCL list formatting), `Dup()` (shallow clone)
+3. Implement `IntoList`
+4. Implement `IntoDict` (for even-length lists)
+5. Add `NewList(items ...*Obj) *Obj` constructor
+
+**Verification:**
+```go
+l := NewList(NewString("a"), NewString("b"))
+l.String() == "a b"
+l.Type() == "list"
+```
+
+---
+
+## S5: Implement DictType
+
+**Files:** `interp/objtype_dict.go`
+
+**Tasks:**
+
+1. Define `DictType struct { Items map[string]*Obj; Order []string }`
+2. Implement `ObjType`: `Name()`, `UpdateString()`, `Dup()` (deep copy)
+3. Implement `IntoDict`, `IntoList`
+4. Add `NewDict() *Obj` constructor
+
+**Verification:**
+```go
+d := NewDict()
+// after setting k=v
+d.String() == "k v"
+```
+
+---
+
+## S6: Implement ForeignType
+
+**Files:** `interp/objtype_foreign.go`
+
+**Tasks:**
+
+1. Define `ForeignType struct { TypeName string; Value any }`
+2. Implement `ObjType`: `Name()`, `UpdateString()` (`<TypeName:ptr>`), `Dup()` (returns self)
+3. No conversion interfaces (opaque)
+4. Add `NewForeign(typeName string, value any) *Obj` constructor
+
+**Verification:**
+```go
+f := NewForeign("Conn", myConn)
+f.Type() == "Conn"
+strings.HasPrefix(f.String(), "<Conn:") == true
+```
+
+---
+
+## S7: Implement conversion functions
+
+**Files:** `interp/convert.go`
+
+**Tasks:**
+
+1. Implement `AsInt(o *Obj) (int64, error)`:
+   - Try `IntoInt` interface
+   - Fallback: parse `o.String()`
+   - Shimmer: set `o.intrep = IntType(v)`
+
+2. Implement `AsDouble(o *Obj) (float64, error)`:
+   - Try `IntoDouble` interface
+   - Fallback: parse `o.String()`
+
+3. Implement `AsList(o *Obj) ([]*Obj, error)`:
+   - Try `IntoList` interface
+   - Fallback: parse `o.String()` as TCL list
+
+4. Implement `AsDict(o *Obj) (*DictType, error)`:
+   - Try `IntoDict` interface
+   - Fallback: parse as list, convert to dict
+
+5. Implement `AsBool(o *Obj) (bool, error)`:
+   - Try `IntoBool` interface
+   - Fallback: try `AsInt`, then string truthiness
+
+**Verification:**
+```go
+s := NewString("42")
+v, _ := AsInt(s)  // v == 42, s.intrep is now IntType(42)
+s.Type() == "int"
+```
+
+---
+
+## S8: Implement list/dict helper functions
+
+**Files:** `interp/convert.go` (append to)
+
+**Tasks:**
+
+1. `ListLen(o *Obj) int`
+2. `ListAt(o *Obj, i int) *Obj`
+3. `ListAppend(o *Obj, elem *Obj)`
+4. `DictGet(o *Obj, key string) (*Obj, bool)`
+5. `DictSet(o *Obj, key string, val *Obj)`
+
+**Verification:** Basic list/dict operations work and invalidate string rep.
+
+---
+
+## S9: Update Interp to use *Obj
+
+**Files:** `interp/interp.go`
+
+**Tasks:**
+
+1. Replace `Object` with `*Obj` in handle maps
+2. Update `internString()` to return handle for `*Obj`
+3. Update `getObject()` to return `*Obj`
+4. Remove old `GetString()`, `GetInt()`, `GetList()` methods from `Interp`
+   (these are now free functions)
+5. Keep handle registration/lookup logic
+
+**Verification:** `mise build` succeeds. Interp can create and lookup objects.
+
+---
+
+## S10: Update callbacks to use new system
+
+**Files:** `interp/callbacks.go`
+
+**Tasks:**
+
+1. Update `goStringGet` to use `o.String()` and cache `cstr`
+2. Update `goStringIntern` to use `NewString()`
+3. Update `goIntCreate` to use `NewInt()`
+4. Update `goIntGet` to use `AsInt()`
+5. Update `goDoubleCreate` to use `NewDouble()`
+6. Update `goDoubleGet` to use `AsDouble()`
+7. Update `goListCreate` to use `NewList()`
+8. Update `goListFrom` to use `AsList()`
+9. Update `goListLength`, `goListAt`, `goListPush`, etc. to use `AsList()` and list helpers
+10. Update `goDictCreate` to use `NewDict()`
+11. Update `goDictGet`, `goDictSet`, etc. to use `AsDict()` and dict helpers
+12. Update foreign object callbacks to use `NewForeign()` and type checks
+
+**Verification:** `mise test` passes. All existing tests continue to work.
+
+---
+
+## S11: Clean up and remove old code
+
+**Tasks:**
+
+1. Remove old `Object` struct definition
+2. Remove old shimmering methods from `Interp`
+3. Update `interp/AGENTS.md` to reflect new shimmering architecture
+4. Verify no dead code remains
+
+**Verification:** `mise test` passes. Code is clean.
