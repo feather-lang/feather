@@ -135,11 +135,14 @@ class FeatherInterp {
     if (obj.type === 'string') return obj.value;
     if (obj.type === 'int') return String(obj.value);
     if (obj.type === 'double') {
-      // Format special values to match Go's strconv format
+      // Format special values to match TCL's format
       if (Number.isNaN(obj.value)) return 'NaN';
-      if (obj.value === Infinity) return '+Inf';
+      if (obj.value === Infinity) return 'Inf';
       if (obj.value === -Infinity) return '-Inf';
-      return String(obj.value);
+      // TCL requires floats to always have a decimal point
+      const s = String(obj.value);
+      if (s.includes('.') || s.includes('e') || s.includes('E')) return s;
+      return s + '.0';
     }
     if (obj.type === 'list') return obj.items.map(h => this.quoteListElement(this.getString(h))).join(' ');
     if (obj.type === 'dict') {
