@@ -42,6 +42,11 @@ description = "Builds feather.wasm for JavaScript/browser embedding"
 dir = "js"
 run = "mise run build"
 
+[tasks."test:wasm-memory"]
+description = "Run the WASM memory test checking for leaks"
+dir = "js"
+run = "mise run test:wasm-memory"
+
 [tasks."build:feather-httpd"]
 description = "Builds the feather-httpd example server"
 depends = ["build:core"]
