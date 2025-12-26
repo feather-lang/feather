@@ -86,7 +86,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import CodeEditor from './CodeEditor.vue'
-import { useFeather, createTestInterpreter } from '../composables/useFeather.js'
+import { useFeather, createTestInterpreter, resetFeather } from '../composables/useFeather.js'
 import { TCL_OK, TCL_ERROR, TCL_RETURN, TCL_BREAK, TCL_CONTINUE } from '../feather.js'
 
 const props = defineProps({
@@ -242,7 +242,8 @@ async function runTest(tc) {
   const stdout = []
   const stderr = []
 
-  await new Promise(resolve => setTimeout(resolve, 0))
+  // Reset WASM module to get fresh state
+  feather.value = await resetFeather()
 
   try {
     const interp = createTestInterpreter(feather.value, {

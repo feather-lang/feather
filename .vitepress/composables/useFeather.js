@@ -3,18 +3,20 @@ import { ref, shallowRef } from 'vue'
 let featherPromise = null
 let sharedFeather = null
 
+async function loadFeather() {
+  const { createFeather } = await import('../feather.js')
+  const f = await createFeather('/feather.wasm')
+  sharedFeather = f
+  return f
+}
+
 export function useFeather() {
   const ready = ref(false)
   const error = ref(null)
   const feather = shallowRef(null)
 
   if (!featherPromise) {
-    featherPromise = (async () => {
-      const { createFeather } = await import('../feather.js')
-      const f = await createFeather('/feather.wasm')
-      sharedFeather = f
-      return f
-    })()
+    featherPromise = loadFeather()
   }
 
   featherPromise
@@ -27,6 +29,12 @@ export function useFeather() {
     })
 
   return { feather, ready, error }
+}
+
+export async function resetFeather() {
+  featherPromise = loadFeather()
+  sharedFeather = await featherPromise
+  return sharedFeather
 }
 
 export function createTestInterpreter(feather, opts = {}) {

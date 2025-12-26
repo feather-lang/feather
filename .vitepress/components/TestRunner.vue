@@ -107,7 +107,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import CodeEditor from './CodeEditor.vue'
-import { useFeather, createTestInterpreter } from '../composables/useFeather.js'
+import { useFeather, createTestInterpreter, resetFeather } from '../composables/useFeather.js'
 import { TCL_OK, TCL_ERROR, TCL_RETURN, TCL_BREAK, TCL_CONTINUE } from '../feather.js'
 
 const props = defineProps({
@@ -300,6 +300,9 @@ async function runAllTests() {
   passed.value = 0
   failed.value = 0
   failedTests.value = []
+
+  // Reset WASM module to get fresh state
+  feather.value = await resetFeather()
 
   // Process in batches to keep UI responsive
   const batchSize = 50
