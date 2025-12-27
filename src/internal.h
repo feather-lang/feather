@@ -108,6 +108,20 @@ FeatherResult feather_builtin_lassign(const FeatherHostOps *ops, FeatherInterp i
                                FeatherObj cmd, FeatherObj args);
 
 /**
+ * feather_builtin_linsert implements the TCL 'linsert' command.
+ *
+ * Usage:
+ *   linsert list index ?element ...?
+ *
+ * Inserts elements into list before the index position.
+ * Returns a new list with elements inserted.
+ * Index less than 0 inserts at beginning; greater than length inserts at end.
+ * Supports end-relative indexing (end, end-N, end+N) and integer arithmetic.
+ */
+FeatherResult feather_builtin_linsert(const FeatherHostOps *ops, FeatherInterp interp,
+                               FeatherObj cmd, FeatherObj args);
+
+/**
  * feather_builtin_switch implements the TCL 'switch' command.
  *
  * Usage:

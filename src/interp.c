@@ -20,6 +20,7 @@ static const BuiltinEntry builtins[] = {
     {"::foreach", feather_builtin_foreach},
     {"::lmap", feather_builtin_lmap},
     {"::lassign", feather_builtin_lassign},
+    {"::linsert", feather_builtin_linsert},
     {"::switch", feather_builtin_switch},
     {"::tailcall", feather_builtin_tailcall},
     {"::break", feather_builtin_break},

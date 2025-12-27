@@ -38,6 +38,7 @@
 #include "../src/builtin_format.c"
 #include "../src/builtin_lmap.c"
 #include "../src/builtin_lassign.c"
+#include "../src/builtin_linsert.c"
 #include "../src/builtin_global.c"
 #include "../src/builtin_if.c"
 #include "../src/builtin_incr.c"
