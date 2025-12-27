@@ -37,8 +37,7 @@ typedef struct {
 typedef struct {
   const FeatherHostOps *ops;
   FeatherInterp interp;
-  const char *expr;    // Original expression string (for error messages)
-  size_t expr_len;
+  FeatherObj expr_obj; // Original expression object (for error messages)
   const char *pos;     // Current position
   const char *end;     // End of expression
   int has_error;
@@ -168,6 +167,42 @@ static FeatherObj get_obj(ExprParser *p, ExprValue *v) {
   return 0;
 }
 
+// Check if an object's string representation looks like a floating-point number.
+// Returns 1 if the string contains '.', 'e', 'E', or special values like "Inf", "NaN".
+// This is used to preserve numeric type when getting results from command/function calls.
+static int looks_like_float_obj(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj obj) {
+  size_t len = ops->string.byte_length(interp, obj);
+
+  // Check for '.', 'e', 'E' in the string
+  for (size_t i = 0; i < len; i++) {
+    int ch = ops->string.byte_at(interp, obj, i);
+    if (ch == '.' || ch == 'e' || ch == 'E') {
+      return 1;
+    }
+  }
+
+  // Check for special IEEE 754 values: Inf, -Inf, NaN
+  if (len == 3) {
+    int c0 = ops->string.byte_at(interp, obj, 0);
+    int c1 = ops->string.byte_at(interp, obj, 1);
+    int c2 = ops->string.byte_at(interp, obj, 2);
+    if ((c0 == 'I' && c1 == 'n' && c2 == 'f') ||
+        (c0 == 'N' && c1 == 'a' && c2 == 'N')) {
+      return 1;
+    }
+  } else if (len == 4) {
+    int c0 = ops->string.byte_at(interp, obj, 0);
+    int c1 = ops->string.byte_at(interp, obj, 1);
+    int c2 = ops->string.byte_at(interp, obj, 2);
+    int c3 = ops->string.byte_at(interp, obj, 3);
+    if (c0 == '-' && c1 == 'I' && c2 == 'n' && c3 == 'f') {
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
 static void expr_skip_whitespace(ExprParser *p) {
   while (p->pos < p->end) {
     char c = *p->pos;
@@ -195,10 +230,9 @@ static void set_syntax_error(ExprParser *p) {
   p->has_error = 1;
 
   FeatherObj part1 = p->ops->string.intern(p->interp, "syntax error in expression \"", 28);
-  FeatherObj part2 = p->ops->string.intern(p->interp, p->expr, p->expr_len);
   FeatherObj part3 = p->ops->string.intern(p->interp, "\"", 1);
 
-  FeatherObj msg = p->ops->string.concat(p->interp, part1, part2);
+  FeatherObj msg = p->ops->string.concat(p->interp, part1, p->expr_obj);
   msg = p->ops->string.concat(p->interp, msg, part3);
   p->error_msg = msg;
 }
@@ -212,6 +246,19 @@ static void set_integer_error(ExprParser *p, const char *start, size_t len) {
   FeatherObj part3 = p->ops->string.intern(p->interp, "\"", 1);
 
   FeatherObj msg = p->ops->string.concat(p->interp, part1, part2);
+  msg = p->ops->string.concat(p->interp, msg, part3);
+  p->error_msg = msg;
+}
+
+// Version of set_integer_error that takes a FeatherObj instead of const char*
+static void set_integer_error_obj(ExprParser *p, FeatherObj value) {
+  if (p->has_error) return;
+  p->has_error = 1;
+
+  FeatherObj part1 = p->ops->string.intern(p->interp, "expected integer but got \"", 26);
+  FeatherObj part3 = p->ops->string.intern(p->interp, "\"", 1);
+
+  FeatherObj msg = p->ops->string.concat(p->interp, part1, value);
   msg = p->ops->string.concat(p->interp, msg, part3);
   p->error_msg = msg;
 }
@@ -234,10 +281,9 @@ static void set_paren_error(ExprParser *p) {
   p->has_error = 1;
 
   FeatherObj part1 = p->ops->string.intern(p->interp, "unbalanced parentheses in expression \"", 38);
-  FeatherObj part2 = p->ops->string.intern(p->interp, p->expr, p->expr_len);
   FeatherObj part3 = p->ops->string.intern(p->interp, "\"", 1);
 
-  FeatherObj msg = p->ops->string.concat(p->interp, part1, part2);
+  FeatherObj msg = p->ops->string.concat(p->interp, part1, p->expr_obj);
   msg = p->ops->string.concat(p->interp, msg, part3);
   p->error_msg = msg;
 }
@@ -385,29 +431,8 @@ static ExprValue parse_command(ExprParser *p) {
   // Check the string representation to distinguish 2 (int) from 2.0 (double).
   // The string representation preserves the original type from the inner expr.
   FeatherObj result_obj = p->ops->interp.get_result(p->interp);
-  size_t str_len;
-  const char *str = p->ops->string.get(p->interp, result_obj, &str_len);
 
-  // Check if string looks like a float:
-  // - Contains decimal point or exponent
-  // - Contains "Inf" or "NaN" (special IEEE 754 values)
-  int looks_like_float = 0;
-  for (size_t i = 0; i < str_len; i++) {
-    if (str[i] == '.' || str[i] == 'e' || str[i] == 'E') {
-      looks_like_float = 1;
-      break;
-    }
-  }
-  // Also check for Inf, -Inf, NaN (special IEEE 754 values without decimal point)
-  if (!looks_like_float) {
-    if ((str_len == 3 && str[0] == 'I' && str[1] == 'n' && str[2] == 'f') ||
-        (str_len == 4 && str[0] == '-' && str[1] == 'I' && str[2] == 'n' && str[3] == 'f') ||
-        (str_len == 3 && str[0] == 'N' && str[1] == 'a' && str[2] == 'N')) {
-      looks_like_float = 1;
-    }
-  }
-
-  if (looks_like_float) {
+  if (looks_like_float_obj(p->ops, p->interp, result_obj)) {
     double dval;
     if (p->ops->dbl.get(p->interp, result_obj, &dval) == TCL_OK) {
       return make_double(dval);
@@ -674,10 +699,8 @@ static ExprValue parse_function_call(ExprParser *p, const char *name, size_t nam
     cmd_str = p->ops->string.concat(p->interp, cmd_str, arg);
   }
 
-  // Evaluate the command
-  size_t cmd_len;
-  const char *cmd_cstr = p->ops->string.get(p->interp, cmd_str, &cmd_len);
-  FeatherResult result = feather_script_eval(p->ops, p->interp, cmd_cstr, cmd_len, TCL_EVAL_LOCAL);
+  // Evaluate the command using the object-based API (avoids string.get)
+  FeatherResult result = feather_script_eval_obj(p->ops, p->interp, cmd_str, TCL_EVAL_LOCAL);
   if (result != TCL_OK) {
     p->has_error = 1;
     p->error_msg = p->ops->interp.get_result(p->interp);
@@ -685,31 +708,9 @@ static ExprValue parse_function_call(ExprParser *p, const char *name, size_t nam
   }
 
   // Try to preserve numeric type from function result
-  // Use string representation to determine type (same as parse_command)
   FeatherObj result_obj = p->ops->interp.get_result(p->interp);
-  size_t str_len;
-  const char *str = p->ops->string.get(p->interp, result_obj, &str_len);
 
-  // Check if string looks like a float:
-  // - Contains decimal point or exponent
-  // - Contains "Inf" or "NaN" (special IEEE 754 values)
-  int looks_like_float = 0;
-  for (size_t i = 0; i < str_len; i++) {
-    if (str[i] == '.' || str[i] == 'e' || str[i] == 'E') {
-      looks_like_float = 1;
-      break;
-    }
-  }
-  // Also check for Inf, -Inf, NaN (special IEEE 754 values without decimal point)
-  if (!looks_like_float) {
-    if ((str_len == 3 && str[0] == 'I' && str[1] == 'n' && str[2] == 'f') ||
-        (str_len == 4 && str[0] == '-' && str[1] == 'I' && str[2] == 'n' && str[3] == 'f') ||
-        (str_len == 3 && str[0] == 'N' && str[1] == 'a' && str[2] == 'N')) {
-      looks_like_float = 1;
-    }
-  }
-
-  if (looks_like_float) {
+  if (looks_like_float_obj(p->ops, p->interp, result_obj)) {
     double dval;
     if (p->ops->dbl.get(p->interp, result_obj, &dval) == TCL_OK) {
       return make_double(dval);
@@ -890,9 +891,7 @@ static ExprValue parse_unary(ExprParser *p) {
         return make_double(-dval);
       }
       FeatherObj obj = get_obj(p, &v);
-      size_t len;
-      const char *s = p->ops->string.get(p->interp, obj, &len);
-      set_integer_error(p, s, len);
+      set_integer_error_obj(p, obj);
       return make_error();
     }
 
@@ -915,9 +914,7 @@ static ExprValue parse_unary(ExprParser *p) {
       int64_t val;
       if (!get_int(p, &v, &val)) {
         FeatherObj obj = get_obj(p, &v);
-        size_t len;
-        const char *s = p->ops->string.get(p->interp, obj, &len);
-        set_integer_error(p, s, len);
+        set_integer_error_obj(p, obj);
         return make_error();
       }
       return make_int(~val);
@@ -939,9 +936,7 @@ static ExprValue parse_unary(ExprParser *p) {
         return make_int(dval != 0.0 ? 0 : 1);
       }
       FeatherObj obj = get_obj(p, &v);
-      size_t len;
-      const char *s = p->ops->string.get(p->interp, obj, &len);
-      set_integer_error(p, s, len);
+      set_integer_error_obj(p, obj);
       return make_error();
     }
   }
@@ -1805,7 +1800,9 @@ FeatherResult feather_builtin_expr(const FeatherHostOps *ops, FeatherInterp inte
     argc--;
   }
 
-  // Get the expression string
+  // Get the expression string for parsing
+  // NOTE: We still need string.get for the parser's pointer-based iteration.
+  // A future milestone (byte-at-a-time rewrite) will eliminate this.
   size_t expr_len;
   const char *expr_str = ops->string.get(interp, expr_obj, &expr_len);
 
@@ -1813,8 +1810,7 @@ FeatherResult feather_builtin_expr(const FeatherHostOps *ops, FeatherInterp inte
   ExprParser parser = {
     .ops = ops,
     .interp = interp,
-    .expr = expr_str,
-    .expr_len = expr_len,
+    .expr_obj = expr_obj,  // Keep the object for error messages
     .pos = expr_str,
     .end = expr_str + expr_len,
     .has_error = 0,

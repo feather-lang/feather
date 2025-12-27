@@ -957,17 +957,21 @@ async function createFeather(wasmSource) {
     },
 
     // String operations
-    feather_host_string_intern: (interpId, ptr, len) => {
-      const interp = interpreters.get(interpId);
-      const str = readString(ptr, len);
-      return interp.store({ type: 'string', value: str });
-    },
-    feather_host_string_get: (interpId, obj, lenPtr) => {
+    feather_host_string_byte_at: (interpId, obj, index) => {
       const interp = interpreters.get(interpId);
       const str = interp.getString(obj);
-      writeI32(lenPtr, str.length);
-      const [ptr] = writeString(str);
-      return ptr;
+      if (index >= str.length) return -1;
+      return str.charCodeAt(index);
+    },
+    feather_host_string_byte_length: (interpId, obj) => {
+      const interp = interpreters.get(interpId);
+      return interp.getString(obj).length;
+    },
+    feather_host_string_slice: (interpId, obj, start, end) => {
+      const interp = interpreters.get(interpId);
+      const str = interp.getString(obj);
+      const sliced = str.slice(start, end);
+      return interp.store({ type: 'string', value: sliced });
     },
     feather_host_string_concat: (interpId, a, b) => {
       const interp = interpreters.get(interpId);
@@ -979,6 +983,20 @@ async function createFeather(wasmSource) {
       const strA = interp.getString(a);
       const strB = interp.getString(b);
       return strA < strB ? -1 : strA > strB ? 1 : 0;
+    },
+    feather_host_string_equal: (interpId, a, b) => {
+      const interp = interpreters.get(interpId);
+      return interp.getString(a) === interp.getString(b) ? 1 : 0;
+    },
+    feather_host_string_match: (interpId, pattern, str, nocase) => {
+      const interp = interpreters.get(interpId);
+      let p = interp.getString(pattern);
+      let s = interp.getString(str);
+      if (nocase) { p = p.toLowerCase(); s = s.toLowerCase(); }
+      // Convert glob pattern to regex
+      const regex = new RegExp('^' + p.replace(/[.+^${}()|[\]\\]/g, '\\$&')
+        .replace(/\*/g, '.*').replace(/\?/g, '.') + '$');
+      return regex.test(s) ? 1 : 0;
     },
     feather_host_string_regex_match: (interpId, pattern, string, resultPtr) => {
       const interp = interpreters.get(interpId);
@@ -992,6 +1010,48 @@ async function createFeather(wasmSource) {
         interp.result = interp.store({ type: 'string', value: `invalid regex: ${e.message}` });
         return TCL_ERROR;
       }
+    },
+    feather_host_string_builder_new: (interpId, capacity) => {
+      const interp = interpreters.get(interpId);
+      return interp.store({ type: 'builder', bytes: [] });
+    },
+    feather_host_string_builder_append_byte: (interpId, builder, byte) => {
+      const interp = interpreters.get(interpId);
+      const obj = interp.get(builder);
+      if (obj && obj.type === 'builder') {
+        obj.bytes.push(byte);
+      }
+    },
+    feather_host_string_builder_append_obj: (interpId, builder, str) => {
+      const interp = interpreters.get(interpId);
+      const obj = interp.get(builder);
+      if (obj && obj.type === 'builder') {
+        const s = interp.getString(str);
+        for (let i = 0; i < s.length; i++) {
+          obj.bytes.push(s.charCodeAt(i));
+        }
+      }
+    },
+    feather_host_string_builder_finish: (interpId, builder) => {
+      const interp = interpreters.get(interpId);
+      const obj = interp.get(builder);
+      if (!obj || obj.type !== 'builder') {
+        return interp.store({ type: 'string', value: '' });
+      }
+      const result = String.fromCharCode(...obj.bytes);
+      return interp.store({ type: 'string', value: result });
+    },
+    feather_host_string_intern: (interpId, ptr, len) => {
+      const interp = interpreters.get(interpId);
+      const str = readString(ptr, len);
+      return interp.store({ type: 'string', value: str });
+    },
+    feather_host_string_get: (interpId, obj, lenPtr) => {
+      const interp = interpreters.get(interpId);
+      const str = interp.getString(obj);
+      writeI32(lenPtr, str.length);
+      const [ptr] = writeString(str);
+      return ptr;
     },
 
     // Rune operations

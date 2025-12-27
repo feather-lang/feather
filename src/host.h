@@ -101,15 +101,28 @@ extern FeatherResult feather_host_ns_copy_command(FeatherInterp interp, FeatherO
                                                   FeatherObj dstName);
 
 /* ============================================================================
- * String Operations (5 functions)
+ * String Operations (14 functions)
  * ============================================================================ */
 
-extern FeatherObj feather_host_string_intern(FeatherInterp interp, const char *s, size_t len);
-extern const char *feather_host_string_get(FeatherInterp interp, FeatherObj obj, size_t *len);
+extern int feather_host_string_byte_at(FeatherInterp interp, FeatherObj str, size_t index);
+extern size_t feather_host_string_byte_length(FeatherInterp interp, FeatherObj str);
+extern FeatherObj feather_host_string_slice(FeatherInterp interp, FeatherObj str, size_t start,
+                                            size_t end);
 extern FeatherObj feather_host_string_concat(FeatherInterp interp, FeatherObj a, FeatherObj b);
 extern int feather_host_string_compare(FeatherInterp interp, FeatherObj a, FeatherObj b);
+extern int feather_host_string_equal(FeatherInterp interp, FeatherObj a, FeatherObj b);
+extern int feather_host_string_match(FeatherInterp interp, FeatherObj pattern, FeatherObj str,
+                                     int nocase);
 extern FeatherResult feather_host_string_regex_match(FeatherInterp interp, FeatherObj pattern,
                                                      FeatherObj string, int *result);
+extern FeatherObj feather_host_string_builder_new(FeatherInterp interp, size_t capacity);
+extern void feather_host_string_builder_append_byte(FeatherInterp interp, FeatherObj builder,
+                                                    int byte);
+extern void feather_host_string_builder_append_obj(FeatherInterp interp, FeatherObj builder,
+                                                   FeatherObj str);
+extern FeatherObj feather_host_string_builder_finish(FeatherInterp interp, FeatherObj builder);
+extern FeatherObj feather_host_string_intern(FeatherInterp interp, const char *s, size_t len);
+extern const char *feather_host_string_get(FeatherInterp interp, FeatherObj obj, size_t *len);
 
 /* ============================================================================
  * Rune Operations (6 functions)
