@@ -338,10 +338,8 @@ static FeatherResult substitute_variable(const FeatherHostOps *ops, FeatherInter
     if (ops->list.is_nil(interp, word)) {
       *word_out = value;
     } else {
-      // Concatenating - must stringify
-      size_t val_len;
-      const char *val_str = ops->string.get(interp, value, &val_len);
-      *word_out = append_to_word(ops, interp, word, val_str, val_len);
+      // Concatenating - use concat to avoid string.get()
+      *word_out = ops->string.concat(interp, word, value);
     }
     *consumed_out = (p - pos) + 1; // +1 for closing brace
     return TCL_OK;
@@ -389,10 +387,8 @@ static FeatherResult substitute_variable(const FeatherHostOps *ops, FeatherInter
     if (ops->list.is_nil(interp, word)) {
       *word_out = value;
     } else {
-      // Concatenating - must stringify
-      size_t val_len;
-      const char *val_str = ops->string.get(interp, value, &val_len);
-      *word_out = append_to_word(ops, interp, word, val_str, val_len);
+      // Concatenating - use concat to avoid string.get()
+      *word_out = ops->string.concat(interp, word, value);
     }
     *consumed_out = name_len;
     return TCL_OK;
@@ -448,10 +444,8 @@ static int substitute_command(const FeatherHostOps *ops, FeatherInterp interp,
     if (ops->list.is_nil(interp, word)) {
       *word_out = cmd_result;
     } else {
-      // Concatenating - must stringify
-      size_t result_len;
-      const char *result_str = ops->string.get(interp, cmd_result, &result_len);
-      *word_out = append_to_word(ops, interp, word, result_str, result_len);
+      // Concatenating - use concat to avoid string.get()
+      *word_out = ops->string.concat(interp, word, cmd_result);
     }
   } else {
     *word_out = word;
@@ -935,12 +929,14 @@ FeatherResult feather_subst(const FeatherHostOps *ops, FeatherInterp interp,
         return TCL_ERROR;
       }
 
-      // Append command result
+      // Append command result - use concat to avoid string.get()
       FeatherObj cmd_result = ops->interp.get_result(interp);
       if (!ops->list.is_nil(interp, cmd_result)) {
-        size_t result_len;
-        const char *result_str = ops->string.get(interp, cmd_result, &result_len);
-        result = append_to_word(ops, interp, result, result_str, result_len);
+        if (ops->list.is_nil(interp, result)) {
+          result = cmd_result;
+        } else {
+          result = ops->string.concat(interp, result, cmd_result);
+        }
       }
 
       p = close + 1;  // skip past ]
@@ -1049,10 +1045,8 @@ FeatherParseStatus feather_parse_command(const FeatherHostOps *ops, FeatherInter
 
     if (!ops->list.is_nil(interp, word)) {
       if (is_expansion) {
-        // Parse word as a list and add each element
-        size_t word_len;
-        const char *word_str = ops->string.get(interp, word, &word_len);
-        FeatherObj list = feather_list_parse(ops, interp, word_str, word_len);
+        // Parse word as a list using list.from() - avoids string.get()
+        FeatherObj list = ops->list.from(interp, word);
 
         // Add each list element to words
         size_t list_len = ops->list.length(interp, list);
