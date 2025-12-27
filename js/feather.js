@@ -1674,9 +1674,25 @@ async function createFeather(wasmSource) {
     createForeign(interpId, typeName, value, handleName) {
       const interp = interpreters.get(interpId);
       const objHandle = interp.store({ type: 'foreign', typeName, value, stringRep: handleName });
-      // Register the instance in foreignInstances so it can be looked up by handle name
       if (handleName) {
         interp.foreignInstances.set(handleName, { typeName, value, objHandle, handleName });
+        // Register a command for this instance that dispatches to methods
+        const typeDef = interp.foreignTypes.get(typeName);
+        interp.hostCommands.set(handleName, (args) => {
+          const method = args[0];
+          if (!method) throw new Error(`wrong # args: should be "${handleName} method ?arg ...?"`);
+          if (method === 'destroy') {
+            interp.foreignInstances.delete(handleName);
+            interp.hostCommands.delete(handleName);
+            return '';
+          }
+          const methodFn = typeDef?.methods?.[method];
+          if (!methodFn) {
+            const available = Object.keys(typeDef?.methods || {}).concat('destroy').join(', ');
+            throw new Error(`unknown method "${method}": must be ${available}`);
+          }
+          return methodFn(value, ...args.slice(1));
+        });
       }
       return objHandle;
     },
