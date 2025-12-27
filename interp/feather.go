@@ -144,6 +144,7 @@ type Interp struct {
 	scriptPath     FeatherObj       // current script file being executed (0 = none)
 	varTraces      map[string][]TraceEntry // variable name -> traces
 	cmdTraces      map[string][]TraceEntry // command name -> traces
+	execTraces     map[string][]TraceEntry // command name -> execution traces
 
 	// Commands holds registered Go command implementations.
 	// These are dispatched via the unknown handler when the C layer
@@ -166,6 +167,7 @@ func NewInterp() *Interp {
 		namespaces: make(map[string]*Namespace),
 		varTraces:  make(map[string][]TraceEntry),
 		cmdTraces:  make(map[string][]TraceEntry),
+		execTraces: make(map[string][]TraceEntry),
 		Commands:   make(map[string]CommandFunc),
 		nextID:     1,
 	}

@@ -4,6 +4,7 @@
 /**
  * trace add variable name ops script
  * trace add command name ops script
+ * trace add execution name ops script
  */
 static FeatherResult trace_add(const FeatherHostOps *ops, FeatherInterp interp,
                            FeatherObj args) {
@@ -25,11 +26,13 @@ static FeatherResult trace_add(const FeatherHostOps *ops, FeatherInterp interp,
   // Validate kind
   size_t kindLen;
   const char *kindStr = ops->string.get(interp, kind, &kindLen);
-  if (!feather_str_eq(kindStr, kindLen, "variable") && !feather_str_eq(kindStr, kindLen, "command")) {
+  if (!feather_str_eq(kindStr, kindLen, "variable") && 
+      !feather_str_eq(kindStr, kindLen, "command") &&
+      !feather_str_eq(kindStr, kindLen, "execution")) {
     FeatherObj msg = ops->string.intern(interp, "bad type \"", 10);
     msg = ops->string.concat(interp, msg, kind);
     msg = ops->string.concat(interp, msg,
-                              ops->string.intern(interp, "\": must be command or variable", 30));
+                              ops->string.intern(interp, "\": must be command, execution, or variable", 42));
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
@@ -51,9 +54,9 @@ static FeatherResult trace_add(const FeatherHostOps *ops, FeatherInterp interp,
     opsString = ops->string.concat(interp, opsString, ops->list.at(interp, opsList, i));
   }
 
-  // For command traces, normalize the name to fully qualified form
+  // For command and execution traces, normalize the name to fully qualified form
   FeatherObj traceName = name;
-  if (feather_str_eq(kindStr, kindLen, "command")) {
+  if (feather_str_eq(kindStr, kindLen, "command") || feather_str_eq(kindStr, kindLen, "execution")) {
     size_t nameLen;
     const char *nameStr = ops->string.get(interp, name, &nameLen);
     // If unqualified, prepend ::
@@ -75,6 +78,7 @@ static FeatherResult trace_add(const FeatherHostOps *ops, FeatherInterp interp,
 /**
  * trace remove variable name ops script
  * trace remove command name ops script
+ * trace remove execution name ops script
  */
 static FeatherResult trace_remove(const FeatherHostOps *ops, FeatherInterp interp,
                               FeatherObj args) {
@@ -96,11 +100,13 @@ static FeatherResult trace_remove(const FeatherHostOps *ops, FeatherInterp inter
   // Validate kind
   size_t kindLen;
   const char *kindStr = ops->string.get(interp, kind, &kindLen);
-  if (!feather_str_eq(kindStr, kindLen, "variable") && !feather_str_eq(kindStr, kindLen, "command")) {
+  if (!feather_str_eq(kindStr, kindLen, "variable") && 
+      !feather_str_eq(kindStr, kindLen, "command") &&
+      !feather_str_eq(kindStr, kindLen, "execution")) {
     FeatherObj msg = ops->string.intern(interp, "bad type \"", 10);
     msg = ops->string.concat(interp, msg, kind);
     msg = ops->string.concat(interp, msg,
-                              ops->string.intern(interp, "\": must be command or variable", 30));
+                              ops->string.intern(interp, "\": must be command, execution, or variable", 42));
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
@@ -117,9 +123,9 @@ static FeatherResult trace_remove(const FeatherHostOps *ops, FeatherInterp inter
     }
   }
 
-  // For command traces, normalize the name to fully qualified form
+  // For command and execution traces, normalize the name to fully qualified form
   FeatherObj traceName = name;
-  if (feather_str_eq(kindStr, kindLen, "command")) {
+  if (feather_str_eq(kindStr, kindLen, "command") || feather_str_eq(kindStr, kindLen, "execution")) {
     size_t nameLen;
     const char *nameStr = ops->string.get(interp, name, &nameLen);
     if (!feather_is_qualified(nameStr, nameLen)) {
@@ -139,6 +145,7 @@ static FeatherResult trace_remove(const FeatherHostOps *ops, FeatherInterp inter
 /**
  * trace info variable name
  * trace info command name
+ * trace info execution name
  */
 static FeatherResult trace_info(const FeatherHostOps *ops, FeatherInterp interp,
                             FeatherObj args) {
@@ -158,18 +165,20 @@ static FeatherResult trace_info(const FeatherHostOps *ops, FeatherInterp interp,
   // Validate kind
   size_t kindLen;
   const char *kindStr = ops->string.get(interp, kind, &kindLen);
-  if (!feather_str_eq(kindStr, kindLen, "variable") && !feather_str_eq(kindStr, kindLen, "command")) {
+  if (!feather_str_eq(kindStr, kindLen, "variable") && 
+      !feather_str_eq(kindStr, kindLen, "command") &&
+      !feather_str_eq(kindStr, kindLen, "execution")) {
     FeatherObj msg = ops->string.intern(interp, "bad type \"", 10);
     msg = ops->string.concat(interp, msg, kind);
     msg = ops->string.concat(interp, msg,
-                              ops->string.intern(interp, "\": must be command or variable", 30));
+                              ops->string.intern(interp, "\": must be command, execution, or variable", 42));
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
 
-  // For command traces, normalize the name to fully qualified form
+  // For command and execution traces, normalize the name to fully qualified form
   FeatherObj traceName = name;
-  if (feather_str_eq(kindStr, kindLen, "command")) {
+  if (feather_str_eq(kindStr, kindLen, "command") || feather_str_eq(kindStr, kindLen, "execution")) {
     size_t nameLen;
     const char *nameStr = ops->string.get(interp, name, &nameLen);
     if (!feather_is_qualified(nameStr, nameLen)) {

@@ -2269,6 +2269,8 @@ func goTraceAdd(interp C.FeatherInterp, kind C.FeatherObj, name C.FeatherObj, op
 		i.varTraces[nameStr] = append(i.varTraces[nameStr], entry)
 	} else if kindStr == "command" {
 		i.cmdTraces[nameStr] = append(i.cmdTraces[nameStr], entry)
+	} else if kindStr == "execution" {
+		i.execTraces[nameStr] = append(i.execTraces[nameStr], entry)
 	} else {
 		return C.TCL_ERROR
 	}
@@ -2292,6 +2294,8 @@ func goTraceRemove(interp C.FeatherInterp, kind C.FeatherObj, name C.FeatherObj,
 		traces = &i.varTraces
 	} else if kindStr == "command" {
 		traces = &i.cmdTraces
+	} else if kindStr == "execution" {
+		traces = &i.execTraces
 	} else {
 		return C.TCL_ERROR
 	}
@@ -2325,6 +2329,8 @@ func goTraceInfo(interp C.FeatherInterp, kind C.FeatherObj, name C.FeatherObj) C
 		entries = i.varTraces[nameStr]
 	} else if kindStr == "command" {
 		entries = i.cmdTraces[nameStr]
+	} else if kindStr == "execution" {
+		entries = i.execTraces[nameStr]
 	}
 
 	// Build list of {ops... script} sublists as *Obj

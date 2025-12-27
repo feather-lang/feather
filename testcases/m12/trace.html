@@ -223,7 +223,7 @@ set ::traceLog</script>
   <test-case name="trace add with bad type">
     <script>trace add badtype x {write} myTrace</script>
     <return>TCL_ERROR</return>
-    <error>bad type "badtype": must be command or variable</error>
+    <error>bad type "badtype": must be command, execution, or variable</error>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -239,9 +239,37 @@ set ::traceLog</script>
   <test-case name="trace info with bad type">
     <script>trace info badtype x</script>
     <return>TCL_ERROR</return>
-    <error>bad type "badtype": must be command or variable</error>
+    <error>bad type "badtype": must be command, execution, or variable</error>
     <stderr></stderr>
     <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- Execution traces -->
+  <test-case name="trace add execution with enter">
+    <script>trace add execution puts {enter} myTrace; trace info execution puts</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{enter myTrace}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="trace add execution with multiple ops">
+    <script>trace add execution puts {enter leave} myTrace; trace info execution puts</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{enter leave myTrace}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="trace remove execution">
+    <script>trace add execution puts {enter} myTrace; trace remove execution puts {enter} myTrace; trace info execution puts</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
   </test-case>
 
 </test-suite>

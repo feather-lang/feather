@@ -44,7 +44,7 @@ class FeatherInterp {
     this.procs = new Map();
     this.builtins = new Map();
     this.hostCommands = new Map();
-    this.traces = { variable: new Map(), command: new Map() };
+    this.traces = { variable: new Map(), command: new Map(), execution: new Map() };
     this.returnOptions = new Map();
     this.scriptPath = '';
     this.foreignTypes = new Map();
