@@ -21,7 +21,7 @@ Full access to the host runtime.
 <img src="./js-logo.png" width="60" alt="JavaScript logo"><br>
 <strong>JavaScript / WebAssembly</strong><br>
 Run in any browser or Node.js.<br>
-See <a href="./js/">js/</a> for the WASM host.
+See <a href="js/">js/</a> for the WASM host.
 </td>
 </tr>
 </table>
@@ -35,7 +35,13 @@ Omissions from Tcl 9:
 - an event loop,
 - an OO system.
 
-## Feather in your pogram
+## Installation
+
+```bash
+go get github.com/feather-lang/feather
+```
+
+## Feather in your program
 
 Go is the only supported host language at the moment.
 
