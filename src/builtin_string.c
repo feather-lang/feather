@@ -3,14 +3,16 @@
 #include "index_parse.h"
 
 // Default whitespace characters for trim
-static int string_is_whitespace(char c) {
+static int string_is_whitespace(int c) {
   return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f';
 }
 
-// Check if char is in charset
-static int in_charset(char c, const char *chars, size_t len) {
+// Check if char (as int) is in charset object using byte-at-a-time access
+static int in_charset_obj(const FeatherHostOps *ops, FeatherInterp interp,
+                          int ch, FeatherObj charsObj) {
+  size_t len = ops->string.byte_length(interp, charsObj);
   for (size_t i = 0; i < len; i++) {
-    if (chars[i] == c) return 1;
+    if (ops->string.byte_at(interp, charsObj, i) == ch) return 1;
   }
   return 0;
 }
@@ -120,15 +122,9 @@ static FeatherResult string_match(const FeatherHostOps *ops, FeatherInterp inter
     // Use case-folded versions for comparison
     FeatherObj foldedPattern = ops->rune.fold(interp, pattern);
     FeatherObj foldedString = ops->rune.fold(interp, string);
-    size_t plen, slen;
-    const char *pstr = ops->string.get(interp, foldedPattern, &plen);
-    const char *sstr = ops->string.get(interp, foldedString, &slen);
-    matches = feather_glob_match(pstr, plen, sstr, slen);
+    matches = feather_obj_glob_match(ops, interp, foldedPattern, foldedString);
   } else {
-    size_t plen, slen;
-    const char *pstr = ops->string.get(interp, pattern, &plen);
-    const char *sstr = ops->string.get(interp, string, &slen);
-    matches = feather_glob_match(pstr, plen, sstr, slen);
+    matches = feather_obj_glob_match(ops, interp, pattern, string);
   }
 
   ops->interp.set_result(interp, ops->integer.create(interp, matches ? 1 : 0));
@@ -177,20 +173,19 @@ static FeatherResult string_trim(const FeatherHostOps *ops, FeatherInterp interp
   }
 
   FeatherObj strObj = ops->list.shift(interp, args);
-  size_t len;
-  const char *str = ops->string.get(interp, strObj, &len);
+  size_t len = ops->string.byte_length(interp, strObj);
 
-  const char *chars = NULL;
-  size_t charsLen = 0;
+  FeatherObj charsObj = 0;
   if (argc == 2) {
-    FeatherObj charsObj = ops->list.shift(interp, args);
-    chars = ops->string.get(interp, charsObj, &charsLen);
+    charsObj = ops->list.shift(interp, args);
   }
 
   // Find start (skip leading trim chars)
   size_t start = 0;
   while (start < len) {
-    int shouldTrim = chars ? in_charset(str[start], chars, charsLen) : string_is_whitespace(str[start]);
+    int ch = ops->string.byte_at(interp, strObj, start);
+    int shouldTrim = charsObj ?
+      in_charset_obj(ops, interp, ch, charsObj) : string_is_whitespace(ch);
     if (!shouldTrim) break;
     start++;
   }
@@ -198,12 +193,14 @@ static FeatherResult string_trim(const FeatherHostOps *ops, FeatherInterp interp
   // Find end (skip trailing trim chars)
   size_t end = len;
   while (end > start) {
-    int shouldTrim = chars ? in_charset(str[end - 1], chars, charsLen) : string_is_whitespace(str[end - 1]);
+    int ch = ops->string.byte_at(interp, strObj, end - 1);
+    int shouldTrim = charsObj ?
+      in_charset_obj(ops, interp, ch, charsObj) : string_is_whitespace(ch);
     if (!shouldTrim) break;
     end--;
   }
 
-  ops->interp.set_result(interp, ops->string.intern(interp, str + start, end - start));
+  ops->interp.set_result(interp, ops->string.slice(interp, strObj, start, end));
   return TCL_OK;
 }
 
@@ -218,24 +215,23 @@ static FeatherResult string_trimleft(const FeatherHostOps *ops, FeatherInterp in
   }
 
   FeatherObj strObj = ops->list.shift(interp, args);
-  size_t len;
-  const char *str = ops->string.get(interp, strObj, &len);
+  size_t len = ops->string.byte_length(interp, strObj);
 
-  const char *chars = NULL;
-  size_t charsLen = 0;
+  FeatherObj charsObj = 0;
   if (argc == 2) {
-    FeatherObj charsObj = ops->list.shift(interp, args);
-    chars = ops->string.get(interp, charsObj, &charsLen);
+    charsObj = ops->list.shift(interp, args);
   }
 
   size_t start = 0;
   while (start < len) {
-    int shouldTrim = chars ? in_charset(str[start], chars, charsLen) : string_is_whitespace(str[start]);
+    int ch = ops->string.byte_at(interp, strObj, start);
+    int shouldTrim = charsObj ?
+      in_charset_obj(ops, interp, ch, charsObj) : string_is_whitespace(ch);
     if (!shouldTrim) break;
     start++;
   }
 
-  ops->interp.set_result(interp, ops->string.intern(interp, str + start, len - start));
+  ops->interp.set_result(interp, ops->string.slice(interp, strObj, start, len));
   return TCL_OK;
 }
 
@@ -250,24 +246,23 @@ static FeatherResult string_trimright(const FeatherHostOps *ops, FeatherInterp i
   }
 
   FeatherObj strObj = ops->list.shift(interp, args);
-  size_t len;
-  const char *str = ops->string.get(interp, strObj, &len);
+  size_t len = ops->string.byte_length(interp, strObj);
 
-  const char *chars = NULL;
-  size_t charsLen = 0;
+  FeatherObj charsObj = 0;
   if (argc == 2) {
-    FeatherObj charsObj = ops->list.shift(interp, args);
-    chars = ops->string.get(interp, charsObj, &charsLen);
+    charsObj = ops->list.shift(interp, args);
   }
 
   size_t end = len;
   while (end > 0) {
-    int shouldTrim = chars ? in_charset(str[end - 1], chars, charsLen) : string_is_whitespace(str[end - 1]);
+    int ch = ops->string.byte_at(interp, strObj, end - 1);
+    int shouldTrim = charsObj ?
+      in_charset_obj(ops, interp, ch, charsObj) : string_is_whitespace(ch);
     if (!shouldTrim) break;
     end--;
   }
 
-  ops->interp.set_result(interp, ops->string.intern(interp, str, end));
+  ops->interp.set_result(interp, ops->string.slice(interp, strObj, 0, end));
   return TCL_OK;
 }
 
@@ -308,17 +303,14 @@ static FeatherResult string_map(const FeatherHostOps *ops, FeatherInterp interp,
     return TCL_ERROR;
   }
 
-  size_t strLen;
-  const char *str = ops->string.get(interp, strObj, &strLen);
-  size_t foldedLen;
-  const char *folded = ops->string.get(interp, foldedStr, &foldedLen);
+  size_t foldedLen = ops->string.byte_length(interp, foldedStr);
 
   // Build result - note: for nocase with case-folding that changes length,
   // we use the folded string for matching but original for non-matched chars
   FeatherObj result = ops->string.intern(interp, "", 0);
   size_t i = 0;
 
-  while (i < strLen) {
+  while (i < foldedLen) {
     int matched = 0;
 
     // Try each mapping
@@ -329,27 +321,13 @@ static FeatherResult string_map(const FeatherHostOps *ops, FeatherInterp interp,
       // For nocase, fold the key
       FeatherObj keyToMatch = nocase ? ops->rune.fold(interp, keyObj) : keyObj;
 
-      size_t keyLen;
-      const char *key = ops->string.get(interp, keyToMatch, &keyLen);
-      size_t valLen;
-      const char *val = ops->string.get(interp, valObj, &valLen);
-
+      size_t keyLen = ops->string.byte_length(interp, keyToMatch);
       if (keyLen == 0) continue;
-      if (i + keyLen > foldedLen) continue;
 
       // Check if key matches at position i in folded string
-      int match = 1;
-      for (size_t k = 0; k < keyLen; k++) {
-        if (folded[i + k] != key[k]) {
-          match = 0;
-          break;
-        }
-      }
-
-      if (match) {
+      if (feather_obj_matches_at(ops, interp, foldedStr, i, keyToMatch)) {
         // Append replacement value
-        FeatherObj valStr = ops->string.intern(interp, val, valLen);
-        result = ops->string.concat(interp, result, valStr);
+        result = ops->string.concat(interp, result, valObj);
         i += keyLen;
         matched = 1;
         break;
@@ -358,7 +336,7 @@ static FeatherResult string_map(const FeatherHostOps *ops, FeatherInterp interp,
 
     if (!matched) {
       // Append original character (from folded, which may differ from original)
-      FeatherObj ch = ops->string.intern(interp, &folded[i], 1);
+      FeatherObj ch = ops->string.slice(interp, foldedStr, i, i + 1);
       result = ops->string.concat(interp, result, ch);
       i++;
     }

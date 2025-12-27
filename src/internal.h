@@ -194,6 +194,25 @@ static inline long feather_obj_find_last_colons(const FeatherHostOps *ops, Feath
 }
 
 /**
+ * feather_obj_matches_at checks if 'pattern' matches at position 'pos' in 'str'.
+ *
+ * Returns 1 if all bytes of pattern match str starting at pos, 0 otherwise.
+ * Uses byte-at-a-time access.
+ */
+static inline int feather_obj_matches_at(const FeatherHostOps *ops, FeatherInterp interp,
+                                          FeatherObj str, size_t pos, FeatherObj pattern) {
+    size_t strLen = ops->string.byte_length(interp, str);
+    size_t patLen = ops->string.byte_length(interp, pattern);
+    if (pos + patLen > strLen) return 0;
+    for (size_t i = 0; i < patLen; i++) {
+        int c1 = ops->string.byte_at(interp, str, pos + i);
+        int c2 = ops->string.byte_at(interp, pattern, i);
+        if (c1 != c2) return 0;
+    }
+    return 1;
+}
+
+/**
  * feather_lookup_builtin looks up a builtin command by name.
  * Returns NULL if no builtin with that name exists.
  */
