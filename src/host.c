@@ -66,7 +66,6 @@ static FeatherHostOps default_ops = {
         .builder_append_obj = feather_host_string_builder_append_obj,
         .builder_finish = feather_host_string_builder_finish,
         .intern = feather_host_string_intern,
-        .get = feather_host_string_get,
     },
     .rune = {
         .length = feather_host_rune_length,

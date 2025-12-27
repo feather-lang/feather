@@ -23,7 +23,6 @@ Two types, mirroring TCL:
 type Obj struct {
     bytes  string   // string representation ("" = empty string if intrep == nil)
     intrep ObjType  // internal representation (nil = pure string)
-    cstr   *C.char  // cached C string for ops.string.get; freed on release
 }
 ```
 

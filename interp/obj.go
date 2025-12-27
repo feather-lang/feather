@@ -1,19 +1,11 @@
 package interp
 
-/*
-#include <stdlib.h>
-*/
-import "C"
-
-import "unsafe"
-
 // Obj is a Feather value.
 // It follows TCL semantics where values have both a string representation
 // and an optional internal representation that can be lazily computed.
 type Obj struct {
-	bytes  string   // string representation ("" = empty string if intrep == nil)
-	intrep ObjType  // internal representation (nil = pure string)
-	cstr   *C.char  // cached C string for ops.string.get; freed on release
+	bytes  string  // string representation ("" = empty string if intrep == nil)
+	intrep ObjType // internal representation (nil = pure string)
 }
 
 // ObjType defines the core behavior for an internal representation.
@@ -82,10 +74,6 @@ func (o *Obj) Invalidate() {
 		return
 	}
 	o.bytes = ""
-	if o.cstr != nil {
-		C.free(unsafe.Pointer(o.cstr))
-		o.cstr = nil
-	}
 }
 
 // Copy creates a shallow copy of the object.

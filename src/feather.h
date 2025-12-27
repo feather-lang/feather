@@ -507,13 +507,6 @@ typedef struct FeatherStringOps {
    * DEPRECATED: This will be removed. Use builder operations instead.
    */
   FeatherObj (*intern)(FeatherInterp interp, const char *s, size_t len);
-
-  /**
-   * get returns the string representation of an object.
-   *
-   * DEPRECATED: This will be removed. Use byte_at/byte_length instead.
-   */
-  const char *(*get)(FeatherInterp interp, FeatherObj obj, size_t *len);
 } FeatherStringOps;
 
 /**
