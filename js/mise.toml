@@ -10,6 +10,7 @@ zig wasm-ld --no-entry \
   --export=feather_parse_init \
   --export=feather_parse_command \
   --export=feather_subst \
+  --export=feather_list_parse \
   --export=feather_get_ops \
   --export=alloc \
   --export=free \

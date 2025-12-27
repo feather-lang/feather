@@ -4,6 +4,9 @@ package interp
 #cgo CFLAGS: -I${SRCDIR}/../src
 #include "feather.h"
 #include <stdlib.h>
+
+// Implemented in callbacks.c
+extern FeatherObj call_feather_list_parse(FeatherInterp interp, const char *s, size_t len);
 */
 import "C"
 
@@ -804,18 +807,43 @@ func (i *Interp) GetList(h FeatherObj) ([]FeatherObj, error) {
 		}
 		return handles, nil
 	}
-	// Shimmer: string → list via parseList
-	items, err := i.parseList(obj.String())
+	// Shimmer: string → list via C's feather_list_parse
+	str := obj.String()
+	cstr := C.CString(str)
+	defer C.free(unsafe.Pointer(cstr))
+	listHandle := FeatherObj(C.call_feather_list_parse(C.FeatherInterp(i.handle), cstr, C.size_t(len(str))))
+
+	// Check for parse error (nil return means error, message in result)
+	if listHandle == 0 {
+		// Get error message from interp result
+		if i.result != 0 {
+			errObj := i.getObject(i.result)
+			if errObj != nil {
+				return nil, fmt.Errorf("%s", errObj.String())
+			}
+		}
+		return nil, fmt.Errorf("failed to parse list")
+	}
+
+	// Get the list items from the parsed result
+	listObj := i.getObject(listHandle)
+	if listObj == nil {
+		return nil, fmt.Errorf("failed to parse list")
+	}
+	items, err := AsList(listObj)
 	if err != nil {
 		return nil, err
 	}
-	// Convert parsed items to *Obj and store as ListType
-	objItems := make([]*Obj, len(items))
-	for idx, h := range items {
-		objItems[idx] = i.getObject(h)
+
+	// Convert []*Obj to []FeatherObj handles
+	handles := make([]FeatherObj, len(items))
+	for idx, item := range items {
+		handles[idx] = i.registerObj(item)
 	}
-	obj.intrep = ListType(objItems)
-	return items, nil
+
+	// Store as ListType on the original object for future lookups
+	obj.intrep = ListType(items)
+	return handles, nil
 }
 
 // GetDict returns the dict representation of an object as handles.
@@ -949,69 +977,7 @@ func (i *Interp) IsNativeList(h FeatherObj) bool {
 	return ok
 }
 
-// parseList parses a TCL list string into a slice of object handles.
-func (i *Interp) parseList(s string) ([]FeatherObj, error) {
-	var items []FeatherObj
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return items, nil
-	}
 
-	pos := 0
-	for pos < len(s) {
-		// Skip whitespace
-		for pos < len(s) && (s[pos] == ' ' || s[pos] == '\t' || s[pos] == '\n') {
-			pos++
-		}
-		if pos >= len(s) {
-			break
-		}
-
-		var elem string
-		if s[pos] == '{' {
-			// Braced element
-			depth := 1
-			start := pos + 1
-			pos++
-			for pos < len(s) && depth > 0 {
-				if s[pos] == '{' {
-					depth++
-				} else if s[pos] == '}' {
-					depth--
-				}
-				pos++
-			}
-			if depth != 0 {
-				return nil, fmt.Errorf("unmatched open brace in list")
-			}
-			elem = s[start : pos-1]
-		} else if s[pos] == '"' {
-			// Quoted element
-			start := pos + 1
-			pos++
-			for pos < len(s) && s[pos] != '"' {
-				if s[pos] == '\\' && pos+1 < len(s) {
-					pos++
-				}
-				pos++
-			}
-			if pos >= len(s) {
-				return nil, fmt.Errorf("unmatched quote in list")
-			}
-			elem = s[start:pos]
-			pos++ // skip closing quote
-		} else {
-			// Bare word
-			start := pos
-			for pos < len(s) && s[pos] != ' ' && s[pos] != '\t' && s[pos] != '\n' {
-				pos++
-			}
-			elem = s[start:pos]
-		}
-		items = append(items, i.internString(elem))
-	}
-	return items, nil
-}
 
 // SetResult sets the interpreter's result to the given object.
 func (i *Interp) SetResult(obj FeatherObj) {

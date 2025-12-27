@@ -482,16 +482,19 @@ static size_t skip_list_whitespace(const char *s, size_t len, size_t pos) {
  * - No command substitution
  * - Braces and quotes delimit elements, backslash-newline becomes space
  *
- * Returns the parsed element, or nil if at end.
+ * Returns TCL_OK on success (element in *elem_out, or nil if at end).
+ * Returns TCL_ERROR on parse error (sets error message in interp result).
  * Updates pos to point past the parsed element.
  */
-static FeatherObj parse_list_element(const FeatherHostOps *ops, FeatherInterp interp,
-                                  const char *s, size_t len, size_t *pos) {
+static FeatherResult parse_list_element(const FeatherHostOps *ops, FeatherInterp interp,
+                                        const char *s, size_t len, size_t *pos,
+                                        FeatherObj *elem_out) {
   // Skip leading whitespace
   *pos = skip_list_whitespace(s, len, *pos);
 
   if (*pos >= len) {
-    return 0; // nil - no more elements
+    *elem_out = 0; // nil - no more elements
+    return TCL_OK;
   }
 
   const char *p = s + *pos;
@@ -512,12 +515,19 @@ static FeatherObj parse_list_element(const FeatherHostOps *ops, FeatherInterp in
       else if (*p == '}') depth--;
       p++;
     }
-    if (depth == 0) {
-      size_t content_len = (p - 1) - content_start;
-      word = ops->string.intern(interp, content_start, content_len);
+    if (depth != 0) {
+      // Unmatched brace
+      FeatherObj msg = ops->string.intern(interp, "unmatched open brace in list", 28);
+      ops->interp.set_result(interp, msg);
+      *pos = p - s;
+      *elem_out = 0;
+      return TCL_ERROR;
     }
+    size_t content_len = (p - 1) - content_start;
+    word = ops->string.intern(interp, content_start, content_len);
     *pos = p - s;
-    return word;
+    *elem_out = word;
+    return TCL_OK;
 
   } else if (*p == '"') {
     // Quoted element - content includes everything until closing quote
@@ -526,7 +536,6 @@ static FeatherObj parse_list_element(const FeatherHostOps *ops, FeatherInterp in
     p++;
     // For simplicity, just find the closing quote and return content
     // A full implementation would process backslash escapes
-    const char *seg_start = p;
     while (p < end && *p != '"') {
       if (*p == '\\' && p + 1 < end) {
         p += 2;
@@ -534,11 +543,20 @@ static FeatherObj parse_list_element(const FeatherHostOps *ops, FeatherInterp in
       }
       p++;
     }
+    if (p >= end) {
+      // Unmatched quote
+      FeatherObj msg = ops->string.intern(interp, "unmatched quote in list", 23);
+      ops->interp.set_result(interp, msg);
+      *pos = p - s;
+      *elem_out = 0;
+      return TCL_ERROR;
+    }
     size_t content_len = p - content_start;
     word = ops->string.intern(interp, content_start, content_len);
-    if (p < end) p++; // skip closing quote
+    p++; // skip closing quote
     *pos = p - s;
-    return word;
+    *elem_out = word;
+    return TCL_OK;
 
   } else {
     // Bare word - terminated by whitespace
@@ -555,20 +573,33 @@ static FeatherObj parse_list_element(const FeatherHostOps *ops, FeatherInterp in
       word = ops->string.intern(interp, word_start, word_len);
     }
     *pos = p - s;
-    return word;
+    *elem_out = word;
+    return TCL_OK;
   }
 }
 
 /**
  * Parse a string as a TCL list and return a list of elements.
+ *
+ * This is the canonical list parsing function. Hosts should call this
+ * rather than implementing their own list parsing to ensure consistent
+ * behavior across all hosts.
+ *
+ * Returns a list object on success.
+ * Returns 0 (nil) on parse error, with error message in interp result.
  */
-static FeatherObj parse_as_list(const FeatherHostOps *ops, FeatherInterp interp,
-                            const char *s, size_t len) {
+FeatherObj feather_list_parse(const FeatherHostOps *ops, FeatherInterp interp,
+                              const char *s, size_t len) {
+  ops = feather_get_ops(ops);
   FeatherObj result = ops->list.create(interp);
   size_t pos = 0;
 
   while (pos < len) {
-    FeatherObj elem = parse_list_element(ops, interp, s, len, &pos);
+    FeatherObj elem;
+    FeatherResult status = parse_list_element(ops, interp, s, len, &pos, &elem);
+    if (status != TCL_OK) {
+      return 0;  // error already set in interp result
+    }
     if (ops->list.is_nil(interp, elem)) {
       break;
     }
@@ -1020,7 +1051,7 @@ FeatherParseStatus feather_parse_command(const FeatherHostOps *ops, FeatherInter
         // Parse word as a list and add each element
         size_t word_len;
         const char *word_str = ops->string.get(interp, word, &word_len);
-        FeatherObj list = parse_as_list(ops, interp, word_str, word_len);
+        FeatherObj list = feather_list_parse(ops, interp, word_str, word_len);
 
         // Add each list element to words
         size_t list_len = ops->list.length(interp, list);

@@ -1443,4 +1443,24 @@ FeatherResult feather_resolve_variable(const FeatherHostOps *ops, FeatherInterp 
                                const char *name, size_t len,
                                FeatherObj *ns_out, FeatherObj *local_out);
 
+/**
+ * feather_list_parse parses a string as a TCL list.
+ *
+ * This is the canonical list parsing function. Hosts should call this
+ * to convert a string to a list rather than implementing their own
+ * list parsing, ensuring consistent behavior across all hosts.
+ *
+ * TCL list syntax:
+ *   - Elements separated by whitespace (space, tab, newline)
+ *   - {braced} elements: content is literal, braces nest
+ *   - "quoted" elements: backslash escapes are processed
+ *   - bare words: terminated by whitespace
+ *
+ * Returns a list object containing the parsed elements.
+ * On parse error (unmatched brace/quote), returns an incomplete list
+ * (parsing stops at the error point).
+ */
+FeatherObj feather_list_parse(const FeatherHostOps *ops, FeatherInterp interp,
+                              const char *s, size_t len);
+
 #endif

@@ -50,6 +50,8 @@ class FeatherInterp {
     this.foreignTypes = new Map();
     this.foreignInstances = new Map(); // handle name -> { typeName, value, objHandle }
     this.recursionLimit = DEFAULT_RECURSION_LIMIT;
+    // Injected by createFeather() - calls C's feather_list_parse via WASM
+    this._parseListFromC = null;
   }
 
   store(obj) {
@@ -203,6 +205,27 @@ class FeatherInterp {
     const obj = this.get(handle);
     if (!obj) return { items: [] };
     if (obj.type === 'list') return { items: obj.items };
+
+    // Use C's feather_list_parse if available (injected by createFeather)
+    if (this._parseListFromC) {
+      const str = this.getString(handle);
+      const listHandle = this._parseListFromC(str);
+      if (listHandle === 0) {
+        // Error - get message from result
+        const errObj = this.get(this.result);
+        return { error: errObj ? errObj.value : 'parse error' };
+      }
+      const listObj = this.get(listHandle);
+      if (listObj?.type === 'list') {
+        // Cache the list type on the original object for shimmering
+        obj.type = 'list';
+        obj.items = listObj.items;
+        return { items: obj.items };
+      }
+      return { items: [] };
+    }
+
+    // Fallback to JS parser (used during initialization before WASM is ready)
     const str = this.getString(handle);
     return this.parseList(str);
   }
@@ -1066,12 +1089,29 @@ async function createFeather(wasmSource) {
     },
     feather_host_list_from: (interpId, obj) => {
       const interp = interpreters.get(interpId);
-      const result = interp.getList(obj);
-      if (result.error) {
-        interp.result = interp.store({ type: 'string', value: result.error });
+      const existingObj = interp.get(obj);
+      if (existingObj?.type === 'list') {
+        // Already a list - just copy
+        return interp.store({ type: 'list', items: [...existingObj.items] });
+      }
+      // Need to parse string as list - use C's feather_list_parse
+      const str = interp.getString(obj);
+      const [ptr, len] = writeString(str);
+      const listHandle = wasmInstance.exports.feather_list_parse(0, interpId, ptr, len);
+      wasmInstance.exports.free(ptr);
+
+      if (listHandle === 0) {
+        // Parse error - error message already set in interp.result by C code
         return 0;
       }
-      return interp.store({ type: 'list', items: [...result.items] });
+
+      // The C function returned a list handle - it's already registered in interp
+      // But we need to copy it to avoid mutation issues
+      const parsedObj = interp.get(listHandle);
+      if (parsedObj?.type === 'list') {
+        return interp.store({ type: 'list', items: [...parsedObj.items] });
+      }
+      return listHandle;
     },
     feather_host_list_push: (interpId, list, item) => {
       const interp = interpreters.get(interpId);
@@ -1661,7 +1701,17 @@ async function createFeather(wasmSource) {
   return {
     create() {
       const id = nextInterpId++;
-      interpreters.set(id, new FeatherInterp(id));
+      const interp = new FeatherInterp(id);
+      interpreters.set(id, interp);
+
+      // Inject the C list parser function
+      interp._parseListFromC = (str) => {
+        const [ptr, len] = writeString(str);
+        const result = wasmInstance.exports.feather_list_parse(0, id, ptr, len);
+        wasmInstance.exports.free(ptr);
+        return result;
+      };
+
       wasmInstance.exports.feather_interp_init(0, id);
       return id;
     },

@@ -567,3 +567,9 @@ void call_feather_interp_init(FeatherInterp interp) {
     FeatherHostOps ops = make_host_ops();
     feather_interp_init(&ops, interp);
 }
+
+// Call C's feather_list_parse to parse a string as a list
+FeatherObj call_feather_list_parse(FeatherInterp interp, const char *s, size_t len) {
+    FeatherHostOps ops = make_host_ops();
+    return feather_list_parse(&ops, interp, s, len);
+}
