@@ -1,16 +1,18 @@
 <template>
-  <div class="playground">
-    <h2>Interactive Playground</h2>
-    <p class="subtitle">Try Feather directly in your browser - powered by WebAssembly</p>
+  <div :class="['playground', { compact: isCompact }]">
+    <template v-if="!isCompact">
+      <h2>Interactive Playground</h2>
+      <p class="subtitle">Try Feather directly in your browser - powered by WebAssembly</p>
 
-    <div class="examples">
-      <button
-        v-for="ex in examples"
-        :key="ex.name"
-        @click="loadExample(ex)"
-        class="example-btn"
-      >{{ ex.name }}</button>
-    </div>
+      <div class="examples">
+        <button
+          v-for="ex in examples"
+          :key="ex.name"
+          @click="loadExample(ex)"
+          class="example-btn"
+        >{{ ex.name }}</button>
+      </div>
+    </template>
 
     <div class="editor-container">
       <div class="panel editor-panel">
@@ -82,10 +84,19 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick, useSlots } from 'vue'
 import CodeEditor from './CodeEditor.vue'
 
-const script = ref(`# Pulsing circle animation
+const props = defineProps({
+  code: {
+    type: String,
+    default: null
+  }
+})
+
+const slots = useSlots()
+
+const defaultCode = `# Pulsing circle animation
 set state [dict create]
 dict set state radius 20
 dict set state growing 1
@@ -122,11 +133,42 @@ proc draw {} {
     canvas circle 250 140 $r
 }
 
-animate draw`)
+animate draw`
+
+const isCompact = computed(() => props.code !== null || slots.default)
+
+// Get code from slot or prop
+function extractTextFromVNodes(vnodes) {
+  let text = ''
+  for (const vnode of vnodes) {
+    if (typeof vnode === 'string') {
+      text += vnode
+    } else if (typeof vnode.children === 'string') {
+      text += vnode.children
+    } else if (Array.isArray(vnode.children)) {
+      text += extractTextFromVNodes(vnode.children)
+    }
+  }
+  return text
+}
+
+function getInitialCode() {
+  if (props.code) return props.code
+  if (slots.default) {
+    const slotContent = slots.default()
+    if (slotContent) {
+      const text = extractTextFromVNodes(slotContent)
+      if (text) return text.trim()
+    }
+  }
+  return defaultCode
+}
+
+const script = ref(getInitialCode())
 
 const hostCode = ref('')
 const showHostCode = ref(false)
-const showCanvas = ref(true)
+const showCanvas = ref(props.code === null && !slots.default)
 
 const output = ref([])
 const ready = ref(false)
@@ -506,6 +548,20 @@ onMounted(async () => {
 <style scoped>
 .playground {
   margin: 40px 0;
+}
+
+.playground.compact {
+  margin: 16px 0;
+}
+
+.playground.compact .editor-container {
+  grid-template-columns: 1fr 1fr;
+}
+
+.playground.compact .panel textarea,
+.playground.compact .output {
+  min-height: 120px;
+  max-height: 200px;
 }
 
 .playground h2 {
