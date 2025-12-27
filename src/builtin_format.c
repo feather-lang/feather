@@ -102,9 +102,14 @@ typedef struct {
 } FormatSpec;
 
 // Parse a format specifier starting after the '%'
+// fmtObj: the format string object
+// start: position in fmtObj to start parsing (after '%')
+// fmtLen: total length of format string
 // Returns number of characters consumed, or -1 on error
-static int parse_format_spec(const char *fmt, size_t len, FormatSpec *spec) {
-  size_t pos = 0;
+static int parse_format_spec_obj(const FeatherHostOps *ops, FeatherInterp interp,
+                                 FeatherObj fmtObj, size_t start, size_t fmtLen,
+                                 FormatSpec *spec) {
+  size_t pos = start;
 
   // Initialize spec
   spec->has_positional = 0;
@@ -120,24 +125,26 @@ static int parse_format_spec(const char *fmt, size_t len, FormatSpec *spec) {
   spec->precision_from_arg = 0;
   spec->specifier = 0;
 
-  if (pos >= len) return -1;
+  if (pos >= fmtLen) return -1;
+
+  int ch = ops->string.byte_at(interp, fmtObj, pos);
 
   // Check for %% 
-  if (fmt[pos] == '%') {
+  if (ch == '%') {
     spec->specifier = '%';
     return 1;
   }
 
   // Check for positional specifier (n$)
   size_t posStart = pos;
-  while (pos < len && feather_is_digit(fmt[pos])) {
+  while (pos < fmtLen && (ch = ops->string.byte_at(interp, fmtObj, pos)) >= 0 && feather_is_digit(ch)) {
     pos++;
   }
-  if (pos > posStart && pos < len && fmt[pos] == '$') {
+  if (pos > posStart && pos < fmtLen && ops->string.byte_at(interp, fmtObj, pos) == '$') {
     // Parse positional index
     int idx = 0;
     for (size_t i = posStart; i < pos; i++) {
-      idx = idx * 10 + (fmt[i] - '0');
+      idx = idx * 10 + (ops->string.byte_at(interp, fmtObj, i) - '0');
     }
     spec->has_positional = 1;
     spec->position = idx;
@@ -148,16 +155,17 @@ static int parse_format_spec(const char *fmt, size_t len, FormatSpec *spec) {
   }
 
   // Parse flags
-  while (pos < len) {
-    if (fmt[pos] == '-') {
+  while (pos < fmtLen) {
+    ch = ops->string.byte_at(interp, fmtObj, pos);
+    if (ch == '-') {
       spec->left_justify = 1;
-    } else if (fmt[pos] == '+') {
+    } else if (ch == '+') {
       spec->show_sign = 1;
-    } else if (fmt[pos] == ' ') {
+    } else if (ch == ' ') {
       spec->space_sign = 1;
-    } else if (fmt[pos] == '0') {
+    } else if (ch == '0') {
       spec->zero_pad = 1;
-    } else if (fmt[pos] == '#') {
+    } else if (ch == '#') {
       spec->alternate = 1;
     } else {
       break;
@@ -166,54 +174,56 @@ static int parse_format_spec(const char *fmt, size_t len, FormatSpec *spec) {
   }
 
   // Parse width
-  if (pos < len && fmt[pos] == '*') {
+  ch = (pos < fmtLen) ? ops->string.byte_at(interp, fmtObj, pos) : -1;
+  if (ch == '*') {
     spec->width_from_arg = 1;
     spec->width = -1;
     pos++;
   } else {
-    while (pos < len && feather_is_digit(fmt[pos])) {
-      spec->width = spec->width * 10 + (fmt[pos] - '0');
+    while (pos < fmtLen && (ch = ops->string.byte_at(interp, fmtObj, pos)) >= 0 && feather_is_digit(ch)) {
+      spec->width = spec->width * 10 + (ch - '0');
       pos++;
     }
   }
 
   // Parse precision
-  if (pos < len && fmt[pos] == '.') {
+  ch = (pos < fmtLen) ? ops->string.byte_at(interp, fmtObj, pos) : -1;
+  if (ch == '.') {
     pos++;
     spec->precision = 0;
-    if (pos < len && fmt[pos] == '*') {
+    ch = (pos < fmtLen) ? ops->string.byte_at(interp, fmtObj, pos) : -1;
+    if (ch == '*') {
       spec->precision_from_arg = 1;
       spec->precision = -1;
       pos++;
     } else {
-      while (pos < len && feather_is_digit(fmt[pos])) {
-        spec->precision = spec->precision * 10 + (fmt[pos] - '0');
+      while (pos < fmtLen && (ch = ops->string.byte_at(interp, fmtObj, pos)) >= 0 && feather_is_digit(ch)) {
+        spec->precision = spec->precision * 10 + (ch - '0');
         pos++;
       }
     }
   }
 
   // Skip size modifiers (ll, h, l, z, t, L)
-  if (pos < len) {
-    if (fmt[pos] == 'l') {
-      pos++;
-      if (pos < len && fmt[pos] == 'l') pos++;
-    } else if (fmt[pos] == 'h' || fmt[pos] == 'z' || fmt[pos] == 't' || fmt[pos] == 'L' ||
-               fmt[pos] == 'j' || fmt[pos] == 'q') {
-      pos++;
-    }
+  ch = (pos < fmtLen) ? ops->string.byte_at(interp, fmtObj, pos) : -1;
+  if (ch == 'l') {
+    pos++;
+    if (pos < fmtLen && ops->string.byte_at(interp, fmtObj, pos) == 'l') pos++;
+  } else if (ch == 'h' || ch == 'z' || ch == 't' || ch == 'L' ||
+             ch == 'j' || ch == 'q') {
+    pos++;
   }
 
   // Parse specifier
-  if (pos >= len) return -1;
+  if (pos >= fmtLen) return -1;
 
-  char c = fmt[pos];
-  if (c == 'd' || c == 'i' || c == 'u' || c == 'o' || c == 'x' || c == 'X' ||
-      c == 'b' || c == 'c' || c == 's' || c == 'f' || c == 'e' || c == 'E' ||
-      c == 'g' || c == 'G' || c == 'a' || c == 'A' || c == 'p') {
-    spec->specifier = c;
+  ch = ops->string.byte_at(interp, fmtObj, pos);
+  if (ch == 'd' || ch == 'i' || ch == 'u' || ch == 'o' || ch == 'x' || ch == 'X' ||
+      ch == 'b' || ch == 'c' || ch == 's' || ch == 'f' || ch == 'e' || ch == 'E' ||
+      ch == 'g' || ch == 'G' || ch == 'a' || ch == 'A' || ch == 'p') {
+    spec->specifier = (char)ch;
     pos++;
-    return (int)pos;
+    return (int)(pos - start);
   }
 
   return -1; // Invalid specifier
@@ -225,8 +235,7 @@ static FeatherObj apply_width(const FeatherHostOps *ops, FeatherInterp interp,
                              FeatherObj str, int width, int left_justify, char padchar) {
   if (width <= 0) return str;
 
-  size_t len;
-  const char *s = ops->string.get(interp, str, &len);
+  size_t len = ops->string.byte_length(interp, str);
 
   if (len >= (size_t)width) return str;
 
@@ -245,10 +254,11 @@ static FeatherObj apply_width(const FeatherHostOps *ops, FeatherInterp interp,
     return ops->string.concat(interp, str, pad);
   } else {
     // Special case: zero padding with sign - zeros go after sign
-    if (padchar == '0' && len > 0 && (s[0] == '-' || s[0] == '+')) {
-      char signbuf[2] = {s[0], '\0'};
+    int first_byte = ops->string.byte_at(interp, str, 0);
+    if (padchar == '0' && len > 0 && (first_byte == '-' || first_byte == '+')) {
+      char signbuf[2] = {(char)first_byte, '\0'};
       FeatherObj sign = ops->string.intern(interp, signbuf, 1);
-      FeatherObj rest = ops->string.intern(interp, s + 1, len - 1);
+      FeatherObj rest = ops->string.slice(interp, str, 1, len);
       FeatherObj result = ops->string.concat(interp, sign, pad);
       return ops->string.concat(interp, result, rest);
     }
@@ -398,8 +408,7 @@ FeatherResult feather_builtin_format(const FeatherHostOps *ops, FeatherInterp in
   }
 
   FeatherObj fmtObj = ops->list.at(interp, args, 0);
-  size_t fmtLen;
-  const char *fmt = ops->string.get(interp, fmtObj, &fmtLen);
+  size_t fmtLen = ops->string.byte_length(interp, fmtObj);
 
   FeatherObj result = ops->string.intern(interp, "", 0);
   size_t argIndex = 1; // Next argument to use (1-based: args[0] is format string)
@@ -409,13 +418,14 @@ FeatherResult feather_builtin_format(const FeatherHostOps *ops, FeatherInterp in
   while (pos < fmtLen) {
     // Find next %
     size_t start = pos;
-    while (pos < fmtLen && fmt[pos] != '%') {
+    int ch;
+    while (pos < fmtLen && (ch = ops->string.byte_at(interp, fmtObj, pos)) >= 0 && ch != '%') {
       pos++;
     }
 
     // Append literal text
     if (pos > start) {
-      FeatherObj literal = ops->string.intern(interp, fmt + start, pos - start);
+      FeatherObj literal = ops->string.slice(interp, fmtObj, start, pos);
       result = ops->string.concat(interp, result, literal);
     }
 
@@ -432,7 +442,7 @@ FeatherResult feather_builtin_format(const FeatherHostOps *ops, FeatherInterp in
 
     // Parse format specifier
     FormatSpec spec;
-    int consumed = parse_format_spec(fmt + pos, fmtLen - pos, &spec);
+    int consumed = parse_format_spec_obj(ops, interp, fmtObj, pos, fmtLen, &spec);
     if (consumed < 0) {
       FeatherObj msg = ops->string.intern(interp,
         "format string ended in middle of field specifier", 48);
@@ -538,11 +548,8 @@ FeatherResult feather_builtin_format(const FeatherHostOps *ops, FeatherInterp in
       case 'b': {
         int64_t intVal;
         if (ops->integer.get(interp, value, &intVal) != TCL_OK) {
-          size_t vlen;
-          const char *vstr = ops->string.get(interp, value, &vlen);
           FeatherObj msg = ops->string.intern(interp, "expected integer but got \"", 26);
-          FeatherObj valStr = ops->string.intern(interp, vstr, vlen);
-          msg = ops->string.concat(interp, msg, valStr);
+          msg = ops->string.concat(interp, msg, value);
           FeatherObj suffix = ops->string.intern(interp, "\"", 1);
           msg = ops->string.concat(interp, msg, suffix);
           ops->interp.set_result(interp, msg);
