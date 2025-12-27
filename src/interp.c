@@ -75,6 +75,7 @@ static const BuiltinEntry builtins[] = {
     {"::lset", feather_builtin_lset},
     {"::lreplace", feather_builtin_lreplace},
     {"::lreverse", feather_builtin_lreverse},
+    {"::lrepeat", feather_builtin_lrepeat},
     {"::lsort", feather_builtin_lsort},
     {"::lsearch", feather_builtin_lsearch},
     {"::string", feather_builtin_string},

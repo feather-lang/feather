@@ -1,0 +1,140 @@
+<!doctype html>
+<html>
+  <head>
+    <title>lrepeat tests</title>
+  </head>
+  <body>
+    <h1>lrepeat - Build a list by repeating elements</h1>
+
+    <h2>Basic usage</h2>
+
+    <test-case name="repeat single element">
+      <script>lrepeat 3 a</script>
+      <return>TCL_OK</return>
+      <stdout>a a a</stdout>
+      <stderr></stderr>
+      <exit-code>0</exit-code>
+    </test-case>
+
+    <test-case name="repeat multiple elements">
+      <script>lrepeat 3 a b c</script>
+      <return>TCL_OK</return>
+      <stdout>a b c a b c a b c</stdout>
+      <stderr></stderr>
+      <exit-code>0</exit-code>
+    </test-case>
+
+    <test-case name="repeat two elements">
+      <script>lrepeat 2 x y</script>
+      <return>TCL_OK</return>
+      <stdout>x y x y</stdout>
+      <stderr></stderr>
+      <exit-code>0</exit-code>
+    </test-case>
+
+    <test-case name="repeat once is like list">
+      <script>lrepeat 1 a b c</script>
+      <return>TCL_OK</return>
+      <stdout>a b c</stdout>
+      <stderr></stderr>
+      <exit-code>0</exit-code>
+    </test-case>
+
+    <h2>Nested lists</h2>
+
+    <test-case name="repeat nested list">
+      <script>lrepeat 3 {a b}</script>
+      <return>TCL_OK</return>
+      <stdout>{a b} {a b} {a b}</stdout>
+      <stderr></stderr>
+      <exit-code>0</exit-code>
+    </test-case>
+
+    <test-case name="repeat with nested and simple">
+      <script>lrepeat 2 {a b} c</script>
+      <return>TCL_OK</return>
+      <stdout>{a b} c {a b} c</stdout>
+      <stderr></stderr>
+      <exit-code>0</exit-code>
+    </test-case>
+
+    <test-case name="repeat result of lrepeat">
+      <script>lrepeat 2 [lrepeat 2 0]</script>
+      <return>TCL_OK</return>
+      <stdout>{0 0} {0 0}</stdout>
+      <stderr></stderr>
+      <exit-code>0</exit-code>
+    </test-case>
+
+    <h2>Edge cases - zero count</h2>
+
+    <test-case name="repeat zero times">
+      <script>lrepeat 0 a</script>
+      <return>TCL_OK</return>
+      <stdout></stdout>
+      <stderr></stderr>
+      <exit-code>0</exit-code>
+    </test-case>
+
+    <test-case name="repeat zero times multiple elements">
+      <script>lrepeat 0 a b c</script>
+      <return>TCL_OK</return>
+      <stdout></stdout>
+      <stderr></stderr>
+      <exit-code>0</exit-code>
+    </test-case>
+
+    <h2>Edge cases - no elements</h2>
+
+    <test-case name="repeat with no elements">
+      <script>lrepeat 5</script>
+      <return>TCL_OK</return>
+      <stdout></stdout>
+      <stderr></stderr>
+      <exit-code>0</exit-code>
+    </test-case>
+
+    <test-case name="repeat zero with no elements">
+      <script>lrepeat 0</script>
+      <return>TCL_OK</return>
+      <stdout></stdout>
+      <stderr></stderr>
+      <exit-code>0</exit-code>
+    </test-case>
+
+    <h2>Error cases</h2>
+
+    <test-case name="no arguments">
+      <script>lrepeat</script>
+      <return>TCL_ERROR</return>
+      <error>wrong # args: should be "lrepeat count ?value ...?"</error>
+      <stderr></stderr>
+      <exit-code>1</exit-code>
+    </test-case>
+
+    <test-case name="negative count">
+      <script>lrepeat -1 a</script>
+      <return>TCL_ERROR</return>
+      <error>bad count "-1": must be integer >= 0</error>
+      <stderr></stderr>
+      <exit-code>1</exit-code>
+    </test-case>
+
+    <test-case name="non-integer count">
+      <script>lrepeat abc a</script>
+      <return>TCL_ERROR</return>
+      <error>expected integer but got "abc"</error>
+      <stderr></stderr>
+      <exit-code>1</exit-code>
+    </test-case>
+
+    <test-case name="float count">
+      <script>lrepeat 2.5 a</script>
+      <return>TCL_ERROR</return>
+      <error>expected integer but got "2.5"</error>
+      <stderr></stderr>
+      <exit-code>1</exit-code>
+    </test-case>
+
+  </body>
+</html>

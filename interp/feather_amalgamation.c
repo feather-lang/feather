@@ -50,6 +50,7 @@
 #include "../src/builtin_llength.c"
 #include "../src/builtin_lrange.c"
 #include "../src/builtin_lreplace.c"
+#include "../src/builtin_lrepeat.c"
 #include "../src/builtin_lreverse.c"
 #include "../src/builtin_lsearch.c"
 #include "../src/builtin_lset.c"

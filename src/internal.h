@@ -546,6 +546,17 @@ FeatherResult feather_builtin_lsort(const FeatherHostOps *ops, FeatherInterp int
                              FeatherObj cmd, FeatherObj args);
 
 /**
+ * feather_builtin_lrepeat implements the TCL 'lrepeat' command.
+ *
+ * Usage:
+ *   lrepeat count ?value ...?
+ *
+ * Creates a list by repeating elements count times.
+ */
+FeatherResult feather_builtin_lrepeat(const FeatherHostOps *ops, FeatherInterp interp,
+                                      FeatherObj cmd, FeatherObj args);
+
+/**
  * feather_builtin_lsearch implements the TCL 'lsearch' command.
  *
  * Usage:
