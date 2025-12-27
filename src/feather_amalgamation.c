@@ -34,6 +34,7 @@
 #include "builtin_continue.c"
 #include "builtin_dict.c"
 #include "builtin_error.c"
+#include "builtin_eval.c"
 #include "builtin_expr.c"
 #include "builtin_for.c"
 #include "builtin_foreach.c"

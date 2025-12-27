@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head><title>eval command tests</title></head>
+<body>
+<h1>eval command tests</h1>
+
+<h2>Basic evaluation</h2>
+
+<test-case name="eval single braced script">
+  <script>eval {set x 1}</script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="eval single quoted script">
+  <script>eval "set x 1"</script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="eval multiple commands in script">
+  <script>eval {set x 1; set y 2}</script>
+  <return>TCL_OK</return>
+  <stdout>2</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Concatenation behavior</h2>
+
+<test-case name="eval multiple args concatenated">
+  <script>eval set x 1</script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="eval quoted args form command">
+  <script>eval "set x" " 1"</script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="eval braced args concatenated">
+  <script>eval {set x} { 1}</script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="eval multiple sets via concat">
+  <script>eval {set a 10} {; set b 20}</script>
+  <return>TCL_OK</return>
+  <stdout>20</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Error handling</h2>
+
+<test-case name="eval no arguments">
+  <script>eval</script>
+  <return>TCL_ERROR</return>
+  <error>wrong # args: should be "eval arg ?arg ...?"</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="eval error propagates">
+  <script>eval {error "test error"}</script>
+  <return>TCL_ERROR</return>
+  <error>test error</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="eval undefined variable error">
+  <script>eval {set $undefinedVar 1}</script>
+  <return>TCL_ERROR</return>
+  <error>can't read "undefinedVar": no such variable</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+<h2>Variable scope</h2>
+
+<test-case name="eval runs in current scope">
+  <script>set x 5; eval {incr x}; set x</script>
+  <return>TCL_OK</return>
+  <stdout>6</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="eval defines variables in current scope">
+  <script>eval {set newvar hello}; set newvar</script>
+  <return>TCL_OK</return>
+  <stdout>hello</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Command results</h2>
+
+<test-case name="eval returns result of last command">
+  <script>eval {set a 1; set b 2; expr {$a + $b}}</script>
+  <return>TCL_OK</return>
+  <stdout>3</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="eval empty script returns empty">
+  <script>eval {}</script>
+  <return>TCL_OK</return>
+  <stdout></stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Nested eval</h2>
+
+<test-case name="eval nested eval">
+  <script>eval {eval {set x 42}}</script>
+  <return>TCL_OK</return>
+  <stdout>42</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Control flow</h2>
+
+<test-case name="eval return propagates">
+  <script>proc test {} { eval {return 99}; return 0 }; test</script>
+  <return>TCL_OK</return>
+  <stdout>99</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="eval break propagates">
+  <script>set result {}; foreach i {1 2 3} { eval {if {$i == 2} break}; lappend result $i }; set result</script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="eval continue propagates">
+  <script>set result {}; foreach i {1 2 3} { eval {if {$i == 2} continue}; lappend result $i }; set result</script>
+  <return>TCL_OK</return>
+  <stdout>1 3</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+</body>
+</html>

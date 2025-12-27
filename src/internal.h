@@ -629,4 +629,16 @@ FeatherResult feather_builtin_scan(const FeatherHostOps *ops, FeatherInterp inte
 FeatherResult feather_builtin_subst(const FeatherHostOps *ops, FeatherInterp interp,
                                     FeatherObj cmd, FeatherObj args);
 
+/**
+ * feather_builtin_eval implements the TCL 'eval' command.
+ *
+ * Usage:
+ *   eval arg ?arg ...?
+ *
+ * Concatenates all arguments (like concat) and evaluates the result as a script.
+ * Returns the result of the last command in the script.
+ */
+FeatherResult feather_builtin_eval(const FeatherHostOps *ops, FeatherInterp interp,
+                                   FeatherObj cmd, FeatherObj args);
+
 #endif
