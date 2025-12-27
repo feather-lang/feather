@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>namespace qualifiers and namespace tail</title>
+</head>
+<body>
+  <h1>namespace qualifiers and namespace tail</h1>
+
+  <h2>namespace qualifiers</h2>
+
+  <h3>Basic usage</h3>
+  <test-case name="qualifiers of ::foo::bar::x">
+    <script>namespace qualifiers ::foo::bar::x</script>
+    <return>TCL_OK</return>
+    <stdout>::foo::bar</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="qualifiers of ::">
+    <script>namespace qualifiers ::</script>
+    <return>TCL_OK</return>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="qualifiers of foo::bar (relative)">
+    <script>namespace qualifiers foo::bar</script>
+    <return>TCL_OK</return>
+    <stdout>foo</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="qualifiers of simple name x">
+    <script>namespace qualifiers x</script>
+    <return>TCL_OK</return>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <h3>Error cases</h3>
+  <test-case name="qualifiers with no args">
+    <script>namespace qualifiers</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "namespace qualifiers string"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="qualifiers with too many args">
+    <script>namespace qualifiers a b</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "namespace qualifiers string"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <h2>namespace tail</h2>
+
+  <h3>Basic usage</h3>
+  <test-case name="tail of ::foo::bar::x">
+    <script>namespace tail ::foo::bar::x</script>
+    <return>TCL_OK</return>
+    <stdout>x</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="tail of ::">
+    <script>namespace tail ::</script>
+    <return>TCL_OK</return>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="tail of foo::bar (relative)">
+    <script>namespace tail foo::bar</script>
+    <return>TCL_OK</return>
+    <stdout>bar</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="tail of simple name x">
+    <script>namespace tail x</script>
+    <return>TCL_OK</return>
+    <stdout>x</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <h3>Error cases</h3>
+  <test-case name="tail with no args">
+    <script>namespace tail</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "namespace tail string"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="tail with too many args">
+    <script>namespace tail a b</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "namespace tail string"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</body>
+</html>
