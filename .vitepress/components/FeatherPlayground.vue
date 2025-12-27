@@ -47,7 +47,7 @@
         />
       </div>
 
-      <div class="panel" v-else-if="!showCanvas">
+      <div class="panel" v-else-if="!showCanvas && !isCompact">
         <div class="panel-header">
           Output
           <button @click="clearOutput" class="clear-btn">Clear</button>
@@ -61,7 +61,7 @@
         </div>
       </div>
 
-      <div class="panel canvas-panel" v-else>
+      <div class="panel canvas-panel" v-else-if="showCanvas && !isCompact">
         <div class="panel-header">Canvas</div>
         <canvas ref="canvasEl" width="800" height="300"></canvas>
       </div>
@@ -73,6 +73,20 @@
         <button @click="clearOutput" class="clear-btn">Clear</button>
       </div>
       <div class="output" ref="outputEl">
+        <div
+          v-for="(line, i) in output"
+          :key="i"
+          :class="['output-line', line.type]"
+        >{{ line.text }}</div>
+      </div>
+    </div>
+
+    <div class="panel output-panel compact-output" v-if="isCompact && !showCanvas">
+      <div class="panel-header">
+        Output
+        <button @click="clearOutput" class="clear-btn">Clear</button>
+      </div>
+      <div class="output" ref="compactOutputEl">
         <div
           v-for="(line, i) in output"
           :key="i"
@@ -173,6 +187,7 @@ const showCanvas = ref(props.code === null && !slots.default)
 const output = ref([])
 const ready = ref(false)
 const outputEl = ref(null)
+const compactOutputEl = ref(null)
 const canvasEl = ref(null)
 const scriptError = ref(null)
 const persistentInterp = ref(false)
@@ -315,6 +330,9 @@ function log(text, type = '') {
   nextTick(() => {
     if (outputEl.value) {
       outputEl.value.scrollTop = outputEl.value.scrollHeight
+    }
+    if (compactOutputEl.value) {
+      compactOutputEl.value.scrollTop = compactOutputEl.value.scrollHeight
     }
   })
 }
@@ -555,13 +573,22 @@ onMounted(async () => {
 }
 
 .playground.compact .editor-container {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
 }
 
 .playground.compact .panel textarea,
 .playground.compact .output {
-  min-height: 120px;
-  max-height: 200px;
+  min-height: 80px;
+  max-height: 150px;
+}
+
+.playground.compact .compact-output {
+  margin-top: 0;
+}
+
+.playground.compact .compact-output .output {
+  min-height: 60px;
+  max-height: 120px;
 }
 
 .playground h2 {
