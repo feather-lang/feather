@@ -2,19 +2,19 @@
 #include "internal.h"
 #include "charclass.h"
 
-static int scan_is_whitespace(char c) {
+static int scan_is_whitespace(int c) {
   return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f';
 }
 
-static int scan_is_hex_digit(char c) {
+static int scan_is_hex_digit(int c) {
   return feather_is_digit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }
 
-static int is_binary_digit(char c) {
+static int is_binary_digit(int c) {
   return c == '0' || c == '1';
 }
 
-static int scan_hex_value(char c) {
+static int scan_hex_value(int c) {
   if (c >= '0' && c <= '9') return c - '0';
   if (c >= 'a' && c <= 'f') return 10 + c - 'a';
   if (c >= 'A' && c <= 'F') return 10 + c - 'A';
@@ -32,8 +32,10 @@ typedef struct {
   int charset_len;
 } ScanSpec;
 
-static int parse_scan_spec(const char *fmt, size_t len, ScanSpec *spec) {
-  size_t pos = 0;
+// Parse format specifier using object-based byte access
+static int parse_scan_spec_obj(const FeatherHostOps *ops, FeatherInterp interp,
+                               FeatherObj fmtObj, size_t start, size_t fmtLen, ScanSpec *spec) {
+  size_t pos = start;
 
   spec->suppress = 0;
   spec->width = 0;
@@ -44,21 +46,22 @@ static int parse_scan_spec(const char *fmt, size_t len, ScanSpec *spec) {
   spec->charset_len = 0;
   for (int i = 0; i < 256; i++) spec->charset[i] = 0;
 
-  if (pos >= len) return -1;
+  if (pos >= fmtLen) return -1;
 
-  if (fmt[pos] == '%') {
+  int ch = ops->string.byte_at(interp, fmtObj, pos);
+  if (ch == '%') {
     spec->specifier = '%';
     return 1;
   }
 
   size_t posStart = pos;
-  while (pos < len && feather_is_digit(fmt[pos])) {
+  while (pos < fmtLen && (ch = ops->string.byte_at(interp, fmtObj, pos)) >= 0 && feather_is_digit(ch)) {
     pos++;
   }
-  if (pos > posStart && pos < len && fmt[pos] == '$') {
+  if (pos > posStart && pos < fmtLen && ops->string.byte_at(interp, fmtObj, pos) == '$') {
     int idx = 0;
     for (size_t i = posStart; i < pos; i++) {
-      idx = idx * 10 + (fmt[i] - '0');
+      idx = idx * 10 + (ops->string.byte_at(interp, fmtObj, i) - '0');
     }
     spec->has_position = 1;
     spec->position = idx;
@@ -67,58 +70,61 @@ static int parse_scan_spec(const char *fmt, size_t len, ScanSpec *spec) {
     pos = posStart;
   }
 
-  if (pos < len && fmt[pos] == '*') {
+  ch = (pos < fmtLen) ? ops->string.byte_at(interp, fmtObj, pos) : -1;
+  if (ch == '*') {
     spec->suppress = 1;
     pos++;
   }
 
-  while (pos < len && feather_is_digit(fmt[pos])) {
-    spec->width = spec->width * 10 + (fmt[pos] - '0');
+  while (pos < fmtLen && (ch = ops->string.byte_at(interp, fmtObj, pos)) >= 0 && feather_is_digit(ch)) {
+    spec->width = spec->width * 10 + (ch - '0');
     pos++;
   }
 
-  if (pos < len) {
-    if (fmt[pos] == 'l') {
-      pos++;
-      if (pos < len && fmt[pos] == 'l') pos++;
-    } else if (fmt[pos] == 'h' || fmt[pos] == 'z' || fmt[pos] == 't' ||
-               fmt[pos] == 'L' || fmt[pos] == 'j' || fmt[pos] == 'q') {
-      pos++;
-    }
+  ch = (pos < fmtLen) ? ops->string.byte_at(interp, fmtObj, pos) : -1;
+  if (ch == 'l') {
+    pos++;
+    if (pos < fmtLen && ops->string.byte_at(interp, fmtObj, pos) == 'l') pos++;
+  } else if (ch == 'h' || ch == 'z' || ch == 't' ||
+             ch == 'L' || ch == 'j' || ch == 'q') {
+    pos++;
   }
 
-  if (pos >= len) return -1;
+  if (pos >= fmtLen) return -1;
 
-  char c = fmt[pos];
-  if (c == 'd' || c == 'i' || c == 'u' || c == 'o' || c == 'x' || c == 'X' ||
-      c == 'b' || c == 'c' || c == 's' || c == 'f' || c == 'e' || c == 'E' ||
-      c == 'g' || c == 'G' || c == 'n') {
-    spec->specifier = c;
+  ch = ops->string.byte_at(interp, fmtObj, pos);
+  if (ch == 'd' || ch == 'i' || ch == 'u' || ch == 'o' || ch == 'x' || ch == 'X' ||
+      ch == 'b' || ch == 'c' || ch == 's' || ch == 'f' || ch == 'e' || ch == 'E' ||
+      ch == 'g' || ch == 'G' || ch == 'n') {
+    spec->specifier = (char)ch;
     pos++;
-    return (int)pos;
+    return (int)(pos - start);
   }
 
-  if (c == '[') {
+  if (ch == '[') {
     pos++;
-    if (pos >= len) return -1;
+    if (pos >= fmtLen) return -1;
 
-    if (fmt[pos] == '^') {
+    ch = ops->string.byte_at(interp, fmtObj, pos);
+    if (ch == '^') {
       spec->charset_negated = 1;
       pos++;
     }
 
-    if (pos < len && fmt[pos] == ']') {
+    ch = (pos < fmtLen) ? ops->string.byte_at(interp, fmtObj, pos) : -1;
+    if (ch == ']') {
       spec->charset[(unsigned char)']'] = 1;
       spec->charset_len++;
       pos++;
     }
 
-    while (pos < len && fmt[pos] != ']') {
-      char ch = fmt[pos];
-      if (pos + 2 < len && fmt[pos + 1] == '-' && fmt[pos + 2] != ']') {
-        char start = ch;
-        char end = fmt[pos + 2];
-        for (int i = (unsigned char)start; i <= (unsigned char)end; i++) {
+    while (pos < fmtLen && (ch = ops->string.byte_at(interp, fmtObj, pos)) >= 0 && ch != ']') {
+      int ch2 = (pos + 1 < fmtLen) ? ops->string.byte_at(interp, fmtObj, pos + 1) : -1;
+      int ch3 = (pos + 2 < fmtLen) ? ops->string.byte_at(interp, fmtObj, pos + 2) : -1;
+      if (ch2 == '-' && ch3 >= 0 && ch3 != ']') {
+        int start_ch = ch;
+        int end_ch = ch3;
+        for (int i = (unsigned char)start_ch; i <= (unsigned char)end_ch; i++) {
           if (!spec->charset[i]) {
             spec->charset[i] = 1;
             spec->charset_len++;
@@ -134,59 +140,67 @@ static int parse_scan_spec(const char *fmt, size_t len, ScanSpec *spec) {
       }
     }
 
-    if (pos >= len) return -1;
+    if (pos >= fmtLen) return -1;
     pos++;
     spec->specifier = '[';
-    return (int)pos;
+    return (int)(pos - start);
   }
 
   return -1;
 }
 
-static int scan_skip_whitespace(const char *str, size_t len, size_t *pos) {
-  size_t start = *pos;
-  while (*pos < len && scan_is_whitespace(str[*pos])) {
-    (*pos)++;
+// Skip whitespace using object-based byte access
+static size_t scan_skip_whitespace_obj(const FeatherHostOps *ops, FeatherInterp interp,
+                                       FeatherObj strObj, size_t pos, size_t len) {
+  int ch;
+  while (pos < len && (ch = ops->string.byte_at(interp, strObj, pos)) >= 0 && scan_is_whitespace(ch)) {
+    pos++;
   }
-  return (int)(*pos - start);
+  return pos;
 }
 
-static int scan_integer(const char *str, size_t len, size_t *pos, int base, int width, int64_t *out) {
+// Scan integer using object-based byte access
+static int scan_integer_obj(const FeatherHostOps *ops, FeatherInterp interp,
+                            FeatherObj strObj, size_t len, size_t *pos, int base, int width, int64_t *out) {
   size_t start = *pos;
   int negative = 0;
   int max = width > 0 ? width : (int)(len - *pos);
   int consumed = 0;
 
-  if (*pos < len && consumed < max && str[*pos] == '-') {
+  int ch = (*pos < len) ? ops->string.byte_at(interp, strObj, *pos) : -1;
+  if (ch == '-' && consumed < max) {
     negative = 1;
     (*pos)++;
     consumed++;
-  } else if (*pos < len && consumed < max && str[*pos] == '+') {
+  } else if (ch == '+' && consumed < max) {
     (*pos)++;
     consumed++;
   }
 
-  if (base == 16 && *pos + 1 < len && consumed + 2 <= max &&
-      str[*pos] == '0' && (str[*pos + 1] == 'x' || str[*pos + 1] == 'X')) {
-    (*pos) += 2;
-    consumed += 2;
+  if (base == 16 && *pos + 1 < len && consumed + 2 <= max) {
+    int c0 = ops->string.byte_at(interp, strObj, *pos);
+    int c1 = ops->string.byte_at(interp, strObj, *pos + 1);
+    if (c0 == '0' && (c1 == 'x' || c1 == 'X')) {
+      (*pos) += 2;
+      consumed += 2;
+    }
   }
 
   int64_t val = 0;
   int digits = 0;
 
   while (*pos < len && consumed < max) {
-    char c = str[*pos];
+    ch = ops->string.byte_at(interp, strObj, *pos);
     int d = -1;
 
-    if (base == 10 && feather_is_digit(c)) {
-      d = c - '0';
-    } else if (base == 8 && feather_is_octal_digit(c)) {
-      d = c - '0';
-    } else if (base == 16 && scan_is_hex_digit(c)) {
-      d = scan_hex_value(c);
-    } else if (base == 2 && is_binary_digit(c)) {
-      d = c - '0';
+    if (base == 10 && feather_is_digit(ch)) {
+      d = ch - '0';
+    } else if (base == 8 && feather_is_octal_digit(ch)) {
+      d = ch - '0';
+    } else if (base == 16 && scan_is_hex_digit(ch)) {
+      d = scan_hex_value(ch);
+    } else if (base == 2 && is_binary_digit(ch)) {
+      d = ch - '0';
     } else {
       break;
     }
@@ -206,25 +220,29 @@ static int scan_integer(const char *str, size_t len, size_t *pos, int base, int 
   return 1;
 }
 
-static int scan_auto_integer(const char *str, size_t len, size_t *pos, int width, int64_t *out) {
+// Auto-detect integer base using object-based byte access
+static int scan_auto_integer_obj(const FeatherHostOps *ops, FeatherInterp interp,
+                                 FeatherObj strObj, size_t len, size_t *pos, int width, int64_t *out) {
   size_t start = *pos;
   int negative = 0;
   int max = width > 0 ? width : (int)(len - *pos);
   int consumed = 0;
 
-  if (*pos < len && consumed < max && str[*pos] == '-') {
+  int ch = (*pos < len) ? ops->string.byte_at(interp, strObj, *pos) : -1;
+  if (ch == '-' && consumed < max) {
     negative = 1;
     (*pos)++;
     consumed++;
-  } else if (*pos < len && consumed < max && str[*pos] == '+') {
+  } else if (ch == '+' && consumed < max) {
     (*pos)++;
     consumed++;
   }
 
   int base = 10;
-  if (*pos < len && consumed < max && str[*pos] == '0') {
-    if (*pos + 1 < len && consumed + 2 <= max &&
-        (str[*pos + 1] == 'x' || str[*pos + 1] == 'X')) {
+  ch = (*pos < len) ? ops->string.byte_at(interp, strObj, *pos) : -1;
+  if (ch == '0' && consumed < max) {
+    int c1 = (*pos + 1 < len) ? ops->string.byte_at(interp, strObj, *pos + 1) : -1;
+    if ((c1 == 'x' || c1 == 'X') && consumed + 2 <= max) {
       base = 16;
       (*pos) += 2;
       consumed += 2;
@@ -237,15 +255,15 @@ static int scan_auto_integer(const char *str, size_t len, size_t *pos, int width
   int digits = 0;
 
   while (*pos < len && consumed < max) {
-    char c = str[*pos];
+    ch = ops->string.byte_at(interp, strObj, *pos);
     int d = -1;
 
-    if (base == 10 && feather_is_digit(c)) {
-      d = c - '0';
-    } else if (base == 8 && feather_is_octal_digit(c)) {
-      d = c - '0';
-    } else if (base == 16 && scan_is_hex_digit(c)) {
-      d = scan_hex_value(c);
+    if (base == 10 && feather_is_digit(ch)) {
+      d = ch - '0';
+    } else if (base == 8 && feather_is_octal_digit(ch)) {
+      d = ch - '0';
+    } else if (base == 16 && scan_is_hex_digit(ch)) {
+      d = scan_hex_value(ch);
     } else {
       break;
     }
@@ -265,17 +283,20 @@ static int scan_auto_integer(const char *str, size_t len, size_t *pos, int width
   return 1;
 }
 
-static int scan_float(const char *str, size_t len, size_t *pos, int width, double *out) {
+// Scan float using object-based byte access
+static int scan_float_obj(const FeatherHostOps *ops, FeatherInterp interp,
+                          FeatherObj strObj, size_t len, size_t *pos, int width, double *out) {
   size_t start = *pos;
   int max = width > 0 ? width : (int)(len - *pos);
   int consumed = 0;
   int negative = 0;
 
-  if (*pos < len && consumed < max && str[*pos] == '-') {
+  int ch = (*pos < len) ? ops->string.byte_at(interp, strObj, *pos) : -1;
+  if (ch == '-' && consumed < max) {
     negative = 1;
     (*pos)++;
     consumed++;
-  } else if (*pos < len && consumed < max && str[*pos] == '+') {
+  } else if (ch == '+' && consumed < max) {
     (*pos)++;
     consumed++;
   }
@@ -283,19 +304,24 @@ static int scan_float(const char *str, size_t len, size_t *pos, int width, doubl
   double val = 0.0;
   int digits = 0;
 
-  while (*pos < len && consumed < max && feather_is_digit(str[*pos])) {
-    val = val * 10.0 + (str[*pos] - '0');
+  while (*pos < len && consumed < max) {
+    ch = ops->string.byte_at(interp, strObj, *pos);
+    if (!feather_is_digit(ch)) break;
+    val = val * 10.0 + (ch - '0');
     digits++;
     (*pos)++;
     consumed++;
   }
 
-  if (*pos < len && consumed < max && str[*pos] == '.') {
+  ch = (*pos < len) ? ops->string.byte_at(interp, strObj, *pos) : -1;
+  if (ch == '.' && consumed < max) {
     (*pos)++;
     consumed++;
     double frac = 0.1;
-    while (*pos < len && consumed < max && feather_is_digit(str[*pos])) {
-      val += (str[*pos] - '0') * frac;
+    while (*pos < len && consumed < max) {
+      ch = ops->string.byte_at(interp, strObj, *pos);
+      if (!feather_is_digit(ch)) break;
+      val += (ch - '0') * frac;
       frac *= 0.1;
       digits++;
       (*pos)++;
@@ -308,21 +334,25 @@ static int scan_float(const char *str, size_t len, size_t *pos, int width, doubl
     return 0;
   }
 
-  if (*pos < len && consumed < max && (str[*pos] == 'e' || str[*pos] == 'E')) {
+  ch = (*pos < len) ? ops->string.byte_at(interp, strObj, *pos) : -1;
+  if ((ch == 'e' || ch == 'E') && consumed < max) {
     (*pos)++;
     consumed++;
     int expNeg = 0;
-    if (*pos < len && consumed < max && str[*pos] == '-') {
+    ch = (*pos < len) ? ops->string.byte_at(interp, strObj, *pos) : -1;
+    if (ch == '-' && consumed < max) {
       expNeg = 1;
       (*pos)++;
       consumed++;
-    } else if (*pos < len && consumed < max && str[*pos] == '+') {
+    } else if (ch == '+' && consumed < max) {
       (*pos)++;
       consumed++;
     }
     int exp = 0;
-    while (*pos < len && consumed < max && feather_is_digit(str[*pos])) {
-      exp = exp * 10 + (str[*pos] - '0');
+    while (*pos < len && consumed < max) {
+      ch = ops->string.byte_at(interp, strObj, *pos);
+      if (!feather_is_digit(ch)) break;
+      exp = exp * 10 + (ch - '0');
       (*pos)++;
       consumed++;
     }
@@ -340,15 +370,19 @@ static int scan_float(const char *str, size_t len, size_t *pos, int width, doubl
   return 1;
 }
 
-static int scan_string(const char *str, size_t len, size_t *pos, int width,
-                       char *buf, size_t bufsize, size_t *outlen) {
+// Scan non-whitespace string using object-based byte access
+static int scan_string_obj(const FeatherHostOps *ops, FeatherInterp interp,
+                           FeatherObj strObj, size_t len, size_t *pos, int width,
+                           char *buf, size_t bufsize, size_t *outlen) {
   size_t start = *pos;
   int max = width > 0 ? width : (int)(len - *pos);
   int consumed = 0;
 
-  while (*pos < len && consumed < max && !scan_is_whitespace(str[*pos])) {
+  while (*pos < len && consumed < max) {
+    int ch = ops->string.byte_at(interp, strObj, *pos);
+    if (scan_is_whitespace(ch)) break;
     if (*outlen < bufsize - 1) {
-      buf[(*outlen)++] = str[*pos];
+      buf[(*outlen)++] = (char)ch;
     }
     (*pos)++;
     consumed++;
@@ -359,20 +393,22 @@ static int scan_string(const char *str, size_t len, size_t *pos, int width,
   return 1;
 }
 
-static int scan_charset(const char *str, size_t len, size_t *pos, int width,
-                        const char *charset, int negated,
-                        char *buf, size_t bufsize, size_t *outlen) {
+// Scan charset using object-based byte access
+static int scan_charset_obj(const FeatherHostOps *ops, FeatherInterp interp,
+                            FeatherObj strObj, size_t len, size_t *pos, int width,
+                            const char *charset, int negated,
+                            char *buf, size_t bufsize, size_t *outlen) {
   size_t start = *pos;
   int max = width > 0 ? width : (int)(len - *pos);
   int consumed = 0;
 
   while (*pos < len && consumed < max) {
-    char c = str[*pos];
-    int in_set = charset[(unsigned char)c];
+    int ch = ops->string.byte_at(interp, strObj, *pos);
+    int in_set = charset[(unsigned char)ch];
     int match = negated ? !in_set : in_set;
     if (!match) break;
     if (*outlen < bufsize - 1) {
-      buf[(*outlen)++] = c;
+      buf[(*outlen)++] = (char)ch;
     }
     (*pos)++;
     consumed++;
@@ -398,10 +434,8 @@ FeatherResult feather_builtin_scan(const FeatherHostOps *ops, FeatherInterp inte
   FeatherObj strObj = ops->list.at(interp, args, 0);
   FeatherObj fmtObj = ops->list.at(interp, args, 1);
 
-  size_t strLen;
-  const char *str = ops->string.get(interp, strObj, &strLen);
-  size_t fmtLen;
-  const char *fmt = ops->string.get(interp, fmtObj, &fmtLen);
+  size_t strLen = ops->string.byte_length(interp, strObj);
+  size_t fmtLen = ops->string.byte_length(interp, fmtObj);
 
   int varMode = (argc > 2);
   size_t numVars = argc - 2;
@@ -419,16 +453,17 @@ FeatherResult feather_builtin_scan(const FeatherHostOps *ops, FeatherInterp inte
   int anyConversionAttempted = 0;
 
   while (fmtPos < fmtLen) {
-    char fc = fmt[fmtPos];
+    int fc = ops->string.byte_at(interp, fmtObj, fmtPos);
 
     if (scan_is_whitespace(fc)) {
       fmtPos++;
-      scan_skip_whitespace(str, strLen, &strPos);
+      strPos = scan_skip_whitespace_obj(ops, interp, strObj, strPos, strLen);
       continue;
     }
 
     if (fc != '%') {
-      if (strPos >= strLen || str[strPos] != fc) {
+      int sc = (strPos < strLen) ? ops->string.byte_at(interp, strObj, strPos) : -1;
+      if (sc != fc) {
         break;
       }
       strPos++;
@@ -440,12 +475,13 @@ FeatherResult feather_builtin_scan(const FeatherHostOps *ops, FeatherInterp inte
     if (fmtPos >= fmtLen) break;
 
     ScanSpec spec;
-    int consumed = parse_scan_spec(fmt + fmtPos, fmtLen - fmtPos, &spec);
+    int consumed = parse_scan_spec_obj(ops, interp, fmtObj, fmtPos, fmtLen, &spec);
     if (consumed < 0) break;
     fmtPos += (size_t)consumed;
 
     if (spec.specifier == '%') {
-      if (strPos >= strLen || str[strPos] != '%') break;
+      int sc = (strPos < strLen) ? ops->string.byte_at(interp, strObj, strPos) : -1;
+      if (sc != '%') break;
       strPos++;
       continue;
     }
@@ -493,7 +529,7 @@ FeatherResult feather_builtin_scan(const FeatherHostOps *ops, FeatherInterp inte
     }
 
     if (spec.specifier != 'c' && spec.specifier != '[') {
-      scan_skip_whitespace(str, strLen, &strPos);
+      strPos = scan_skip_whitespace_obj(ops, interp, strObj, strPos, strLen);
     }
 
     anyConversionAttempted = 1;
@@ -505,40 +541,40 @@ FeatherResult feather_builtin_scan(const FeatherHostOps *ops, FeatherInterp inte
       case 'd':
       case 'u': {
         int64_t val;
-        success = scan_integer(str, strLen, &strPos, 10, spec.width, &val);
+        success = scan_integer_obj(ops, interp, strObj, strLen, &strPos, 10, spec.width, &val);
         if (success) scannedVal = ops->integer.create(interp, val);
         break;
       }
       case 'o': {
         int64_t val;
-        success = scan_integer(str, strLen, &strPos, 8, spec.width, &val);
+        success = scan_integer_obj(ops, interp, strObj, strLen, &strPos, 8, spec.width, &val);
         if (success) scannedVal = ops->integer.create(interp, val);
         break;
       }
       case 'x':
       case 'X': {
         int64_t val;
-        success = scan_integer(str, strLen, &strPos, 16, spec.width, &val);
+        success = scan_integer_obj(ops, interp, strObj, strLen, &strPos, 16, spec.width, &val);
         if (success) scannedVal = ops->integer.create(interp, val);
         break;
       }
       case 'b': {
         int64_t val;
-        success = scan_integer(str, strLen, &strPos, 2, spec.width, &val);
+        success = scan_integer_obj(ops, interp, strObj, strLen, &strPos, 2, spec.width, &val);
         if (success) scannedVal = ops->integer.create(interp, val);
         break;
       }
       case 'i': {
         int64_t val;
-        success = scan_auto_integer(str, strLen, &strPos, spec.width, &val);
+        success = scan_auto_integer_obj(ops, interp, strObj, strLen, &strPos, spec.width, &val);
         if (success) scannedVal = ops->integer.create(interp, val);
         break;
       }
       case 'c': {
         if (strPos < strLen) {
-          unsigned char c = (unsigned char)str[strPos];
+          int c = ops->string.byte_at(interp, strObj, strPos);
           strPos++;
-          scannedVal = ops->integer.create(interp, (int64_t)c);
+          scannedVal = ops->integer.create(interp, (int64_t)(unsigned char)c);
           success = 1;
         }
         break;
@@ -549,21 +585,21 @@ FeatherResult feather_builtin_scan(const FeatherHostOps *ops, FeatherInterp inte
       case 'g':
       case 'G': {
         double val;
-        success = scan_float(str, strLen, &strPos, spec.width, &val);
+        success = scan_float_obj(ops, interp, strObj, strLen, &strPos, spec.width, &val);
         if (success) scannedVal = ops->dbl.create(interp, val);
         break;
       }
       case 's': {
         char buf[4096];
         size_t buflen = 0;
-        success = scan_string(str, strLen, &strPos, spec.width, buf, sizeof(buf), &buflen);
+        success = scan_string_obj(ops, interp, strObj, strLen, &strPos, spec.width, buf, sizeof(buf), &buflen);
         if (success) scannedVal = ops->string.intern(interp, buf, buflen);
         break;
       }
       case '[': {
         char buf[4096];
         size_t buflen = 0;
-        success = scan_charset(str, strLen, &strPos, spec.width,
+        success = scan_charset_obj(ops, interp, strObj, strLen, &strPos, spec.width,
                                spec.charset, spec.charset_negated,
                                buf, sizeof(buf), &buflen);
         if (success) scannedVal = ops->string.intern(interp, buf, buflen);
