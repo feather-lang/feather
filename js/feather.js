@@ -199,10 +199,10 @@ class FeatherInterp {
   }
 
   getList(handle) {
-    if (handle === 0) return [];
+    if (handle === 0) return { items: [] };
     const obj = this.get(handle);
-    if (!obj) return [];
-    if (obj.type === 'list') return obj.items;
+    if (!obj) return { items: [] };
+    if (obj.type === 'list') return { items: obj.items };
     const str = this.getString(handle);
     return this.parseList(str);
   }
@@ -223,7 +223,11 @@ class FeatherInterp {
     }
 
     // Shimmer: get as list first, then convert to dict
-    const items = this.getList(handle);
+    const listResult = this.getList(handle);
+    if (listResult.error) {
+      return null; // parse error
+    }
+    const items = listResult.items;
     if (items.length % 2 !== 0) {
       return null; // odd number of elements
     }
@@ -278,6 +282,9 @@ class FeatherInterp {
           else if (str[i] === '}') depth--;
           if (depth > 0) i++;
         }
+        if (depth !== 0) {
+          return { error: 'unmatched open brace in list' };
+        }
         word = str.slice(start, i);
         i++;
       } else if (str[i] === '"') {
@@ -288,6 +295,9 @@ class FeatherInterp {
           if (str[i] === '\\') i++;
           i++;
         }
+        if (i >= str.length) {
+          return { error: 'unmatched quote in list' };
+        }
         word = str.slice(start, i);
         i++;
       } else {
@@ -297,7 +307,7 @@ class FeatherInterp {
       }
       if (word !== '' || wasBraced) items.push(this.store({ type: 'string', value: word }));
     }
-    return items;
+    return { items };
   }
 
   currentFrame() {
@@ -934,7 +944,7 @@ async function createFeather(wasmSource) {
       const nsPath = interp.getString(ns);
       const normalized = nsPath.replace(/^::/, '');
       const namespace = interp.ensureNamespace(nsPath);
-      const patList = interp.getList(patterns).map(h => interp.getString(h));
+      const patList = interp.getList(patterns).items.map(h => interp.getString(h));
       if (clear) {
         namespace.exports = patList;
       } else {
@@ -1056,8 +1066,12 @@ async function createFeather(wasmSource) {
     },
     feather_host_list_from: (interpId, obj) => {
       const interp = interpreters.get(interpId);
-      const items = interp.getList(obj);
-      return interp.store({ type: 'list', items: [...items] });
+      const result = interp.getList(obj);
+      if (result.error) {
+        interp.result = interp.store({ type: 'string', value: result.error });
+        return 0;
+      }
+      return interp.store({ type: 'list', items: [...result.items] });
     },
     feather_host_list_push: (interpId, list, item) => {
       const interp = interpreters.get(interpId);
@@ -1067,7 +1081,8 @@ async function createFeather(wasmSource) {
         interp.invalidateStringCache(obj);
         return list;
       }
-      const items = interp.getList(list);
+      const result = interp.getList(list);
+      const items = result.items;
       items.push(item);
       return interp.store({ type: 'list', items });
     },
@@ -1088,7 +1103,8 @@ async function createFeather(wasmSource) {
         interp.invalidateStringCache(obj);
         return list;
       }
-      const items = interp.getList(list);
+      const result = interp.getList(list);
+      const items = result.items;
       items.unshift(item);
       return interp.store({ type: 'list', items });
     },
@@ -1103,16 +1119,16 @@ async function createFeather(wasmSource) {
     },
     feather_host_list_length: (interpId, list) => {
       const interp = interpreters.get(interpId);
-      return interp.getList(list).length;
+      return interp.getList(list).items.length;
     },
     feather_host_list_at: (interpId, list, index) => {
       const interp = interpreters.get(interpId);
-      const items = interp.getList(list);
+      const items = interp.getList(list).items;
       return items[index] || 0;
     },
     feather_host_list_slice: (interpId, list, first, last) => {
       const interp = interpreters.get(interpId);
-      const items = interp.getList(list);
+      const items = interp.getList(list).items;
       return interp.store({ type: 'list', items: items.slice(first, last + 1) });
     },
     feather_host_list_set_at: (interpId, list, index, value) => {
@@ -1130,13 +1146,13 @@ async function createFeather(wasmSource) {
       const interp = interpreters.get(interpId);
       const obj = interp.get(list);
       if (obj?.type === 'list') {
-        const insItems = interp.getList(insertions);
+        const insItems = interp.getList(insertions).items;
         obj.items.splice(first, deleteCount, ...insItems);
         interp.invalidateStringCache(obj);
         return list;
       }
-      const items = interp.getList(list);
-      const insItems = interp.getList(insertions);
+      const items = interp.getList(list).items;
+      const insItems = interp.getList(insertions).items;
       items.splice(first, deleteCount, ...insItems);
       return interp.store({ type: 'list', items });
     },
@@ -1439,7 +1455,7 @@ async function createFeather(wasmSource) {
       const interp = interpreters.get(interpId);
       interp.returnOptions.set('current', options);
       // Parse options to extract -code
-      const items = interp.getList(options);
+      const items = interp.getList(options).items;
       let code = TCL_OK;
       let level = 1;
       for (let i = 0; i + 1 < items.length; i += 2) {
@@ -1495,7 +1511,7 @@ async function createFeather(wasmSource) {
         return TCL_ERROR;
       }
 
-      const argList = interp.getList(args).map(h => interp.getString(h));
+      const argList = interp.getList(args).items.map(h => interp.getString(h));
       try {
         const result = hostFn(argList);
         const handle = interp.store({ type: 'string', value: String(result ?? '') });
@@ -1591,7 +1607,7 @@ async function createFeather(wasmSource) {
         return TCL_ERROR;
       }
       try {
-        const argList = interp.getList(args).map(h => interp.getString(h));
+        const argList = interp.getList(args).items.map(h => interp.getString(h));
         const result = fn(o.value, ...argList);
         interp.result = interp.store({ type: 'string', value: String(result ?? '') });
         return TCL_OK;
@@ -1734,7 +1750,7 @@ async function createFeather(wasmSource) {
           let code = TCL_OK;
           const opts = interp.returnOptions.get('current');
           if (opts) {
-            const items = interp.getList(opts);
+            const items = interp.getList(opts).items;
             for (let j = 0; j + 1 < items.length; j += 2) {
               const key = interp.getString(items[j]);
               if (key === '-code') {
