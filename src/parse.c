@@ -1,6 +1,7 @@
 #include "feather.h"
 #include "host.h"
 #include "charclass.h"
+#include "parse_helpers.h"
 
 static int parse_is_whitespace(char c) {
   return c == ' ' || c == '\t';
