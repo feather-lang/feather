@@ -323,6 +323,9 @@ func goListFrom(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 	// Get the list items (with shimmering)
 	items, err := i.GetList(FeatherObj(obj))
 	if err != nil {
+		// Set error message as result for caller to retrieve
+		errObj := i.registerObj(NewString(err.Error()))
+		i.result = errObj
 		return 0
 	}
 	// Create a new list with copied items as *Obj

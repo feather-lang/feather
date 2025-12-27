@@ -982,7 +982,7 @@ func (i *Interp) parseList(s string) ([]FeatherObj, error) {
 				pos++
 			}
 			if depth != 0 {
-				return nil, fmt.Errorf("unmatched brace in list")
+				return nil, fmt.Errorf("unmatched open brace in list")
 			}
 			elem = s[start : pos-1]
 		} else if s[pos] == '"' {

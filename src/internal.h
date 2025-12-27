@@ -95,6 +95,19 @@ FeatherResult feather_builtin_lmap(const FeatherHostOps *ops, FeatherInterp inte
                                FeatherObj cmd, FeatherObj args);
 
 /**
+ * feather_builtin_lassign implements the TCL 'lassign' command.
+ *
+ * Usage:
+ *   lassign list ?varName ...?
+ *
+ * Assigns successive elements from list to the named variables.
+ * Variables beyond list length are set to empty string.
+ * Returns list of unassigned elements (if more elements than vars).
+ */
+FeatherResult feather_builtin_lassign(const FeatherHostOps *ops, FeatherInterp interp,
+                               FeatherObj cmd, FeatherObj args);
+
+/**
  * feather_builtin_switch implements the TCL 'switch' command.
  *
  * Usage:

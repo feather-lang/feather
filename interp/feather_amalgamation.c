@@ -37,6 +37,7 @@
 #include "../src/builtin_foreach.c"
 #include "../src/builtin_format.c"
 #include "../src/builtin_lmap.c"
+#include "../src/builtin_lassign.c"
 #include "../src/builtin_global.c"
 #include "../src/builtin_if.c"
 #include "../src/builtin_incr.c"

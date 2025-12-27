@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head><title>lassign command tests</title></head>
+<body>
+<h1>lassign command tests</h1>
+
+<h2>Basic usage</h2>
+
+<test-case name="lassign assigns list elements to variables">
+  <script>lassign {a b c} x y z; list $x $y $z</script>
+  <return>TCL_OK</return>
+  <stdout>a b c</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="lassign returns empty when all assigned">
+  <script>lassign {a b c} x y z</script>
+  <return>TCL_OK</return>
+  <stdout></stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="lassign sets remaining vars to empty when fewer elements">
+  <script>lassign {d e} x y z; list $x $y $z</script>
+  <return>TCL_OK</return>
+  <stdout>d e {}</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="lassign returns unassigned elements">
+  <script>lassign {f g h i} x y</script>
+  <return>TCL_OK</return>
+  <stdout>h i</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>No variables provided</h2>
+
+<test-case name="lassign with no vars returns entire list">
+  <script>lassign {a b c}</script>
+  <return>TCL_OK</return>
+  <stdout>a b c</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Empty list</h2>
+
+<test-case name="lassign empty list sets vars to empty">
+  <script>lassign {} x y; list $x $y</script>
+  <return>TCL_OK</return>
+  <stdout>{} {}</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="lassign empty list with no vars">
+  <script>lassign {}</script>
+  <return>TCL_OK</return>
+  <stdout></stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Complex list elements</h2>
+
+<test-case name="lassign with quoted elements">
+  <script>lassign {a "b c" d} x y z; list $x $y $z</script>
+  <return>TCL_OK</return>
+  <stdout>a {b c} d</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="lassign with braced elements">
+  <script>lassign {{a b} {c d} e} x y z; list $x $y $z</script>
+  <return>TCL_OK</return>
+  <stdout>{a b} {c d} e</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Shift pattern</h2>
+
+<test-case name="lassign shift pattern">
+  <script>set items {1 2 3 4 5}; set items [lassign $items first]; list $first $items</script>
+  <return>TCL_OK</return>
+  <stdout>1 {2 3 4 5}</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="lassign shift multiple">
+  <script>set items {a b c d e}; set items [lassign $items x y]; list $x $y $items</script>
+  <return>TCL_OK</return>
+  <stdout>a b {c d e}</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Error cases</h2>
+
+<test-case name="lassign no arguments">
+  <script>lassign</script>
+  <return>TCL_ERROR</return>
+  <error>wrong # args: should be "lassign list ?varName ...?"</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="lassign invalid list">
+  <script>lassign "not a \{list" x</script>
+  <return>TCL_ERROR</return>
+  <error>unmatched open brace in list</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+</body>
+</html>
