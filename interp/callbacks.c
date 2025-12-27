@@ -417,146 +417,150 @@ static void c_foreign_destroy(FeatherInterp interp, FeatherObj obj) {
     goForeignDestroy(interp, obj);
 }
 
-// Build the FeatherHostOps struct with all callbacks
-FeatherHostOps make_host_ops(void) {
-    FeatherHostOps ops;
+// Cached host ops - initialized once on first use
+static FeatherHostOps cached_ops;
+static int cached_ops_initialized = 0;
 
-    ops.frame.push = c_frame_push;
-    ops.frame.pop = c_frame_pop;
-    ops.frame.level = c_frame_level;
-    ops.frame.set_active = c_frame_set_active;
-    ops.frame.size = c_frame_size;
-    ops.frame.info = c_frame_info;
-    ops.frame.set_namespace = c_frame_set_namespace;
-    ops.frame.get_namespace = c_frame_get_namespace;
+// Get the cached host ops pointer (initializes on first call)
+static const FeatherHostOps* get_host_ops(void) {
+    if (cached_ops_initialized) {
+        return &cached_ops;
+    }
+    cached_ops_initialized = 1;
 
-    ops.var.get = c_var_get;
-    ops.var.set = c_var_set;
-    ops.var.unset = c_var_unset;
-    ops.var.exists = c_var_exists;
-    ops.var.link = c_var_link;
-    ops.var.link_ns = c_var_link_ns;
-    ops.var.names = c_var_names;
+    cached_ops.frame.push = c_frame_push;
+    cached_ops.frame.pop = c_frame_pop;
+    cached_ops.frame.level = c_frame_level;
+    cached_ops.frame.set_active = c_frame_set_active;
+    cached_ops.frame.size = c_frame_size;
+    cached_ops.frame.info = c_frame_info;
+    cached_ops.frame.set_namespace = c_frame_set_namespace;
+    cached_ops.frame.get_namespace = c_frame_get_namespace;
 
-    ops.proc.define = c_proc_define;
-    ops.proc.exists = c_proc_exists;
-    ops.proc.params = c_proc_params;
-    ops.proc.body = c_proc_body;
-    ops.proc.names = c_proc_names;
-    ops.proc.resolve_namespace = c_proc_resolve_namespace;
-    ops.proc.register_builtin = c_proc_register_builtin;
-    ops.proc.lookup = c_proc_lookup;
-    ops.proc.rename = c_proc_rename;
+    cached_ops.var.get = c_var_get;
+    cached_ops.var.set = c_var_set;
+    cached_ops.var.unset = c_var_unset;
+    cached_ops.var.exists = c_var_exists;
+    cached_ops.var.link = c_var_link;
+    cached_ops.var.link_ns = c_var_link_ns;
+    cached_ops.var.names = c_var_names;
 
-    ops.ns.create = c_ns_create;
-    ops.ns.delete = c_ns_delete;
-    ops.ns.exists = c_ns_exists;
-    ops.ns.current = c_ns_current;
-    ops.ns.parent = c_ns_parent;
-    ops.ns.children = c_ns_children;
-    ops.ns.get_var = c_ns_get_var;
-    ops.ns.set_var = c_ns_set_var;
-    ops.ns.var_exists = c_ns_var_exists;
-    ops.ns.unset_var = c_ns_unset_var;
-    ops.ns.get_command = c_ns_get_command;
-    ops.ns.set_command = c_ns_set_command;
-    ops.ns.delete_command = c_ns_delete_command;
-    ops.ns.list_commands = c_ns_list_commands;
-    ops.ns.get_exports = c_ns_get_exports;
-    ops.ns.set_exports = c_ns_set_exports;
-    ops.ns.is_exported = c_ns_is_exported;
-    ops.ns.copy_command = c_ns_copy_command;
+    cached_ops.proc.define = c_proc_define;
+    cached_ops.proc.exists = c_proc_exists;
+    cached_ops.proc.params = c_proc_params;
+    cached_ops.proc.body = c_proc_body;
+    cached_ops.proc.names = c_proc_names;
+    cached_ops.proc.resolve_namespace = c_proc_resolve_namespace;
+    cached_ops.proc.register_builtin = c_proc_register_builtin;
+    cached_ops.proc.lookup = c_proc_lookup;
+    cached_ops.proc.rename = c_proc_rename;
 
-    ops.string.intern = c_string_intern;
-    ops.string.get = c_string_get;
-    ops.string.concat = c_string_concat;
-    ops.string.compare = c_string_compare;
-    ops.string.regex_match = c_string_regex_match;
+    cached_ops.ns.create = c_ns_create;
+    cached_ops.ns.delete = c_ns_delete;
+    cached_ops.ns.exists = c_ns_exists;
+    cached_ops.ns.current = c_ns_current;
+    cached_ops.ns.parent = c_ns_parent;
+    cached_ops.ns.children = c_ns_children;
+    cached_ops.ns.get_var = c_ns_get_var;
+    cached_ops.ns.set_var = c_ns_set_var;
+    cached_ops.ns.var_exists = c_ns_var_exists;
+    cached_ops.ns.unset_var = c_ns_unset_var;
+    cached_ops.ns.get_command = c_ns_get_command;
+    cached_ops.ns.set_command = c_ns_set_command;
+    cached_ops.ns.delete_command = c_ns_delete_command;
+    cached_ops.ns.list_commands = c_ns_list_commands;
+    cached_ops.ns.get_exports = c_ns_get_exports;
+    cached_ops.ns.set_exports = c_ns_set_exports;
+    cached_ops.ns.is_exported = c_ns_is_exported;
+    cached_ops.ns.copy_command = c_ns_copy_command;
 
-    ops.rune.length = c_rune_length;
-    ops.rune.at = c_rune_at;
-    ops.rune.range = c_rune_range;
-    ops.rune.to_upper = c_rune_to_upper;
-    ops.rune.to_lower = c_rune_to_lower;
-    ops.rune.fold = c_rune_fold;
+    cached_ops.string.intern = c_string_intern;
+    cached_ops.string.get = c_string_get;
+    cached_ops.string.concat = c_string_concat;
+    cached_ops.string.compare = c_string_compare;
+    cached_ops.string.regex_match = c_string_regex_match;
 
-    ops.list.is_nil = c_list_is_nil;
-    ops.list.create = c_list_create;
-    ops.list.from = c_list_from;
-    ops.list.push = c_list_push;
-    ops.list.pop = c_list_pop;
-    ops.list.unshift = c_list_unshift;
-    ops.list.shift = c_list_shift;
-    ops.list.length = c_list_length;
-    ops.list.at = c_list_at;
-    ops.list.slice = c_list_slice;
-    ops.list.set_at = c_list_set_at;
-    ops.list.splice = c_list_splice;
-    ops.list.sort = c_list_sort;
+    cached_ops.rune.length = c_rune_length;
+    cached_ops.rune.at = c_rune_at;
+    cached_ops.rune.range = c_rune_range;
+    cached_ops.rune.to_upper = c_rune_to_upper;
+    cached_ops.rune.to_lower = c_rune_to_lower;
+    cached_ops.rune.fold = c_rune_fold;
 
-    ops.dict.create = c_dict_create;
-    ops.dict.is_dict = c_dict_is_dict;
-    ops.dict.from = c_dict_from;
-    ops.dict.get = c_dict_get;
-    ops.dict.set = c_dict_set;
-    ops.dict.exists = c_dict_exists;
-    ops.dict.remove = c_dict_remove;
-    ops.dict.size = c_dict_size;
-    ops.dict.keys = c_dict_keys;
-    ops.dict.values = c_dict_values;
+    cached_ops.list.is_nil = c_list_is_nil;
+    cached_ops.list.create = c_list_create;
+    cached_ops.list.from = c_list_from;
+    cached_ops.list.push = c_list_push;
+    cached_ops.list.pop = c_list_pop;
+    cached_ops.list.unshift = c_list_unshift;
+    cached_ops.list.shift = c_list_shift;
+    cached_ops.list.length = c_list_length;
+    cached_ops.list.at = c_list_at;
+    cached_ops.list.slice = c_list_slice;
+    cached_ops.list.set_at = c_list_set_at;
+    cached_ops.list.splice = c_list_splice;
+    cached_ops.list.sort = c_list_sort;
 
-    ops.integer.create = c_int_create;
-    ops.integer.get = c_int_get;
+    cached_ops.dict.create = c_dict_create;
+    cached_ops.dict.is_dict = c_dict_is_dict;
+    cached_ops.dict.from = c_dict_from;
+    cached_ops.dict.get = c_dict_get;
+    cached_ops.dict.set = c_dict_set;
+    cached_ops.dict.exists = c_dict_exists;
+    cached_ops.dict.remove = c_dict_remove;
+    cached_ops.dict.size = c_dict_size;
+    cached_ops.dict.keys = c_dict_keys;
+    cached_ops.dict.values = c_dict_values;
 
-    ops.dbl.create = c_dbl_create;
-    ops.dbl.get = c_dbl_get;
-    ops.dbl.classify = c_dbl_classify;
-    ops.dbl.format = c_dbl_format;
-    ops.dbl.math = c_dbl_math;
+    cached_ops.integer.create = c_int_create;
+    cached_ops.integer.get = c_int_get;
 
-    ops.interp.set_result = c_interp_set_result;
-    ops.interp.get_result = c_interp_get_result;
-    ops.interp.reset_result = c_interp_reset_result;
-    ops.interp.set_return_options = c_interp_set_return_options;
-    ops.interp.get_return_options = c_interp_get_return_options;
-    ops.interp.get_script = c_interp_get_script;
-    ops.interp.set_script = c_interp_set_script;
+    cached_ops.dbl.create = c_dbl_create;
+    cached_ops.dbl.get = c_dbl_get;
+    cached_ops.dbl.classify = c_dbl_classify;
+    cached_ops.dbl.format = c_dbl_format;
+    cached_ops.dbl.math = c_dbl_math;
 
-    ops.bind.unknown = c_bind_unknown;
+    cached_ops.interp.set_result = c_interp_set_result;
+    cached_ops.interp.get_result = c_interp_get_result;
+    cached_ops.interp.reset_result = c_interp_reset_result;
+    cached_ops.interp.set_return_options = c_interp_set_return_options;
+    cached_ops.interp.get_return_options = c_interp_get_return_options;
+    cached_ops.interp.get_script = c_interp_get_script;
+    cached_ops.interp.set_script = c_interp_set_script;
 
-    ops.trace.add = c_trace_add;
-    ops.trace.remove = c_trace_remove;
-    ops.trace.info = c_trace_info;
+    cached_ops.bind.unknown = c_bind_unknown;
 
-    ops.foreign.is_foreign = c_foreign_is_foreign;
-    ops.foreign.type_name = c_foreign_type_name;
-    ops.foreign.string_rep = c_foreign_string_rep;
-    ops.foreign.methods = c_foreign_methods;
-    ops.foreign.invoke = c_foreign_invoke;
-    ops.foreign.destroy = c_foreign_destroy;
+    cached_ops.trace.add = c_trace_add;
+    cached_ops.trace.remove = c_trace_remove;
+    cached_ops.trace.info = c_trace_info;
 
-    return ops;
+    cached_ops.foreign.is_foreign = c_foreign_is_foreign;
+    cached_ops.foreign.type_name = c_foreign_type_name;
+    cached_ops.foreign.string_rep = c_foreign_string_rep;
+    cached_ops.foreign.methods = c_foreign_methods;
+    cached_ops.foreign.invoke = c_foreign_invoke;
+    cached_ops.foreign.destroy = c_foreign_destroy;
+
+    return &cached_ops;
 }
 
 // Call the C interpreter with host ops
 FeatherResult call_feather_eval_obj(FeatherInterp interp, FeatherObj script, FeatherEvalFlags flags) {
-    FeatherHostOps ops = make_host_ops();
-    // Evaluate the script object
-    return feather_script_eval_obj(&ops, interp, script, flags);
+    const FeatherHostOps *ops = get_host_ops();
+    return feather_script_eval_obj(ops, interp, script, flags);
 }
 
 // Call the C parser with host ops
 FeatherParseStatus call_feather_parse(FeatherInterp interp, FeatherObj script) {
-    FeatherHostOps ops = make_host_ops();
+    const FeatherHostOps *ops = get_host_ops();
     size_t len;
-    const char *str = ops.string.get(interp, script, &len);
+    const char *str = ops->string.get(interp, script, &len);
     FeatherParseContext ctx;
     feather_parse_init(&ctx, str, len);
-    FeatherParseStatus status = feather_parse_command(&ops, interp, &ctx);
-    // Convert TCL_PARSE_DONE to TCL_PARSE_OK for backwards compatibility
-    // (empty script should return OK with empty result)
+    FeatherParseStatus status = feather_parse_command(ops, interp, &ctx);
     if (status == TCL_PARSE_DONE) {
-        ops.interp.set_result(interp, ops.list.create(interp));
+        ops->interp.set_result(interp, ops->list.create(interp));
         return TCL_PARSE_OK;
     }
     return status;
@@ -564,12 +568,12 @@ FeatherParseStatus call_feather_parse(FeatherInterp interp, FeatherObj script) {
 
 // Initialize the C interpreter with host ops
 void call_feather_interp_init(FeatherInterp interp) {
-    FeatherHostOps ops = make_host_ops();
-    feather_interp_init(&ops, interp);
+    const FeatherHostOps *ops = get_host_ops();
+    feather_interp_init(ops, interp);
 }
 
 // Call C's feather_list_parse to parse a string as a list
 FeatherObj call_feather_list_parse(FeatherInterp interp, const char *s, size_t len) {
-    FeatherHostOps ops = make_host_ops();
-    return feather_list_parse(&ops, interp, s, len);
+    const FeatherHostOps *ops = get_host_ops();
+    return feather_list_parse(ops, interp, s, len);
 }

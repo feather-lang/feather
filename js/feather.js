@@ -206,28 +206,22 @@ class FeatherInterp {
     if (!obj) return { items: [] };
     if (obj.type === 'list') return { items: obj.items };
 
-    // Use C's feather_list_parse if available (injected by createFeather)
-    if (this._parseListFromC) {
-      const str = this.getString(handle);
-      const listHandle = this._parseListFromC(str);
-      if (listHandle === 0) {
-        // Error - get message from result
-        const errObj = this.get(this.result);
-        return { error: errObj ? errObj.value : 'parse error' };
-      }
-      const listObj = this.get(listHandle);
-      if (listObj?.type === 'list') {
-        // Cache the list type on the original object for shimmering
-        obj.type = 'list';
-        obj.items = listObj.items;
-        return { items: obj.items };
-      }
-      return { items: [] };
-    }
-
-    // Fallback to JS parser (used during initialization before WASM is ready)
+    // Use C's feather_list_parse
     const str = this.getString(handle);
-    return this.parseList(str);
+    const listHandle = this._parseListFromC(str);
+    if (listHandle === 0) {
+      // Error - get message from result
+      const errObj = this.get(this.result);
+      return { error: errObj ? errObj.value : 'parse error' };
+    }
+    const listObj = this.get(listHandle);
+    if (listObj?.type === 'list') {
+      // Cache the list type on the original object for shimmering
+      obj.type = 'list';
+      obj.items = listObj.items;
+      return { items: obj.items };
+    }
+    return { items: [] };
   }
 
   // getDict shimmers string/list to dict representation
@@ -284,53 +278,6 @@ class FeatherInterp {
     obj.entries = entries;
 
     return { entries, order };
-  }
-
-  parseList(str) {
-    const items = [];
-    let i = 0;
-    while (i < str.length) {
-      while (i < str.length && /\s/.test(str[i])) i++;
-      if (i >= str.length) break;
-
-      let word = '';
-      let wasBraced = false;
-      if (str[i] === '{') {
-        wasBraced = true;
-        let depth = 1;
-        i++;
-        const start = i;
-        while (i < str.length && depth > 0) {
-          if (str[i] === '{') depth++;
-          else if (str[i] === '}') depth--;
-          if (depth > 0) i++;
-        }
-        if (depth !== 0) {
-          return { error: 'unmatched open brace in list' };
-        }
-        word = str.slice(start, i);
-        i++;
-      } else if (str[i] === '"') {
-        wasBraced = true;
-        i++;
-        const start = i;
-        while (i < str.length && str[i] !== '"') {
-          if (str[i] === '\\') i++;
-          i++;
-        }
-        if (i >= str.length) {
-          return { error: 'unmatched quote in list' };
-        }
-        word = str.slice(start, i);
-        i++;
-      } else {
-        while (i < str.length && !/\s/.test(str[i])) {
-          word += str[i++];
-        }
-      }
-      if (word !== '' || wasBraced) items.push(this.store({ type: 'string', value: word }));
-    }
-    return { items };
   }
 
   currentFrame() {
