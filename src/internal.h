@@ -655,17 +655,6 @@ FeatherResult feather_builtin_try(const FeatherHostOps *ops, FeatherInterp inter
 FeatherResult feather_builtin_trace(const FeatherHostOps *ops, FeatherInterp interp,
                              FeatherObj cmd, FeatherObj args);
 
-/**
- * feather_split_command splits a qualified command name into namespace and simple name.
- *
- * For "::foo::bar": ns_out = "::foo", name_out = "bar"
- * For "::cmd": ns_out = "::", name_out = "cmd"
- * For "cmd" (unqualified): ns_out = nil (0), name_out = "cmd"
- * For "foo::bar" (relative) in ::current: ns_out = "::current::foo", name_out = "bar"
- */
-FeatherResult feather_split_command(const FeatherHostOps *ops, FeatherInterp interp,
-                            FeatherObj qualified, FeatherObj *ns_out, FeatherObj *name_out);
-
 // M15: List operations
 
 /**

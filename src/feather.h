@@ -180,6 +180,7 @@ typedef enum {
 
 /**
  * FeatherParseContext holds the state for iterating over commands in a script.
+ * (char* based - for backward compatibility)
  */
 typedef struct {
   const char *script;  // Original script
@@ -188,12 +189,29 @@ typedef struct {
 } FeatherParseContext;
 
 /**
+ * FeatherParseContextObj holds the state for iterating over commands using
+ * object-based byte access. Preferred over FeatherParseContext.
+ */
+typedef struct {
+  FeatherObj script;   // Script as object
+  size_t len;          // Total length
+  size_t pos;          // Current position
+} FeatherParseContextObj;
+
+/**
  * feather_parse_init initializes a parse context for iterating over commands.
+ * (char* based - for backward compatibility)
  */
 void feather_parse_init(FeatherParseContext *ctx, const char *script, size_t len);
 
 /**
+ * feather_parse_init_obj initializes an object-based parse context.
+ */
+void feather_parse_init_obj(FeatherParseContextObj *ctx, FeatherObj script, size_t len);
+
+/**
  * feather_parse_command parses the next command from the script.
+ * (char* based - for backward compatibility)
  *
  * Returns TCL_PARSE_OK when a command was parsed successfully.
  * The parsed command (list of words) is in the interpreter's result slot.
@@ -205,6 +223,13 @@ void feather_parse_init(FeatherParseContext *ctx, const char *script, size_t len
  */
 FeatherParseStatus feather_parse_command(const FeatherHostOps *ops, FeatherInterp interp,
                                   FeatherParseContext *ctx);
+
+/**
+ * feather_parse_command_obj parses the next command using object-based access.
+ * Preferred over feather_parse_command.
+ */
+FeatherParseStatus feather_parse_command_obj(const FeatherHostOps *ops, FeatherInterp interp,
+                                              FeatherParseContextObj *ctx);
 
 typedef enum {
   // Evaluate in the current scope of the interpreter
@@ -299,6 +324,7 @@ typedef enum {
 
 /**
  * feather_subst performs substitutions on a string.
+ * (char* based - for backward compatibility)
  *
  * Performs backslash, variable, and/or command substitution on the input
  * string according to the flags parameter. The result is placed in the
@@ -312,6 +338,13 @@ typedef enum {
  */
 FeatherResult feather_subst(const FeatherHostOps *ops, FeatherInterp interp,
                     const char *str, size_t len, int flags);
+
+/**
+ * feather_subst_obj performs substitutions using object-based access.
+ * Preferred over feather_subst.
+ */
+FeatherResult feather_subst_obj(const FeatherHostOps *ops, FeatherInterp interp,
+                                 FeatherObj str, int flags);
 
 /**
  * The heart of the implementation.  An embedder needs to provide all of the
@@ -1501,6 +1534,7 @@ FeatherResult feather_resolve_variable(const FeatherHostOps *ops, FeatherInterp 
 
 /**
  * feather_list_parse parses a string as a TCL list.
+ * (char* based - for backward compatibility)
  *
  * This is the canonical list parsing function. Hosts should call this
  * to convert a string to a list rather than implementing their own
@@ -1518,5 +1552,12 @@ FeatherResult feather_resolve_variable(const FeatherHostOps *ops, FeatherInterp 
  */
 FeatherObj feather_list_parse(const FeatherHostOps *ops, FeatherInterp interp,
                               const char *s, size_t len);
+
+/**
+ * feather_list_parse_obj parses a string object as a TCL list.
+ * Preferred over feather_list_parse.
+ */
+FeatherObj feather_list_parse_obj(const FeatherHostOps *ops, FeatherInterp interp,
+                                   FeatherObj s);
 
 #endif

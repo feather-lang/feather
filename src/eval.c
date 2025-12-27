@@ -155,7 +155,23 @@ FeatherResult feather_script_eval(const FeatherHostOps *ops, FeatherInterp inter
 FeatherResult feather_script_eval_obj(const FeatherHostOps *ops, FeatherInterp interp,
                               FeatherObj script, FeatherEvalFlags flags) {
   ops = feather_get_ops(ops);
-  size_t len;
-  const char *source = ops->string.get(interp, script, &len);
-  return feather_script_eval(ops, interp, source, len, flags);
+  size_t len = ops->string.byte_length(interp, script);
+  FeatherResult result = TCL_OK;
+  FeatherParseContextObj ctx;
+  feather_parse_init_obj(&ctx, script, len);
+
+  FeatherParseStatus status;
+  while ((status = feather_parse_command_obj(ops, interp, &ctx)) == TCL_PARSE_OK) {
+    FeatherObj parsed = ops->interp.get_result(interp);
+
+    // Only execute non-empty commands
+    if (ops->list.length(interp, parsed) > 0) {
+      result = feather_command_exec(ops, interp, parsed, flags);
+      if (result != TCL_OK) {
+        return result;
+      }
+    }
+  }
+
+  return (status == TCL_PARSE_DONE) ? result : TCL_ERROR;
 }

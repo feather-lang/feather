@@ -2,8 +2,8 @@
 #include "host.h"
 #include "internal.h"
 
-static FeatherObj append_str(const FeatherHostOps *ops, FeatherInterp interp,
-                             FeatherObj result, const char *s, size_t len) {
+static FeatherObj append_literal(const FeatherHostOps *ops, FeatherInterp interp,
+                                  FeatherObj result, const char *s, size_t len) {
   if (len == 0) return result;
   FeatherObj seg = ops->string.intern(interp, s, len);
   if (ops->list.is_nil(interp, result)) {
@@ -12,12 +12,18 @@ static FeatherObj append_str(const FeatherHostOps *ops, FeatherInterp interp,
   return ops->string.concat(interp, result, seg);
 }
 
-/**
- * append_obj appends an object's string value to the result using concat().
- * This avoids string.get() by delegating string extraction to the host.
- */
+static FeatherObj append_slice(const FeatherHostOps *ops, FeatherInterp interp,
+                                FeatherObj result, FeatherObj str, size_t start, size_t end) {
+  if (start >= end) return result;
+  FeatherObj seg = ops->string.slice(interp, str, start, end);
+  if (ops->list.is_nil(interp, result)) {
+    return seg;
+  }
+  return ops->string.concat(interp, result, seg);
+}
+
 static FeatherObj append_obj(const FeatherHostOps *ops, FeatherInterp interp,
-                             FeatherObj result, FeatherObj obj) {
+                              FeatherObj result, FeatherObj obj) {
   if (ops->list.is_nil(interp, obj)) {
     return result;
   }
@@ -27,26 +33,16 @@ static FeatherObj append_obj(const FeatherHostOps *ops, FeatherInterp interp,
   return ops->string.concat(interp, result, obj);
 }
 
-/**
- * Helper to check if an option object equals a specific literal.
- * Uses ops->string.equal to avoid string.get().
- */
 static int option_equals(const FeatherHostOps *ops, FeatherInterp interp,
-                         FeatherObj opt, const char *lit) {
-  FeatherObj lit_obj = ops->string.intern(interp, lit, 0);
-  // Calculate length by scanning to null
+                          FeatherObj opt, const char *lit) {
   size_t len = 0;
   while (lit[len]) len++;
-  lit_obj = ops->string.intern(interp, lit, len);
+  FeatherObj lit_obj = ops->string.intern(interp, lit, len);
   return ops->string.equal(interp, opt, lit_obj);
 }
 
-/**
- * Build error message: "bad option \"<opt>\": must be -nobackslashes, -nocommands, or -novariables"
- * Uses string builder to avoid string.get() on opt.
- */
 static FeatherObj build_bad_option_error(const FeatherHostOps *ops, FeatherInterp interp,
-                                         FeatherObj opt) {
+                                          FeatherObj opt) {
   FeatherObj builder = ops->string.builder_new(interp, 128);
   const char *prefix = "bad option \"";
   for (size_t i = 0; prefix[i]; i++) {
@@ -60,12 +56,8 @@ static FeatherObj build_bad_option_error(const FeatherHostOps *ops, FeatherInter
   return ops->string.builder_finish(interp, builder);
 }
 
-/**
- * Build error message: "can't read \"<name>\": no such variable"
- * Uses string builder to avoid string.get() on name.
- */
 static FeatherObj build_no_such_variable_error(const FeatherHostOps *ops, FeatherInterp interp,
-                                               FeatherObj name) {
+                                                FeatherObj name) {
   FeatherObj builder = ops->string.builder_new(interp, 128);
   const char *prefix = "can't read \"";
   for (size_t i = 0; prefix[i]; i++) {
@@ -79,15 +71,29 @@ static FeatherObj build_no_such_variable_error(const FeatherHostOps *ops, Feathe
   return ops->string.builder_finish(interp, builder);
 }
 
-static size_t process_backslash_subst(const char *p, const char *end,
-                                       char *buf, size_t *out_len) {
-  if (p >= end) {
+static int subst_is_hex_digit(int c) {
+  return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+}
+
+static int subst_hex_value(int c) {
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'a' && c <= 'f') return 10 + c - 'a';
+  if (c >= 'A' && c <= 'F') return 10 + c - 'A';
+  return 0;
+}
+
+static size_t process_backslash_subst_obj(const FeatherHostOps *ops, FeatherInterp interp,
+                                           FeatherObj str, size_t pos, size_t len,
+                                           char *buf, size_t *out_len) {
+  if (pos >= len) {
     buf[0] = '\\';
     *out_len = 1;
     return 0;
   }
 
-  switch (*p) {
+  int c = ops->string.byte_at(interp, str, pos);
+
+  switch (c) {
     case 'a': buf[0] = '\a'; *out_len = 1; return 1;
     case 'b': buf[0] = '\b'; *out_len = 1; return 1;
     case 'f': buf[0] = '\f'; *out_len = 1; return 1;
@@ -100,21 +106,21 @@ static size_t process_backslash_subst(const char *p, const char *end,
       buf[0] = ' ';
       *out_len = 1;
       size_t consumed = 1;
-      while (p + consumed < end && (p[consumed] == ' ' || p[consumed] == '\t')) {
+      while (pos + consumed < len) {
+        int ch = ops->string.byte_at(interp, str, pos + consumed);
+        if (ch != ' ' && ch != '\t') break;
         consumed++;
       }
       return consumed;
     }
     case 'x': {
-      if (p + 1 < end) {
+      if (pos + 1 < len) {
         int val = 0;
         size_t i = 1;
-        while (i < 3 && p + i < end) {
-          char c = p[i];
-          if (c >= '0' && c <= '9') val = val * 16 + (c - '0');
-          else if (c >= 'a' && c <= 'f') val = val * 16 + (c - 'a' + 10);
-          else if (c >= 'A' && c <= 'F') val = val * 16 + (c - 'A' + 10);
-          else break;
+        while (i < 3 && pos + i < len) {
+          int ch = ops->string.byte_at(interp, str, pos + i);
+          if (!subst_is_hex_digit(ch)) break;
+          val = val * 16 + subst_hex_value(ch);
           i++;
         }
         if (i > 1) {
@@ -128,58 +134,65 @@ static size_t process_backslash_subst(const char *p, const char *end,
       return 1;
     }
     default:
-      if (*p >= '0' && *p <= '7') {
-        int val = *p - '0';
+      if (c >= '0' && c <= '7') {
+        int val = c - '0';
         size_t i = 1;
-        while (i < 3 && p + i < end && p[i] >= '0' && p[i] <= '7') {
-          val = val * 8 + (p[i] - '0');
+        while (i < 3 && pos + i < len) {
+          int ch = ops->string.byte_at(interp, str, pos + i);
+          if (ch < '0' || ch > '7') break;
+          val = val * 8 + (ch - '0');
           i++;
         }
         buf[0] = (char)(val & 0xFF);
         *out_len = 1;
         return i;
       }
-      buf[0] = *p;
+      buf[0] = (char)c;
       *out_len = 1;
       return 1;
   }
 }
 
-static const char *find_close_bracket(const char *p, const char *end) {
+static size_t find_close_bracket_obj(const FeatherHostOps *ops, FeatherInterp interp,
+                                      FeatherObj str, size_t pos, size_t len) {
   int depth = 1;
-  while (p < end) {
-    if (*p == '[') {
+  while (pos < len) {
+    int c = ops->string.byte_at(interp, str, pos);
+    if (c == '[') {
       depth++;
-    } else if (*p == ']') {
+    } else if (c == ']') {
       depth--;
-      if (depth == 0) return p;
-    } else if (*p == '\\' && p + 1 < end) {
-      p++;
-    } else if (*p == '{') {
+      if (depth == 0) return pos;
+    } else if (c == '\\' && pos + 1 < len) {
+      pos++;
+    } else if (c == '{') {
       int brace_depth = 1;
-      p++;
-      while (p < end && brace_depth > 0) {
-        if (*p == '{') brace_depth++;
-        else if (*p == '}') brace_depth--;
-        else if (*p == '\\' && p + 1 < end) p++;
-        p++;
+      pos++;
+      while (pos < len && brace_depth > 0) {
+        int ch = ops->string.byte_at(interp, str, pos);
+        if (ch == '{') brace_depth++;
+        else if (ch == '}') brace_depth--;
+        else if (ch == '\\' && pos + 1 < len) pos++;
+        pos++;
       }
       continue;
-    } else if (*p == '"') {
-      p++;
-      while (p < end && *p != '"') {
-        if (*p == '\\' && p + 1 < end) p++;
-        p++;
+    } else if (c == '"') {
+      pos++;
+      while (pos < len) {
+        int ch = ops->string.byte_at(interp, str, pos);
+        if (ch == '"') break;
+        if (ch == '\\' && pos + 1 < len) pos++;
+        pos++;
       }
-      if (p < end) p++;
+      if (pos < len) pos++;
       continue;
     }
-    p++;
+    pos++;
   }
-  return NULL;
+  return len; // not found
 }
 
-static int subst_is_varname_char(char c) {
+static int subst_is_varname_char(int c) {
   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
          (c >= '0' && c <= '9') || c == '_';
 }
@@ -203,7 +216,6 @@ FeatherResult feather_builtin_subst(const FeatherHostOps *ops, FeatherInterp int
   while (i < argc - 1) {
     FeatherObj opt = ops->list.at(interp, args, i);
 
-    // Check if starts with '-' using byte_at (avoids string.get)
     int first_byte = ops->string.byte_at(interp, opt, 0);
     if (first_byte == '-') {
       if (option_equals(ops, interp, opt, "-nobackslashes")) {
@@ -230,160 +242,142 @@ FeatherResult feather_builtin_subst(const FeatherHostOps *ops, FeatherInterp int
   }
 
   FeatherObj str_obj = ops->list.at(interp, args, i);
-  size_t len;
-  // NOTE: This string.get() remains for pointer-based parsing (like B5/B6 pattern)
-  const char *str = ops->string.get(interp, str_obj, &len);
+  size_t len = ops->string.byte_length(interp, str_obj);
 
-  const char *p = str;
-  const char *end = str + len;
+  size_t pos = 0;
   FeatherObj result = 0;
-  const char *seg_start = p;
+  size_t seg_start = 0;
 
-  while (p < end) {
-    if (*p == '\\' && (flags & TCL_SUBST_BACKSLASHES)) {
-      if (p > seg_start) {
-        result = append_str(ops, interp, result, seg_start, p - seg_start);
+  while (pos < len) {
+    int c = ops->string.byte_at(interp, str_obj, pos);
+
+    if (c == '\\' && (flags & TCL_SUBST_BACKSLASHES)) {
+      if (pos > seg_start) {
+        result = append_slice(ops, interp, result, str_obj, seg_start, pos);
       }
-      p++;
+      pos++;
       char escape_buf[4];
       size_t escape_len;
-      size_t consumed = process_backslash_subst(p, end, escape_buf, &escape_len);
-      result = append_str(ops, interp, result, escape_buf, escape_len);
-      p += consumed;
-      seg_start = p;
+      size_t consumed = process_backslash_subst_obj(ops, interp, str_obj, pos, len, escape_buf, &escape_len);
+      result = append_literal(ops, interp, result, escape_buf, escape_len);
+      pos += consumed;
+      seg_start = pos;
 
-    } else if (*p == '$' && (flags & TCL_SUBST_VARIABLES)) {
-      if (p > seg_start) {
-        result = append_str(ops, interp, result, seg_start, p - seg_start);
+    } else if (c == '$' && (flags & TCL_SUBST_VARIABLES)) {
+      if (pos > seg_start) {
+        result = append_slice(ops, interp, result, str_obj, seg_start, pos);
       }
-      p++;
+      pos++;
 
-      if (p >= end) {
-        result = append_str(ops, interp, result, "$", 1);
-        seg_start = p;
+      if (pos >= len) {
+        result = append_literal(ops, interp, result, "$", 1);
+        seg_start = pos;
         continue;
       }
 
-      if (*p == '{') {
-        p++;
-        const char *name_start = p;
-        while (p < end && *p != '}') p++;
-        if (p >= end) {
+      c = ops->string.byte_at(interp, str_obj, pos);
+
+      if (c == '{') {
+        pos++;
+        size_t name_start = pos;
+        while (pos < len && ops->string.byte_at(interp, str_obj, pos) != '}') pos++;
+        if (pos >= len) {
           FeatherObj msg = ops->string.intern(interp, "missing close-brace for variable name", 37);
           ops->interp.set_result(interp, msg);
           return TCL_ERROR;
         }
-        size_t name_len = p - name_start;
-        p++;
-        FeatherObj name = ops->string.intern(interp, name_start, name_len);
+        FeatherObj name = ops->string.slice(interp, str_obj, name_start, pos);
+        pos++;
         FeatherObj value = ops->var.get(interp, name);
         if (ops->list.is_nil(interp, value)) {
           ops->interp.set_result(interp, build_no_such_variable_error(ops, interp, name));
           return TCL_ERROR;
         }
-        // Use concat directly via append_obj - avoids string.get on value
         result = append_obj(ops, interp, result, value);
-        seg_start = p;
+        seg_start = pos;
 
-      } else if (subst_is_varname_char(*p)) {
-        const char *name_start = p;
-        while (p < end && (subst_is_varname_char(*p) || *p == ':')) {
-          if (*p == ':' && p + 1 < end && p[1] == ':') {
-            p += 2;
-          } else if (*p == ':') {
-            break;
+      } else if (subst_is_varname_char(c)) {
+        size_t name_start = pos;
+        while (pos < len) {
+          int ch = ops->string.byte_at(interp, str_obj, pos);
+          if (subst_is_varname_char(ch)) {
+            pos++;
+          } else if (ch == ':' && pos + 1 < len && ops->string.byte_at(interp, str_obj, pos + 1) == ':') {
+            pos += 2;
           } else {
-            p++;
+            break;
           }
         }
-        size_t name_len = p - name_start;
 
-        if (p < end && *p == '(') {
-          p++;
-          const char *idx_start = p;
+        c = (pos < len) ? ops->string.byte_at(interp, str_obj, pos) : -1;
+
+        if (c == '(') {
+          pos++;
+          size_t idx_start = pos;
           int paren_depth = 1;
-          while (p < end && paren_depth > 0) {
-            if (*p == '(') paren_depth++;
-            else if (*p == ')') paren_depth--;
-            if (paren_depth > 0) p++;
+          while (pos < len && paren_depth > 0) {
+            int ch = ops->string.byte_at(interp, str_obj, pos);
+            if (ch == '(') paren_depth++;
+            else if (ch == ')') paren_depth--;
+            if (paren_depth > 0) pos++;
           }
-          size_t idx_len = p - idx_start;
-          if (p < end) p++;
+          size_t idx_end = pos;
+          if (pos < len) pos++;
+
+          // Build full array name with substituted index
+          FeatherObj name_part = ops->string.slice(interp, str_obj, name_start, idx_start - 1);
+          FeatherObj idx_part = ops->string.slice(interp, str_obj, idx_start, idx_end);
 
           if (flags & TCL_SUBST_COMMANDS) {
-            FeatherResult subst_res = feather_subst(ops, interp, idx_start, idx_len, TCL_SUBST_ALL);
+            FeatherResult subst_res = feather_subst_obj(ops, interp, idx_part, TCL_SUBST_ALL);
             if (subst_res != TCL_OK) return TCL_ERROR;
-            FeatherObj subst_idx = ops->interp.get_result(interp);
-
-            // Build full array name: name(subst_idx) using builder
-            FeatherObj builder = ops->string.builder_new(interp, 64);
-            for (size_t j = 0; j < name_len; j++) {
-              ops->string.builder_append_byte(interp, builder, name_start[j]);
-            }
-            ops->string.builder_append_byte(interp, builder, '(');
-            ops->string.builder_append_obj(interp, builder, subst_idx);
-            ops->string.builder_append_byte(interp, builder, ')');
-            FeatherObj full_name = ops->string.builder_finish(interp, builder);
-
-            FeatherObj value = ops->var.get(interp, full_name);
-            if (ops->list.is_nil(interp, value)) {
-              ops->interp.set_result(interp, build_no_such_variable_error(ops, interp, full_name));
-              return TCL_ERROR;
-            }
-            // Use concat directly - avoids string.get on value
-            result = append_obj(ops, interp, result, value);
-          } else {
-            // Build full array name without substitution
-            FeatherObj builder = ops->string.builder_new(interp, 64);
-            for (size_t j = 0; j < name_len; j++) {
-              ops->string.builder_append_byte(interp, builder, name_start[j]);
-            }
-            ops->string.builder_append_byte(interp, builder, '(');
-            for (size_t j = 0; j < idx_len; j++) {
-              ops->string.builder_append_byte(interp, builder, idx_start[j]);
-            }
-            ops->string.builder_append_byte(interp, builder, ')');
-            FeatherObj full_name = ops->string.builder_finish(interp, builder);
-
-            FeatherObj value = ops->var.get(interp, full_name);
-            if (ops->list.is_nil(interp, value)) {
-              ops->interp.set_result(interp, build_no_such_variable_error(ops, interp, full_name));
-              return TCL_ERROR;
-            }
-            // Use concat directly - avoids string.get on value
-            result = append_obj(ops, interp, result, value);
+            idx_part = ops->interp.get_result(interp);
           }
+
+          // Build full name: name(idx)
+          FeatherObj builder = ops->string.builder_new(interp, 64);
+          ops->string.builder_append_obj(interp, builder, name_part);
+          ops->string.builder_append_byte(interp, builder, '(');
+          ops->string.builder_append_obj(interp, builder, idx_part);
+          ops->string.builder_append_byte(interp, builder, ')');
+          FeatherObj full_name = ops->string.builder_finish(interp, builder);
+
+          FeatherObj value = ops->var.get(interp, full_name);
+          if (ops->list.is_nil(interp, value)) {
+            ops->interp.set_result(interp, build_no_such_variable_error(ops, interp, full_name));
+            return TCL_ERROR;
+          }
+          result = append_obj(ops, interp, result, value);
         } else {
-          FeatherObj name = ops->string.intern(interp, name_start, name_len);
+          FeatherObj name = ops->string.slice(interp, str_obj, name_start, pos);
           FeatherObj value = ops->var.get(interp, name);
           if (ops->list.is_nil(interp, value)) {
             ops->interp.set_result(interp, build_no_such_variable_error(ops, interp, name));
             return TCL_ERROR;
           }
-          // Use concat directly - avoids string.get on value
           result = append_obj(ops, interp, result, value);
         }
-        seg_start = p;
+        seg_start = pos;
       } else {
-        result = append_str(ops, interp, result, "$", 1);
-        seg_start = p;
+        result = append_literal(ops, interp, result, "$", 1);
+        seg_start = pos;
       }
 
-    } else if (*p == '[' && (flags & TCL_SUBST_COMMANDS)) {
-      if (p > seg_start) {
-        result = append_str(ops, interp, result, seg_start, p - seg_start);
+    } else if (c == '[' && (flags & TCL_SUBST_COMMANDS)) {
+      if (pos > seg_start) {
+        result = append_slice(ops, interp, result, str_obj, seg_start, pos);
       }
-      p++;
+      pos++;
 
-      const char *close = find_close_bracket(p, end);
-      if (close == NULL) {
+      size_t close = find_close_bracket_obj(ops, interp, str_obj, pos, len);
+      if (close >= len) {
         FeatherObj msg = ops->string.intern(interp, "missing close-bracket", 21);
         ops->interp.set_result(interp, msg);
         return TCL_ERROR;
       }
 
-      size_t cmd_len = close - p;
-      FeatherResult eval_result = feather_script_eval(ops, interp, p, cmd_len, TCL_EVAL_LOCAL);
+      FeatherObj cmd_script = ops->string.slice(interp, str_obj, pos, close);
+      FeatherResult eval_result = feather_script_eval_obj(ops, interp, cmd_script, TCL_EVAL_LOCAL);
 
       if (eval_result == TCL_BREAK) {
         if (ops->list.is_nil(interp, result)) {
@@ -392,44 +386,41 @@ FeatherResult feather_builtin_subst(const FeatherHostOps *ops, FeatherInterp int
         ops->interp.set_result(interp, result);
         return TCL_OK;
       } else if (eval_result == TCL_CONTINUE) {
-        p = close + 1;
-        seg_start = p;
+        pos = close + 1;
+        seg_start = pos;
         continue;
       } else if (eval_result == TCL_RETURN) {
         FeatherObj cmd_result = ops->interp.get_result(interp);
         if (!ops->list.is_nil(interp, cmd_result)) {
-          // Use concat directly - avoids string.get on cmd_result
           result = append_obj(ops, interp, result, cmd_result);
         }
-        p = close + 1;
-        seg_start = p;
+        pos = close + 1;
+        seg_start = pos;
       } else if (eval_result == TCL_ERROR) {
         return TCL_ERROR;
       } else if (eval_result >= 5) {
         FeatherObj cmd_result = ops->interp.get_result(interp);
         if (!ops->list.is_nil(interp, cmd_result)) {
-          // Use concat directly - avoids string.get on cmd_result
           result = append_obj(ops, interp, result, cmd_result);
         }
-        p = close + 1;
-        seg_start = p;
+        pos = close + 1;
+        seg_start = pos;
       } else {
         FeatherObj cmd_result = ops->interp.get_result(interp);
         if (!ops->list.is_nil(interp, cmd_result)) {
-          // Use concat directly - avoids string.get on cmd_result
           result = append_obj(ops, interp, result, cmd_result);
         }
-        p = close + 1;
-        seg_start = p;
+        pos = close + 1;
+        seg_start = pos;
       }
 
     } else {
-      p++;
+      pos++;
     }
   }
 
-  if (p > seg_start) {
-    result = append_str(ops, interp, result, seg_start, p - seg_start);
+  if (pos > seg_start) {
+    result = append_slice(ops, interp, result, str_obj, seg_start, pos);
   }
 
   if (ops->list.is_nil(interp, result)) {

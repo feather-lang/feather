@@ -122,7 +122,7 @@ void feather_interp_init(const FeatherHostOps *ops, FeatherInterp interp) {
 
     // Split the qualified name into namespace and simple name
     FeatherObj ns, simpleName;
-    feather_split_command(ops, interp, fullName, &ns, &simpleName);
+    feather_obj_split_command(ops, interp, fullName, &ns, &simpleName);
 
     // If no namespace part (shouldn't happen for our table), use global
     if (ops->list.is_nil(interp, ns)) {
