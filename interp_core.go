@@ -684,7 +684,7 @@ func (i *InternalInterp) setListItems(h FeatherObj, items []*Obj) {
 		return
 	}
 	obj.intrep = ListType(items)
-	obj.Invalidate()
+	obj.invalidate()
 }
 
 // NewForeignHandle creates a new foreign object with the given type name and Go value.

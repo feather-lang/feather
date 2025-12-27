@@ -67,9 +67,9 @@ func (o *Obj) Type() string {
 	return o.intrep.Name()
 }
 
-// Invalidate clears the cached string representation.
+// invalidate clears the cached string representation.
 // Should be called after mutating the internal representation.
-func (o *Obj) Invalidate() {
+func (o *Obj) invalidate() {
 	if o == nil {
 		return
 	}
@@ -138,8 +138,8 @@ func NewObj(intrep ObjType) *Obj {
 	return &Obj{intrep: intrep}
 }
 
-// SetBytes sets the string representation directly (used by Interp for handle-based naming).
-func (o *Obj) SetBytes(s string) {
+// setBytes sets the string representation directly (used by Interp for handle-based naming).
+func (o *Obj) setBytes(s string) {
 	if o != nil {
 		o.bytes = s
 	}
@@ -167,9 +167,16 @@ func (o *Obj) List() ([]*Obj, error) {
 	return AsList(o)
 }
 
-// Dict returns the dictionary contents of this object.
-// Note: This only works on objects that already have a dict representation.
+// AsDict converts this object to a dict, shimmering if needed.
+// Lists with even length can be converted to dicts.
 // To parse a string as a dict, use Interp.ParseDict().
-func (o *Obj) Dict() (*DictType, error) {
-	return AsDict(o)
+func (o *Obj) AsDict() (*Obj, error) {
+	if o == nil {
+		return NewDictObj(), nil
+	}
+	d, err := AsDict(o)
+	if err != nil {
+		return nil, err
+	}
+	return &Obj{intrep: d}, nil
 }

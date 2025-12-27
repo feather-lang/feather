@@ -155,7 +155,7 @@ func ObjListAppend(o *Obj, elem *Obj) {
 	if c, ok := o.intrep.(IntoList); ok {
 		if list, ok := c.IntoList(); ok {
 			o.intrep = ListType(append(list, elem))
-			o.Invalidate()
+			o.invalidate()
 		}
 	}
 }
@@ -171,7 +171,7 @@ func ObjListSet(o *Obj, i int, elem *Obj) {
 		if list, ok := c.IntoList(); ok {
 			if i >= 0 && i < len(list) {
 				list[i] = elem
-				o.Invalidate()
+				o.invalidate()
 			}
 		}
 	}
@@ -217,7 +217,7 @@ func ObjDictSet(o *Obj, key string, val *Obj) {
 	}
 	d.Items[key] = val
 	o.intrep = d
-	o.Invalidate()
+	o.invalidate()
 }
 
 // ObjDictKeys returns the keys of a dict object in insertion order.

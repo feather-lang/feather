@@ -458,7 +458,7 @@ func goListPush(interp C.FeatherInterp, list C.FeatherObj, item C.FeatherObj) C.
 	}
 	// Append and update intrep
 	o.intrep = ListType(append(listItems, itemObj))
-	o.Invalidate()
+	o.invalidate()
 	return list
 }
 
@@ -485,7 +485,7 @@ func goListPop(interp C.FeatherInterp, list C.FeatherObj) C.FeatherObj {
 	}
 	last := listItems[len(listItems)-1]
 	o.intrep = ListType(listItems[:len(listItems)-1])
-	o.Invalidate()
+	o.invalidate()
 	return C.FeatherObj(i.registerObj(last))
 }
 
@@ -513,7 +513,7 @@ func goListUnshift(interp C.FeatherInterp, list C.FeatherObj, item C.FeatherObj)
 	}
 	// Prepend item to the list
 	o.intrep = ListType(append([]*Obj{itemObj}, listItems...))
-	o.Invalidate()
+	o.invalidate()
 	return list
 }
 
@@ -540,7 +540,7 @@ func goListShift(interp C.FeatherInterp, list C.FeatherObj) C.FeatherObj {
 	}
 	first := listItems[0]
 	o.intrep = ListType(listItems[1:])
-	o.Invalidate()
+	o.invalidate()
 	return C.FeatherObj(i.registerObj(first))
 }
 
@@ -772,7 +772,7 @@ func goListSort(interp C.FeatherInterp, list C.FeatherObj, cmpFunc unsafe.Pointe
 
 	// Update the internal representation and invalidate string rep
 	o.intrep = ListType(listItems)
-	o.Invalidate()
+	o.invalidate()
 
 	return C.TCL_OK
 }
@@ -925,7 +925,7 @@ func goDictRemove(interp C.FeatherInterp, dict C.FeatherObj, key C.FeatherObj) C
 			break
 		}
 	}
-	o.Invalidate()
+	o.invalidate()
 	return dict
 }
 
