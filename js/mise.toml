@@ -19,6 +19,8 @@ zig wasm-ld --no-entry \
   --import-memory \
   -o feather.wasm \
   $(for f in ../src/*.c; do
+    # Skip amalgamation - it's for cgo only
+    [ "$(basename "$f")" = "feather_amalgamation.c" ] && continue
     zig cc -target wasm32-freestanding -Os -c -DFEATHER_WASM_BUILD -I ../src -o /tmp/$(basename $f .c).o $f
     echo /tmp/$(basename $f .c).o
   done)
