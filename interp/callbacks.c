@@ -1,625 +1,500 @@
 #include "feather.h"
 #include "_cgo_export.h"
 
-// C wrapper functions that can be used as function pointers in FeatherHostOps
-// These call through to the Go functions exported via //export
+// Implementation of feather_host_* functions for native (Go) builds.
+// These call through to Go functions exported via //export.
+// For WASM builds, these would be provided as WASM imports instead.
 
-static FeatherResult c_bind_unknown(FeatherInterp interp, FeatherObj cmd, FeatherObj args, FeatherObj *value) {
+// ============================================================================
+// Bind Operations
+// ============================================================================
+
+FeatherResult feather_host_bind_unknown(FeatherInterp interp, FeatherObj cmd, FeatherObj args, FeatherObj *value) {
     return goBindUnknown(interp, cmd, args, value);
 }
 
-static FeatherObj c_string_intern(FeatherInterp interp, const char *s, size_t len) {
+// ============================================================================
+// String Operations
+// ============================================================================
+
+FeatherObj feather_host_string_intern(FeatherInterp interp, const char *s, size_t len) {
     return goStringIntern(interp, (char*)s, len);
 }
 
-static const char* c_string_get(FeatherInterp interp, FeatherObj obj, size_t *len) {
-    return goStringGet(interp, obj, len);
-}
-
-static FeatherObj c_string_concat(FeatherInterp interp, FeatherObj a, FeatherObj b) {
+FeatherObj feather_host_string_concat(FeatherInterp interp, FeatherObj a, FeatherObj b) {
     return goStringConcat(interp, a, b);
 }
 
-static int c_string_compare(FeatherInterp interp, FeatherObj a, FeatherObj b) {
+int feather_host_string_compare(FeatherInterp interp, FeatherObj a, FeatherObj b) {
     return goStringCompare(interp, a, b);
 }
 
-static FeatherResult c_string_regex_match(FeatherInterp interp, FeatherObj pattern, FeatherObj string, int *result) {
+FeatherResult feather_host_string_regex_match(FeatherInterp interp, FeatherObj pattern, FeatherObj string, int *result) {
     return goStringRegexMatch(interp, pattern, string, result);
 }
 
-// New byte-at-a-time string operations (B1: BYTEOPS plan)
-static int c_string_byte_at(FeatherInterp interp, FeatherObj str, size_t index) {
+int feather_host_string_byte_at(FeatherInterp interp, FeatherObj str, size_t index) {
     return goStringByteAt(interp, str, index);
 }
 
-static size_t c_string_byte_length(FeatherInterp interp, FeatherObj str) {
+size_t feather_host_string_byte_length(FeatherInterp interp, FeatherObj str) {
     return goStringByteLength(interp, str);
 }
 
-static FeatherObj c_string_slice(FeatherInterp interp, FeatherObj str, size_t start, size_t end) {
+FeatherObj feather_host_string_slice(FeatherInterp interp, FeatherObj str, size_t start, size_t end) {
     return goStringSlice(interp, str, start, end);
 }
 
-static int c_string_equal(FeatherInterp interp, FeatherObj a, FeatherObj b) {
+int feather_host_string_equal(FeatherInterp interp, FeatherObj a, FeatherObj b) {
     return goStringEqual(interp, a, b);
 }
 
-static int c_string_match(FeatherInterp interp, FeatherObj pattern, FeatherObj str, int nocase) {
+int feather_host_string_match(FeatherInterp interp, FeatherObj pattern, FeatherObj str, int nocase) {
     return goStringMatch(interp, pattern, str, nocase);
 }
 
-static FeatherObj c_string_builder_new(FeatherInterp interp, size_t capacity) {
+FeatherObj feather_host_string_builder_new(FeatherInterp interp, size_t capacity) {
     return goStringBuilderNew(interp, capacity);
 }
 
-static void c_string_builder_append_byte(FeatherInterp interp, FeatherObj builder, int byte) {
+void feather_host_string_builder_append_byte(FeatherInterp interp, FeatherObj builder, int byte) {
     goStringBuilderAppendByte(interp, builder, byte);
 }
 
-static void c_string_builder_append_obj(FeatherInterp interp, FeatherObj builder, FeatherObj str) {
+void feather_host_string_builder_append_obj(FeatherInterp interp, FeatherObj builder, FeatherObj str) {
     goStringBuilderAppendObj(interp, builder, str);
 }
 
-static FeatherObj c_string_builder_finish(FeatherInterp interp, FeatherObj builder) {
+FeatherObj feather_host_string_builder_finish(FeatherInterp interp, FeatherObj builder) {
     return goStringBuilderFinish(interp, builder);
 }
 
-// Rune operations (Unicode-aware)
-static size_t c_rune_length(FeatherInterp interp, FeatherObj str) {
+// ============================================================================
+// Rune Operations
+// ============================================================================
+
+size_t feather_host_rune_length(FeatherInterp interp, FeatherObj str) {
     return goRuneLength(interp, str);
 }
 
-static FeatherObj c_rune_at(FeatherInterp interp, FeatherObj str, size_t index) {
+FeatherObj feather_host_rune_at(FeatherInterp interp, FeatherObj str, size_t index) {
     return goRuneAt(interp, str, index);
 }
 
-static FeatherObj c_rune_range(FeatherInterp interp, FeatherObj str, int64_t first, int64_t last) {
+FeatherObj feather_host_rune_range(FeatherInterp interp, FeatherObj str, int64_t first, int64_t last) {
     return goRuneRange(interp, str, first, last);
 }
 
-static FeatherObj c_rune_to_upper(FeatherInterp interp, FeatherObj str) {
+FeatherObj feather_host_rune_to_upper(FeatherInterp interp, FeatherObj str) {
     return goRuneToUpper(interp, str);
 }
 
-static FeatherObj c_rune_to_lower(FeatherInterp interp, FeatherObj str) {
+FeatherObj feather_host_rune_to_lower(FeatherInterp interp, FeatherObj str) {
     return goRuneToLower(interp, str);
 }
 
-static FeatherObj c_rune_fold(FeatherInterp interp, FeatherObj str) {
+FeatherObj feather_host_rune_fold(FeatherInterp interp, FeatherObj str) {
     return goRuneFold(interp, str);
 }
 
-static FeatherResult c_interp_set_result(FeatherInterp interp, FeatherObj result) {
+// ============================================================================
+// Interp Operations
+// ============================================================================
+
+FeatherResult feather_host_interp_set_result(FeatherInterp interp, FeatherObj result) {
     return goInterpSetResult(interp, result);
 }
 
-static FeatherObj c_interp_get_result(FeatherInterp interp) {
+FeatherObj feather_host_interp_get_result(FeatherInterp interp) {
     return goInterpGetResult(interp);
 }
 
-static FeatherResult c_interp_reset_result(FeatherInterp interp, FeatherObj result) {
+FeatherResult feather_host_interp_reset_result(FeatherInterp interp, FeatherObj result) {
     return goInterpResetResult(interp, result);
 }
 
-static FeatherResult c_interp_set_return_options(FeatherInterp interp, FeatherObj options) {
+FeatherResult feather_host_interp_set_return_options(FeatherInterp interp, FeatherObj options) {
     return goInterpSetReturnOptions(interp, options);
 }
 
-static FeatherObj c_interp_get_return_options(FeatherInterp interp, FeatherResult code) {
+FeatherObj feather_host_interp_get_return_options(FeatherInterp interp, FeatherResult code) {
     return goInterpGetReturnOptions(interp, code);
 }
 
-static FeatherObj c_interp_get_script(FeatherInterp interp) {
+FeatherObj feather_host_interp_get_script(FeatherInterp interp) {
     return goInterpGetScript(interp);
 }
 
-static void c_interp_set_script(FeatherInterp interp, FeatherObj path) {
+void feather_host_interp_set_script(FeatherInterp interp, FeatherObj path) {
     goInterpSetScript(interp, path);
 }
 
-static FeatherObj c_list_create(FeatherInterp interp) {
+// ============================================================================
+// List Operations
+// ============================================================================
+
+FeatherObj feather_host_list_create(FeatherInterp interp) {
     return goListCreate(interp);
 }
 
-static int c_list_is_nil(FeatherInterp interp, FeatherObj obj) {
+int feather_host_list_is_nil(FeatherInterp interp, FeatherObj obj) {
     return goListIsNil(interp, obj);
 }
 
-static FeatherObj c_list_from(FeatherInterp interp, FeatherObj obj) {
+FeatherObj feather_host_list_from(FeatherInterp interp, FeatherObj obj) {
     return goListFrom(interp, obj);
 }
 
-static FeatherObj c_list_push(FeatherInterp interp, FeatherObj list, FeatherObj item) {
+FeatherObj feather_host_list_push(FeatherInterp interp, FeatherObj list, FeatherObj item) {
     return goListPush(interp, list, item);
 }
 
-static FeatherObj c_list_pop(FeatherInterp interp, FeatherObj list) {
+FeatherObj feather_host_list_pop(FeatherInterp interp, FeatherObj list) {
     return goListPop(interp, list);
 }
 
-static FeatherObj c_list_unshift(FeatherInterp interp, FeatherObj list, FeatherObj item) {
+FeatherObj feather_host_list_unshift(FeatherInterp interp, FeatherObj list, FeatherObj item) {
     return goListUnshift(interp, list, item);
 }
 
-static FeatherObj c_list_shift(FeatherInterp interp, FeatherObj list) {
+FeatherObj feather_host_list_shift(FeatherInterp interp, FeatherObj list) {
     return goListShift(interp, list);
 }
 
-static size_t c_list_length(FeatherInterp interp, FeatherObj list) {
+size_t feather_host_list_length(FeatherInterp interp, FeatherObj list) {
     return goListLength(interp, list);
 }
 
-static FeatherObj c_list_at(FeatherInterp interp, FeatherObj list, size_t index) {
+FeatherObj feather_host_list_at(FeatherInterp interp, FeatherObj list, size_t index) {
     return goListAt(interp, list, index);
 }
 
-static FeatherObj c_list_slice(FeatherInterp interp, FeatherObj list, size_t first, size_t last) {
+FeatherObj feather_host_list_slice(FeatherInterp interp, FeatherObj list, size_t first, size_t last) {
     return goListSlice(interp, list, first, last);
 }
 
-static FeatherResult c_list_set_at(FeatherInterp interp, FeatherObj list, size_t index, FeatherObj value) {
+FeatherResult feather_host_list_set_at(FeatherInterp interp, FeatherObj list, size_t index, FeatherObj value) {
     return goListSetAt(interp, list, index, value);
 }
 
-static FeatherObj c_list_splice(FeatherInterp interp, FeatherObj list, size_t first,
-                            size_t deleteCount, FeatherObj insertions) {
+FeatherObj feather_host_list_splice(FeatherInterp interp, FeatherObj list, size_t first,
+                                    size_t deleteCount, FeatherObj insertions) {
     return goListSplice(interp, list, first, deleteCount, insertions);
 }
 
-static FeatherResult c_list_sort(FeatherInterp interp, FeatherObj list,
-                             int (*cmp)(FeatherInterp interp, FeatherObj a, FeatherObj b, void *ctx),
-                             void *ctx) {
+FeatherResult feather_host_list_sort(FeatherInterp interp, FeatherObj list,
+                                     int (*cmp)(FeatherInterp interp, FeatherObj a, FeatherObj b, void *ctx),
+                                     void *ctx) {
     return goListSort(interp, list, (void*)cmp, ctx);
 }
 
-// Dict operations
-static FeatherObj c_dict_create(FeatherInterp interp) {
+// ============================================================================
+// Dict Operations
+// ============================================================================
+
+FeatherObj feather_host_dict_create(FeatherInterp interp) {
     return goDictCreate(interp);
 }
 
-static int c_dict_is_dict(FeatherInterp interp, FeatherObj obj) {
+int feather_host_dict_is_dict(FeatherInterp interp, FeatherObj obj) {
     return goDictIsDict(interp, obj);
 }
 
-static FeatherObj c_dict_from(FeatherInterp interp, FeatherObj obj) {
+FeatherObj feather_host_dict_from(FeatherInterp interp, FeatherObj obj) {
     return goDictFrom(interp, obj);
 }
 
-static FeatherObj c_dict_get(FeatherInterp interp, FeatherObj dict, FeatherObj key) {
+FeatherObj feather_host_dict_get(FeatherInterp interp, FeatherObj dict, FeatherObj key) {
     return goDictGet(interp, dict, key);
 }
 
-static FeatherObj c_dict_set(FeatherInterp interp, FeatherObj dict, FeatherObj key, FeatherObj value) {
+FeatherObj feather_host_dict_set(FeatherInterp interp, FeatherObj dict, FeatherObj key, FeatherObj value) {
     return goDictSet(interp, dict, key, value);
 }
 
-static int c_dict_exists(FeatherInterp interp, FeatherObj dict, FeatherObj key) {
+int feather_host_dict_exists(FeatherInterp interp, FeatherObj dict, FeatherObj key) {
     return goDictExists(interp, dict, key);
 }
 
-static FeatherObj c_dict_remove(FeatherInterp interp, FeatherObj dict, FeatherObj key) {
+FeatherObj feather_host_dict_remove(FeatherInterp interp, FeatherObj dict, FeatherObj key) {
     return goDictRemove(interp, dict, key);
 }
 
-static size_t c_dict_size(FeatherInterp interp, FeatherObj dict) {
+size_t feather_host_dict_size(FeatherInterp interp, FeatherObj dict) {
     return goDictSize(interp, dict);
 }
 
-static FeatherObj c_dict_keys(FeatherInterp interp, FeatherObj dict) {
+FeatherObj feather_host_dict_keys(FeatherInterp interp, FeatherObj dict) {
     return goDictKeys(interp, dict);
 }
 
-static FeatherObj c_dict_values(FeatherInterp interp, FeatherObj dict) {
+FeatherObj feather_host_dict_values(FeatherInterp interp, FeatherObj dict) {
     return goDictValues(interp, dict);
 }
 
-static FeatherObj c_int_create(FeatherInterp interp, int64_t val) {
+// ============================================================================
+// Integer Operations
+// ============================================================================
+
+FeatherObj feather_host_integer_create(FeatherInterp interp, int64_t val) {
     return goIntCreate(interp, val);
 }
 
-static FeatherResult c_int_get(FeatherInterp interp, FeatherObj obj, int64_t *out) {
+FeatherResult feather_host_integer_get(FeatherInterp interp, FeatherObj obj, int64_t *out) {
     return goIntGet(interp, obj, out);
 }
 
-static FeatherObj c_dbl_create(FeatherInterp interp, double val) {
+// ============================================================================
+// Double Operations
+// ============================================================================
+
+FeatherObj feather_host_dbl_create(FeatherInterp interp, double val) {
     return goDoubleCreate(interp, val);
 }
 
-static FeatherResult c_dbl_get(FeatherInterp interp, FeatherObj obj, double *out) {
+FeatherResult feather_host_dbl_get(FeatherInterp interp, FeatherObj obj, double *out) {
     return goDoubleGet(interp, obj, out);
 }
 
-static FeatherDoubleClass c_dbl_classify(double val) {
+FeatherDoubleClass feather_host_dbl_classify(double val) {
     return goDoubleClassify(val);
 }
 
-static FeatherObj c_dbl_format(FeatherInterp interp, double val, char specifier, int precision) {
+FeatherObj feather_host_dbl_format(FeatherInterp interp, double val, char specifier, int precision) {
     return goDoubleFormat(interp, val, specifier, precision);
 }
 
-static FeatherResult c_dbl_math(FeatherInterp interp, FeatherMathOp op, double a, double b, double *out) {
+FeatherResult feather_host_dbl_math(FeatherInterp interp, FeatherMathOp op, double a, double b, double *out) {
     return goDoubleMath(interp, op, a, b, out);
 }
 
-static FeatherResult c_frame_push(FeatherInterp interp, FeatherObj cmd, FeatherObj args) {
+// ============================================================================
+// Frame Operations
+// ============================================================================
+
+FeatherResult feather_host_frame_push(FeatherInterp interp, FeatherObj cmd, FeatherObj args) {
     return goFramePush(interp, cmd, args);
 }
 
-static FeatherResult c_frame_pop(FeatherInterp interp) {
+FeatherResult feather_host_frame_pop(FeatherInterp interp) {
     return goFramePop(interp);
 }
 
-static size_t c_frame_level(FeatherInterp interp) {
+size_t feather_host_frame_level(FeatherInterp interp) {
     return goFrameLevel(interp);
 }
 
-static FeatherResult c_frame_set_active(FeatherInterp interp, size_t level) {
+FeatherResult feather_host_frame_set_active(FeatherInterp interp, size_t level) {
     return goFrameSetActive(interp, level);
 }
 
-static size_t c_frame_size(FeatherInterp interp) {
+size_t feather_host_frame_size(FeatherInterp interp) {
     return goFrameSize(interp);
 }
 
-static FeatherResult c_frame_info(FeatherInterp interp, size_t level, FeatherObj *cmd, FeatherObj *args, FeatherObj *ns) {
+FeatherResult feather_host_frame_info(FeatherInterp interp, size_t level, FeatherObj *cmd, FeatherObj *args, FeatherObj *ns) {
     return goFrameInfo(interp, level, cmd, args, ns);
 }
 
-static FeatherObj c_var_get(FeatherInterp interp, FeatherObj name) {
-    return goVarGet(interp, name);
-}
-
-static void c_var_set(FeatherInterp interp, FeatherObj name, FeatherObj value) {
-    goVarSet(interp, name, value);
-}
-
-static void c_var_unset(FeatherInterp interp, FeatherObj name) {
-    goVarUnset(interp, name);
-}
-
-static FeatherResult c_var_exists(FeatherInterp interp, FeatherObj name) {
-    return goVarExists(interp, name);
-}
-
-static void c_var_link(FeatherInterp interp, FeatherObj local, size_t target_level, FeatherObj target) {
-    goVarLink(interp, local, target_level, target);
-}
-
-static void c_proc_define(FeatherInterp interp, FeatherObj name, FeatherObj params, FeatherObj body) {
-    goProcDefine(interp, name, params, body);
-}
-
-static int c_proc_exists(FeatherInterp interp, FeatherObj name) {
-    return goProcExists(interp, name);
-}
-
-static FeatherResult c_proc_params(FeatherInterp interp, FeatherObj name, FeatherObj *result) {
-    return goProcParams(interp, name, result);
-}
-
-static FeatherResult c_proc_body(FeatherInterp interp, FeatherObj name, FeatherObj *result) {
-    return goProcBody(interp, name, result);
-}
-
-static FeatherObj c_proc_names(FeatherInterp interp, FeatherObj namespace) {
-    return goProcNames(interp, namespace);
-}
-
-static FeatherResult c_proc_resolve_namespace(FeatherInterp interp, FeatherObj path, FeatherObj *result) {
-    return goProcResolveNamespace(interp, path, result);
-}
-
-static void c_proc_register_builtin(FeatherInterp interp, FeatherObj name, FeatherBuiltinCmd fn) {
-    goProcRegisterBuiltin(interp, name, fn);
-}
-
-static FeatherCommandType c_proc_lookup(FeatherInterp interp, FeatherObj name, FeatherBuiltinCmd *fn) {
-    return goProcLookup(interp, name, fn);
-}
-
-static FeatherResult c_proc_rename(FeatherInterp interp, FeatherObj oldName, FeatherObj newName) {
-    return goProcRename(interp, oldName, newName);
-}
-
-// Namespace operations
-static FeatherResult c_ns_create(FeatherInterp interp, FeatherObj path) {
-    return goNsCreate(interp, path);
-}
-
-static FeatherResult c_ns_delete(FeatherInterp interp, FeatherObj path) {
-    return goNsDelete(interp, path);
-}
-
-static int c_ns_exists(FeatherInterp interp, FeatherObj path) {
-    return goNsExists(interp, path);
-}
-
-static FeatherObj c_ns_current(FeatherInterp interp) {
-    return goNsCurrent(interp);
-}
-
-static FeatherResult c_ns_parent(FeatherInterp interp, FeatherObj ns, FeatherObj *result) {
-    return goNsParent(interp, ns, result);
-}
-
-static FeatherObj c_ns_children(FeatherInterp interp, FeatherObj ns) {
-    return goNsChildren(interp, ns);
-}
-
-static FeatherObj c_ns_get_var(FeatherInterp interp, FeatherObj ns, FeatherObj name) {
-    return goNsGetVar(interp, ns, name);
-}
-
-static void c_ns_set_var(FeatherInterp interp, FeatherObj ns, FeatherObj name, FeatherObj value) {
-    goNsSetVar(interp, ns, name, value);
-}
-
-static int c_ns_var_exists(FeatherInterp interp, FeatherObj ns, FeatherObj name) {
-    return goNsVarExists(interp, ns, name);
-}
-
-static void c_ns_unset_var(FeatherInterp interp, FeatherObj ns, FeatherObj name) {
-    goNsUnsetVar(interp, ns, name);
-}
-
-static FeatherCommandType c_ns_get_command(FeatherInterp interp, FeatherObj ns, FeatherObj name, FeatherBuiltinCmd *fn) {
-    return goNsGetCommand(interp, ns, name, fn);
-}
-
-static void c_ns_set_command(FeatherInterp interp, FeatherObj ns, FeatherObj name,
-                             FeatherCommandType kind, FeatherBuiltinCmd fn,
-                             FeatherObj params, FeatherObj body) {
-    goNsSetCommand(interp, ns, name, kind, fn, params, body);
-}
-
-static FeatherResult c_ns_delete_command(FeatherInterp interp, FeatherObj ns, FeatherObj name) {
-    return goNsDeleteCommand(interp, ns, name);
-}
-
-static FeatherObj c_ns_list_commands(FeatherInterp interp, FeatherObj ns) {
-    return goNsListCommands(interp, ns);
-}
-
-static FeatherObj c_ns_get_exports(FeatherInterp interp, FeatherObj ns) {
-    return goNsGetExports(interp, ns);
-}
-
-static void c_ns_set_exports(FeatherInterp interp, FeatherObj ns, FeatherObj patterns, int clear) {
-    goNsSetExports(interp, ns, patterns, clear);
-}
-
-static int c_ns_is_exported(FeatherInterp interp, FeatherObj ns, FeatherObj name) {
-    return goNsIsExported(interp, ns, name);
-}
-
-static FeatherResult c_ns_copy_command(FeatherInterp interp, FeatherObj srcNs, FeatherObj srcName,
-                                   FeatherObj dstNs, FeatherObj dstName) {
-    return goNsCopyCommand(interp, srcNs, srcName, dstNs, dstName);
-}
-
-// Frame namespace extensions
-static FeatherResult c_frame_set_namespace(FeatherInterp interp, FeatherObj ns) {
+FeatherResult feather_host_frame_set_namespace(FeatherInterp interp, FeatherObj ns) {
     return goFrameSetNamespace(interp, ns);
 }
 
-static FeatherObj c_frame_get_namespace(FeatherInterp interp) {
+FeatherObj feather_host_frame_get_namespace(FeatherInterp interp) {
     return goFrameGetNamespace(interp);
 }
 
-// Var namespace link
-static void c_var_link_ns(FeatherInterp interp, FeatherObj local, FeatherObj ns, FeatherObj name) {
+// ============================================================================
+// Variable Operations
+// ============================================================================
+
+FeatherObj feather_host_var_get(FeatherInterp interp, FeatherObj name) {
+    return goVarGet(interp, name);
+}
+
+void feather_host_var_set(FeatherInterp interp, FeatherObj name, FeatherObj value) {
+    goVarSet(interp, name, value);
+}
+
+void feather_host_var_unset(FeatherInterp interp, FeatherObj name) {
+    goVarUnset(interp, name);
+}
+
+FeatherResult feather_host_var_exists(FeatherInterp interp, FeatherObj name) {
+    return goVarExists(interp, name);
+}
+
+void feather_host_var_link(FeatherInterp interp, FeatherObj local, size_t target_level, FeatherObj target) {
+    goVarLink(interp, local, target_level, target);
+}
+
+void feather_host_var_link_ns(FeatherInterp interp, FeatherObj local, FeatherObj ns, FeatherObj name) {
     goVarLinkNs(interp, local, ns, name);
 }
 
-static FeatherObj c_var_names(FeatherInterp interp, FeatherObj ns) {
+FeatherObj feather_host_var_names(FeatherInterp interp, FeatherObj ns) {
     return goVarNames(interp, ns);
 }
 
-// Trace operations
-static FeatherResult c_trace_add(FeatherInterp interp, FeatherObj kind, FeatherObj name, FeatherObj ops, FeatherObj script) {
+// ============================================================================
+// Proc Operations
+// ============================================================================
+
+void feather_host_proc_define(FeatherInterp interp, FeatherObj name, FeatherObj params, FeatherObj body) {
+    goProcDefine(interp, name, params, body);
+}
+
+int feather_host_proc_exists(FeatherInterp interp, FeatherObj name) {
+    return goProcExists(interp, name);
+}
+
+FeatherResult feather_host_proc_params(FeatherInterp interp, FeatherObj name, FeatherObj *result) {
+    return goProcParams(interp, name, result);
+}
+
+FeatherResult feather_host_proc_body(FeatherInterp interp, FeatherObj name, FeatherObj *result) {
+    return goProcBody(interp, name, result);
+}
+
+FeatherObj feather_host_proc_names(FeatherInterp interp, FeatherObj namespace) {
+    return goProcNames(interp, namespace);
+}
+
+FeatherResult feather_host_proc_resolve_namespace(FeatherInterp interp, FeatherObj path, FeatherObj *result) {
+    return goProcResolveNamespace(interp, path, result);
+}
+
+void feather_host_proc_register_builtin(FeatherInterp interp, FeatherObj name, FeatherBuiltinCmd fn) {
+    goProcRegisterBuiltin(interp, name, fn);
+}
+
+FeatherCommandType feather_host_proc_lookup(FeatherInterp interp, FeatherObj name, FeatherBuiltinCmd *fn) {
+    return goProcLookup(interp, name, fn);
+}
+
+FeatherResult feather_host_proc_rename(FeatherInterp interp, FeatherObj oldName, FeatherObj newName) {
+    return goProcRename(interp, oldName, newName);
+}
+
+// ============================================================================
+// Namespace Operations
+// ============================================================================
+
+FeatherResult feather_host_ns_create(FeatherInterp interp, FeatherObj path) {
+    return goNsCreate(interp, path);
+}
+
+FeatherResult feather_host_ns_delete(FeatherInterp interp, FeatherObj path) {
+    return goNsDelete(interp, path);
+}
+
+int feather_host_ns_exists(FeatherInterp interp, FeatherObj path) {
+    return goNsExists(interp, path);
+}
+
+FeatherObj feather_host_ns_current(FeatherInterp interp) {
+    return goNsCurrent(interp);
+}
+
+FeatherResult feather_host_ns_parent(FeatherInterp interp, FeatherObj ns, FeatherObj *result) {
+    return goNsParent(interp, ns, result);
+}
+
+FeatherObj feather_host_ns_children(FeatherInterp interp, FeatherObj ns) {
+    return goNsChildren(interp, ns);
+}
+
+FeatherObj feather_host_ns_get_var(FeatherInterp interp, FeatherObj ns, FeatherObj name) {
+    return goNsGetVar(interp, ns, name);
+}
+
+void feather_host_ns_set_var(FeatherInterp interp, FeatherObj ns, FeatherObj name, FeatherObj value) {
+    goNsSetVar(interp, ns, name, value);
+}
+
+int feather_host_ns_var_exists(FeatherInterp interp, FeatherObj ns, FeatherObj name) {
+    return goNsVarExists(interp, ns, name);
+}
+
+void feather_host_ns_unset_var(FeatherInterp interp, FeatherObj ns, FeatherObj name) {
+    goNsUnsetVar(interp, ns, name);
+}
+
+FeatherCommandType feather_host_ns_get_command(FeatherInterp interp, FeatherObj ns, FeatherObj name, FeatherBuiltinCmd *fn) {
+    return goNsGetCommand(interp, ns, name, fn);
+}
+
+void feather_host_ns_set_command(FeatherInterp interp, FeatherObj ns, FeatherObj name,
+                                 FeatherCommandType kind, FeatherBuiltinCmd fn,
+                                 FeatherObj params, FeatherObj body) {
+    goNsSetCommand(interp, ns, name, kind, fn, params, body);
+}
+
+FeatherResult feather_host_ns_delete_command(FeatherInterp interp, FeatherObj ns, FeatherObj name) {
+    return goNsDeleteCommand(interp, ns, name);
+}
+
+FeatherObj feather_host_ns_list_commands(FeatherInterp interp, FeatherObj ns) {
+    return goNsListCommands(interp, ns);
+}
+
+FeatherObj feather_host_ns_get_exports(FeatherInterp interp, FeatherObj ns) {
+    return goNsGetExports(interp, ns);
+}
+
+void feather_host_ns_set_exports(FeatherInterp interp, FeatherObj ns, FeatherObj patterns, int clear) {
+    goNsSetExports(interp, ns, patterns, clear);
+}
+
+int feather_host_ns_is_exported(FeatherInterp interp, FeatherObj ns, FeatherObj name) {
+    return goNsIsExported(interp, ns, name);
+}
+
+FeatherResult feather_host_ns_copy_command(FeatherInterp interp, FeatherObj srcNs, FeatherObj srcName,
+                                           FeatherObj dstNs, FeatherObj dstName) {
+    return goNsCopyCommand(interp, srcNs, srcName, dstNs, dstName);
+}
+
+// ============================================================================
+// Trace Operations
+// ============================================================================
+
+FeatherResult feather_host_trace_add(FeatherInterp interp, FeatherObj kind, FeatherObj name, FeatherObj ops, FeatherObj script) {
     return goTraceAdd(interp, kind, name, ops, script);
 }
 
-static FeatherResult c_trace_remove(FeatherInterp interp, FeatherObj kind, FeatherObj name, FeatherObj ops, FeatherObj script) {
+FeatherResult feather_host_trace_remove(FeatherInterp interp, FeatherObj kind, FeatherObj name, FeatherObj ops, FeatherObj script) {
     return goTraceRemove(interp, kind, name, ops, script);
 }
 
-static FeatherObj c_trace_info(FeatherInterp interp, FeatherObj kind, FeatherObj name) {
+FeatherObj feather_host_trace_info(FeatherInterp interp, FeatherObj kind, FeatherObj name) {
     return goTraceInfo(interp, kind, name);
 }
 
-// Foreign object operations
-static int c_foreign_is_foreign(FeatherInterp interp, FeatherObj obj) {
+// ============================================================================
+// Foreign Operations
+// ============================================================================
+
+int feather_host_foreign_is_foreign(FeatherInterp interp, FeatherObj obj) {
     return goForeignIsForeign(interp, obj);
 }
 
-static FeatherObj c_foreign_type_name(FeatherInterp interp, FeatherObj obj) {
+FeatherObj feather_host_foreign_type_name(FeatherInterp interp, FeatherObj obj) {
     return goForeignTypeName(interp, obj);
 }
 
-static FeatherObj c_foreign_string_rep(FeatherInterp interp, FeatherObj obj) {
+FeatherObj feather_host_foreign_string_rep(FeatherInterp interp, FeatherObj obj) {
     return goForeignStringRep(interp, obj);
 }
 
-static FeatherObj c_foreign_methods(FeatherInterp interp, FeatherObj obj) {
+FeatherObj feather_host_foreign_methods(FeatherInterp interp, FeatherObj obj) {
     return goForeignMethods(interp, obj);
 }
 
-static FeatherResult c_foreign_invoke(FeatherInterp interp, FeatherObj obj, FeatherObj method, FeatherObj args) {
+FeatherResult feather_host_foreign_invoke(FeatherInterp interp, FeatherObj obj, FeatherObj method, FeatherObj args) {
     return goForeignInvoke(interp, obj, method, args);
 }
 
-static void c_foreign_destroy(FeatherInterp interp, FeatherObj obj) {
+void feather_host_foreign_destroy(FeatherInterp interp, FeatherObj obj) {
     goForeignDestroy(interp, obj);
-}
-
-// Cached host ops - initialized once on first use
-static FeatherHostOps cached_ops;
-static int cached_ops_initialized = 0;
-
-// Get the cached host ops pointer (initializes on first call)
-static const FeatherHostOps* get_host_ops(void) {
-    if (cached_ops_initialized) {
-        return &cached_ops;
-    }
-    cached_ops_initialized = 1;
-
-    cached_ops.frame.push = c_frame_push;
-    cached_ops.frame.pop = c_frame_pop;
-    cached_ops.frame.level = c_frame_level;
-    cached_ops.frame.set_active = c_frame_set_active;
-    cached_ops.frame.size = c_frame_size;
-    cached_ops.frame.info = c_frame_info;
-    cached_ops.frame.set_namespace = c_frame_set_namespace;
-    cached_ops.frame.get_namespace = c_frame_get_namespace;
-
-    cached_ops.var.get = c_var_get;
-    cached_ops.var.set = c_var_set;
-    cached_ops.var.unset = c_var_unset;
-    cached_ops.var.exists = c_var_exists;
-    cached_ops.var.link = c_var_link;
-    cached_ops.var.link_ns = c_var_link_ns;
-    cached_ops.var.names = c_var_names;
-
-    cached_ops.proc.define = c_proc_define;
-    cached_ops.proc.exists = c_proc_exists;
-    cached_ops.proc.params = c_proc_params;
-    cached_ops.proc.body = c_proc_body;
-    cached_ops.proc.names = c_proc_names;
-    cached_ops.proc.resolve_namespace = c_proc_resolve_namespace;
-    cached_ops.proc.register_builtin = c_proc_register_builtin;
-    cached_ops.proc.lookup = c_proc_lookup;
-    cached_ops.proc.rename = c_proc_rename;
-
-    cached_ops.ns.create = c_ns_create;
-    cached_ops.ns.delete = c_ns_delete;
-    cached_ops.ns.exists = c_ns_exists;
-    cached_ops.ns.current = c_ns_current;
-    cached_ops.ns.parent = c_ns_parent;
-    cached_ops.ns.children = c_ns_children;
-    cached_ops.ns.get_var = c_ns_get_var;
-    cached_ops.ns.set_var = c_ns_set_var;
-    cached_ops.ns.var_exists = c_ns_var_exists;
-    cached_ops.ns.unset_var = c_ns_unset_var;
-    cached_ops.ns.get_command = c_ns_get_command;
-    cached_ops.ns.set_command = c_ns_set_command;
-    cached_ops.ns.delete_command = c_ns_delete_command;
-    cached_ops.ns.list_commands = c_ns_list_commands;
-    cached_ops.ns.get_exports = c_ns_get_exports;
-    cached_ops.ns.set_exports = c_ns_set_exports;
-    cached_ops.ns.is_exported = c_ns_is_exported;
-    cached_ops.ns.copy_command = c_ns_copy_command;
-
-    cached_ops.string.byte_at = c_string_byte_at;
-    cached_ops.string.byte_length = c_string_byte_length;
-    cached_ops.string.slice = c_string_slice;
-    cached_ops.string.concat = c_string_concat;
-    cached_ops.string.compare = c_string_compare;
-    cached_ops.string.equal = c_string_equal;
-    cached_ops.string.match = c_string_match;
-    cached_ops.string.regex_match = c_string_regex_match;
-    cached_ops.string.builder_new = c_string_builder_new;
-    cached_ops.string.builder_append_byte = c_string_builder_append_byte;
-    cached_ops.string.builder_append_obj = c_string_builder_append_obj;
-    cached_ops.string.builder_finish = c_string_builder_finish;
-    cached_ops.string.intern = c_string_intern;
-    cached_ops.string.get = c_string_get;
-
-    cached_ops.rune.length = c_rune_length;
-    cached_ops.rune.at = c_rune_at;
-    cached_ops.rune.range = c_rune_range;
-    cached_ops.rune.to_upper = c_rune_to_upper;
-    cached_ops.rune.to_lower = c_rune_to_lower;
-    cached_ops.rune.fold = c_rune_fold;
-
-    cached_ops.list.is_nil = c_list_is_nil;
-    cached_ops.list.create = c_list_create;
-    cached_ops.list.from = c_list_from;
-    cached_ops.list.push = c_list_push;
-    cached_ops.list.pop = c_list_pop;
-    cached_ops.list.unshift = c_list_unshift;
-    cached_ops.list.shift = c_list_shift;
-    cached_ops.list.length = c_list_length;
-    cached_ops.list.at = c_list_at;
-    cached_ops.list.slice = c_list_slice;
-    cached_ops.list.set_at = c_list_set_at;
-    cached_ops.list.splice = c_list_splice;
-    cached_ops.list.sort = c_list_sort;
-
-    cached_ops.dict.create = c_dict_create;
-    cached_ops.dict.is_dict = c_dict_is_dict;
-    cached_ops.dict.from = c_dict_from;
-    cached_ops.dict.get = c_dict_get;
-    cached_ops.dict.set = c_dict_set;
-    cached_ops.dict.exists = c_dict_exists;
-    cached_ops.dict.remove = c_dict_remove;
-    cached_ops.dict.size = c_dict_size;
-    cached_ops.dict.keys = c_dict_keys;
-    cached_ops.dict.values = c_dict_values;
-
-    cached_ops.integer.create = c_int_create;
-    cached_ops.integer.get = c_int_get;
-
-    cached_ops.dbl.create = c_dbl_create;
-    cached_ops.dbl.get = c_dbl_get;
-    cached_ops.dbl.classify = c_dbl_classify;
-    cached_ops.dbl.format = c_dbl_format;
-    cached_ops.dbl.math = c_dbl_math;
-
-    cached_ops.interp.set_result = c_interp_set_result;
-    cached_ops.interp.get_result = c_interp_get_result;
-    cached_ops.interp.reset_result = c_interp_reset_result;
-    cached_ops.interp.set_return_options = c_interp_set_return_options;
-    cached_ops.interp.get_return_options = c_interp_get_return_options;
-    cached_ops.interp.get_script = c_interp_get_script;
-    cached_ops.interp.set_script = c_interp_set_script;
-
-    cached_ops.bind.unknown = c_bind_unknown;
-
-    cached_ops.trace.add = c_trace_add;
-    cached_ops.trace.remove = c_trace_remove;
-    cached_ops.trace.info = c_trace_info;
-
-    cached_ops.foreign.is_foreign = c_foreign_is_foreign;
-    cached_ops.foreign.type_name = c_foreign_type_name;
-    cached_ops.foreign.string_rep = c_foreign_string_rep;
-    cached_ops.foreign.methods = c_foreign_methods;
-    cached_ops.foreign.invoke = c_foreign_invoke;
-    cached_ops.foreign.destroy = c_foreign_destroy;
-
-    return &cached_ops;
-}
-
-// Call the C interpreter with host ops
-FeatherResult call_feather_eval_obj(FeatherInterp interp, FeatherObj script, FeatherEvalFlags flags) {
-    const FeatherHostOps *ops = get_host_ops();
-    return feather_script_eval_obj(ops, interp, script, flags);
-}
-
-// Call the C parser with host ops
-FeatherParseStatus call_feather_parse(FeatherInterp interp, FeatherObj script) {
-    const FeatherHostOps *ops = get_host_ops();
-    size_t len;
-    const char *str = ops->string.get(interp, script, &len);
-    FeatherParseContext ctx;
-    feather_parse_init(&ctx, str, len);
-    FeatherParseStatus status = feather_parse_command(ops, interp, &ctx);
-    if (status == TCL_PARSE_DONE) {
-        ops->interp.set_result(interp, ops->list.create(interp));
-        return TCL_PARSE_OK;
-    }
-    return status;
-}
-
-// Initialize the C interpreter with host ops
-void call_feather_interp_init(FeatherInterp interp) {
-    const FeatherHostOps *ops = get_host_ops();
-    feather_interp_init(ops, interp);
-}
-
-// Call C's feather_list_parse_obj to parse a string object as a list
-FeatherObj call_feather_list_parse_obj(FeatherInterp interp, FeatherObj str) {
-    const FeatherHostOps *ops = get_host_ops();
-    return feather_list_parse_obj(ops, interp, str);
 }

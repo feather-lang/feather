@@ -3,10 +3,8 @@ package interp
 /*
 #cgo CFLAGS: -I${SRCDIR}/../src
 #include "feather.h"
+#include "host.h"
 #include <stdlib.h>
-
-// Implemented in callbacks.c
-extern FeatherObj call_feather_list_parse_obj(FeatherInterp interp, FeatherObj str);
 */
 import "C"
 
@@ -816,7 +814,7 @@ func (i *Interp) GetList(h FeatherObj) ([]FeatherObj, error) {
 	}
 	// Shimmer: string → list via C's feather_list_parse_obj
 	strHandle := i.internString(obj.String())
-	listHandle := FeatherObj(C.call_feather_list_parse_obj(C.FeatherInterp(i.handle), C.FeatherObj(strHandle)))
+	listHandle := FeatherObj(C.feather_list_parse_obj(nil, C.FeatherInterp(i.handle), C.FeatherObj(strHandle)))
 
 	// Check for parse error (nil return means error, message in result)
 	if listHandle == 0 {

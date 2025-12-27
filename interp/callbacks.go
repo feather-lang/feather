@@ -3,13 +3,8 @@ package interp
 /*
 #cgo CFLAGS: -I${SRCDIR}/../src
 #include "feather.h"
+#include "host.h"
 #include <stdlib.h>
-
-// Implemented in callbacks.c
-extern FeatherResult call_feather_eval_obj(FeatherInterp interp, FeatherObj script, FeatherEvalFlags flags);
-extern FeatherParseStatus call_feather_parse(FeatherInterp interp, FeatherObj script);
-extern void call_feather_interp_init(FeatherInterp interp);
-extern FeatherObj call_feather_list_parse_obj(FeatherInterp interp, FeatherObj str);
 
 // Type for the list comparison callback
 typedef int (*ListCmpFunc)(FeatherInterp interp, FeatherObj a, FeatherObj b, void *ctx);
@@ -70,32 +65,6 @@ func goStringIntern(interp C.FeatherInterp, s *C.char, length C.size_t) C.Feathe
 	}
 	goStr := C.GoStringN(s, C.int(length))
 	return C.FeatherObj(i.internString(goStr))
-}
-
-//export goStringGet
-func goStringGet(interp C.FeatherInterp, obj C.FeatherObj, length *C.size_t) *C.char {
-	i := getInterp(interp)
-	if i == nil {
-		*length = 0
-		return nil
-	}
-	// Use GetString for shimmering (int/list → string)
-	str := i.GetString(FeatherObj(obj))
-	if str == "" {
-		// Check if object exists but has empty string
-		o := i.getObject(FeatherObj(obj))
-		if o == nil {
-			*length = 0
-			return nil
-		}
-	}
-	// Cache the C string in the object to avoid memory issues
-	o := i.getObject(FeatherObj(obj))
-	if o.cstr == nil {
-		o.cstr = C.CString(str)
-	}
-	*length = C.size_t(len(str))
-	return o.cstr
 }
 
 //export goStringConcat
@@ -1611,7 +1580,7 @@ func goProcBody(interp C.FeatherInterp, name C.FeatherObj, result *C.FeatherObj)
 
 // callCEval invokes the C interpreter
 func callCEval(interpHandle FeatherInterp, scriptHandle FeatherObj) C.FeatherResult {
-	return C.call_feather_eval_obj(C.FeatherInterp(interpHandle), C.FeatherObj(scriptHandle), C.TCL_EVAL_LOCAL)
+	return C.feather_script_eval_obj(nil, C.FeatherInterp(interpHandle), C.FeatherObj(scriptHandle), C.TCL_EVAL_LOCAL)
 }
 
 // fireVarTraces fires variable traces for the given operation.
@@ -1689,12 +1658,21 @@ func fireCmdTraces(i *Interp, oldName string, newName string, op string, traces 
 
 // callCParse invokes the C parser
 func callCParse(interpHandle FeatherInterp, scriptHandle FeatherObj) C.FeatherParseStatus {
-	return C.call_feather_parse(C.FeatherInterp(interpHandle), C.FeatherObj(scriptHandle))
+	ops := C.feather_get_ops(nil)
+	len := C.feather_host_string_byte_length(C.FeatherInterp(interpHandle), C.FeatherObj(scriptHandle))
+	var ctx C.FeatherParseContextObj
+	C.feather_parse_init_obj(&ctx, C.FeatherObj(scriptHandle), len)
+	status := C.feather_parse_command_obj(ops, C.FeatherInterp(interpHandle), &ctx)
+	if status == C.TCL_PARSE_DONE {
+		C.feather_host_interp_set_result(C.FeatherInterp(interpHandle), C.feather_host_list_create(C.FeatherInterp(interpHandle)))
+		return C.TCL_PARSE_OK
+	}
+	return status
 }
 
 // callCInterpInit invokes the C interpreter initialization
 func callCInterpInit(interpHandle FeatherInterp) {
-	C.call_feather_interp_init(C.FeatherInterp(interpHandle))
+	C.feather_interp_init(nil, C.FeatherInterp(interpHandle))
 }
 
 //export goProcNames

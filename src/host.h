@@ -101,7 +101,7 @@ extern FeatherResult feather_host_ns_copy_command(FeatherInterp interp, FeatherO
                                                   FeatherObj dstName);
 
 /* ============================================================================
- * String Operations (14 functions)
+ * String Operations (13 functions)
  * ============================================================================ */
 
 extern int feather_host_string_byte_at(FeatherInterp interp, FeatherObj str, size_t index);
@@ -122,7 +122,6 @@ extern void feather_host_string_builder_append_obj(FeatherInterp interp, Feather
                                                    FeatherObj str);
 extern FeatherObj feather_host_string_builder_finish(FeatherInterp interp, FeatherObj builder);
 extern FeatherObj feather_host_string_intern(FeatherInterp interp, const char *s, size_t len);
-extern const char *feather_host_string_get(FeatherInterp interp, FeatherObj obj, size_t *len);
 
 /* ============================================================================
  * Rune Operations (6 functions)
@@ -246,17 +245,8 @@ extern void feather_host_foreign_destroy(FeatherInterp interp, FeatherObj obj);
  * the default ops struct populated with feather_host_* function pointers.
  *
  * This allows public API functions to accept NULL for ops parameter,
- * falling back to import-based host functions for WASM builds.
- *
- * For native builds where the host always provides ops, this is a simple
- * passthrough. For WASM builds, host.c provides the default_ops struct.
+ * falling back to the default host functions.
  */
-#ifdef FEATHER_WASM_BUILD
 extern const FeatherHostOps *feather_get_ops(const FeatherHostOps *ops);
-#else
-static inline const FeatherHostOps *feather_get_ops(const FeatherHostOps *ops) {
-    return ops;
-}
-#endif
 
 #endif /* FEATHER_HOST_H */

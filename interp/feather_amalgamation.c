@@ -3,8 +3,6 @@
  * 
  * This file includes all feather C source files into a single translation unit.
  * It enables `go install` support by letting cgo compile the C core directly.
- *
- * DO NOT include host.c - that's for WASM import-based builds only.
  */
 
 /* Utility modules first (no dependencies) */
@@ -75,3 +73,6 @@
 #include "../src/builtin_upvar.c"
 #include "../src/builtin_variable.c"
 #include "../src/builtin_while.c"
+
+/* Host operations (provides feather_get_ops and default_ops) */
+#include "../src/host.c"
