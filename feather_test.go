@@ -44,9 +44,9 @@ func TestVar(t *testing.T) {
 		t.Errorf("expected '42', got %q", v.String())
 	}
 
-	n, err := v.Int()
+	n, err := feather.AsInt(v)
 	if err != nil {
-		t.Fatalf("Int() failed: %v", err)
+		t.Fatalf("AsInt() failed: %v", err)
 	}
 	if n != 42 {
 		t.Errorf("expected 42, got %d", n)
@@ -126,9 +126,9 @@ func TestObjectList(t *testing.T) {
 		t.Fatalf("Eval failed: %v", err)
 	}
 
-	list, err := result.List()
+	list, err := feather.AsList(result)
 	if err != nil {
-		t.Fatalf("List() failed: %v", err)
+		t.Fatalf("AsList() failed: %v", err)
 	}
 	if len(list) != 3 {
 		t.Errorf("expected 3 items, got %d", len(list))
@@ -150,19 +150,19 @@ func TestObjectDict(t *testing.T) {
 		t.Fatalf("Eval failed: %v", err)
 	}
 
-	dict, err := result.Dict()
+	dict, err := feather.AsDict(result)
 	if err != nil {
-		t.Fatalf("Dict() failed: %v", err)
+		t.Fatalf("AsDict() failed: %v", err)
 	}
-	if len(dict) != 2 {
-		t.Errorf("expected 2 items, got %d", len(dict))
+	if len(dict.Items) != 2 {
+		t.Errorf("expected 2 items, got %d", len(dict.Items))
 	}
 
-	if dict["a"].String() != "1" {
-		t.Errorf("a: expected '1', got %q", dict["a"].String())
+	if dict.Items["a"].String() != "1" {
+		t.Errorf("a: expected '1', got %q", dict.Items["a"].String())
 	}
-	if dict["b"].String() != "2" {
-		t.Errorf("b: expected '2', got %q", dict["b"].String())
+	if dict.Items["b"].String() != "2" {
+		t.Errorf("b: expected '2', got %q", dict.Items["b"].String())
 	}
 }
 
@@ -260,9 +260,9 @@ func TestEvalReturnsTypedValues(t *testing.T) {
 	if result.Type() != "int" {
 		t.Errorf("expr result type: expected 'int', got %q", result.Type())
 	}
-	n, err := result.Int()
+	n, err := feather.AsInt(result)
 	if err != nil || n != 4 {
-		t.Errorf("Int() = %d, %v; want 4, nil", n, err)
+		t.Errorf("AsInt() = %d, %v; want 4, nil", n, err)
 	}
 
 	// List result
@@ -273,9 +273,9 @@ func TestEvalReturnsTypedValues(t *testing.T) {
 	if result.Type() != "list" {
 		t.Errorf("list result type: expected 'list', got %q", result.Type())
 	}
-	items, err := result.List()
+	items, err := feather.AsList(result)
 	if err != nil || len(items) != 3 {
-		t.Errorf("List() = %v, %v; want 3 items", items, err)
+		t.Errorf("AsList() = %v, %v; want 3 items", items, err)
 	}
 
 	// Dict result
@@ -286,9 +286,9 @@ func TestEvalReturnsTypedValues(t *testing.T) {
 	if result.Type() != "dict" {
 		t.Errorf("dict result type: expected 'dict', got %q", result.Type())
 	}
-	m, err := result.Dict()
-	if err != nil || len(m) != 2 {
-		t.Errorf("Dict() = %v, %v; want 2 items", m, err)
+	m, err := feather.AsDict(result)
+	if err != nil || len(m.Items) != 2 {
+		t.Errorf("AsDict() = %v, %v; want 2 items", m, err)
 	}
 
 	// String result (from set)
@@ -313,13 +313,13 @@ func TestInterpObjectCreation(t *testing.T) {
 		if v.String() != "42" {
 			t.Errorf("expected '42', got %q", v.String())
 		}
-		n, err := v.Int()
+		n, err := feather.AsInt(v)
 		if err != nil || n != 42 {
-			t.Errorf("Int() = %d, %v; want 42, nil", n, err)
+			t.Errorf("AsInt() = %d, %v; want 42, nil", n, err)
 		}
-		f, err := v.Float()
+		f, err := feather.AsDouble(v)
 		if err != nil || f != 42.0 {
-			t.Errorf("Float() = %f, %v; want 42.0, nil", f, err)
+			t.Errorf("AsDouble() = %f, %v; want 42.0, nil", f, err)
 		}
 	})
 
@@ -328,13 +328,13 @@ func TestInterpObjectCreation(t *testing.T) {
 		if v.Type() != "double" {
 			t.Errorf("expected type 'double', got %q", v.Type())
 		}
-		f, err := v.Float()
+		f, err := feather.AsDouble(v)
 		if err != nil || f != 3.14 {
-			t.Errorf("Float() = %f, %v; want 3.14, nil", f, err)
+			t.Errorf("AsDouble() = %f, %v; want 3.14, nil", f, err)
 		}
-		n, err := v.Int()
+		n, err := feather.AsInt(v)
 		if err != nil || n != 3 {
-			t.Errorf("Int() = %d, %v; want 3, nil", n, err)
+			t.Errorf("AsInt() = %d, %v; want 3, nil", n, err)
 		}
 	})
 
@@ -346,9 +346,9 @@ func TestInterpObjectCreation(t *testing.T) {
 		if v.String() != "1 two 3" {
 			t.Errorf("String() = %q; want '1 two 3'", v.String())
 		}
-		items, err := v.List()
+		items, err := feather.AsList(v)
 		if err != nil || len(items) != 3 {
-			t.Errorf("List() = %v, %v; want 3 items", items, err)
+			t.Errorf("AsList() = %v, %v; want 3 items", items, err)
 		}
 		if items[0].Type() != "int" {
 			t.Errorf("items[0].Type() = %q; want 'int'", items[0].Type())
@@ -377,15 +377,15 @@ func TestRegisterCommand(t *testing.T) {
 	interp := feather.New()
 	defer interp.Close()
 
-	interp.RegisterCommand("sum", func(i *feather.Interp, cmd feather.Object, args []feather.Object) feather.Result {
+	interp.RegisterCommand("sum", func(i *feather.Interp, cmd *feather.Obj, args []*feather.Obj) feather.Result {
 		if len(args) < 2 {
 			return feather.Errorf("wrong # args: should be \"%s a b\"", cmd.String())
 		}
-		a, err := args[0].Int()
+		a, err := feather.AsInt(args[0])
 		if err != nil {
 			return feather.Error(err.Error())
 		}
-		b, err := args[1].Int()
+		b, err := feather.AsInt(args[1])
 		if err != nil {
 			return feather.Error(err.Error())
 		}
@@ -426,22 +426,22 @@ func TestObjectBool(t *testing.T) {
 		{"off", false, false},
 		{"TRUE", true, false},
 		{"FALSE", false, false},
-		{"42", false, true},
+		{"42", true, false},  // "42" parses as int, non-zero is truthy
 		{"hello", false, true},
 	}
 
 	for _, tc := range tests {
 		v := interp.String(tc.input)
-		got, err := v.Bool()
+		got, err := feather.AsBool(v)
 		if tc.wantErr {
 			if err == nil {
-				t.Errorf("Bool(%q): expected error, got %v", tc.input, got)
+				t.Errorf("AsBool(%q): expected error, got %v", tc.input, got)
 			}
 		} else {
 			if err != nil {
-				t.Errorf("Bool(%q): unexpected error: %v", tc.input, err)
+				t.Errorf("AsBool(%q): unexpected error: %v", tc.input, err)
 			} else if got != tc.expected {
-				t.Errorf("Bool(%q) = %v; want %v", tc.input, got, tc.expected)
+				t.Errorf("AsBool(%q) = %v; want %v", tc.input, got, tc.expected)
 			}
 		}
 	}

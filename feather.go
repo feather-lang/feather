@@ -559,6 +559,53 @@ func (i *Interp) Internal() *InternalInterp {
 }
 
 // -----------------------------------------------------------------------------
+// Parsing
+// -----------------------------------------------------------------------------
+
+// ParseList parses a string into a list.
+//
+// Use this when you have a string that needs to be parsed as a TCL list.
+// For objects that are already lists, use [AsList] instead.
+//
+//	items, err := interp.ParseList("{a b} c d")
+//	// items = []*Obj{"a b", "c", "d"}
+func (i *Interp) ParseList(s string) ([]*Obj, error) {
+	strHandle := i.i.InternString(s)
+	handles, err := i.i.GetList(strHandle)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*Obj, len(handles))
+	for j, h := range handles {
+		result[j] = i.i.objForHandle(h)
+	}
+	return result, nil
+}
+
+// ParseDict parses a string into a dict.
+//
+// Use this when you have a string that needs to be parsed as a TCL dict.
+// For objects that are already dicts, use [AsDict] instead.
+//
+//	d, err := interp.ParseDict("name Alice age 30")
+//	// d.Items["name"].String() == "Alice"
+func (i *Interp) ParseDict(s string) (*DictType, error) {
+	strHandle := i.i.InternString(s)
+	items, order, err := i.i.GetDict(strHandle)
+	if err != nil {
+		return nil, err
+	}
+	result := &DictType{
+		Items: make(map[string]*Obj, len(items)),
+		Order: order,
+	}
+	for k, h := range items {
+		result.Items[k] = i.i.objForHandle(h)
+	}
+	return result, nil
+}
+
+// -----------------------------------------------------------------------------
 // Command Results
 // -----------------------------------------------------------------------------
 

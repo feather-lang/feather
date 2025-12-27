@@ -386,7 +386,8 @@ func TestCommandsRaw(t *testing.T) {
 			if len(args) != 1 {
 				return feather.Error("usage: mysum list")
 			}
-			items, err := feather.AsList(args[0])
+			// Use i.ParseList to parse the string argument into a list
+			items, err := i.ParseList(args[0].String())
 			if err != nil {
 				return feather.Error(err.Error())
 			}
@@ -415,7 +416,8 @@ func TestCommandsRaw(t *testing.T) {
 			if len(args) != 1 {
 				return feather.Error("usage: get-name dict")
 			}
-			d, err := feather.AsDict(args[0])
+			// Use i.ParseDict to parse the string argument into a dict
+			d, err := i.ParseDict(args[0].String())
 			if err != nil {
 				return feather.Error(err.Error())
 			}

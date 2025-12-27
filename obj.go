@@ -118,6 +118,26 @@ func NewForeignObj(typeName string, value any) *Obj {
 	return &Obj{intrep: &ForeignType{TypeName: typeName, Value: value}}
 }
 
+// NewObj creates a new object with a custom ObjType internal representation.
+// Use this when implementing custom shimmering types.
+//
+// Example:
+//
+//	type RegexType struct {
+//	    pattern string
+//	    re      *regexp.Regexp
+//	}
+//	func (t *RegexType) Name() string         { return "regex" }
+//	func (t *RegexType) UpdateString() string { return t.pattern }
+//	func (t *RegexType) Dup() feather.ObjType { return t }
+//
+//	func NewRegex(pattern string, re *regexp.Regexp) *feather.Obj {
+//	    return feather.NewObj(&RegexType{pattern: pattern, re: re})
+//	}
+func NewObj(intrep ObjType) *Obj {
+	return &Obj{intrep: intrep}
+}
+
 // SetBytes sets the string representation directly (used by Interp for handle-based naming).
 func (o *Obj) SetBytes(s string) {
 	if o != nil {
