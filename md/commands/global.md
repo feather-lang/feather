@@ -19,7 +19,7 @@ Creates local variables that refer to global namespace variables of the same nam
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const accessingGlobalVariable = `set count 0
 proc incrementCount {} {
@@ -57,18 +57,19 @@ puts {Global x: $x}`
 
 ### Accessing a global variable
 
-<FeatherPlayground :code="accessingGlobalVariable" />
+<WasmPlayground :tcl="accessingGlobalVariable" />
 
 ### Multiple global variables
 
-<FeatherPlayground :code="multipleGlobalVariables" />
+<WasmPlayground :tcl="multipleGlobalVariables" />
 
 ### Global vs local scope
 
-<FeatherPlayground :code="globalVsLocalScope" />
+<WasmPlayground :tcl="globalVsLocalScope" />
 
 ## See Also
 
 - [variable](./variable) - Declare namespace variables
 - [upvar](./upvar) - Reference variables in other frames
 - [namespace](./namespace) - Create and manipulate namespaces
+

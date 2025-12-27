@@ -20,7 +20,7 @@ Splits a string into a list of elements. Each character in `splitChars` is treat
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const defaultSplit = `puts [split "hello world foo bar"]`
 
@@ -39,26 +39,27 @@ foreach field [split $line ","] {
 
 ### Default split (whitespace)
 
-<FeatherPlayground :code="defaultSplit" />
+<WasmPlayground :tcl="defaultSplit" />
 
 ### Split on specific character
 
-<FeatherPlayground :code="splitOnSpecificChar" />
+<WasmPlayground :tcl="splitOnSpecificChar" />
 
 ### Split into characters
 
-<FeatherPlayground :code="splitIntoChars" />
+<WasmPlayground :tcl="splitIntoChars" />
 
 ### Multiple delimiter characters
 
-<FeatherPlayground :code="multipleDelimiters" />
+<WasmPlayground :tcl="multipleDelimiters" />
 
 ### Parsing CSV-like data
 
-<FeatherPlayground :code="parsingCsvData" />
+<WasmPlayground :tcl="parsingCsvData" />
 
 ## See Also
 
 - [join](./join) - Join list elements into string
 - [string](./string) - String operations
 - [list](./list) - Create a list
+

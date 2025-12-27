@@ -17,7 +17,7 @@ uplevel ?level? command ?arg ...?
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const myWhile = `proc myWhile {condition body} {
     while {[uplevel 1 expr $condition]} {
@@ -32,9 +32,10 @@ myWhile {$x < 3} {
 }`
 </script>
 
-<FeatherPlayground :code="myWhile" />
+<WasmPlayground :tcl="myWhile" />
 
 ## See Also
 
 - [upvar](./upvar)
 - [proc](./proc)
+

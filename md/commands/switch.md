@@ -22,7 +22,7 @@ switch ?options? string ?pattern body ...? ?default body?
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const basicExactMatching = `set day Monday
 
@@ -64,21 +64,22 @@ switch $fruit apple {
 
 ### Basic exact matching
 
-<FeatherPlayground :code="basicExactMatching" />
+<WasmPlayground :tcl="basicExactMatching" />
 
 ### Glob pattern matching
 
-<FeatherPlayground :code="globPatternMatching" />
+<WasmPlayground :tcl="globPatternMatching" />
 
 ### Fall-through with dash
 
-<FeatherPlayground :code="fallThroughWithDash" />
+<WasmPlayground :tcl="fallThroughWithDash" />
 
 ### Using list syntax
 
-<FeatherPlayground :code="usingListSyntax" />
+<WasmPlayground :tcl="usingListSyntax" />
 
 ## See Also
 
 - [if](./if) - Conditional execution
 - [expr](./expr) - Expression evaluation
+

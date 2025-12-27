@@ -37,7 +37,7 @@ string subcommand arg ?arg ...?
 ### string length
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const stringLength = `puts [string length "Hello, World!"]`
 
@@ -65,31 +65,31 @@ const stringMap = `puts [string map {foo bar baz qux} "foo and baz"]
 puts [string map -nocase {hello hi} "Hello World"]`
 </script>
 
-<FeatherPlayground :code="stringLength" />
+<WasmPlayground :tcl="stringLength" />
 
 ### string index
 
-<FeatherPlayground :code="stringIndex" />
+<WasmPlayground :tcl="stringIndex" />
 
 ### string range
 
-<FeatherPlayground :code="stringRange" />
+<WasmPlayground :tcl="stringRange" />
 
 ### string match
 
-<FeatherPlayground :code="stringMatch" />
+<WasmPlayground :tcl="stringMatch" />
 
 ### string toupper / tolower
 
-<FeatherPlayground :code="stringToupperTolower" />
+<WasmPlayground :tcl="stringToupperTolower" />
 
 ### string trim
 
-<FeatherPlayground :code="stringTrim" />
+<WasmPlayground :tcl="stringTrim" />
 
 ### string map
 
-<FeatherPlayground :code="stringMap" />
+<WasmPlayground :tcl="stringMap" />
 
 ## See Also
 
@@ -97,3 +97,4 @@ puts [string map -nocase {hello hi} "Hello World"]`
 - [join](./join) - Join list elements
 - [split](./split) - Split string into list
 - [format](./format) - Format strings
+

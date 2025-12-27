@@ -36,7 +36,7 @@ Parses the input string according to the format specification and stores the res
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const basicParsing = `scan "42 hello" "%d %s" num word
 puts "Number: $num"
@@ -60,29 +60,30 @@ puts "word=$word num=$num"`
 
 ### Basic parsing
 
-<FeatherPlayground :code="basicParsing" />
+<WasmPlayground :tcl="basicParsing" />
 
 ### Parsing without variables
 
-<FeatherPlayground :code="parsingWithoutVariables" />
+<WasmPlayground :tcl="parsingWithoutVariables" />
 
 ### Parsing floating-point
 
-<FeatherPlayground :code="parsingFloatingPoint" />
+<WasmPlayground :tcl="parsingFloatingPoint" />
 
 ### Hexadecimal parsing
 
-<FeatherPlayground :code="hexadecimalParsing" />
+<WasmPlayground :tcl="hexadecimalParsing" />
 
 ### Parsing fixed-width fields
 
-<FeatherPlayground :code="parsingFixedWidthFields" />
+<WasmPlayground :tcl="parsingFixedWidthFields" />
 
 ### Count successful conversions
 
-<FeatherPlayground :code="countSuccessfulConversions" />
+<WasmPlayground :tcl="countSuccessfulConversions" />
 
 ## See Also
 
 - [format](./format) - Printf-style formatting
 - [string](./string) - String operations
+

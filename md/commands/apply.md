@@ -23,7 +23,7 @@ The result of evaluating body with args bound to params.
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const basicLambda = `set double {{x} {expr {$x * 2}}}
 puts [apply $double 5]
@@ -63,25 +63,26 @@ puts "Squared: $squared"`
 
 ### Basic lambda
 
-<FeatherPlayground :code="basicLambda" />
+<WasmPlayground :tcl="basicLambda" />
 
 ### Lambda with multiple parameters
 
-<FeatherPlayground :code="multiParams" />
+<WasmPlayground :tcl="multiParams" />
 
 ### Inline lambda
 
-<FeatherPlayground :code="inlineLambda" />
+<WasmPlayground :tcl="inlineLambda" />
 
 ### Lambda with default parameters
 
-<FeatherPlayground :code="defaultParams" />
+<WasmPlayground :tcl="defaultParams" />
 
 ### Using lambdas with higher-order functions
 
-<FeatherPlayground :code="higherOrder" />
+<WasmPlayground :tcl="higherOrder" />
 
 ## See Also
 
 - [proc](./proc) - Define named procedures
 - [return](./return) - Return from procedure
+

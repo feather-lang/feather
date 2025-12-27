@@ -22,7 +22,7 @@ The command behaves as if the current procedure returned and then the specified 
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const tailRecursiveFactorial = `proc factorial {n {acc 1}} {
     if {$n <= 1} {
@@ -74,22 +74,23 @@ puts "Mul: [handler mul 3 4]"`
 
 ### Tail-recursive factorial
 
-<FeatherPlayground :code="tailRecursiveFactorial" />
+<WasmPlayground :tcl="tailRecursiveFactorial" />
 
 ### Tail-recursive sum
 
-<FeatherPlayground :code="tailRecursiveSum" />
+<WasmPlayground :tcl="tailRecursiveSum" />
 
 ### State machine with tailcall
 
-<FeatherPlayground :code="stateMachineWithTailcall" />
+<WasmPlayground :tcl="stateMachineWithTailcall" />
 
 ### Delegation pattern
 
-<FeatherPlayground :code="delegationPattern" />
+<WasmPlayground :tcl="delegationPattern" />
 
 ## See Also
 
 - [proc](./proc) - Define procedures
 - [return](./return) - Return from procedure
 - [apply](./apply) - Anonymous functions
+

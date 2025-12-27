@@ -26,7 +26,7 @@ Use `-` as script to fall through to next handler.
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const basicTryWithErrorHandling = `# Basic try with error handling
 try {
@@ -56,12 +56,13 @@ try {
 }`
 </script>
 
-<FeatherPlayground :code="basicTryWithErrorHandling" />
+<WasmPlayground :tcl="basicTryWithErrorHandling" />
 
-<FeatherPlayground :code="usingTrapForSpecificErrorTypes" />
+<WasmPlayground :tcl="usingTrapForSpecificErrorTypes" />
 
 ## See Also
 
 - [catch](./catch)
 - [throw](./throw)
 - [error](./error)
+

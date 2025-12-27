@@ -20,7 +20,7 @@ Adds `increment` to the integer value stored in `varName` and stores the result 
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const basicIncrement = `set counter 0
 incr counter
@@ -45,17 +45,18 @@ puts "Sum of 1-5: $sum"`
 
 ### Basic increment
 
-<FeatherPlayground :code="basicIncrement" />
+<WasmPlayground :tcl="basicIncrement" />
 
 ### Custom increment value
 
-<FeatherPlayground :code="customIncrementValue" />
+<WasmPlayground :tcl="customIncrementValue" />
 
 ### Loop counter
 
-<FeatherPlayground :code="loopCounter" />
+<WasmPlayground :tcl="loopCounter" />
 
 ## See Also
 
 - [set](./set) - Get or set variable value
 - [expr](./expr) - Evaluate mathematical expressions
+

@@ -16,7 +16,7 @@ lassign list varName ?varName ...?
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const basicAssignment = `set coords {10 20 30}
 lassign $coords x y z
@@ -34,18 +34,19 @@ puts "a=$a b=$b c=$c"`
 
 ### Basic assignment
 
-<FeatherPlayground :code="basicAssignment" />
+<WasmPlayground :tcl="basicAssignment" />
 
 ### Fewer variables than elements
 
-<FeatherPlayground :code="fewerVariables" />
+<WasmPlayground :tcl="fewerVariables" />
 
 ### More variables than elements
 
-<FeatherPlayground :code="moreVariables" />
+<WasmPlayground :tcl="moreVariables" />
 
 ## See Also
 
 - [list](./list) - Create a list
 - [lindex](./lindex) - Get element by index
 - [foreach](./foreach) - Iterate over list
+

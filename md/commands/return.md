@@ -27,7 +27,7 @@ return ?options? ?value?
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const basicReturn = `proc double {x} {
     return [expr {$x * 2}]
@@ -76,26 +76,27 @@ puts [divide 10 2]`
 
 ### Basic return
 
-<FeatherPlayground :code="basicReturn" />
+<WasmPlayground :tcl="basicReturn" />
 
 ### Early return
 
-<FeatherPlayground :code="earlyReturn" />
+<WasmPlayground :tcl="earlyReturn" />
 
 ### Return without value
 
-<FeatherPlayground :code="returnWithoutValue" />
+<WasmPlayground :tcl="returnWithoutValue" />
 
 ### Returning from nested procedures
 
-<FeatherPlayground :code="returningFromNestedProcedures" />
+<WasmPlayground :tcl="returningFromNestedProcedures" />
 
 ### Return with error code
 
-<FeatherPlayground :code="returnWithErrorCode" />
+<WasmPlayground :tcl="returnWithErrorCode" />
 
 ## See Also
 
 - [proc](./proc) - Define procedures
 - [error](./error) - Raise errors
 - [catch](./catch) - Catch errors
+

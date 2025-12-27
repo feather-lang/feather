@@ -19,7 +19,7 @@ Joins all arguments together with spaces. Leading and trailing whitespace is tri
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const basicConcatenation = `puts [concat a b c]
 puts [concat hello world]`
@@ -36,19 +36,19 @@ puts [concat {} {a b} {} {c}]`
 
 ### Basic concatenation
 
-<FeatherPlayground :code="basicConcatenation" />
+<WasmPlayground :tcl="basicConcatenation" />
 
 ### Trimming whitespace
 
-<FeatherPlayground :code="trimmingWhitespace" />
+<WasmPlayground :tcl="trimmingWhitespace" />
 
 ### Merging lists
 
-<FeatherPlayground :code="merginglists" />
+<WasmPlayground :tcl="merginglists" />
 
 ### Empty arguments
 
-<FeatherPlayground :code="emptyArguments" />
+<WasmPlayground :tcl="emptyArguments" />
 
 ## See Also
 

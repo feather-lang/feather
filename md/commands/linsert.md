@@ -17,7 +17,7 @@ linsert list index ?value ...?
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const insertAtBeginning = `set nums {2 3 4}
 set result [linsert $nums 0 1]
@@ -39,22 +39,23 @@ puts "Modified: $modified"`
 
 ### Insert at beginning
 
-<FeatherPlayground :code="insertAtBeginning" />
+<WasmPlayground :tcl="insertAtBeginning" />
 
 ### Insert in middle
 
-<FeatherPlayground :code="insertInMiddle" />
+<WasmPlayground :tcl="insertInMiddle" />
 
 ### Insert at end
 
-<FeatherPlayground :code="insertAtEnd" />
+<WasmPlayground :tcl="insertAtEnd" />
 
 ### Original list unchanged
 
-<FeatherPlayground :code="originalListUnchanged" />
+<WasmPlayground :tcl="originalListUnchanged" />
 
 ## See Also
 
 - [list](./list) - Create a list
 - [lappend](./lappend) - Append to list variable
 - [lindex](./lindex) - Get element by index
+

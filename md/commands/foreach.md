@@ -18,53 +18,53 @@ foreach varList list ?varList2 list2 ...? command
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const simpleIteration = `foreach fruit {apple banana cherry} {
-    puts {I like $fruit}
+    puts "I like $fruit"
 }`
 
 const multipleVariablesPerIteration = `foreach {name age} {Alice 30 Bob 25 Carol 35} {
-    puts {$name is $age years old}
+    puts "$name is $age years old"
 }`
 
 const parallelListIteration = `foreach name {Alice Bob Carol} age {30 25 35} {
-    puts {$name is $age}
+    puts "$name is $age"
 }`
 
 const buildingAResult = `set sum 0
 foreach n {1 2 3 4 5} {
     set sum [expr {$sum + $n}]
 }
-puts {Sum: $sum}`
+puts "Sum: $sum"`
 
 const usingContinueToSkipItems = `foreach n {1 2 3 4 5 6} {
     if {$n % 2 == 0} {
         continue
     }
-    puts {Odd: $n}
+    puts "Odd: $n"
 }`
 </script>
 
 ### Simple iteration
 
-<FeatherPlayground :code="simpleIteration" />
+<WasmPlayground :tcl="simpleIteration" />
 
 ### Multiple variables per iteration
 
-<FeatherPlayground :code="multipleVariablesPerIteration" />
+<WasmPlayground :tcl="multipleVariablesPerIteration" />
 
 ### Parallel list iteration
 
-<FeatherPlayground :code="parallelListIteration" />
+<WasmPlayground :tcl="parallelListIteration" />
 
 ### Building a result
 
-<FeatherPlayground :code="buildingAResult" />
+<WasmPlayground :tcl="buildingAResult" />
 
 ### Using continue to skip items
 
-<FeatherPlayground :code="usingContinueToSkipItems" />
+<WasmPlayground :tcl="usingContinueToSkipItems" />
 
 ## See Also
 
@@ -72,3 +72,4 @@ const usingContinueToSkipItems = `foreach n {1 2 3 4 5 6} {
 - [while](./while) - Conditional loop
 - [break](./break) - Exit a loop
 - [continue](./continue) - Skip to next iteration
+

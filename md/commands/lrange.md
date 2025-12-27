@@ -19,7 +19,7 @@ Indices are clamped to the valid range of the list. If first > last, an empty li
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const basicSublistExtraction = `set colors {red orange yellow green blue}
 puts [lrange $colors 1 3]`
@@ -36,22 +36,23 @@ puts [lrange $short 0 100]`
 
 ### Basic sublist extraction
 
-<FeatherPlayground :code="basicSublistExtraction" />
+<WasmPlayground :tcl="basicSublistExtraction" />
 
 ### Using end-relative indices
 
-<FeatherPlayground :code="usingEndRelativeIndices" />
+<WasmPlayground :tcl="usingEndRelativeIndices" />
 
 ### Get all but first and last
 
-<FeatherPlayground :code="getAllButFirstAndLast" />
+<WasmPlayground :tcl="getAllButFirstAndLast" />
 
 ### Indices clamped to valid range
 
-<FeatherPlayground :code="indicesClampedToValidRange" />
+<WasmPlayground :tcl="indicesClampedToValidRange" />
 
 ## See Also
 
 - [lindex](./lindex) - Get single element
 - [lreplace](./lreplace) - Replace elements in range
 - [list](./list) - Create a list
+

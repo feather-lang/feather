@@ -16,7 +16,7 @@ while test command
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const basicCountdown = `set n 5
 while {$n > 0} {
@@ -58,19 +58,19 @@ while {$a < 100} {
 
 ### Basic countdown
 
-<FeatherPlayground :code="basicCountdown" />
+<WasmPlayground :tcl="basicCountdown" />
 
 ### Reading until condition
 
-<FeatherPlayground :code="readingUntilCondition" />
+<WasmPlayground :tcl="readingUntilCondition" />
 
 ### Using break for complex exit
 
-<FeatherPlayground :code="usingBreakForComplexExit" />
+<WasmPlayground :tcl="usingBreakForComplexExit" />
 
 ### Fibonacci sequence
 
-<FeatherPlayground :code="fibonacciSequence" />
+<WasmPlayground :tcl="fibonacciSequence" />
 
 ## See Also
 
@@ -78,3 +78,4 @@ while {$a < 100} {
 - [foreach](./foreach) - Iterate over list elements
 - [break](./break) - Exit a loop
 - [continue](./continue) - Skip to next iteration
+

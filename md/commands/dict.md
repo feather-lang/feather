@@ -149,7 +149,7 @@ Gets the value for the key, returning the default if the key doesn't exist.
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const creatingAndAccessingDictionaries = `set person [dict create name "Alice" age 30 city "Paris"]
 puts "Name: [dict get $person name]"
@@ -177,20 +177,21 @@ puts "Verbose: [dict getdef $config verbose 0]"`
 
 ### Creating and accessing dictionaries
 
-<FeatherPlayground :code="creatingAndAccessingDictionaries" />
+<WasmPlayground :tcl="creatingAndAccessingDictionaries" />
 
 ### Modifying dictionaries
 
-<FeatherPlayground :code="modifyingDictionaries" />
+<WasmPlayground :tcl="modifyingDictionaries" />
 
 ### Iterating over dictionaries
 
-<FeatherPlayground :code="iteratingOverDictionaries" />
+<WasmPlayground :tcl="iteratingOverDictionaries" />
 
 ### Using dict getdef for defaults
 
-<FeatherPlayground :code="usingDictGetdefForDefaults" />
+<WasmPlayground :tcl="usingDictGetdefForDefaults" />
 
 ## See Also
 
 - [list](./list) - List operations
+

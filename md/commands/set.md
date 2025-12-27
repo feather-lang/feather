@@ -20,7 +20,7 @@ If `newValue` is provided, assigns it to `varName` and returns the value. If omi
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const settingAndGettingVariable = `set greeting {Hello, World!}
 puts [set greeting]`
@@ -37,15 +37,15 @@ puts $myns::counter`
 
 ### Setting and getting a variable
 
-<FeatherPlayground :code="settingAndGettingVariable" />
+<WasmPlayground :tcl="settingAndGettingVariable" />
 
 ### Using set to read a variable
 
-<FeatherPlayground :code="usingSetToReadVariable" />
+<WasmPlayground :tcl="usingSetToReadVariable" />
 
 ### Namespace-qualified names
 
-<FeatherPlayground :code="namespaceQualifiedNames" />
+<WasmPlayground :tcl="namespaceQualifiedNames" />
 
 ## See Also
 
@@ -53,3 +53,4 @@ puts $myns::counter`
 - [append](./append) - Append to variable
 - [incr](./incr) - Increment integer variable
 - [global](./global) - Access global variables
+

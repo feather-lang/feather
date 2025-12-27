@@ -30,7 +30,7 @@ lsort ?options? list
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const sortStringsAlphabetically = `set words {banana apple cherry date}
 puts [lsort $words]`
@@ -56,34 +56,35 @@ puts [lsort -nocase -unique $items]`
 
 ### Sort strings alphabetically
 
-<FeatherPlayground :code="sortStringsAlphabetically" />
+<WasmPlayground :tcl="sortStringsAlphabetically" />
 
 ### Sort numbers as integers
 
-<FeatherPlayground :code="sortNumbersAsIntegers" />
+<WasmPlayground :tcl="sortNumbersAsIntegers" />
 
 ### Sort in descending order
 
-<FeatherPlayground :code="sortInDescendingOrder" />
+<WasmPlayground :tcl="sortInDescendingOrder" />
 
 ### Case-insensitive sort
 
-<FeatherPlayground :code="caseInsensitiveSort" />
+<WasmPlayground :tcl="caseInsensitiveSort" />
 
 ### Remove duplicates
 
-<FeatherPlayground :code="removeDuplicates" />
+<WasmPlayground :tcl="removeDuplicates" />
 
 ### Sort floating-point numbers
 
-<FeatherPlayground :code="sortFloatingPointNumbers" />
+<WasmPlayground :tcl="sortFloatingPointNumbers" />
 
 ### Combine options
 
-<FeatherPlayground :code="combineOptions" />
+<WasmPlayground :tcl="combineOptions" />
 
 ## See Also
 
 - [lsearch](./lsearch) - Search list
 - [lreverse](./lreverse) - Reverse list
 - [list](./list) - Create a list
+

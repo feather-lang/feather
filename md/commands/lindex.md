@@ -16,7 +16,7 @@ lindex list index
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const basicIndexing = `set colors {red green blue yellow}
 puts [lindex $colors 0]
@@ -33,18 +33,19 @@ puts "Result: $result"`
 
 ### Basic indexing
 
-<FeatherPlayground :code="basicIndexing" />
+<WasmPlayground :tcl="basicIndexing" />
 
 ### Negative indices
 
-<FeatherPlayground :code="negativeIndices" />
+<WasmPlayground :tcl="negativeIndices" />
 
 ### Out of bounds
 
-<FeatherPlayground :code="outOfBounds" />
+<WasmPlayground :tcl="outOfBounds" />
 
 ## See Also
 
 - [list](./list) - Create a list
 - [llength](./llength) - Get list length
 - [lassign](./lassign) - Assign elements to variables
+

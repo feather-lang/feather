@@ -47,7 +47,7 @@ The `expr` command evaluates its arguments as a mathematical expression and retu
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const basicArithmetic = `# Basic arithmetic
 puts [expr {2 + 3 * 4}]
@@ -86,19 +86,20 @@ puts [expr {"bob" ne $name}]
 puts [expr {"a" in "abc"}]`
 </script>
 
-<FeatherPlayground :code="basicArithmetic" />
+<WasmPlayground :tcl="basicArithmetic" />
 
-<FeatherPlayground :code="variablesInExpressions" />
+<WasmPlayground :tcl="variablesInExpressions" />
 
-<FeatherPlayground :code="comparisonAndLogical" />
+<WasmPlayground :tcl="comparisonAndLogical" />
 
-<FeatherPlayground :code="ternaryOperator" />
+<WasmPlayground :tcl="ternaryOperator" />
 
-<FeatherPlayground :code="mathFunctions" />
+<WasmPlayground :tcl="mathFunctions" />
 
-<FeatherPlayground :code="stringComparison" />
+<WasmPlayground :tcl="stringComparison" />
 
 ## See Also
 
 - [eval](./eval)
 - [info](./info)
+

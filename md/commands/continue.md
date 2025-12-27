@@ -15,7 +15,7 @@ None. The `continue` command takes no arguments.
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const skipEvenNumbers = `for {set i 1} {$i <= 10} {incr i} {
     if {$i % 2 == 0} {
@@ -61,23 +61,23 @@ const continueOnlyAffectsInnermostLoop = `foreach letter {A B C} {
 
 ### Skip even numbers
 
-<FeatherPlayground :code="skipEvenNumbers" />
+<WasmPlayground :tcl="skipEvenNumbers" />
 
 ### Filter items in foreach
 
-<FeatherPlayground :code="filterItemsInForeach" />
+<WasmPlayground :tcl="filterItemsInForeach" />
 
 ### Skip invalid data
 
-<FeatherPlayground :code="skipInvalidData" />
+<WasmPlayground :tcl="skipInvalidData" />
 
 ### Continue in while loop
 
-<FeatherPlayground :code="continueInWhileLoop" />
+<WasmPlayground :tcl="continueInWhileLoop" />
 
 ### Continue only affects innermost loop
 
-<FeatherPlayground :code="continueOnlyAffectsInnermostLoop" />
+<WasmPlayground :tcl="continueOnlyAffectsInnermostLoop" />
 
 ## See Also
 
@@ -85,3 +85,4 @@ const continueOnlyAffectsInnermostLoop = `foreach letter {A B C} {
 - [for](./for) - C-style loop
 - [foreach](./foreach) - Iterate over list elements
 - [while](./while) - Conditional loop
+

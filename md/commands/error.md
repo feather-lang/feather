@@ -17,7 +17,7 @@ error message ?info? ?code?
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const errorHandling = `proc requirePositive {value} {
     if {$value < 0} {
@@ -47,12 +47,13 @@ try {
 }`
 </script>
 
-<FeatherPlayground :code="errorHandling" />
+<WasmPlayground :tcl="errorHandling" />
 
-<FeatherPlayground :code="errorWithCode" />
+<WasmPlayground :tcl="errorWithCode" />
 
 ## See Also
 
 - [throw](./throw)
 - [catch](./catch)
 - [try](./try)
+

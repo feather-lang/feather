@@ -15,7 +15,7 @@ lreverse list
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const reverseAList = `set nums {1 2 3 4 5}
 puts [lreverse $nums]`
@@ -36,22 +36,23 @@ puts "Reversed: $reversed"`
 
 ### Reverse a list
 
-<FeatherPlayground :code="reverseAList" />
+<WasmPlayground :tcl="reverseAList" />
 
 ### Reverse strings
 
-<FeatherPlayground :code="reverseStrings" />
+<WasmPlayground :tcl="reverseStrings" />
 
 ### Reverse and iterate
 
-<FeatherPlayground :code="reverseAndIterate" />
+<WasmPlayground :tcl="reverseAndIterate" />
 
 ### Original unchanged
 
-<FeatherPlayground :code="originalUnchanged" />
+<WasmPlayground :tcl="originalUnchanged" />
 
 ## See Also
 
 - [lsort](./lsort) - Sort list
 - [lrange](./lrange) - Extract sublist
 - [list](./list) - Create a list
+

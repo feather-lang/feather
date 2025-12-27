@@ -77,7 +77,7 @@ namespace tail string
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const createNamespaceWithProcedures = `# Create a namespace with procedures
 namespace eval math {
@@ -153,22 +153,23 @@ puts "Parent of ::a::b: [namespace parent ::a::b]"
 puts "Parent of ::a: [namespace parent ::a]"`
 </script>
 
-<FeatherPlayground :code="createNamespaceWithProcedures" />
+<WasmPlayground :tcl="createNamespaceWithProcedures" />
 
-<FeatherPlayground :code="namespaceVariables" />
+<WasmPlayground :tcl="namespaceVariables" />
 
-<FeatherPlayground :code="checkCurrentNamespace" />
+<WasmPlayground :tcl="checkCurrentNamespace" />
 
-<FeatherPlayground :code="checkNamespaceExistence" />
+<WasmPlayground :tcl="checkNamespaceExistence" />
 
-<FeatherPlayground :code="nestedNamespaces" />
+<WasmPlayground :tcl="nestedNamespaces" />
 
-<FeatherPlayground :code="parseQualifiedNames" />
+<WasmPlayground :tcl="parseQualifiedNames" />
 
-<FeatherPlayground :code="getParentNamespace" />
+<WasmPlayground :tcl="getParentNamespace" />
 
 ## See Also
 
 - [info](./info)
 - [trace](./trace)
 - [eval](./eval)
+

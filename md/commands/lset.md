@@ -19,7 +19,7 @@ Returns the new list value. Errors if the index is out of bounds.
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const setElementByIndex = `set colors {red green blue}
 lset colors 1 yellow
@@ -45,26 +45,27 @@ puts [lset list 0 X]`
 
 ### Set element by index
 
-<FeatherPlayground :code="setElementByIndex" />
+<WasmPlayground :tcl="setElementByIndex" />
 
 ### Set last element
 
-<FeatherPlayground :code="setLastElement" />
+<WasmPlayground :tcl="setLastElement" />
 
 ### Set using end-relative index
 
-<FeatherPlayground :code="setUsingEndRelativeIndex" />
+<WasmPlayground :tcl="setUsingEndRelativeIndex" />
 
 ### Modify in loop
 
-<FeatherPlayground :code="modifyInLoop" />
+<WasmPlayground :tcl="modifyInLoop" />
 
 ### Returns new value
 
-<FeatherPlayground :code="returnsNewValue" />
+<WasmPlayground :tcl="returnsNewValue" />
 
 ## See Also
 
 - [lindex](./lindex) - Get element by index
 - [lreplace](./lreplace) - Replace range of elements
 - [set](./set) - Set variable
+

@@ -39,7 +39,7 @@ The special parameter `args` captures all remaining arguments as a list.
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const basicProcedure = `proc greet {name} {
     return "Hello, $name!"
@@ -77,22 +77,23 @@ puts "5! = [factorial 5]"`
 
 ### Basic procedure
 
-<FeatherPlayground :code="basicProcedure" />
+<WasmPlayground :tcl="basicProcedure" />
 
 ### Default parameter values
 
-<FeatherPlayground :code="defaultParameterValues" />
+<WasmPlayground :tcl="defaultParameterValues" />
 
 ### Variadic arguments
 
-<FeatherPlayground :code="variadicArguments" />
+<WasmPlayground :tcl="variadicArguments" />
 
 ### Recursive procedure
 
-<FeatherPlayground :code="recursiveProcedure" />
+<WasmPlayground :tcl="recursiveProcedure" />
 
 ## See Also
 
 - [apply](./apply) - Apply anonymous functions
 - [return](./return) - Return from procedure
 - [tailcall](./tailcall) - Tail call optimization
+

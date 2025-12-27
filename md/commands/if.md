@@ -22,7 +22,7 @@ if expr1 ?then? body1 ?elseif expr2 ?then? body2 ...? ?else bodyN?
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const basicIfElse = `set x 10
 
@@ -55,17 +55,18 @@ if {$logged_in} then {
 
 ### Basic if-else
 
-<FeatherPlayground :code="basicIfElse" />
+<WasmPlayground :tcl="basicIfElse" />
 
 ### Multiple conditions with elseif
 
-<FeatherPlayground :code="multipleConditionsWithElseif" />
+<WasmPlayground :tcl="multipleConditionsWithElseif" />
 
 ### Using optional then keyword
 
-<FeatherPlayground :code="usingOptionalThenKeyword" />
+<WasmPlayground :tcl="usingOptionalThenKeyword" />
 
 ## See Also
 
 - [switch](./switch) - Multi-way branching
 - [expr](./expr) - Expression evaluation
+

@@ -20,7 +20,7 @@ Concatenates the elements of a list into a single string, placing the join strin
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const defaultSeparator = `puts [join {a b c d}]`
 
@@ -36,26 +36,27 @@ const buildingPaths = `puts [join {usr local bin} "/"]`
 
 ### Default separator (space)
 
-<FeatherPlayground :code="defaultSeparator" />
+<WasmPlayground :tcl="defaultSeparator" />
 
 ### Custom separator
 
-<FeatherPlayground :code="customSeparator" />
+<WasmPlayground :tcl="customSeparator" />
 
 ### No separator
 
-<FeatherPlayground :code="noSeparator" />
+<WasmPlayground :tcl="noSeparator" />
 
 ### Newline separator
 
-<FeatherPlayground :code="newlineSeparator" />
+<WasmPlayground :tcl="newlineSeparator" />
 
 ### Building paths
 
-<FeatherPlayground :code="buildingPaths" />
+<WasmPlayground :tcl="buildingPaths" />
 
 ## See Also
 
 - [split](./split) - Split string into list
 - [concat](./concat) - Concatenate with spaces
 - [list](./list) - Create a list
+

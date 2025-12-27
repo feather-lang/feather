@@ -20,7 +20,7 @@ If no values are provided, the range is deleted. If first > last, values are ins
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const replaceSingleElement = `set colors {red green blue}
 puts [lreplace $colors 1 1 yellow]`
@@ -40,26 +40,27 @@ puts [lreplace $nums end+1 end x y z]`
 
 ### Replace single element
 
-<FeatherPlayground :code="replaceSingleElement" />
+<WasmPlayground :tcl="replaceSingleElement" />
 
 ### Replace range with different count
 
-<FeatherPlayground :code="replaceRangeWithDifferentCount" />
+<WasmPlayground :tcl="replaceRangeWithDifferentCount" />
 
 ### Delete elements (no replacement values)
 
-<FeatherPlayground :code="deleteElements" />
+<WasmPlayground :tcl="deleteElements" />
 
 ### Insert elements (first > last)
 
-<FeatherPlayground :code="insertElements" />
+<WasmPlayground :tcl="insertElements" />
 
 ### Append to list
 
-<FeatherPlayground :code="appendToList" />
+<WasmPlayground :tcl="appendToList" />
 
 ## See Also
 
 - [lrange](./lrange) - Extract sublist
 - [lset](./lset) - Set element by index
 - [linsert](./linsert) - Insert elements
+

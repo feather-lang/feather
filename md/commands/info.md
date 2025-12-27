@@ -34,11 +34,13 @@ info subcommand ?arg ...?
 
 - **info script** - Returns filename of currently executing script
 - **info type value** - Returns the type name of a value
+- **info methods value** - Returns list of methods available on a foreign object
 
 ## Examples
 
 <script setup>
 import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const checkVariableExists = `# Check if variable exists
 set x 42
@@ -91,6 +93,30 @@ puts "Type of 42: [info type 42]"
 puts "Type of 3.14: [info type 3.14]"
 puts "Type of hello: [info type hello]"
 puts "Type of {a b c}: [info type {a b c}]"`
+
+const getMethodsJs = `// Register a Counter type with methods
+feather.registerType(interp, 'Counter', {
+  methods: {
+    incr: (state) => { state.value++ },
+    get: (state) => state.value,
+  },
+});
+
+// Factory command to create counter instances
+let id = 0;
+register('counter', () => {
+  const name = 'counter' + (++id);
+  feather.createForeign(interp, 'Counter', { value: 0 }, name);
+  return name;
+});`
+
+const getMethodsTcl = `set c [counter]
+puts "Methods: [info methods $c]"
+puts "Type: [info type $c]"
+
+$c incr
+$c incr
+puts "Value: [$c get]"`
 </script>
 
 <FeatherPlayground :code="checkVariableExists" />
@@ -106,6 +132,8 @@ puts "Type of {a b c}: [info type {a b c}]"`
 <FeatherPlayground :code="listLocalVariables" />
 
 <FeatherPlayground :code="getValueType" />
+
+<WasmPlayground :js="getMethodsJs" :tcl="getMethodsTcl" />
 
 ## See Also
 

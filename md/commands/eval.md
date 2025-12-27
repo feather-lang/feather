@@ -19,7 +19,7 @@ The `eval` command concatenates all its arguments (using the same rules as `conc
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const basicEval = `# Basic eval
 set cmd "puts"
@@ -37,13 +37,14 @@ set cmdlist [list puts "Multiple" "arguments" "joined"]
 eval $cmdlist`
 </script>
 
-<FeatherPlayground :code="basicEval" />
+<WasmPlayground :tcl="basicEval" />
 
-<FeatherPlayground :code="buildingCommandsDynamically" />
+<WasmPlayground :tcl="buildingCommandsDynamically" />
 
-<FeatherPlayground :code="evaluatingListAsCommand" />
+<WasmPlayground :tcl="evaluatingListAsCommand" />
 
 ## See Also
 
 - [expr](./expr)
 - [namespace](./namespace)
+

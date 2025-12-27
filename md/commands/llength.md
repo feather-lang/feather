@@ -15,7 +15,7 @@ llength list
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const basicUsage = `set items {a b c d e}
 puts [llength $items]`
@@ -29,18 +29,19 @@ puts [llength $data]`
 
 ### Basic usage
 
-<FeatherPlayground :code="basicUsage" />
+<WasmPlayground :tcl="basicUsage" />
 
 ### Empty list
 
-<FeatherPlayground :code="emptyList" />
+<WasmPlayground :tcl="emptyList" />
 
 ### List with compound elements
 
-<FeatherPlayground :code="listWithCompoundElements" />
+<WasmPlayground :tcl="listWithCompoundElements" />
 
 ## See Also
 
 - [list](./list) - Create a list
 - [lindex](./lindex) - Get element by index
 - [lappend](./lappend) - Append to list variable
+

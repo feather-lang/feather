@@ -16,7 +16,7 @@ lrepeat count ?value ...?
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const repeatSingleValue = `puts [lrepeat 5 x]`
 
@@ -33,26 +33,27 @@ const zeroRepetitions = `puts [lrepeat 0 anything]`
 
 ### Repeat single value
 
-<FeatherPlayground :code="repeatSingleValue" />
+<WasmPlayground :tcl="repeatSingleValue" />
 
 ### Repeat multiple values
 
-<FeatherPlayground :code="repeatMultipleValues" />
+<WasmPlayground :tcl="repeatMultipleValues" />
 
 ### Create initialized list
 
-<FeatherPlayground :code="createInitializedList" />
+<WasmPlayground :tcl="createInitializedList" />
 
 ### Build pattern sequence
 
-<FeatherPlayground :code="buildPatternSequence" />
+<WasmPlayground :tcl="buildPatternSequence" />
 
 ### Zero repetitions
 
-<FeatherPlayground :code="zeroRepetitions" />
+<WasmPlayground :tcl="zeroRepetitions" />
 
 ## See Also
 
 - [list](./list) - Create a list
 - [lappend](./lappend) - Append to list
 - [concat](./concat) - Concatenate lists
+

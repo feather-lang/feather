@@ -16,7 +16,7 @@ rename oldName newName
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const renameExample = `proc greet {name} {
     return "Hello, $name!"
@@ -32,9 +32,10 @@ puts [sayHello "Feather"]
 rename sayHello ""`
 </script>
 
-<FeatherPlayground :code="renameExample" />
+<WasmPlayground :tcl="renameExample" />
 
 ## See Also
 
 - [proc](./proc)
 - [info](./info)
+

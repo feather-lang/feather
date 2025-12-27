@@ -15,7 +15,7 @@ None. The `break` command takes no arguments.
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const exitForLoopEarly = `for {set i 0} {$i < 10} {incr i} {
     if {$i == 5} {
@@ -63,19 +63,19 @@ const breakOnlyExitsInnermostLoop = `for {set i 1} {$i <= 3} {incr i} {
 
 ### Exit a for loop early
 
-<FeatherPlayground :code="exitForLoopEarly" />
+<WasmPlayground :tcl="exitForLoopEarly" />
 
 ### Search and stop
 
-<FeatherPlayground :code="searchAndStop" />
+<WasmPlayground :tcl="searchAndStop" />
 
 ### Breaking from while loop
 
-<FeatherPlayground :code="breakingFromWhileLoop" />
+<WasmPlayground :tcl="breakingFromWhileLoop" />
 
 ### Break only exits innermost loop
 
-<FeatherPlayground :code="breakOnlyExitsInnermostLoop" />
+<WasmPlayground :tcl="breakOnlyExitsInnermostLoop" />
 
 ## See Also
 
@@ -83,3 +83,4 @@ const breakOnlyExitsInnermostLoop = `for {set i 1} {$i <= 3} {incr i} {
 - [for](./for) - C-style loop
 - [foreach](./foreach) - Iterate over list elements
 - [while](./while) - Conditional loop
+

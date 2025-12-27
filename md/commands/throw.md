@@ -16,7 +16,7 @@ throw type message
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const bankExample = `proc withdraw {amount balance} {
     if {$amount > $balance} {
@@ -52,12 +52,13 @@ try {
 }`
 </script>
 
-<FeatherPlayground :code="bankExample" />
+<WasmPlayground :tcl="bankExample" />
 
-<FeatherPlayground :code="validationExample" />
+<WasmPlayground :tcl="validationExample" />
 
 ## See Also
 
 - [try](./try)
 - [catch](./catch)
 - [error](./error)
+

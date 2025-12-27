@@ -21,7 +21,7 @@ Removes the specified variables from the current scope. By default, raises an er
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const basicUnset = `set x 10
 set y 20
@@ -41,17 +41,18 @@ puts {All variables removed}`
 
 ### Basic unset
 
-<FeatherPlayground :code="basicUnset" />
+<WasmPlayground :tcl="basicUnset" />
 
 ### Using -nocomplain
 
-<FeatherPlayground :code="usingNocomplain" />
+<WasmPlayground :tcl="usingNocomplain" />
 
 ### Unsetting multiple variables
 
-<FeatherPlayground :code="unsettingMultiple" />
+<WasmPlayground :tcl="unsettingMultiple" />
 
 ## See Also
 
 - [set](./set) - Get or set variable value
 - [info exists](./info) - Check if variable exists
+

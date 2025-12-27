@@ -40,7 +40,7 @@ lsearch ?options? list pattern
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const findFirstOccurrence = `set colors {red green blue green yellow}
 puts [lsearch $colors green]`
@@ -66,34 +66,35 @@ puts [lsearch $items w]`
 
 ### Find first occurrence
 
-<FeatherPlayground :code="findFirstOccurrence" />
+<WasmPlayground :tcl="findFirstOccurrence" />
 
 ### Find all occurrences
 
-<FeatherPlayground :code="findAllOccurrences" />
+<WasmPlayground :tcl="findAllOccurrences" />
 
 ### Get matching values with -inline
 
-<FeatherPlayground :code="getMatchingValuesInline" />
+<WasmPlayground :tcl="getMatchingValuesInline" />
 
 ### Case-insensitive search
 
-<FeatherPlayground :code="caseInsensitiveSearch" />
+<WasmPlayground :tcl="caseInsensitiveSearch" />
 
 ### Search sorted list
 
-<FeatherPlayground :code="searchSortedList" />
+<WasmPlayground :tcl="searchSortedList" />
 
 ### Start from index
 
-<FeatherPlayground :code="startFromIndex" />
+<WasmPlayground :tcl="startFromIndex" />
 
 ### Not found returns -1
 
-<FeatherPlayground :code="notFoundReturnsNegativeOne" />
+<WasmPlayground :tcl="notFoundReturnsNegativeOne" />
 
 ## See Also
 
 - [lindex](./lindex) - Get element by index
 - [lsort](./lsort) - Sort list
 - [string match](./string) - String pattern matching
+

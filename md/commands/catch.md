@@ -27,7 +27,7 @@ catch script ?resultVar? ?optionsVar?
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const basicErrorCatching = `# Basic error catching
 set code [catch {expr {1 / 0}} result]
@@ -51,10 +51,11 @@ puts [safeDiv 10 2]
 puts [safeDiv 10 0]`
 </script>
 
-<FeatherPlayground :code="basicErrorCatching" />
+<WasmPlayground :tcl="basicErrorCatching" />
 
 ## See Also
 
 - [try](./try)
 - [throw](./throw)
 - [error](./error)
+

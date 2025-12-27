@@ -17,7 +17,7 @@ lmap varList list ?varList list ...? expression
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const transformEachElement = `set numbers {1 2 3 4 5}
 set squares [lmap n $numbers {expr {$n * $n}}]
@@ -45,22 +45,23 @@ puts $result`
 
 ### Transform each element
 
-<FeatherPlayground :code="transformEachElement" />
+<WasmPlayground :tcl="transformEachElement" />
 
 ### Filter and transform
 
-<FeatherPlayground :code="filterAndTransform" />
+<WasmPlayground :tcl="filterAndTransform" />
 
 ### Multiple variables per iteration
 
-<FeatherPlayground :code="multipleVariablesPerIteration" />
+<WasmPlayground :tcl="multipleVariablesPerIteration" />
 
 ### Multiple lists
 
-<FeatherPlayground :code="multipleLists" />
+<WasmPlayground :tcl="multipleLists" />
 
 ## See Also
 
 - [foreach](./foreach) - Iterate without collecting results
 - [list](./list) - Create a list
 - [lindex](./lindex) - Get element by index
+

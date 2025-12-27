@@ -16,7 +16,7 @@ lappend varName ?value ...?
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const appendingToExistingList = `set fruits [list apple banana]
 lappend fruits orange grape
@@ -34,18 +34,19 @@ puts $squares`
 
 ### Appending to an existing list
 
-<FeatherPlayground :code="appendingToExistingList" />
+<WasmPlayground :tcl="appendingToExistingList" />
 
 ### Creating a new list
 
-<FeatherPlayground :code="creatingNewList" />
+<WasmPlayground :tcl="creatingNewList" />
 
 ### Building a list in a loop
 
-<FeatherPlayground :code="buildingListInLoop" />
+<WasmPlayground :tcl="buildingListInLoop" />
 
 ## See Also
 
 - [list](./list) - Create a list
 - [linsert](./linsert) - Insert elements into list
 - [llength](./llength) - Get list length
+

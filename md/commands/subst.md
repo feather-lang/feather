@@ -27,7 +27,7 @@ Performs command substitution, variable substitution, and backslash substitution
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const allSubstitutions = `set name "World"
 puts [subst {Hello, $name!}]
@@ -55,30 +55,31 @@ puts $result`
 
 ### All substitutions (default)
 
-<FeatherPlayground :code="allSubstitutions" />
+<WasmPlayground :tcl="allSubstitutions" />
 
 ### Disable command substitution
 
-<FeatherPlayground :code="disableCommandSubstitution" />
+<WasmPlayground :tcl="disableCommandSubstitution" />
 
 ### Disable variable substitution
 
-<FeatherPlayground :code="disableVariableSubstitution" />
+<WasmPlayground :tcl="disableVariableSubstitution" />
 
 ### Disable backslash substitution
 
-<FeatherPlayground :code="disableBackslashSubstitution" />
+<WasmPlayground :tcl="disableBackslashSubstitution" />
 
 ### Multiple options
 
-<FeatherPlayground :code="multipleOptions" />
+<WasmPlayground :tcl="multipleOptions" />
 
 ### Building dynamic strings
 
-<FeatherPlayground :code="buildingDynamicStrings" />
+<WasmPlayground :tcl="buildingDynamicStrings" />
 
 ## See Also
 
 - [format](./format) - Printf-style formatting
 - [string](./string) - String operations
 - [eval](./eval) - Evaluate a script
+

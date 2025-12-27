@@ -1,6 +1,20 @@
 # Built-in Commands
 
-Feather provides a comprehensive set of built-in commands that implement TCL's core functionality. These commands are organized into the following categories:
+Feather provides a comprehensive set of built-in commands that implement Feather's core functionality.
+The commands listed here mostly match the commands implemented by TCL.
+
+## Subtractions from TCL
+
+- Feather does not support arrays, because they were essentially supplanted by dicts.
+- There are no built-in I/O functions provided by Feather, as this is a responsibilty of the host.
+- There are no OO functions provided, because these encourage programming in the large.
+
+## Additions to TCL
+
+- The [info](./info) command supports `type` and `methods` subcommands
+  to get access to the internal representation of a value, and the
+  methods exposed on foreign objects.
+
 
 ## Control Flow
 

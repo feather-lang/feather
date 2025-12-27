@@ -20,7 +20,7 @@ Creates a variable in the current namespace and links a local reference to it. I
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const declaringNamespaceVariables = `namespace eval counter {
     variable count 0
@@ -67,18 +67,19 @@ app::greet`
 
 ### Declaring namespace variables
 
-<FeatherPlayground :code="declaringNamespaceVariables" />
+<WasmPlayground :tcl="declaringNamespaceVariables" />
 
 ### Multiple variables at once
 
-<FeatherPlayground :code="multipleVariablesAtOnce" />
+<WasmPlayground :tcl="multipleVariablesAtOnce" />
 
 ### Variable without initial value
 
-<FeatherPlayground :code="variableWithoutInitialValue" />
+<WasmPlayground :tcl="variableWithoutInitialValue" />
 
 ## See Also
 
 - [global](./global) - Access global variables
 - [namespace](./namespace) - Create and manipulate namespaces
 - [upvar](./upvar) - Reference variables in other frames
+

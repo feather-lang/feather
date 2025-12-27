@@ -21,7 +21,7 @@ Creates local variables that are aliases to variables in another stack frame. Le
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const passByReference = `proc double {varName} {
     upvar 1 $varName var
@@ -66,22 +66,23 @@ puts $mylist`
 
 ### Pass by reference
 
-<FeatherPlayground :code="passByReference" />
+<WasmPlayground :tcl="passByReference" />
 
 ### Swap two variables
 
-<FeatherPlayground :code="swapTwoVariables" />
+<WasmPlayground :tcl="swapTwoVariables" />
 
 ### Accessing global scope with #0
 
-<FeatherPlayground :code="accessingGlobalScope" />
+<WasmPlayground :tcl="accessingGlobalScope" />
 
 ### Building data structures
 
-<FeatherPlayground :code="buildingDataStructures" />
+<WasmPlayground :tcl="buildingDataStructures" />
 
 ## See Also
 
 - [global](./global) - Access global variables
 - [variable](./variable) - Declare namespace variables
 - [uplevel](./uplevel) - Execute script in another frame
+

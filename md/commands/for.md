@@ -18,7 +18,7 @@ for start test next command
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const basicCountingLoop = `for {set i 0} {$i < 5} {incr i} {
      puts {i = $i}
@@ -47,19 +47,19 @@ const usingBreakToExitEarly = `for {set i 0} {$i < 100} {incr i} {
 
 ### Basic counting loop
 
-<FeatherPlayground :code="basicCountingLoop" />
+<WasmPlayground :tcl="basicCountingLoop" />
 
 ### Counting by twos
 
-<FeatherPlayground :code="countingByTwos" />
+<WasmPlayground :tcl="countingByTwos" />
 
 ### Nested loops
 
-<FeatherPlayground :code="nestedLoops" />
+<WasmPlayground :tcl="nestedLoops" />
 
 ### Using break to exit early
 
-<FeatherPlayground :code="usingBreakToExitEarly" />
+<WasmPlayground :tcl="usingBreakToExitEarly" />
 
 ## See Also
 
@@ -67,3 +67,4 @@ const usingBreakToExitEarly = `for {set i 0} {$i < 100} {incr i} {
 - [while](./while) - Conditional loop
 - [break](./break) - Exit a loop
 - [continue](./continue) - Skip to next iteration
+

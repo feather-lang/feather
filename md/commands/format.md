@@ -50,7 +50,7 @@ format formatString ?arg ...?
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const basicFormatting = `puts [format "Hello, %s!" "World"]
 puts [format "Count: %d" 42]`
@@ -77,30 +77,31 @@ const characterConversion = `puts [format "%c%c%c" 65 66 67]`
 
 ### Basic formatting
 
-<FeatherPlayground :code="basicFormatting" />
+<WasmPlayground :tcl="basicFormatting" />
 
 ### Number formatting
 
-<FeatherPlayground :code="numberFormatting" />
+<WasmPlayground :tcl="numberFormatting" />
 
 ### Floating-point formatting
 
-<FeatherPlayground :code="floatingPointFormatting" />
+<WasmPlayground :tcl="floatingPointFormatting" />
 
 ### Width and alignment
 
-<FeatherPlayground :code="widthAndAlignment" />
+<WasmPlayground :tcl="widthAndAlignment" />
 
 ### Positional arguments
 
-<FeatherPlayground :code="positionalArguments" />
+<WasmPlayground :tcl="positionalArguments" />
 
 ### Character conversion
 
-<FeatherPlayground :code="characterConversion" />
+<WasmPlayground :tcl="characterConversion" />
 
 ## See Also
 
 - [scan](./scan) - Parse strings with format
 - [string](./string) - String operations
 - [subst](./subst) - Variable and command substitution
+

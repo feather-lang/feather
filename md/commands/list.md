@@ -15,7 +15,7 @@ list ?element ...?
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const creatingASimpleList = `set colors [list red green blue]
 puts $colors`
@@ -29,18 +29,19 @@ puts [lindex $items 0]`
 
 ### Creating a simple list
 
-<FeatherPlayground :code="creatingASimpleList" />
+<WasmPlayground :tcl="creatingASimpleList" />
 
 ### Empty list
 
-<FeatherPlayground :code="emptyList" />
+<WasmPlayground :tcl="emptyList" />
 
 ### List with spaces in elements
 
-<FeatherPlayground :code="listWithSpacesInElements" />
+<WasmPlayground :tcl="listWithSpacesInElements" />
 
 ## See Also
 
 - [lappend](./lappend) - Append to list variable
 - [llength](./llength) - Get list length
 - [lindex](./lindex) - Get element by index
+

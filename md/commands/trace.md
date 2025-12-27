@@ -49,7 +49,7 @@ trace info execution cmdName
 ## Examples
 
 <script setup>
-import FeatherPlayground from '../../.vitepress/components/FeatherPlayground.vue'
+import WasmPlayground from '../../.vitepress/components/WasmPlayground.vue'
 
 const traceVariableWrites = `# Trace variable writes
 proc on_write {name1 name2 op} {
@@ -110,17 +110,18 @@ set n 3
 puts "After removal: $n"`
 </script>
 
-<FeatherPlayground :code="traceVariableWrites" />
+<WasmPlayground :tcl="traceVariableWrites" />
 
-<FeatherPlayground :code="traceVariableReads" />
+<WasmPlayground :tcl="traceVariableReads" />
 
-<FeatherPlayground :code="traceCommandExecution" />
+<WasmPlayground :tcl="traceCommandExecution" />
 
-<FeatherPlayground :code="listActiveTraces" />
+<WasmPlayground :tcl="listActiveTraces" />
 
-<FeatherPlayground :code="removeTrace" />
+<WasmPlayground :tcl="removeTrace" />
 
 ## See Also
 
 - [info](./info)
 - [namespace](./namespace)
+
