@@ -12,6 +12,73 @@ static FeatherObj append_str(const FeatherHostOps *ops, FeatherInterp interp,
   return ops->string.concat(interp, result, seg);
 }
 
+/**
+ * append_obj appends an object's string value to the result using concat().
+ * This avoids string.get() by delegating string extraction to the host.
+ */
+static FeatherObj append_obj(const FeatherHostOps *ops, FeatherInterp interp,
+                             FeatherObj result, FeatherObj obj) {
+  if (ops->list.is_nil(interp, obj)) {
+    return result;
+  }
+  if (ops->list.is_nil(interp, result)) {
+    return obj;
+  }
+  return ops->string.concat(interp, result, obj);
+}
+
+/**
+ * Helper to check if an option object equals a specific literal.
+ * Uses ops->string.equal to avoid string.get().
+ */
+static int option_equals(const FeatherHostOps *ops, FeatherInterp interp,
+                         FeatherObj opt, const char *lit) {
+  FeatherObj lit_obj = ops->string.intern(interp, lit, 0);
+  // Calculate length by scanning to null
+  size_t len = 0;
+  while (lit[len]) len++;
+  lit_obj = ops->string.intern(interp, lit, len);
+  return ops->string.equal(interp, opt, lit_obj);
+}
+
+/**
+ * Build error message: "bad option \"<opt>\": must be -nobackslashes, -nocommands, or -novariables"
+ * Uses string builder to avoid string.get() on opt.
+ */
+static FeatherObj build_bad_option_error(const FeatherHostOps *ops, FeatherInterp interp,
+                                         FeatherObj opt) {
+  FeatherObj builder = ops->string.builder_new(interp, 128);
+  const char *prefix = "bad option \"";
+  for (size_t i = 0; prefix[i]; i++) {
+    ops->string.builder_append_byte(interp, builder, prefix[i]);
+  }
+  ops->string.builder_append_obj(interp, builder, opt);
+  const char *suffix = "\": must be -nobackslashes, -nocommands, or -novariables";
+  for (size_t i = 0; suffix[i]; i++) {
+    ops->string.builder_append_byte(interp, builder, suffix[i]);
+  }
+  return ops->string.builder_finish(interp, builder);
+}
+
+/**
+ * Build error message: "can't read \"<name>\": no such variable"
+ * Uses string builder to avoid string.get() on name.
+ */
+static FeatherObj build_no_such_variable_error(const FeatherHostOps *ops, FeatherInterp interp,
+                                               FeatherObj name) {
+  FeatherObj builder = ops->string.builder_new(interp, 128);
+  const char *prefix = "can't read \"";
+  for (size_t i = 0; prefix[i]; i++) {
+    ops->string.builder_append_byte(interp, builder, prefix[i]);
+  }
+  ops->string.builder_append_obj(interp, builder, name);
+  const char *suffix = "\": no such variable";
+  for (size_t i = 0; suffix[i]; i++) {
+    ops->string.builder_append_byte(interp, builder, suffix[i]);
+  }
+  return ops->string.builder_finish(interp, builder);
+}
+
 static size_t process_backslash_subst(const char *p, const char *end,
                                        char *buf, size_t *out_len) {
   if (p >= end) {
@@ -135,25 +202,18 @@ FeatherResult feather_builtin_subst(const FeatherHostOps *ops, FeatherInterp int
 
   while (i < argc - 1) {
     FeatherObj opt = ops->list.at(interp, args, i);
-    size_t opt_len;
-    const char *opt_str = ops->string.get(interp, opt, &opt_len);
 
-    if (opt_len > 0 && opt_str[0] == '-') {
-      if (feather_str_eq(opt_str, opt_len, "-nobackslashes")) {
+    // Check if starts with '-' using byte_at (avoids string.get)
+    int first_byte = ops->string.byte_at(interp, opt, 0);
+    if (first_byte == '-') {
+      if (option_equals(ops, interp, opt, "-nobackslashes")) {
         flags &= ~TCL_SUBST_BACKSLASHES;
-      } else if (feather_str_eq(opt_str, opt_len, "-nocommands")) {
+      } else if (option_equals(ops, interp, opt, "-nocommands")) {
         flags &= ~TCL_SUBST_COMMANDS;
-      } else if (feather_str_eq(opt_str, opt_len, "-novariables")) {
+      } else if (option_equals(ops, interp, opt, "-novariables")) {
         flags &= ~TCL_SUBST_VARIABLES;
       } else {
-        char errbuf[128];
-        size_t err_len = 0;
-        const char *prefix = "bad option \"";
-        for (size_t j = 0; prefix[j]; j++) errbuf[err_len++] = prefix[j];
-        for (size_t j = 0; j < opt_len && err_len < 100; j++) errbuf[err_len++] = opt_str[j];
-        const char *suffix = "\": must be -nobackslashes, -nocommands, or -novariables";
-        for (size_t j = 0; suffix[j] && err_len < 127; j++) errbuf[err_len++] = suffix[j];
-        ops->interp.set_result(interp, ops->string.intern(interp, errbuf, err_len));
+        ops->interp.set_result(interp, build_bad_option_error(ops, interp, opt));
         return TCL_ERROR;
       }
       i++;
@@ -171,6 +231,7 @@ FeatherResult feather_builtin_subst(const FeatherHostOps *ops, FeatherInterp int
 
   FeatherObj str_obj = ops->list.at(interp, args, i);
   size_t len;
+  // NOTE: This string.get() remains for pointer-based parsing (like B5/B6 pattern)
   const char *str = ops->string.get(interp, str_obj, &len);
 
   const char *p = str;
@@ -217,19 +278,11 @@ FeatherResult feather_builtin_subst(const FeatherHostOps *ops, FeatherInterp int
         FeatherObj name = ops->string.intern(interp, name_start, name_len);
         FeatherObj value = ops->var.get(interp, name);
         if (ops->list.is_nil(interp, value)) {
-          char errbuf[128];
-          size_t err_len = 0;
-          const char *prefix = "can't read \"";
-          for (size_t j = 0; prefix[j]; j++) errbuf[err_len++] = prefix[j];
-          for (size_t j = 0; j < name_len && err_len < 100; j++) errbuf[err_len++] = name_start[j];
-          const char *suffix = "\": no such variable";
-          for (size_t j = 0; suffix[j] && err_len < 127; j++) errbuf[err_len++] = suffix[j];
-          ops->interp.set_result(interp, ops->string.intern(interp, errbuf, err_len));
+          ops->interp.set_result(interp, build_no_such_variable_error(ops, interp, name));
           return TCL_ERROR;
         }
-        size_t val_len;
-        const char *val_str = ops->string.get(interp, value, &val_len);
-        result = append_str(ops, interp, result, val_str, val_len);
+        // Use concat directly via append_obj - avoids string.get on value
+        result = append_obj(ops, interp, result, value);
         seg_start = p;
 
       } else if (subst_is_varname_char(*p)) {
@@ -261,74 +314,54 @@ FeatherResult feather_builtin_subst(const FeatherHostOps *ops, FeatherInterp int
             FeatherResult subst_res = feather_subst(ops, interp, idx_start, idx_len, TCL_SUBST_ALL);
             if (subst_res != TCL_OK) return TCL_ERROR;
             FeatherObj subst_idx = ops->interp.get_result(interp);
-            size_t subst_len;
-            const char *subst_str = ops->string.get(interp, subst_idx, &subst_len);
 
-            char fullname[512];
-            size_t fn_len = 0;
-            for (size_t j = 0; j < name_len && fn_len < 500; j++) fullname[fn_len++] = name_start[j];
-            fullname[fn_len++] = '(';
-            for (size_t j = 0; j < subst_len && fn_len < 510; j++) fullname[fn_len++] = subst_str[j];
-            fullname[fn_len++] = ')';
+            // Build full array name: name(subst_idx) using builder
+            FeatherObj builder = ops->string.builder_new(interp, 64);
+            for (size_t j = 0; j < name_len; j++) {
+              ops->string.builder_append_byte(interp, builder, name_start[j]);
+            }
+            ops->string.builder_append_byte(interp, builder, '(');
+            ops->string.builder_append_obj(interp, builder, subst_idx);
+            ops->string.builder_append_byte(interp, builder, ')');
+            FeatherObj full_name = ops->string.builder_finish(interp, builder);
 
-            FeatherObj full_name = ops->string.intern(interp, fullname, fn_len);
             FeatherObj value = ops->var.get(interp, full_name);
             if (ops->list.is_nil(interp, value)) {
-              char errbuf[128];
-              size_t err_len = 0;
-              const char *prefix = "can't read \"";
-              for (size_t j = 0; prefix[j]; j++) errbuf[err_len++] = prefix[j];
-              for (size_t j = 0; j < fn_len && err_len < 100; j++) errbuf[err_len++] = fullname[j];
-              const char *suffix = "\": no such variable";
-              for (size_t j = 0; suffix[j] && err_len < 127; j++) errbuf[err_len++] = suffix[j];
-              ops->interp.set_result(interp, ops->string.intern(interp, errbuf, err_len));
+              ops->interp.set_result(interp, build_no_such_variable_error(ops, interp, full_name));
               return TCL_ERROR;
             }
-            size_t val_len;
-            const char *val_str = ops->string.get(interp, value, &val_len);
-            result = append_str(ops, interp, result, val_str, val_len);
+            // Use concat directly - avoids string.get on value
+            result = append_obj(ops, interp, result, value);
           } else {
-            char fullname[512];
-            size_t fn_len = 0;
-            for (size_t j = 0; j < name_len && fn_len < 500; j++) fullname[fn_len++] = name_start[j];
-            fullname[fn_len++] = '(';
-            for (size_t j = 0; j < idx_len && fn_len < 510; j++) fullname[fn_len++] = idx_start[j];
-            fullname[fn_len++] = ')';
+            // Build full array name without substitution
+            FeatherObj builder = ops->string.builder_new(interp, 64);
+            for (size_t j = 0; j < name_len; j++) {
+              ops->string.builder_append_byte(interp, builder, name_start[j]);
+            }
+            ops->string.builder_append_byte(interp, builder, '(');
+            for (size_t j = 0; j < idx_len; j++) {
+              ops->string.builder_append_byte(interp, builder, idx_start[j]);
+            }
+            ops->string.builder_append_byte(interp, builder, ')');
+            FeatherObj full_name = ops->string.builder_finish(interp, builder);
 
-            FeatherObj full_name = ops->string.intern(interp, fullname, fn_len);
             FeatherObj value = ops->var.get(interp, full_name);
             if (ops->list.is_nil(interp, value)) {
-              char errbuf[128];
-              size_t err_len = 0;
-              const char *prefix = "can't read \"";
-              for (size_t j = 0; prefix[j]; j++) errbuf[err_len++] = prefix[j];
-              for (size_t j = 0; j < fn_len && err_len < 100; j++) errbuf[err_len++] = fullname[j];
-              const char *suffix = "\": no such variable";
-              for (size_t j = 0; suffix[j] && err_len < 127; j++) errbuf[err_len++] = suffix[j];
-              ops->interp.set_result(interp, ops->string.intern(interp, errbuf, err_len));
+              ops->interp.set_result(interp, build_no_such_variable_error(ops, interp, full_name));
               return TCL_ERROR;
             }
-            size_t val_len;
-            const char *val_str = ops->string.get(interp, value, &val_len);
-            result = append_str(ops, interp, result, val_str, val_len);
+            // Use concat directly - avoids string.get on value
+            result = append_obj(ops, interp, result, value);
           }
         } else {
           FeatherObj name = ops->string.intern(interp, name_start, name_len);
           FeatherObj value = ops->var.get(interp, name);
           if (ops->list.is_nil(interp, value)) {
-            char errbuf[128];
-            size_t err_len = 0;
-            const char *prefix = "can't read \"";
-            for (size_t j = 0; prefix[j]; j++) errbuf[err_len++] = prefix[j];
-            for (size_t j = 0; j < name_len && err_len < 100; j++) errbuf[err_len++] = name_start[j];
-            const char *suffix = "\": no such variable";
-            for (size_t j = 0; suffix[j] && err_len < 127; j++) errbuf[err_len++] = suffix[j];
-            ops->interp.set_result(interp, ops->string.intern(interp, errbuf, err_len));
+            ops->interp.set_result(interp, build_no_such_variable_error(ops, interp, name));
             return TCL_ERROR;
           }
-          size_t val_len;
-          const char *val_str = ops->string.get(interp, value, &val_len);
-          result = append_str(ops, interp, result, val_str, val_len);
+          // Use concat directly - avoids string.get on value
+          result = append_obj(ops, interp, result, value);
         }
         seg_start = p;
       } else {
@@ -365,9 +398,8 @@ FeatherResult feather_builtin_subst(const FeatherHostOps *ops, FeatherInterp int
       } else if (eval_result == TCL_RETURN) {
         FeatherObj cmd_result = ops->interp.get_result(interp);
         if (!ops->list.is_nil(interp, cmd_result)) {
-          size_t result_len;
-          const char *result_str = ops->string.get(interp, cmd_result, &result_len);
-          result = append_str(ops, interp, result, result_str, result_len);
+          // Use concat directly - avoids string.get on cmd_result
+          result = append_obj(ops, interp, result, cmd_result);
         }
         p = close + 1;
         seg_start = p;
@@ -376,18 +408,16 @@ FeatherResult feather_builtin_subst(const FeatherHostOps *ops, FeatherInterp int
       } else if (eval_result >= 5) {
         FeatherObj cmd_result = ops->interp.get_result(interp);
         if (!ops->list.is_nil(interp, cmd_result)) {
-          size_t result_len;
-          const char *result_str = ops->string.get(interp, cmd_result, &result_len);
-          result = append_str(ops, interp, result, result_str, result_len);
+          // Use concat directly - avoids string.get on cmd_result
+          result = append_obj(ops, interp, result, cmd_result);
         }
         p = close + 1;
         seg_start = p;
       } else {
         FeatherObj cmd_result = ops->interp.get_result(interp);
         if (!ops->list.is_nil(interp, cmd_result)) {
-          size_t result_len;
-          const char *result_str = ops->string.get(interp, cmd_result, &result_len);
-          result = append_str(ops, interp, result, result_str, result_len);
+          // Use concat directly - avoids string.get on cmd_result
+          result = append_obj(ops, interp, result, cmd_result);
         }
         p = close + 1;
         seg_start = p;
