@@ -1,4 +1,5 @@
 #include "feather.h"
+#include "internal.h"
 
 FeatherResult feather_builtin_set(const FeatherHostOps *ops, FeatherInterp interp,
                           FeatherObj cmd, FeatherObj args) {
@@ -15,11 +16,8 @@ FeatherResult feather_builtin_set(const FeatherHostOps *ops, FeatherInterp inter
   FeatherObj varName = ops->list.shift(interp, args);
 
   // Resolve the variable name (handles qualified names)
-  // Need to get string for feather_resolve_variable (it still uses char*)
-  size_t nameLen;
-  const char *nameStr = ops->string.get(interp, varName, &nameLen);
   FeatherObj ns, localName;
-  feather_resolve_variable(ops, interp, nameStr, nameLen, &ns, &localName);
+  feather_obj_resolve_variable(ops, interp, varName, &ns, &localName);
 
   if (argc == 1) {
     // One argument: get variable value

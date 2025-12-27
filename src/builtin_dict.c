@@ -174,16 +174,12 @@ static FeatherResult dict_keys(const FeatherHostOps *ops, FeatherInterp interp, 
 
   // Filter by pattern
   FeatherObj pattern = ops->list.shift(interp, args);
-  size_t patLen;
-  const char *patStr = ops->string.get(interp, pattern, &patLen);
 
   FeatherObj result = ops->list.create(interp);
   size_t numKeys = ops->list.length(interp, allKeys);
   for (size_t i = 0; i < numKeys; i++) {
     FeatherObj key = ops->list.at(interp, allKeys, i);
-    size_t keyLen;
-    const char *keyStr = ops->string.get(interp, key, &keyLen);
-    if (feather_glob_match(patStr, patLen, keyStr, keyLen)) {
+    if (feather_obj_glob_match(ops, interp, pattern, key)) {
       result = ops->list.push(interp, result, key);
     }
   }
@@ -213,16 +209,12 @@ static FeatherResult dict_values(const FeatherHostOps *ops, FeatherInterp interp
 
   // Filter by pattern
   FeatherObj pattern = ops->list.shift(interp, args);
-  size_t patLen;
-  const char *patStr = ops->string.get(interp, pattern, &patLen);
 
   FeatherObj result = ops->list.create(interp);
   size_t numVals = ops->list.length(interp, allValues);
   for (size_t i = 0; i < numVals; i++) {
     FeatherObj val = ops->list.at(interp, allValues, i);
-    size_t valLen;
-    const char *valStr = ops->string.get(interp, val, &valLen);
-    if (feather_glob_match(patStr, patLen, valStr, valLen)) {
+    if (feather_obj_glob_match(ops, interp, pattern, val)) {
       result = ops->list.push(interp, result, val);
     }
   }

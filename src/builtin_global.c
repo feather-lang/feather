@@ -45,11 +45,8 @@ FeatherResult feather_builtin_global(const FeatherHostOps *ops, FeatherInterp in
 
     if (feather_obj_is_qualified(ops, interp, varname)) {
       // Has namespace qualifiers - resolve it
-      // Need to get string for feather_resolve_variable (it still uses char*)
-      size_t varname_len;
-      const char *varname_str = ops->string.get(interp, varname, &varname_len);
-      FeatherResult res = feather_resolve_variable(ops, interp, varname_str, varname_len,
-                                                   &target_ns, &target_name);
+      FeatherResult res = feather_obj_resolve_variable(ops, interp, varname,
+                                                       &target_ns, &target_name);
       if (res != TCL_OK) {
         return res;
       }

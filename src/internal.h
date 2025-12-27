@@ -139,6 +139,39 @@ static inline int feather_obj_is_global_ns(const FeatherHostOps *ops, FeatherInt
 }
 
 /**
+ * feather_obj_glob_match performs glob pattern matching using byte-at-a-time access.
+ *
+ * This is the object-based version of feather_glob_match that avoids ops->string.get().
+ * Returns 1 if pattern matches string, 0 otherwise.
+ * Supports: * (any sequence), ? (any single char), [...] (character class),
+ *           \ (escape), and literal characters.
+ */
+int feather_obj_glob_match(const FeatherHostOps *ops, FeatherInterp interp,
+                           FeatherObj pattern, FeatherObj string);
+
+/**
+ * feather_obj_resolve_variable resolves a variable name object to namespace + local parts.
+ *
+ * Object-based version of feather_resolve_variable that avoids ops->string.get().
+ * Three cases:
+ *   1. Unqualified ("x") - ns_out = nil, local_out = x
+ *   2. Absolute ("::foo::x") - ns_out = "::foo", local_out = "x"
+ *   3. Relative ("foo::x") - prepends current namespace
+ */
+FeatherResult feather_obj_resolve_variable(const FeatherHostOps *ops, FeatherInterp interp,
+                                           FeatherObj name,
+                                           FeatherObj *ns_out, FeatherObj *local_out);
+
+/**
+ * feather_obj_split_command splits a qualified command name into namespace + simple name.
+ *
+ * Object-based version of feather_split_command that avoids ops->string.get().
+ */
+FeatherResult feather_obj_split_command(const FeatherHostOps *ops, FeatherInterp interp,
+                                        FeatherObj qualified,
+                                        FeatherObj *ns_out, FeatherObj *name_out);
+
+/**
  * feather_obj_find_last_colons finds the position of the last "::" in an object.
  *
  * Returns the position of the first ':' of the last "::" sequence, or -1 if not found.

@@ -16,12 +16,10 @@ static FeatherResult info_exists(const FeatherHostOps *ops, FeatherInterp interp
   }
 
   FeatherObj varName = ops->list.at(interp, args, 0);
-  size_t nameLen;
-  const char *nameStr = ops->string.get(interp, varName, &nameLen);
 
   // Resolve the variable name (handles qualified names)
   FeatherObj ns, localName;
-  feather_resolve_variable(ops, interp, nameStr, nameLen, &ns, &localName);
+  feather_obj_resolve_variable(ops, interp, varName, &ns, &localName);
 
   int exists;
   if (ops->list.is_nil(interp, ns)) {
@@ -156,16 +154,12 @@ static FeatherResult info_commands(const FeatherHostOps *ops, FeatherInterp inte
 
   // Filter by pattern
   FeatherObj pattern = ops->list.at(interp, args, 0);
-  size_t patLen;
-  const char *patStr = ops->string.get(interp, pattern, &patLen);
 
   FeatherObj result = ops->list.create(interp);
   for (size_t i = 0; i < count; i++) {
     FeatherObj name = ops->list.at(interp, allNames, i);
-    size_t nameLen;
-    const char *nameStr = ops->string.get(interp, name, &nameLen);
 
-    if (feather_glob_match(patStr, patLen, nameStr, nameLen)) {
+    if (feather_obj_glob_match(ops, interp, pattern, name)) {
       result = ops->list.push(interp, result, name);
     }
   }
@@ -195,11 +189,9 @@ static FeatherResult info_procs(const FeatherHostOps *ops, FeatherInterp interp,
   size_t count = ops->list.length(interp, allNames);
 
   // Optional pattern
-  const char *patStr = NULL;
-  size_t patLen = 0;
+  FeatherObj pattern = 0;
   if (argc == 1) {
-    FeatherObj pattern = ops->list.at(interp, args, 0);
-    patStr = ops->string.get(interp, pattern, &patLen);
+    pattern = ops->list.at(interp, args, 0);
   }
 
   for (size_t i = 0; i < count; i++) {
@@ -214,10 +206,8 @@ static FeatherResult info_procs(const FeatherHostOps *ops, FeatherInterp interp,
     }
 
     // Apply pattern filter if specified
-    if (patStr != NULL) {
-      size_t nameLen;
-      const char *nameStr = ops->string.get(interp, name, &nameLen);
-      if (!feather_glob_match(patStr, patLen, nameStr, nameLen)) {
+    if (pattern != 0) {
+      if (!feather_obj_glob_match(ops, interp, pattern, name)) {
         continue;
       }
     }
@@ -485,9 +475,6 @@ static FeatherResult info_default(const FeatherHostOps *ops, FeatherInterp inter
   }
 
   // Search for the parameter
-  size_t argNameLen;
-  const char *argNameStr = ops->string.get(interp, argName, &argNameLen);
-
   size_t paramCount = ops->list.length(interp, params);
   for (size_t i = 0; i < paramCount; i++) {
     FeatherObj param = ops->list.at(interp, params, i);
@@ -502,31 +489,19 @@ static FeatherResult info_default(const FeatherHostOps *ops, FeatherInterp inter
       paramName = param;
     }
 
-    size_t pnameLen;
-    const char *pnameStr = ops->string.get(interp, paramName, &pnameLen);
-
-    if (argNameLen == pnameLen) {
-      int match = 1;
-      for (size_t j = 0; j < argNameLen; j++) {
-        if (argNameStr[j] != pnameStr[j]) {
-          match = 0;
-          break;
-        }
+    if (ops->string.equal(interp, argName, paramName)) {
+      // Found the parameter
+      if (paramLen >= 2) {
+        // Has default value
+        FeatherObj defaultVal = ops->list.at(interp, paramList, 1);
+        ops->var.set(interp, varName, defaultVal);
+        ops->interp.set_result(interp, ops->integer.create(interp, 1));
+      } else {
+        // No default
+        ops->var.set(interp, varName, ops->string.intern(interp, "", 0));
+        ops->interp.set_result(interp, ops->integer.create(interp, 0));
       }
-      if (match) {
-        // Found the parameter
-        if (paramLen >= 2) {
-          // Has default value
-          FeatherObj defaultVal = ops->list.at(interp, paramList, 1);
-          ops->var.set(interp, varName, defaultVal);
-          ops->interp.set_result(interp, ops->integer.create(interp, 1));
-        } else {
-          // No default
-          ops->var.set(interp, varName, ops->string.intern(interp, "", 0));
-          ops->interp.set_result(interp, ops->integer.create(interp, 0));
-        }
-        return TCL_OK;
-      }
+      return TCL_OK;
     }
   }
 
@@ -566,17 +541,13 @@ static FeatherResult info_locals(const FeatherHostOps *ops, FeatherInterp interp
 
   // Filter by pattern
   FeatherObj pattern = ops->list.at(interp, args, 0);
-  size_t patLen;
-  const char *patStr = ops->string.get(interp, pattern, &patLen);
 
   FeatherObj result = ops->list.create(interp);
   size_t count = ops->list.length(interp, allNames);
   for (size_t i = 0; i < count; i++) {
     FeatherObj name = ops->list.at(interp, allNames, i);
-    size_t nameLen;
-    const char *nameStr = ops->string.get(interp, name, &nameLen);
 
-    if (feather_glob_match(patStr, patLen, nameStr, nameLen)) {
+    if (feather_obj_glob_match(ops, interp, pattern, name)) {
       result = ops->list.push(interp, result, name);
     }
   }
@@ -612,17 +583,13 @@ static FeatherResult info_globals(const FeatherHostOps *ops, FeatherInterp inter
 
   // Filter by pattern
   FeatherObj pattern = ops->list.at(interp, args, 0);
-  size_t patLen;
-  const char *patStr = ops->string.get(interp, pattern, &patLen);
 
   FeatherObj result = ops->list.create(interp);
   size_t count = ops->list.length(interp, allNames);
   for (size_t i = 0; i < count; i++) {
     FeatherObj name = ops->list.at(interp, allNames, i);
-    size_t nameLen;
-    const char *nameStr = ops->string.get(interp, name, &nameLen);
 
-    if (feather_glob_match(patStr, patLen, nameStr, nameLen)) {
+    if (feather_obj_glob_match(ops, interp, pattern, name)) {
       result = ops->list.push(interp, result, name);
     }
   }
@@ -719,15 +686,9 @@ static FeatherResult info_type(const FeatherHostOps *ops, FeatherInterp interp,
   double dblVal;
   if (ops->dbl.get(interp, value, &dblVal) == TCL_OK) {
     // Only return "double" if it looks like a float (has decimal point or e)
-    size_t len;
-    const char *str = ops->string.get(interp, value, &len);
-    int isFloat = 0;
-    for (size_t i = 0; i < len; i++) {
-      if (str[i] == '.' || str[i] == 'e' || str[i] == 'E') {
-        isFloat = 1;
-        break;
-      }
-    }
+    int isFloat = feather_obj_contains_char(ops, interp, value, '.') ||
+                  feather_obj_contains_char(ops, interp, value, 'e') ||
+                  feather_obj_contains_char(ops, interp, value, 'E');
     if (isFloat) {
       ops->interp.set_result(interp, ops->string.intern(interp, "double", 6));
       return TCL_OK;

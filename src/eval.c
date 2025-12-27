@@ -30,23 +30,18 @@ FeatherResult feather_command_exec(const FeatherHostOps *ops, FeatherInterp inte
   //    a. Try current namespace first
   //    b. Fall back to global namespace
   //
-  size_t cmdLen;
-  const char *cmdStr = ops->string.get(interp, cmd, &cmdLen);
-
   FeatherBuiltinCmd builtin = NULL;
   FeatherCommandType cmdType = TCL_CMD_NONE;
   FeatherObj lookupNs = 0;
   FeatherObj simpleName = cmd;
 
   FeatherObj currentNs = ops->ns.current(interp);
-  size_t nsLen;
-  const char *nsStr = ops->string.get(interp, currentNs, &nsLen);
-  int inGlobalNs = (nsLen == 2 && nsStr[0] == ':' && nsStr[1] == ':');
+  int inGlobalNs = feather_obj_is_global_ns(ops, interp, currentNs);
   FeatherObj globalNs = ops->string.intern(interp, "::", 2);
 
-  if (feather_is_qualified(cmdStr, cmdLen)) {
+  if (feather_obj_is_qualified(ops, interp, cmd)) {
     // Qualified name - split and look up in the target namespace
-    feather_split_command(ops, interp, cmd, &lookupNs, &simpleName);
+    feather_obj_split_command(ops, interp, cmd, &lookupNs, &simpleName);
     if (ops->list.is_nil(interp, lookupNs)) {
       lookupNs = globalNs;
     }
@@ -76,9 +71,7 @@ FeatherResult feather_command_exec(const FeatherHostOps *ops, FeatherInterp inte
   if (ops->list.is_nil(interp, lookupNs) || lookupNs == 0) {
     lookupName = cmd;
   } else {
-    size_t lookupNsLen;
-    const char *lookupNsStr = ops->string.get(interp, lookupNs, &lookupNsLen);
-    if (lookupNsLen == 2 && lookupNsStr[0] == ':' && lookupNsStr[1] == ':') {
+    if (feather_obj_is_global_ns(ops, interp, lookupNs)) {
       // Global namespace: "::simpleName"
       lookupName = ops->string.concat(interp, globalNs, simpleName);
     } else {

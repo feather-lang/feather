@@ -3,21 +3,18 @@
 
 // Resolve a namespace path (relative or absolute) to an absolute path
 static FeatherObj resolve_ns_path(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj path) {
-  size_t len;
-  const char *str = ops->string.get(interp, path, &len);
-
   // If absolute (starts with ::), return as-is
-  if (len >= 2 && str[0] == ':' && str[1] == ':') {
+  size_t len = ops->string.byte_length(interp, path);
+  if (len >= 2 && ops->string.byte_at(interp, path, 0) == ':' &&
+      ops->string.byte_at(interp, path, 1) == ':') {
     return path;
   }
 
   // Relative - prepend current namespace
   FeatherObj current = ops->ns.current(interp);
-  size_t current_len;
-  const char *current_str = ops->string.get(interp, current, &current_len);
 
   // If current is global "::", prepend "::" to path
-  if (current_len == 2 && current_str[0] == ':' && current_str[1] == ':') {
+  if (feather_obj_is_global_ns(ops, interp, current)) {
     FeatherObj prefix = ops->string.intern(interp, "::", 2);
     return ops->string.concat(interp, prefix, path);
   }
@@ -142,13 +139,8 @@ static FeatherResult ns_parent(const FeatherHostOps *ops, FeatherInterp interp, 
 
   // Check if namespace exists
   if (!ops->ns.exists(interp, ns_path)) {
-    size_t path_len;
-    const char *path_str = ops->string.get(interp, ns_path, &path_len);
-
-    // If relative and doesn't exist, try original
+    // If relative and doesn't exist, report error using original name
     FeatherObj original = (argc == 0) ? ns_path : ops->list.at(interp, args, 0);
-    size_t orig_len;
-    const char *orig_str = ops->string.get(interp, original, &orig_len);
 
     FeatherObj msg = ops->string.intern(interp, "namespace \"", 11);
     msg = ops->string.concat(interp, msg, original);
@@ -182,9 +174,7 @@ static FeatherResult ns_delete(const FeatherHostOps *ops, FeatherInterp interp, 
     FeatherObj abs_path = resolve_ns_path(ops, interp, ns_path);
 
     // Check for deleting global namespace
-    size_t len;
-    const char *str = ops->string.get(interp, abs_path, &len);
-    if (len == 2 && str[0] == ':' && str[1] == ':') {
+    if (feather_obj_is_global_ns(ops, interp, abs_path)) {
       FeatherObj msg = ops->string.intern(interp, "cannot delete namespace \"::\"", 28);
       ops->interp.set_result(interp, msg);
       return TCL_ERROR;
@@ -236,11 +226,7 @@ static FeatherResult ns_export(const FeatherHostOps *ops, FeatherInterp interp, 
   // Check for -clear flag
   int clear = 0;
   FeatherObj first = ops->list.at(interp, args, 0);
-  size_t first_len;
-  const char *first_str = ops->string.get(interp, first, &first_len);
-  if (first_len == 6 && first_str[0] == '-' && first_str[1] == 'c' &&
-      first_str[2] == 'l' && first_str[3] == 'e' && first_str[4] == 'a' &&
-      first_str[5] == 'r') {
+  if (feather_obj_eq_literal(ops, interp, first, "-clear")) {
     clear = 1;
     ops->list.shift(interp, args); // consume -clear
     argc--;
@@ -267,27 +253,18 @@ static FeatherResult ns_qualifiers(const FeatherHostOps *ops, FeatherInterp inte
   }
 
   FeatherObj str = ops->list.at(interp, args, 0);
-  size_t len;
-  const char *s = ops->string.get(interp, str, &len);
 
   // Find last :: separator
-  size_t last_sep = 0;
-  int found = 0;
-  for (size_t i = 0; i + 1 < len; i++) {
-    if (s[i] == ':' && s[i + 1] == ':') {
-      last_sep = i;
-      found = 1;
-    }
-  }
+  long last_sep = feather_obj_find_last_colons(ops, interp, str);
 
-  if (!found) {
+  if (last_sep < 0) {
     // No :: in string - return empty string
     ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
     return TCL_OK;
   }
 
   // Return everything before last ::
-  FeatherObj result = ops->string.intern(interp, s, last_sep);
+  FeatherObj result = ops->string.slice(interp, str, 0, (size_t)last_sep);
   ops->interp.set_result(interp, result);
   return TCL_OK;
 }
@@ -301,28 +278,20 @@ static FeatherResult ns_tail(const FeatherHostOps *ops, FeatherInterp interp, Fe
   }
 
   FeatherObj str = ops->list.at(interp, args, 0);
-  size_t len;
-  const char *s = ops->string.get(interp, str, &len);
 
   // Find last :: separator
-  size_t last_sep = 0;
-  int found = 0;
-  for (size_t i = 0; i + 1 < len; i++) {
-    if (s[i] == ':' && s[i + 1] == ':') {
-      last_sep = i;
-      found = 1;
-    }
-  }
+  long last_sep = feather_obj_find_last_colons(ops, interp, str);
 
-  if (!found) {
+  if (last_sep < 0) {
     // No :: in string - return the whole string
     ops->interp.set_result(interp, str);
     return TCL_OK;
   }
 
   // Return everything after last ::
-  size_t start = last_sep + 2;
-  FeatherObj result = ops->string.intern(interp, s + start, len - start);
+  size_t start = (size_t)last_sep + 2;
+  size_t len = ops->string.byte_length(interp, str);
+  FeatherObj result = ops->string.slice(interp, str, start, len);
   ops->interp.set_result(interp, result);
   return TCL_OK;
 }
@@ -341,11 +310,7 @@ static FeatherResult ns_import(const FeatherHostOps *ops, FeatherInterp interp, 
   // Check for -force flag
   int force = 0;
   FeatherObj first = ops->list.at(interp, args, 0);
-  size_t first_len;
-  const char *first_str = ops->string.get(interp, first, &first_len);
-  if (first_len == 6 && first_str[0] == '-' && first_str[1] == 'f' &&
-      first_str[2] == 'o' && first_str[3] == 'r' && first_str[4] == 'c' &&
-      first_str[5] == 'e') {
+  if (feather_obj_eq_literal(ops, interp, first, "-force")) {
     force = 1;
     ops->list.shift(interp, args);
     argc--;
@@ -356,22 +321,13 @@ static FeatherResult ns_import(const FeatherHostOps *ops, FeatherInterp interp, 
   // Process each pattern
   for (size_t i = 0; i < argc; i++) {
     FeatherObj pattern = ops->list.at(interp, args, i);
-    size_t pat_len;
-    const char *pat_str = ops->string.get(interp, pattern, &pat_len);
 
     // Pattern is something like "math::double" or "math::*"
     // Split into namespace and command pattern
     // Find last ::
-    size_t last_sep = 0;
-    int found = 0;
-    for (size_t j = 0; j + 1 < pat_len; j++) {
-      if (pat_str[j] == ':' && pat_str[j + 1] == ':') {
-        last_sep = j;
-        found = 1;
-      }
-    }
+    long last_sep = feather_obj_find_last_colons(ops, interp, pattern);
 
-    if (!found) {
+    if (last_sep < 0) {
       // No :: in pattern - error
       FeatherObj msg = ops->string.intern(interp, "unknown or unexported command \"", 31);
       msg = ops->string.concat(interp, msg, pattern);
@@ -381,8 +337,11 @@ static FeatherResult ns_import(const FeatherHostOps *ops, FeatherInterp interp, 
     }
 
     // Extract namespace path and command pattern
-    FeatherObj srcNs = ops->string.intern(interp, pat_str, last_sep);
-    if (last_sep == 0 && pat_len >= 2 && pat_str[0] == ':' && pat_str[1] == ':') {
+    size_t pat_len = ops->string.byte_length(interp, pattern);
+    FeatherObj srcNs = ops->string.slice(interp, pattern, 0, (size_t)last_sep);
+    if (last_sep == 0 && pat_len >= 2 &&
+        ops->string.byte_at(interp, pattern, 0) == ':' &&
+        ops->string.byte_at(interp, pattern, 1) == ':') {
       // Pattern like "::cmd" means global namespace
       srcNs = ops->string.intern(interp, "::", 2);
     }
@@ -391,13 +350,13 @@ static FeatherResult ns_import(const FeatherHostOps *ops, FeatherInterp interp, 
 
     // Check if source namespace exists
     if (!ops->ns.exists(interp, srcNs)) {
-      // Extract just the namespace name for the error message
-      size_t ns_len;
-      const char *ns_str = ops->string.get(interp, srcNs, &ns_len);
       // Remove leading :: for relative display
       FeatherObj displayNs = srcNs;
-      if (ns_len > 2 && ns_str[0] == ':' && ns_str[1] == ':') {
-        displayNs = ops->string.intern(interp, ns_str + 2, ns_len - 2);
+      size_t ns_len = ops->string.byte_length(interp, srcNs);
+      if (ns_len > 2 &&
+          ops->string.byte_at(interp, srcNs, 0) == ':' &&
+          ops->string.byte_at(interp, srcNs, 1) == ':') {
+        displayNs = ops->string.slice(interp, srcNs, 2, ns_len);
       }
       FeatherObj msg = ops->string.intern(interp, "namespace \"", 11);
       msg = ops->string.concat(interp, msg, displayNs);
@@ -406,38 +365,26 @@ static FeatherResult ns_import(const FeatherHostOps *ops, FeatherInterp interp, 
       return TCL_ERROR;
     }
 
-    FeatherObj cmdPattern = ops->string.intern(interp, pat_str + last_sep + 2, pat_len - last_sep - 2);
-    size_t cmd_pat_len;
-    const char *cmd_pat_str = ops->string.get(interp, cmdPattern, &cmd_pat_len);
+    FeatherObj cmdPattern = ops->string.slice(interp, pattern, (size_t)last_sep + 2, pat_len);
 
     // Get list of commands in source namespace
     FeatherObj srcCmds = ops->ns.list_commands(interp, srcNs);
     size_t numCmds = ops->list.length(interp, srcCmds);
 
     // Check if pattern contains wildcard
-    int has_wildcard = 0;
-    for (size_t j = 0; j < cmd_pat_len; j++) {
-      if (cmd_pat_str[j] == '*' || cmd_pat_str[j] == '?') {
-        has_wildcard = 1;
-        break;
-      }
-    }
+    int has_wildcard = feather_obj_contains_char(ops, interp, cmdPattern, '*') ||
+                       feather_obj_contains_char(ops, interp, cmdPattern, '?');
 
     int matched = 0;
     for (size_t j = 0; j < numCmds; j++) {
       FeatherObj cmdName = ops->list.at(interp, srcCmds, j);
-      size_t cmd_len;
-      const char *cmd_str = ops->string.get(interp, cmdName, &cmd_len);
 
       // Check if command matches pattern
       int matches = 0;
       if (has_wildcard) {
-        matches = feather_glob_match(cmd_pat_str, cmd_pat_len, cmd_str, cmd_len);
+        matches = feather_obj_glob_match(ops, interp, cmdPattern, cmdName);
       } else {
-        matches = (cmd_len == cmd_pat_len);
-        for (size_t k = 0; k < cmd_len && matches; k++) {
-          if (cmd_str[k] != cmd_pat_str[k]) matches = 0;
-        }
+        matches = ops->string.equal(interp, cmdPattern, cmdName);
       }
 
       if (!matches) continue;

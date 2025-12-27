@@ -123,10 +123,6 @@ FeatherResult feather_builtin_switch(const FeatherHostOps *ops, FeatherInterp in
     }
   }
 
-  // Get matchString for glob matching (feather_glob_match requires raw strings)
-  size_t matchLen;
-  const char *matchStr = ops->string.get(interp, matchString, &matchLen);
-
   // Find matching pattern
   FeatherObj bodyToExecute = 0;
   int inFallthrough = 0;
@@ -156,17 +152,13 @@ FeatherResult feather_builtin_switch(const FeatherHostOps *ops, FeatherInterp in
       if (isDefault) {
         matched = 1;
       } else {
-        // Need pattern string for glob/exact matching
-        size_t plen;
-        const char *pstr = ops->string.get(interp, pattern, &plen);
-
         switch (mode) {
           case SWITCH_EXACT:
-            matched = str_eq(matchStr, matchLen, pstr, plen);
+            matched = ops->string.equal(interp, matchString, pattern);
             break;
           case SWITCH_GLOB:
-            // Use feather_glob_match which handles character classes [...]
-            matched = feather_glob_match(pstr, plen, matchStr, matchLen);
+            // Use feather_obj_glob_match which handles character classes [...]
+            matched = feather_obj_glob_match(ops, interp, pattern, matchString);
             break;
           case SWITCH_REGEXP: {
             int result;
