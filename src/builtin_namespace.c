@@ -258,6 +258,75 @@ static FeatherResult ns_export(const FeatherHostOps *ops, FeatherInterp interp, 
   return TCL_OK;
 }
 
+// namespace qualifiers string
+static FeatherResult ns_qualifiers(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
+  if (ops->list.length(interp, args) != 1) {
+    FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"namespace qualifiers string\"", 53);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  FeatherObj str = ops->list.at(interp, args, 0);
+  size_t len;
+  const char *s = ops->string.get(interp, str, &len);
+
+  // Find last :: separator
+  size_t last_sep = 0;
+  int found = 0;
+  for (size_t i = 0; i + 1 < len; i++) {
+    if (s[i] == ':' && s[i + 1] == ':') {
+      last_sep = i;
+      found = 1;
+    }
+  }
+
+  if (!found) {
+    // No :: in string - return empty string
+    ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
+    return TCL_OK;
+  }
+
+  // Return everything before last ::
+  FeatherObj result = ops->string.intern(interp, s, last_sep);
+  ops->interp.set_result(interp, result);
+  return TCL_OK;
+}
+
+// namespace tail string
+static FeatherResult ns_tail(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
+  if (ops->list.length(interp, args) != 1) {
+    FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"namespace tail string\"", 47);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  FeatherObj str = ops->list.at(interp, args, 0);
+  size_t len;
+  const char *s = ops->string.get(interp, str, &len);
+
+  // Find last :: separator
+  size_t last_sep = 0;
+  int found = 0;
+  for (size_t i = 0; i + 1 < len; i++) {
+    if (s[i] == ':' && s[i + 1] == ':') {
+      last_sep = i;
+      found = 1;
+    }
+  }
+
+  if (!found) {
+    // No :: in string - return the whole string
+    ops->interp.set_result(interp, str);
+    return TCL_OK;
+  }
+
+  // Return everything after last ::
+  size_t start = last_sep + 2;
+  FeatherObj result = ops->string.intern(interp, s + start, len - start);
+  ops->interp.set_result(interp, result);
+  return TCL_OK;
+}
+
 // namespace import ?-force? ?pattern pattern ...?
 static FeatherResult ns_import(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
@@ -448,12 +517,16 @@ FeatherResult feather_builtin_namespace(const FeatherHostOps *ops, FeatherInterp
     return ns_export(ops, interp, args);
   } else if (feather_str_eq(subcmd_str, subcmd_len, "import")) {
     return ns_import(ops, interp, args);
+  } else if (feather_str_eq(subcmd_str, subcmd_len, "qualifiers")) {
+    return ns_qualifiers(ops, interp, args);
+  } else if (feather_str_eq(subcmd_str, subcmd_len, "tail")) {
+    return ns_tail(ops, interp, args);
   } else {
     FeatherObj msg = ops->string.intern(interp,
       "bad option \"", 12);
     msg = ops->string.concat(interp, msg, subcmd);
     FeatherObj suffix = ops->string.intern(interp,
-      "\": must be children, current, delete, eval, exists, export, import, or parent", 77);
+      "\": must be children, current, delete, eval, exists, export, import, parent, qualifiers, or tail", 95);
     msg = ops->string.concat(interp, msg, suffix);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;

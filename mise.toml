@@ -11,7 +11,7 @@ go build -o $MISE_CONFIG_ROOT/bin/harness ./cmd/harness
 [tasks."build:feather-tester"]
 description = "Builds the feather-tester binary"
 run = """
-go build -o $MISE_CONFIG_ROOT/bin/feather-tester ./cmd/feather-tester
+go build -a -o $MISE_CONFIG_ROOT/bin/feather-tester ./cmd/feather-tester
 """
 
 [tasks."build:oracle"]

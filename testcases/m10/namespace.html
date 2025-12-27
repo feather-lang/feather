@@ -515,7 +515,7 @@ foo::bar::baz</script>
   <test-case name="namespace unknown subcommand">
     <script>namespace nosuchsubcmd</script>
     <return>TCL_ERROR</return>
-    <error>bad option "nosuchsubcmd": must be children, current, delete, eval, exists, export, import, or parent</error>
+    <error>bad option "nosuchsubcmd": must be children, current, delete, eval, exists, export, import, parent, qualifiers, or tail</error>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
