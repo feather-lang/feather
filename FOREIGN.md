@@ -221,9 +221,9 @@ func (lib *Library) CreateForeign(typeName string, value any) FeatherObj {
 ### Phase 2: Go Host - Low-Level Support
 
 **Files:**
-- `interp/feather.go` - Add foreign fields to Object, implement callbacks
-- `interp/callbacks.go` - Export foreign ops to C
-- `interp/callbacks.c` - C wrapper functions
+- `interp_core.go` - Add foreign fields to Object, implement callbacks
+- `interp_callbacks.go` - Export foreign ops to C
+- `callbacks.c` - C wrapper functions
 
 **Scope:**
 1. Add to `Object` struct:
@@ -239,7 +239,7 @@ func (lib *Library) CreateForeign(typeName string, value any) FeatherObj {
 ### Phase 3: Go Library - High-Level API
 
 **Files:**
-- New package: `feather/` (or extend `interp/`)
+- Root `feather` package (`interp_foreign.go`)
 
 **Scope:**
 1. `DefineType[T]()` - generic type registration with reflection
@@ -261,10 +261,10 @@ func (lib *Library) CreateForeign(typeName string, value any) FeatherObj {
 |------|---------|
 | `src/feather.h` | Add `FeatherForeignOps` struct, add to `FeatherHostOps` |
 | `src/builtins.c` | `info type`, `info methods` subcommands |
-| `interp/feather.go` | Foreign fields in Object, type registry, NewForeign |
-| `interp/callbacks.go` | Implement 6 foreign ops callbacks |
-| `interp/callbacks.c` | C wrappers for foreign ops |
-| `interp/library.go` (new) | High-level DefineType API |
+| `interp_core.go` | Foreign fields in Object, type registry, NewForeign |
+| `interp_callbacks.go` | Implement 6 foreign ops callbacks |
+| `callbacks.c` | C wrappers for foreign ops |
+| `interp_foreign.go` | High-level DefineType/RegisterType API |
 
 ## Object Storage
 

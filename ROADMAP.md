@@ -2,33 +2,35 @@
 
 # Plan: Merge interp Package into Root feather Package
 
-## Goal
+**STATUS: COMPLETED** ✅
 
-Eliminate the `interp` subpackage and wrapper types, giving users direct access
-to `*Obj`, `ObjType`, and the shimmering system from the public `feather` package.
+This migration was completed successfully. The `interp/` package has been
+merged into the root `feather` package.
 
-**Current state:**
-- `interp/` package contains the interpreter implementation with `*Obj`, `ObjType`, etc.
-- Root `feather` package wraps `interp` types with `Object` (handle wrapper)
-- Users import `"github.com/feather-lang/feather"` but can't implement `ObjType`
-- The `Object` wrapper prevents custom shimmering types
+## Summary
 
-**Desired end state:**
-- Single `feather` package with everything
+The migration eliminated the `interp` subpackage and wrapper types, giving users
+direct access to `*Obj`, `ObjType`, and the shimmering system from the public
+`feather` package.
+
+**Final state:**
+- Single `feather` package with all functionality
 - Users can implement `feather.ObjType` for custom shimmering types
 - Direct access to `*feather.Obj` without handle indirection
 - Import path unchanged: `"github.com/feather-lang/feather"`
 - C integration details remain internal (unexported)
 
-**Files involved:**
-- `interp/*.go` → move to root package
-- `interp/*.c` → move to root package
-- `feather.go` → merge/simplify, remove wrapper types
-- `convert.go` → merge with `interp/convert.go`
-- `cmd/*` → update imports
-- `api_test.go`, `feather_test.go` → update to use merged API
+**Key files in root package:**
+- `obj.go` - `*Obj` type and `ObjType` interface
+- `objtype_*.go` - Built-in type implementations (int, double, list, dict, foreign)
+- `interp_core.go` - Interpreter core (`*Interp`, `*InternalInterp`)
+- `interp_callbacks.go` - C callback implementations
+- `interp_convert.go` - Type conversion functions (`AsInt`, `AsList`, etc.)
+- `interp_foreign.go` - Foreign object support (`RegisterType`)
+- `feather.go` - High-level API (`New`, `Register`, convenience methods)
+- `convert.go` - Go ↔ TCL value conversion
 
-**Benefits:**
+**Benefits achieved:**
 - Users can implement custom `ObjType` for shimmering
 - Simpler API without wrapper indirection
 - No `interp` package leaking into type signatures
