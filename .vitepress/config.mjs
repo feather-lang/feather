@@ -29,7 +29,7 @@ export default defineConfig({
       },
       {
         text: "Built-in Commands",
-        collapsed: true,
+        collapsed: false,
         items: [
           { text: "Overview", link: "/commands/" },
           { text: "append", link: "/commands/append" },
