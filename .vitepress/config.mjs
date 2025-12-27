@@ -24,6 +24,8 @@ export default defineConfig({
         items: [
           { text: "Introduction", link: "/introduction" },
           { text: "In 5 Minutes", link: "/in-5-minutes" },
+          { text: "Go", link: "/go" },
+          { text: "Example: Turtle Graphics", link: "/go-turtle" },
           { text: "WASM", link: "/wasm" },
         ],
       },
