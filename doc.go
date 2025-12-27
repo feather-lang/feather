@@ -60,13 +60,13 @@
 //
 // # Foreign Objects
 //
-// Expose Go types as TCL commands using the generic Register function:
+// Expose Go types as TCL commands using RegisterType:
 //
 //	type Counter struct {
 //	    value int
 //	}
 //
-//	feather.Register[*Counter](interp, "Counter", feather.TypeDef[*Counter]{
+//	feather.RegisterType[*Counter](interp, "Counter", feather.TypeDef[*Counter]{
 //	    New: func() *Counter { return &Counter{} },
 //	    Methods: map[string]any{
 //	        "get":  func(c *Counter) int { return c.value },
@@ -81,17 +81,36 @@
 //	// $c incr  ;# returns 11
 //	// $c destroy
 //
-// # Value Interface
+// # Custom Shimmering Types
 //
-// The Value interface provides type-safe access to TCL values:
+// Implement the ObjType interface to create custom types that participate
+// in TCL's shimmering (lazy type conversion) system:
+//
+//	type MyType struct {
+//	    data string
+//	}
+//
+//	func (t *MyType) Name() string { return "mytype" }
+//	func (t *MyType) UpdateString(o *feather.Obj) { o.SetString(t.data) }
+//	func (t *MyType) Dup() feather.ObjType { return &MyType{data: t.data} }
+//
+//	// Create an object with custom internal representation
+//	obj := feather.NewObj(&MyType{data: "hello"})
+//
+// Custom types can also implement conversion interfaces (IntoInt, IntoDouble,
+// IntoList, IntoDict, IntoBool) to participate in automatic type conversion.
+//
+// # Value Access
+//
+// The *Obj type provides type-safe access to TCL values:
 //
 //	result, _ := interp.Eval("list 1 2 3")
 //
 //	// Get as different types
-//	str := result.String()        // "1 2 3"
-//	list, _ := result.List()      // []Value with 3 elements
+//	str := feather.AsString(result)  // "1 2 3"
+//	list, _ := result.List()         // []*Obj with 3 elements
 //	for _, v := range list {
-//	    n, _ := v.Int()           // 1, 2, 3
+//	    n, _ := v.Int()              // 1, 2, 3
 //	}
 //
 // # Supported Type Conversions

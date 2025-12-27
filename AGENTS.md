@@ -27,6 +27,50 @@ commit 6117fd9 MUST be ignored.
 The initial-consultation.md document contains a record of architectural decisions
 during the design phase.
 
+## Go Package Structure
+
+The root `feather` package is the public API. Key types:
+
+- `*Interp` - the interpreter instance
+- `*Obj` - a TCL value (supports shimmering between representations)
+- `ObjType` - interface for custom shimmering types
+- `Result` - command return type (OK or Error)
+
+Users can implement custom `ObjType` for shimmering:
+
+```go
+type MyType struct { data string }
+
+func (t *MyType) Name() string { return "mytype" }
+func (t *MyType) UpdateString(o *feather.Obj) { o.SetString(t.data) }
+func (t *MyType) Dup() feather.ObjType { return &MyType{data: t.data} }
+
+obj := feather.NewObj(&MyType{data: "hello"})
+```
+
+## Shimmering Rules
+
+TCL objects can have multiple representations (string, int, list, etc.).
+"Shimmering" is the lazy conversion between these representations.
+
+**All shimmering logic is centralized in free-standing conversion functions:**
+
+| Function | Conversion |
+|----------|------------|
+| `AsString(o *Obj)` | any → string |
+| `AsInt(o *Obj)` | string → int |
+| `AsList(o *Obj)` | (existing list rep only) |
+| `AsDict(o *Obj)` | (existing dict rep only) |
+| `Interp.ParseList(s)` | string → list (requires parsing) |
+| `Interp.ParseDict(s)` | string → dict (requires parsing) |
+
+**Rules:**
+
+1. Use `As*` functions to convert between representations
+2. String-to-list/dict parsing requires the interpreter (use `Interp.ParseList`/`ParseDict`)
+3. Custom types implement `ObjType` interface for shimmering support
+4. Conversion interfaces (`IntoInt`, `IntoDouble`, etc.) allow custom types to participate in shimmering
+
 ## Tooling
 
 This project uses `mise` to install dependencies, run tasks and manage the environment.

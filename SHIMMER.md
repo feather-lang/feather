@@ -515,7 +515,7 @@ _, err := feather.AsInt(foreign) // fails: no IntoInt, string "<Conn:0x...>" won
 
 ## Integration
 
-This design lives entirely within the Go host (`interp/` package). The C interpreter
+This design lives entirely within the Go host (root `feather` package). The C interpreter
 continues to operate on opaque handles via `FeatherHostOps`.
 
 **Changes required:**
