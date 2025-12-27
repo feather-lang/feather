@@ -1101,11 +1101,8 @@ async function createFeather(wasmSource) {
         // Already a list - just copy
         return interp.store({ type: 'list', items: [...existingObj.items] });
       }
-      // Need to parse string as list - use C's feather_list_parse
-      const str = interp.getString(obj);
-      const [ptr, len] = writeString(str);
-      const listHandle = wasmInstance.exports.feather_list_parse(0, interpId, ptr, len);
-      wasmInstance.exports.free(ptr);
+      // Need to parse string as list - use C's feather_list_parse_obj
+      const listHandle = wasmInstance.exports.feather_list_parse_obj(0, interpId, obj);
 
       if (listHandle === 0) {
         // Parse error - error message already set in interp.result by C code
@@ -1711,12 +1708,14 @@ async function createFeather(wasmSource) {
       const interp = new FeatherInterp(id);
       interpreters.set(id, interp);
 
-      // Inject the C list parser function
+      // Inject the C list parser function (takes string, returns list handle)
       interp._parseListFromC = (str) => {
+        // First intern the string to get a handle
         const [ptr, len] = writeString(str);
-        const result = wasmInstance.exports.feather_list_parse(0, id, ptr, len);
+        const strHandle = hostImports.feather_host_string_intern(id, ptr, len);
         wasmInstance.exports.free(ptr);
-        return result;
+        // Then parse the string object as list
+        return wasmInstance.exports.feather_list_parse_obj(0, id, strHandle);
       };
 
       wasmInstance.exports.feather_interp_init(0, id);

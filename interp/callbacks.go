@@ -9,7 +9,7 @@ package interp
 extern FeatherResult call_feather_eval_obj(FeatherInterp interp, FeatherObj script, FeatherEvalFlags flags);
 extern FeatherParseStatus call_feather_parse(FeatherInterp interp, FeatherObj script);
 extern void call_feather_interp_init(FeatherInterp interp);
-extern FeatherObj call_feather_list_parse(FeatherInterp interp, const char *s, size_t len);
+extern FeatherObj call_feather_list_parse_obj(FeatherInterp interp, FeatherObj str);
 
 // Type for the list comparison callback
 typedef int (*ListCmpFunc)(FeatherInterp interp, FeatherObj a, FeatherObj b, void *ctx);

@@ -1507,38 +1507,7 @@ int feather_glob_match(const char *pattern, size_t pattern_len,
                    const char *string, size_t string_len);
 
 /**
- * feather_is_qualified returns 1 if name contains "::", 0 otherwise.
- */
-int feather_is_qualified(const char *name, size_t len);
-
-/**
- * feather_resolve_variable resolves a variable name to namespace + local parts.
- *
- * Three cases:
- *   1. Unqualified ("x") - no "::" in name
- *      -> ns_out = nil, local_out = "x"
- *      -> Caller uses var.get for frame-local lookup
- *
- *   2. Absolute ("::foo::x") - starts with "::"
- *      -> ns_out = "::foo", local_out = "x"
- *
- *   3. Relative ("foo::x") - contains "::" but doesn't start with it
- *      -> Prepends current namespace from ops->ns.current()
- *      -> If current is "::bar", resolves to ns="::bar::foo", local="x"
- *
- * Returns TCL_OK on success.
- */
-FeatherResult feather_resolve_variable(const FeatherHostOps *ops, FeatherInterp interp,
-                               const char *name, size_t len,
-                               FeatherObj *ns_out, FeatherObj *local_out);
-
-/**
- * feather_list_parse parses a string as a TCL list.
- * (char* based - for backward compatibility)
- *
- * This is the canonical list parsing function. Hosts should call this
- * to convert a string to a list rather than implementing their own
- * list parsing, ensuring consistent behavior across all hosts.
+ * feather_list_parse_obj parses a string object as a TCL list.
  *
  * TCL list syntax:
  *   - Elements separated by whitespace (space, tab, newline)
@@ -1549,13 +1518,6 @@ FeatherResult feather_resolve_variable(const FeatherHostOps *ops, FeatherInterp 
  * Returns a list object containing the parsed elements.
  * On parse error (unmatched brace/quote), returns an incomplete list
  * (parsing stops at the error point).
- */
-FeatherObj feather_list_parse(const FeatherHostOps *ops, FeatherInterp interp,
-                              const char *s, size_t len);
-
-/**
- * feather_list_parse_obj parses a string object as a TCL list.
- * Preferred over feather_list_parse.
  */
 FeatherObj feather_list_parse_obj(const FeatherHostOps *ops, FeatherInterp interp,
                                    FeatherObj s);

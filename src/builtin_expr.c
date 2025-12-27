@@ -23,6 +23,9 @@
  * This parser uses the existing TCL parser for command substitution.
  * String comparison is delegated to the host via ops->string.compare.
  * Math functions are delegated to tcl::mathfunc::name commands.
+ *
+ * This version uses position-based iteration (byte_at, slice) instead of
+ * pointer-based iteration, eliminating ops->string.get() calls.
  */
 
 // ExprValue can be an integer, double, or string (FeatherObj)
@@ -37,13 +40,18 @@ typedef struct {
 typedef struct {
   const FeatherHostOps *ops;
   FeatherInterp interp;
-  FeatherObj expr_obj; // Original expression object (for error messages)
-  const char *pos;     // Current position
-  const char *end;     // End of expression
+  FeatherObj expr_obj; // Expression object
+  size_t len;          // Length of expression in bytes
+  size_t pos;          // Current position (byte index)
   int has_error;
   FeatherObj error_msg;
   int skip_mode;       // When true, skip evaluation (for lazy eval)
 } ExprParser;
+
+// Helper macro for byte access
+#define BYTE_AT(p, i) ((p)->ops->string.byte_at((p)->interp, (p)->expr_obj, (i)))
+#define CUR_BYTE(p) BYTE_AT(p, (p)->pos)
+#define AT_END(p) ((p)->pos >= (p)->len)
 
 // Forward declarations
 static ExprValue parse_ternary(ExprParser *p);
@@ -204,13 +212,13 @@ static int looks_like_float_obj(const FeatherHostOps *ops, FeatherInterp interp,
 }
 
 static void expr_skip_whitespace(ExprParser *p) {
-  while (p->pos < p->end) {
-    char c = *p->pos;
+  while (p->pos < p->len) {
+    int c = CUR_BYTE(p);
     if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
       p->pos++;
     } else if (c == '#') {
       // Comment - skip to end of line or expression
-      while (p->pos < p->end && *p->pos != '\n') {
+      while (p->pos < p->len && CUR_BYTE(p) != '\n') {
         p->pos++;
       }
     } else {
@@ -237,20 +245,7 @@ static void set_syntax_error(ExprParser *p) {
   p->error_msg = msg;
 }
 
-static void set_integer_error(ExprParser *p, const char *start, size_t len) {
-  if (p->has_error) return;
-  p->has_error = 1;
-
-  FeatherObj part1 = p->ops->string.intern(p->interp, "expected integer but got \"", 26);
-  FeatherObj part2 = p->ops->string.intern(p->interp, start, len);
-  FeatherObj part3 = p->ops->string.intern(p->interp, "\"", 1);
-
-  FeatherObj msg = p->ops->string.concat(p->interp, part1, part2);
-  msg = p->ops->string.concat(p->interp, msg, part3);
-  p->error_msg = msg;
-}
-
-// Version of set_integer_error that takes a FeatherObj instead of const char*
+// Version of set_integer_error that takes a FeatherObj
 static void set_integer_error_obj(ExprParser *p, FeatherObj value) {
   if (p->has_error) return;
   p->has_error = 1;
@@ -263,15 +258,14 @@ static void set_integer_error_obj(ExprParser *p, FeatherObj value) {
   p->error_msg = msg;
 }
 
-static void set_bareword_error(ExprParser *p, const char *start, size_t len) {
+static void set_bareword_error_obj(ExprParser *p, FeatherObj word) {
   if (p->has_error) return;
   p->has_error = 1;
 
   FeatherObj part1 = p->ops->string.intern(p->interp, "invalid bareword \"", 18);
-  FeatherObj part2 = p->ops->string.intern(p->interp, start, len);
   FeatherObj part3 = p->ops->string.intern(p->interp, "\"", 1);
 
-  FeatherObj msg = p->ops->string.concat(p->interp, part1, part2);
+  FeatherObj msg = p->ops->string.concat(p->interp, part1, word);
   msg = p->ops->string.concat(p->interp, msg, part3);
   p->error_msg = msg;
 }
@@ -295,26 +289,26 @@ static void set_close_paren_error(ExprParser *p) {
 }
 
 // Check if character is alphanumeric or underscore
-static int is_alnum(char c) {
+static int is_alnum(int c) {
   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
          (c >= '0' && c <= '9') || c == '_';
 }
 
 // Check if we're at a word boundary for keyword matching
-static int match_keyword(ExprParser *p, const char *kw, size_t len) {
-  if ((size_t)(p->end - p->pos) < len) return 0;
-  for (size_t i = 0; i < len; i++) {
-    char c = p->pos[i];
+static int match_keyword(ExprParser *p, const char *kw, size_t kwlen) {
+  if (p->len - p->pos < kwlen) return 0;
+  for (size_t i = 0; i < kwlen; i++) {
+    int c = BYTE_AT(p, p->pos + i);
     if (c >= 'A' && c <= 'Z') c = c - 'A' + 'a';
     if (c != kw[i]) return 0;
   }
   // Ensure not followed by alphanumeric
-  if (p->pos + len < p->end && is_alnum(p->pos[len])) return 0;
+  if (p->pos + kwlen < p->len && is_alnum(BYTE_AT(p, p->pos + kwlen))) return 0;
   return 1;
 }
 
 // Check if character is valid in a variable name (including :: for namespaces)
-static int is_varname_char(char c) {
+static int is_varname_char(int c) {
   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
          (c >= '0' && c <= '9') || c == '_' || c == ':';
 }
@@ -323,21 +317,21 @@ static int is_varname_char(char c) {
 static ExprValue parse_variable(ExprParser *p) {
   p->pos++; // skip $
 
-  if (p->pos >= p->end) {
+  if (AT_END(p)) {
     set_syntax_error(p);
     return make_error();
   }
 
-  const char *name_start;
+  size_t name_start;
   size_t name_len;
 
-  if (*p->pos == '{') {
+  if (CUR_BYTE(p) == '{') {
     p->pos++;
     name_start = p->pos;
-    while (p->pos < p->end && *p->pos != '}') {
+    while (p->pos < p->len && CUR_BYTE(p) != '}') {
       p->pos++;
     }
-    if (p->pos >= p->end) {
+    if (AT_END(p)) {
       set_syntax_error(p);
       return make_error();
     }
@@ -345,7 +339,7 @@ static ExprValue parse_variable(ExprParser *p) {
     p->pos++;
   } else {
     name_start = p->pos;
-    while (p->pos < p->end && is_varname_char(*p->pos)) {
+    while (p->pos < p->len && is_varname_char(CUR_BYTE(p))) {
       p->pos++;
     }
     name_len = p->pos - name_start;
@@ -361,9 +355,12 @@ static ExprValue parse_variable(ExprParser *p) {
     return make_int(0);
   }
 
-  // Resolve the qualified variable name
+  // Extract the variable name as an object
+  FeatherObj name_obj = p->ops->string.slice(p->interp, p->expr_obj, name_start, name_start + name_len);
+
+  // Resolve the qualified variable name using object-based version
   FeatherObj ns, localName;
-  feather_resolve_variable(p->ops, p->interp, name_start, name_len, &ns, &localName);
+  feather_obj_resolve_variable(p->ops, p->interp, name_obj, &ns, &localName);
 
   FeatherObj value;
   if (p->ops->list.is_nil(p->interp, ns)) {
@@ -375,10 +372,9 @@ static ExprValue parse_variable(ExprParser *p) {
   }
 
   if (p->ops->list.is_nil(p->interp, value)) {
-    FeatherObj name = p->ops->string.intern(p->interp, name_start, name_len);
     FeatherObj part1 = p->ops->string.intern(p->interp, "can't read \"", 12);
     FeatherObj part3 = p->ops->string.intern(p->interp, "\": no such variable", 19);
-    FeatherObj msg = p->ops->string.concat(p->interp, part1, name);
+    FeatherObj msg = p->ops->string.concat(p->interp, part1, name_obj);
     msg = p->ops->string.concat(p->interp, msg, part3);
     p->has_error = 1;
     p->error_msg = msg;
@@ -392,15 +388,16 @@ static ExprValue parse_variable(ExprParser *p) {
 static ExprValue parse_command(ExprParser *p) {
   p->pos++; // skip [
 
-  const char *cmd_start = p->pos;
+  size_t cmd_start = p->pos;
   int depth = 1;
 
-  while (p->pos < p->end && depth > 0) {
-    if (*p->pos == '[') {
+  while (p->pos < p->len && depth > 0) {
+    int c = CUR_BYTE(p);
+    if (c == '[') {
       depth++;
-    } else if (*p->pos == ']') {
+    } else if (c == ']') {
       depth--;
-    } else if (*p->pos == '\\' && p->pos + 1 < p->end) {
+    } else if (c == '\\' && p->pos + 1 < p->len) {
       p->pos++;
     }
     if (depth > 0) p->pos++;
@@ -419,8 +416,9 @@ static ExprValue parse_command(ExprParser *p) {
     return make_int(0);
   }
 
-  // Use feather_script_eval to evaluate the command
-  FeatherResult result = feather_script_eval(p->ops, p->interp, cmd_start, cmd_len, TCL_EVAL_LOCAL);
+  // Extract command as object and use object-based eval
+  FeatherObj cmd_obj = p->ops->string.slice(p->interp, p->expr_obj, cmd_start, cmd_start + cmd_len);
+  FeatherResult result = feather_script_eval_obj(p->ops, p->interp, cmd_obj, TCL_EVAL_LOCAL);
   if (result != TCL_OK) {
     p->has_error = 1;
     p->error_msg = p->ops->interp.get_result(p->interp);
@@ -428,8 +426,6 @@ static ExprValue parse_command(ExprParser *p) {
   }
 
   // Try to preserve numeric type from command result.
-  // Check the string representation to distinguish 2 (int) from 2.0 (double).
-  // The string representation preserves the original type from the inner expr.
   FeatherObj result_obj = p->ops->interp.get_result(p->interp);
 
   if (looks_like_float_obj(p->ops, p->interp, result_obj)) {
@@ -449,12 +445,13 @@ static ExprValue parse_command(ExprParser *p) {
 // Parse braced string {...}
 static ExprValue parse_braced(ExprParser *p) {
   p->pos++; // skip {
-  const char *start = p->pos;
+  size_t start = p->pos;
   int depth = 1;
 
-  while (p->pos < p->end && depth > 0) {
-    if (*p->pos == '{') depth++;
-    else if (*p->pos == '}') depth--;
+  while (p->pos < p->len && depth > 0) {
+    int c = CUR_BYTE(p);
+    if (c == '{') depth++;
+    else if (c == '}') depth--;
     p->pos++;
   }
 
@@ -463,31 +460,31 @@ static ExprValue parse_braced(ExprParser *p) {
     return make_error();
   }
 
-  size_t len = p->pos - start - 1;
-  FeatherObj str = p->ops->string.intern(p->interp, start, len);
+  size_t content_len = p->pos - start - 1;
+  FeatherObj str = p->ops->string.slice(p->interp, p->expr_obj, start, start + content_len);
   return make_str(str);
 }
 
 // Parse quoted string "..." with variable and command substitution
 static ExprValue parse_quoted(ExprParser *p) {
   p->pos++; // skip "
-  const char *start = p->pos;
+  size_t start = p->pos;
 
   // Find the closing quote, handling backslash escapes
-  while (p->pos < p->end && *p->pos != '"') {
-    if (*p->pos == '\\' && p->pos + 1 < p->end) {
+  while (p->pos < p->len && CUR_BYTE(p) != '"') {
+    if (CUR_BYTE(p) == '\\' && p->pos + 1 < p->len) {
       p->pos += 2;  // skip backslash and following char
     } else {
       p->pos++;
     }
   }
 
-  if (p->pos >= p->end) {
+  if (AT_END(p)) {
     set_syntax_error(p);
     return make_error();
   }
 
-  size_t len = p->pos - start;
+  size_t content_len = p->pos - start;
   p->pos++; // skip closing "
 
   // In skip mode, just return a dummy value without evaluating
@@ -495,8 +492,9 @@ static ExprValue parse_quoted(ExprParser *p) {
     return make_int(0);
   }
 
-  // Perform substitutions on the quoted content
-  FeatherResult result = feather_subst(p->ops, p->interp, start, len, TCL_SUBST_ALL);
+  // Extract the content and perform substitutions using object-based API
+  FeatherObj content = p->ops->string.slice(p->interp, p->expr_obj, start, start + content_len);
+  FeatherResult result = feather_subst_obj(p->ops, p->interp, content, TCL_SUBST_ALL);
   if (result != TCL_OK) {
     p->has_error = 1;
     p->error_msg = p->ops->interp.get_result(p->interp);
@@ -510,42 +508,47 @@ static ExprValue parse_quoted(ExprParser *p) {
 // Integers: 123, 0x1f, 0b101, 0o17, with optional underscores
 // Floats: 3.14, .5, 5., 1e10, 3.14e-5
 static ExprValue parse_number(ExprParser *p) {
-  const char *start = p->pos;
+  size_t start = p->pos;
   int negative = 0;
 
-  if (*p->pos == '-') {
+  int c = CUR_BYTE(p);
+  if (c == '-') {
     negative = 1;
     p->pos++;
-  } else if (*p->pos == '+') {
+  } else if (c == '+') {
     p->pos++;
   }
 
   // Handle leading decimal point: .5
-  if (p->pos < p->end && *p->pos == '.') {
+  if (p->pos < p->len && CUR_BYTE(p) == '.') {
     p->pos++;
-    if (p->pos >= p->end || *p->pos < '0' || *p->pos > '9') {
-      set_integer_error(p, start, p->pos - start > 0 ? p->pos - start : 1);
+    if (AT_END(p) || CUR_BYTE(p) < '0' || CUR_BYTE(p) > '9') {
+      FeatherObj token = p->ops->string.slice(p->interp, p->expr_obj, start,
+                                              p->pos > start ? p->pos : start + 1);
+      set_integer_error_obj(p, token);
       return make_error();
     }
     // Parse fractional digits
     double frac = 0.0;
     double place = 0.1;
-    while (p->pos < p->end && ((*p->pos >= '0' && *p->pos <= '9') || *p->pos == '_')) {
-      if (*p->pos == '_') { p->pos++; continue; }
-      frac += (*p->pos - '0') * place;
+    while (p->pos < p->len) {
+      c = CUR_BYTE(p);
+      if (c == '_') { p->pos++; continue; }
+      if (c < '0' || c > '9') break;
+      frac += (c - '0') * place;
       place *= 0.1;
       p->pos++;
     }
     double result = frac;
     // Check for exponent
-    if (p->pos < p->end && (*p->pos == 'e' || *p->pos == 'E')) {
+    if (p->pos < p->len && (CUR_BYTE(p) == 'e' || CUR_BYTE(p) == 'E')) {
       p->pos++;
       int exp_neg = 0;
-      if (p->pos < p->end && *p->pos == '-') { exp_neg = 1; p->pos++; }
-      else if (p->pos < p->end && *p->pos == '+') { p->pos++; }
+      if (p->pos < p->len && CUR_BYTE(p) == '-') { exp_neg = 1; p->pos++; }
+      else if (p->pos < p->len && CUR_BYTE(p) == '+') { p->pos++; }
       int64_t exp = 0;
-      while (p->pos < p->end && *p->pos >= '0' && *p->pos <= '9') {
-        exp = exp * 10 + (*p->pos - '0');
+      while (p->pos < p->len && CUR_BYTE(p) >= '0' && CUR_BYTE(p) <= '9') {
+        exp = exp * 10 + (CUR_BYTE(p) - '0');
         p->pos++;
       }
       double mult = 1.0;
@@ -555,17 +558,18 @@ static ExprValue parse_number(ExprParser *p) {
     return make_double(negative ? -result : result);
   }
 
-  if (p->pos >= p->end || (*p->pos < '0' || *p->pos > '9')) {
-    set_integer_error(p, start, p->pos - start > 0 ? p->pos - start : 1);
+  if (AT_END(p) || (CUR_BYTE(p) < '0' || CUR_BYTE(p) > '9')) {
+    FeatherObj token = p->ops->string.slice(p->interp, p->expr_obj, start,
+                                            p->pos > start ? p->pos : start + 1);
+    set_integer_error_obj(p, token);
     return make_error();
   }
 
   int base = 10;
-  int is_float = 0;
 
   // Check for radix prefix (only for integers)
-  if (*p->pos == '0' && p->pos + 1 < p->end) {
-    char next = p->pos[1];
+  if (CUR_BYTE(p) == '0' && p->pos + 1 < p->len) {
+    int next = BYTE_AT(p, p->pos + 1);
     if (next == 'x' || next == 'X') {
       base = 16;
       p->pos += 2;
@@ -580,8 +584,8 @@ static ExprValue parse_number(ExprParser *p) {
 
   // Parse integer part
   int64_t int_value = 0;
-  while (p->pos < p->end) {
-    char c = *p->pos;
+  while (p->pos < p->len) {
+    c = CUR_BYTE(p);
     if (c == '_') { p->pos++; continue; }
     int digit = -1;
     if (c >= '0' && c <= '9') digit = c - '0';
@@ -593,29 +597,30 @@ static ExprValue parse_number(ExprParser *p) {
   }
 
   // Check for decimal point (only base 10)
-  if (base == 10 && p->pos < p->end && *p->pos == '.') {
+  if (base == 10 && p->pos < p->len && CUR_BYTE(p) == '.') {
     // Look ahead to distinguish 5.0 from 5.method()
-    if (p->pos + 1 < p->end && p->pos[1] >= '0' && p->pos[1] <= '9') {
-      is_float = 1;
+    if (p->pos + 1 < p->len && BYTE_AT(p, p->pos + 1) >= '0' && BYTE_AT(p, p->pos + 1) <= '9') {
       p->pos++; // skip .
       double frac = 0.0;
       double place = 0.1;
-      while (p->pos < p->end && ((*p->pos >= '0' && *p->pos <= '9') || *p->pos == '_')) {
-        if (*p->pos == '_') { p->pos++; continue; }
-        frac += (*p->pos - '0') * place;
+      while (p->pos < p->len) {
+        c = CUR_BYTE(p);
+        if (c == '_') { p->pos++; continue; }
+        if (c < '0' || c > '9') break;
+        frac += (c - '0') * place;
         place *= 0.1;
         p->pos++;
       }
       double result = (double)int_value + frac;
       // Check for exponent
-      if (p->pos < p->end && (*p->pos == 'e' || *p->pos == 'E')) {
+      if (p->pos < p->len && (CUR_BYTE(p) == 'e' || CUR_BYTE(p) == 'E')) {
         p->pos++;
         int exp_neg = 0;
-        if (p->pos < p->end && *p->pos == '-') { exp_neg = 1; p->pos++; }
-        else if (p->pos < p->end && *p->pos == '+') { p->pos++; }
+        if (p->pos < p->len && CUR_BYTE(p) == '-') { exp_neg = 1; p->pos++; }
+        else if (p->pos < p->len && CUR_BYTE(p) == '+') { p->pos++; }
         int64_t exp = 0;
-        while (p->pos < p->end && *p->pos >= '0' && *p->pos <= '9') {
-          exp = exp * 10 + (*p->pos - '0');
+        while (p->pos < p->len && CUR_BYTE(p) >= '0' && CUR_BYTE(p) <= '9') {
+          exp = exp * 10 + (CUR_BYTE(p) - '0');
           p->pos++;
         }
         double mult = 1.0;
@@ -627,15 +632,14 @@ static ExprValue parse_number(ExprParser *p) {
   }
 
   // Check for exponent without decimal point (e.g., 1e10) - only base 10
-  if (base == 10 && p->pos < p->end && (*p->pos == 'e' || *p->pos == 'E')) {
-    is_float = 1;
+  if (base == 10 && p->pos < p->len && (CUR_BYTE(p) == 'e' || CUR_BYTE(p) == 'E')) {
     p->pos++;
     int exp_neg = 0;
-    if (p->pos < p->end && *p->pos == '-') { exp_neg = 1; p->pos++; }
-    else if (p->pos < p->end && *p->pos == '+') { p->pos++; }
+    if (p->pos < p->len && CUR_BYTE(p) == '-') { exp_neg = 1; p->pos++; }
+    else if (p->pos < p->len && CUR_BYTE(p) == '+') { p->pos++; }
     int64_t exp = 0;
-    while (p->pos < p->end && *p->pos >= '0' && *p->pos <= '9') {
-      exp = exp * 10 + (*p->pos - '0');
+    while (p->pos < p->len && CUR_BYTE(p) >= '0' && CUR_BYTE(p) <= '9') {
+      exp = exp * 10 + (CUR_BYTE(p) - '0');
       p->pos++;
     }
     double result = (double)int_value;
@@ -649,19 +653,18 @@ static ExprValue parse_number(ExprParser *p) {
 }
 
 // Parse function call: funcname(arg, arg, ...)
-static ExprValue parse_function_call(ExprParser *p, const char *name, size_t name_len) {
+static ExprValue parse_function_call(ExprParser *p, FeatherObj func_name_obj) {
   p->pos++; // skip (
 
   // Build command: tcl::mathfunc::name arg arg ...
   FeatherObj prefix = p->ops->string.intern(p->interp, "tcl::mathfunc::", 15);
-  FeatherObj func_name = p->ops->string.intern(p->interp, name, name_len);
-  FeatherObj full_cmd = p->ops->string.concat(p->interp, prefix, func_name);
+  FeatherObj full_cmd = p->ops->string.concat(p->interp, prefix, func_name_obj);
 
   FeatherObj args = p->ops->list.create(p->interp);
 
   // Parse arguments
   expr_skip_whitespace(p);
-  while (p->pos < p->end && *p->pos != ')') {
+  while (p->pos < p->len && CUR_BYTE(p) != ')') {
     ExprValue arg = parse_ternary(p);
     if (p->has_error) return make_error();
 
@@ -672,13 +675,13 @@ static ExprValue parse_function_call(ExprParser *p, const char *name, size_t nam
     }
 
     expr_skip_whitespace(p);
-    if (p->pos < p->end && *p->pos == ',') {
+    if (p->pos < p->len && CUR_BYTE(p) == ',') {
       p->pos++;
       expr_skip_whitespace(p);
     }
   }
 
-  if (p->pos >= p->end || *p->pos != ')') {
+  if (AT_END(p) || CUR_BYTE(p) != ')') {
     set_paren_error(p);
     return make_error();
   }
@@ -699,7 +702,7 @@ static ExprValue parse_function_call(ExprParser *p, const char *name, size_t nam
     cmd_str = p->ops->string.concat(p->interp, cmd_str, arg);
   }
 
-  // Evaluate the command using the object-based API (avoids string.get)
+  // Evaluate the command using the object-based API
   FeatherResult result = feather_script_eval_obj(p->ops, p->interp, cmd_str, TCL_EVAL_LOCAL);
   if (result != TCL_OK) {
     p->has_error = 1;
@@ -724,16 +727,33 @@ static ExprValue parse_function_call(ExprParser *p, const char *name, size_t nam
   return make_str(result_obj);
 }
 
+// Check if byte at position matches expected byte
+static int byte_matches(ExprParser *p, size_t pos, int expected) {
+  if (pos >= p->len) return 0;
+  return BYTE_AT(p, pos) == expected;
+}
+
+// Case-insensitive comparison of identifier at [start, start+len) with target
+static int ident_equals_ci(ExprParser *p, size_t start, size_t len, const char *target, size_t target_len) {
+  if (len != target_len) return 0;
+  for (size_t i = 0; i < len; i++) {
+    int c = BYTE_AT(p, start + i);
+    if (c >= 'A' && c <= 'Z') c = c - 'A' + 'a';
+    if (c != target[i]) return 0;
+  }
+  return 1;
+}
+
 // Parse primary: number, variable, command, boolean, braced/quoted string, paren, function call
 static ExprValue parse_primary(ExprParser *p) {
   expr_skip_whitespace(p);
 
-  if (p->has_error || p->pos >= p->end) {
+  if (p->has_error || AT_END(p)) {
     if (!p->has_error) set_syntax_error(p);
     return make_error();
   }
 
-  char c = *p->pos;
+  int c = CUR_BYTE(p);
 
   // Parenthesized expression
   if (c == '(') {
@@ -741,7 +761,7 @@ static ExprValue parse_primary(ExprParser *p) {
     ExprValue val = parse_ternary(p);
     if (p->has_error) return make_error();
     expr_skip_whitespace(p);
-    if (p->pos >= p->end || *p->pos != ')') {
+    if (AT_END(p) || CUR_BYTE(p) != ')') {
       set_paren_error(p);
       return make_error();
     }
@@ -771,67 +791,50 @@ static ExprValue parse_primary(ExprParser *p) {
 
   // Number (includes negative numbers and floats starting with .)
   if ((c >= '0' && c <= '9') ||
-      ((c == '-' || c == '+') && p->pos + 1 < p->end &&
-       (p->pos[1] >= '0' && p->pos[1] <= '9' || p->pos[1] == '.')) ||
-      (c == '.' && p->pos + 1 < p->end && p->pos[1] >= '0' && p->pos[1] <= '9')) {
+      ((c == '-' || c == '+') && p->pos + 1 < p->len &&
+       (BYTE_AT(p, p->pos + 1) >= '0' && BYTE_AT(p, p->pos + 1) <= '9' || BYTE_AT(p, p->pos + 1) == '.')) ||
+      (c == '.' && p->pos + 1 < p->len && BYTE_AT(p, p->pos + 1) >= '0' && BYTE_AT(p, p->pos + 1) <= '9')) {
     return parse_number(p);
   }
 
   // Boolean literals and function names (identifiers)
   if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_') {
-    const char *start = p->pos;
-    while (p->pos < p->end && is_alnum(*p->pos)) {
+    size_t start = p->pos;
+    while (p->pos < p->len && is_alnum(CUR_BYTE(p))) {
       p->pos++;
     }
     size_t len = p->pos - start;
 
     // Check for function call
     expr_skip_whitespace(p);
-    if (p->pos < p->end && *p->pos == '(') {
-      return parse_function_call(p, start, len);
+    if (p->pos < p->len && CUR_BYTE(p) == '(') {
+      FeatherObj func_name = p->ops->string.slice(p->interp, p->expr_obj, start, start + len);
+      return parse_function_call(p, func_name);
     }
 
-    // Check for boolean literals
-    if (len == 4 && (start[0] == 't' || start[0] == 'T')) {
-      if ((start[1] == 'r' || start[1] == 'R') &&
-          (start[2] == 'u' || start[2] == 'U') &&
-          (start[3] == 'e' || start[3] == 'E')) {
-        return make_int(1);
-      }
+    // Check for boolean literals (case-insensitive)
+    if (ident_equals_ci(p, start, len, "true", 4)) {
+      return make_int(1);
     }
-    if (len == 5 && (start[0] == 'f' || start[0] == 'F')) {
-      if ((start[1] == 'a' || start[1] == 'A') &&
-          (start[2] == 'l' || start[2] == 'L') &&
-          (start[3] == 's' || start[3] == 'S') &&
-          (start[4] == 'e' || start[4] == 'E')) {
-        return make_int(0);
-      }
+    if (ident_equals_ci(p, start, len, "false", 5)) {
+      return make_int(0);
     }
-    if (len == 3 && (start[0] == 'y' || start[0] == 'Y')) {
-      if ((start[1] == 'e' || start[1] == 'E') &&
-          (start[2] == 's' || start[2] == 'S')) {
-        return make_int(1);
-      }
+    if (ident_equals_ci(p, start, len, "yes", 3)) {
+      return make_int(1);
     }
-    if (len == 2 && (start[0] == 'n' || start[0] == 'N')) {
-      if (start[1] == 'o' || start[1] == 'O') {
-        return make_int(0);
-      }
+    if (ident_equals_ci(p, start, len, "no", 2)) {
+      return make_int(0);
     }
-    if (len == 2 && (start[0] == 'o' || start[0] == 'O')) {
-      if (start[1] == 'n' || start[1] == 'N') {
-        return make_int(1);
-      }
+    if (ident_equals_ci(p, start, len, "on", 2)) {
+      return make_int(1);
     }
-    if (len == 3 && (start[0] == 'o' || start[0] == 'O')) {
-      if ((start[1] == 'f' || start[1] == 'F') &&
-          (start[2] == 'f' || start[2] == 'F')) {
-        return make_int(0);
-      }
+    if (ident_equals_ci(p, start, len, "off", 3)) {
+      return make_int(0);
     }
 
     // Unknown identifier - error
-    set_bareword_error(p, start, len);
+    FeatherObj word = p->ops->string.slice(p->interp, p->expr_obj, start, start + len);
+    set_bareword_error_obj(p, word);
     return make_error();
   }
 
@@ -842,24 +845,25 @@ static ExprValue parse_primary(ExprParser *p) {
   }
 
   // Unknown token
-  const char *start = p->pos;
-  while (p->pos < p->end && !is_alnum(*p->pos) &&
-         *p->pos != ' ' && *p->pos != '\t' && *p->pos != '\n' &&
-         *p->pos != '(' && *p->pos != ')' && *p->pos != '[' && *p->pos != ']') {
+  size_t start = p->pos;
+  while (p->pos < p->len && !is_alnum(CUR_BYTE(p)) &&
+         CUR_BYTE(p) != ' ' && CUR_BYTE(p) != '\t' && CUR_BYTE(p) != '\n' &&
+         CUR_BYTE(p) != '(' && CUR_BYTE(p) != ')' && CUR_BYTE(p) != '[' && CUR_BYTE(p) != ']') {
     p->pos++;
   }
   size_t len = p->pos - start;
   if (len == 0) len = 1;
-  set_integer_error(p, start, len);
+  FeatherObj token = p->ops->string.slice(p->interp, p->expr_obj, start, start + len);
+  set_integer_error_obj(p, token);
   return make_error();
 }
 
 // Check if next char starts a number (digit or decimal point followed by digit)
 static int is_number_start(ExprParser *p) {
-  if (p->pos >= p->end) return 0;
-  char c = *p->pos;
+  if (AT_END(p)) return 0;
+  int c = CUR_BYTE(p);
   if (c >= '0' && c <= '9') return 1;
-  if (c == '.' && p->pos + 1 < p->end && p->pos[1] >= '0' && p->pos[1] <= '9') return 1;
+  if (c == '.' && p->pos + 1 < p->len && BYTE_AT(p, p->pos + 1) >= '0' && BYTE_AT(p, p->pos + 1) <= '9') return 1;
   return 0;
 }
 
@@ -868,12 +872,12 @@ static ExprValue parse_unary(ExprParser *p) {
   expr_skip_whitespace(p);
   if (p->has_error) return make_error();
 
-  if (p->pos < p->end) {
-    char c = *p->pos;
+  if (p->pos < p->len) {
+    int c = CUR_BYTE(p);
 
     // Unary minus (but not if followed by number - that's a negative number literal)
     if (c == '-') {
-      const char *saved = p->pos;
+      size_t saved = p->pos;
       p->pos++;
       if (is_number_start(p)) {
         p->pos = saved;  // Let parse_primary handle it as a negative number
@@ -897,7 +901,7 @@ static ExprValue parse_unary(ExprParser *p) {
 
     // Unary plus
     if (c == '+') {
-      const char *saved = p->pos;
+      size_t saved = p->pos;
       p->pos++;
       if (is_number_start(p)) {
         p->pos = saved;
@@ -955,7 +959,7 @@ static ExprValue parse_exponentiation(ExprParser *p) {
   if (p->has_error) return make_error();
 
   expr_skip_whitespace(p);
-  if (p->pos + 1 < p->end && p->pos[0] == '*' && p->pos[1] == '*') {
+  if (p->pos + 1 < p->len && CUR_BYTE(p) == '*' && BYTE_AT(p, p->pos + 1) == '*') {
     p->pos += 2;
     ExprValue right = parse_exponentiation(p); // right-to-left
     if (p->has_error) return make_error();
@@ -1017,11 +1021,11 @@ static ExprValue parse_multiplicative(ExprParser *p) {
 
   while (1) {
     expr_skip_whitespace(p);
-    if (p->pos >= p->end) break;
+    if (AT_END(p)) break;
 
-    char c = *p->pos;
+    int c = CUR_BYTE(p);
     // Check for ** which is exponentiation, not multiplication
-    if (c == '*' && p->pos + 1 < p->end && p->pos[1] == '*') break;
+    if (c == '*' && p->pos + 1 < p->len && BYTE_AT(p, p->pos + 1) == '*') break;
 
     if (c == '*') {
       p->pos++;
@@ -1120,9 +1124,9 @@ static ExprValue parse_additive(ExprParser *p) {
 
   while (1) {
     expr_skip_whitespace(p);
-    if (p->pos >= p->end) break;
+    if (AT_END(p)) break;
 
-    char c = *p->pos;
+    int c = CUR_BYTE(p);
     if (c == '+') {
       p->pos++;
       ExprValue right = parse_multiplicative(p);
@@ -1198,10 +1202,10 @@ static ExprValue parse_shift(ExprParser *p) {
 
   while (1) {
     expr_skip_whitespace(p);
-    if (p->pos >= p->end) break;
+    if (AT_END(p)) break;
 
     // Left shift <<
-    if (p->pos + 1 < p->end && p->pos[0] == '<' && p->pos[1] == '<') {
+    if (p->pos + 1 < p->len && CUR_BYTE(p) == '<' && BYTE_AT(p, p->pos + 1) == '<') {
       p->pos += 2;
       ExprValue right = parse_additive(p);
       if (p->has_error) return make_error();
@@ -1213,7 +1217,7 @@ static ExprValue parse_shift(ExprParser *p) {
       left = make_int(lv << rv);
     }
     // Right shift >>
-    else if (p->pos + 1 < p->end && p->pos[0] == '>' && p->pos[1] == '>') {
+    else if (p->pos + 1 < p->len && CUR_BYTE(p) == '>' && BYTE_AT(p, p->pos + 1) == '>') {
       p->pos += 2;
       ExprValue right = parse_additive(p);
       if (p->has_error) return make_error();
@@ -1240,9 +1244,9 @@ static ExprValue parse_comparison(ExprParser *p) {
 
   while (1) {
     expr_skip_whitespace(p);
-    if (p->pos >= p->end) break;
+    if (AT_END(p)) break;
 
-    char c = *p->pos;
+    int c = CUR_BYTE(p);
 
     // String comparison operators: lt, le, gt, ge
     if (match_keyword(p, "lt", 2)) {
@@ -1280,7 +1284,7 @@ static ExprValue parse_comparison(ExprParser *p) {
     }
     // Numeric-preferring comparison operators
     // Check for <= (but not <<)
-    else if (c == '<' && p->pos + 1 < p->end && p->pos[1] == '=') {
+    else if (c == '<' && p->pos + 1 < p->len && BYTE_AT(p, p->pos + 1) == '=') {
       p->pos += 2;
       ExprValue right = parse_shift(p);
       if (p->has_error) return make_error();
@@ -1311,7 +1315,7 @@ static ExprValue parse_comparison(ExprParser *p) {
         }
       }
     // Single < but not << (shift is handled by parse_shift)
-    } else if (c == '<' && !(p->pos + 1 < p->end && p->pos[1] == '<')) {
+    } else if (c == '<' && !(p->pos + 1 < p->len && BYTE_AT(p, p->pos + 1) == '<')) {
       p->pos++;
       ExprValue right = parse_shift(p);
       if (p->has_error) return make_error();
@@ -1342,7 +1346,7 @@ static ExprValue parse_comparison(ExprParser *p) {
         }
       }
     // Check for >= (but not >>)
-    } else if (c == '>' && p->pos + 1 < p->end && p->pos[1] == '=') {
+    } else if (c == '>' && p->pos + 1 < p->len && BYTE_AT(p, p->pos + 1) == '=') {
       p->pos += 2;
       ExprValue right = parse_shift(p);
       if (p->has_error) return make_error();
@@ -1373,7 +1377,7 @@ static ExprValue parse_comparison(ExprParser *p) {
         }
       }
     // Single > but not >> (shift is handled by parse_shift)
-    } else if (c == '>' && !(p->pos + 1 < p->end && p->pos[1] == '>')) {
+    } else if (c == '>' && !(p->pos + 1 < p->len && BYTE_AT(p, p->pos + 1) == '>')) {
       p->pos++;
       ExprValue right = parse_shift(p);
       if (p->has_error) return make_error();
@@ -1456,7 +1460,7 @@ static ExprValue parse_equality(ExprParser *p) {
 
   while (1) {
     expr_skip_whitespace(p);
-    if (p->pos >= p->end) break;
+    if (AT_END(p)) break;
 
     // String equality operators: eq, ne
     if (match_keyword(p, "eq", 2)) {
@@ -1477,7 +1481,7 @@ static ExprValue parse_equality(ExprParser *p) {
       left = make_int(cmp != 0 ? 1 : 0);
     }
     // Numeric equality operators (with string fallback)
-    else if (p->pos + 1 < p->end && p->pos[0] == '=' && p->pos[1] == '=') {
+    else if (p->pos + 1 < p->len && CUR_BYTE(p) == '=' && BYTE_AT(p, p->pos + 1) == '=') {
       p->pos += 2;
       ExprValue right = parse_comparison(p);
       if (p->has_error) return make_error();
@@ -1510,7 +1514,7 @@ static ExprValue parse_equality(ExprParser *p) {
           }
         }
       }
-    } else if (p->pos + 1 < p->end && p->pos[0] == '!' && p->pos[1] == '=') {
+    } else if (p->pos + 1 < p->len && CUR_BYTE(p) == '!' && BYTE_AT(p, p->pos + 1) == '=') {
       p->pos += 2;
       ExprValue right = parse_comparison(p);
       if (p->has_error) return make_error();
@@ -1558,10 +1562,10 @@ static ExprValue parse_bitwise_and(ExprParser *p) {
 
   while (1) {
     expr_skip_whitespace(p);
-    if (p->pos >= p->end) break;
+    if (AT_END(p)) break;
 
     // Single & (not &&)
-    if (*p->pos == '&' && (p->pos + 1 >= p->end || p->pos[1] != '&')) {
+    if (CUR_BYTE(p) == '&' && (p->pos + 1 >= p->len || BYTE_AT(p, p->pos + 1) != '&')) {
       p->pos++;
       ExprValue right = parse_equality(p);
       if (p->has_error) return make_error();
@@ -1586,9 +1590,9 @@ static ExprValue parse_bitwise_xor(ExprParser *p) {
 
   while (1) {
     expr_skip_whitespace(p);
-    if (p->pos >= p->end) break;
+    if (AT_END(p)) break;
 
-    if (*p->pos == '^') {
+    if (CUR_BYTE(p) == '^') {
       p->pos++;
       ExprValue right = parse_bitwise_and(p);
       if (p->has_error) return make_error();
@@ -1613,10 +1617,10 @@ static ExprValue parse_bitwise_or(ExprParser *p) {
 
   while (1) {
     expr_skip_whitespace(p);
-    if (p->pos >= p->end) break;
+    if (AT_END(p)) break;
 
     // Single | (not ||)
-    if (*p->pos == '|' && (p->pos + 1 >= p->end || p->pos[1] != '|')) {
+    if (CUR_BYTE(p) == '|' && (p->pos + 1 >= p->len || BYTE_AT(p, p->pos + 1) != '|')) {
       p->pos++;
       ExprValue right = parse_bitwise_xor(p);
       if (p->has_error) return make_error();
@@ -1641,9 +1645,9 @@ static ExprValue parse_logical_and(ExprParser *p) {
 
   while (1) {
     expr_skip_whitespace(p);
-    if (p->pos >= p->end) break;
+    if (AT_END(p)) break;
 
-    if (p->pos + 1 < p->end && p->pos[0] == '&' && p->pos[1] == '&') {
+    if (p->pos + 1 < p->len && CUR_BYTE(p) == '&' && BYTE_AT(p, p->pos + 1) == '&') {
       p->pos += 2;
       int64_t lv;
       if (!get_int(p, &left, &lv)) {
@@ -1684,9 +1688,9 @@ static ExprValue parse_logical_or(ExprParser *p) {
 
   while (1) {
     expr_skip_whitespace(p);
-    if (p->pos >= p->end) break;
+    if (AT_END(p)) break;
 
-    if (p->pos + 1 < p->end && p->pos[0] == '|' && p->pos[1] == '|') {
+    if (p->pos + 1 < p->len && CUR_BYTE(p) == '|' && BYTE_AT(p, p->pos + 1) == '|') {
       p->pos += 2;
       int64_t lv;
       if (!get_int(p, &left, &lv)) {
@@ -1726,7 +1730,7 @@ static ExprValue parse_ternary(ExprParser *p) {
   if (p->has_error) return make_error();
 
   expr_skip_whitespace(p);
-  if (p->pos < p->end && *p->pos == '?') {
+  if (p->pos < p->len && CUR_BYTE(p) == '?') {
     p->pos++;
     int64_t cv;
     if (!get_int(p, &cond, &cv)) {
@@ -1743,7 +1747,7 @@ static ExprValue parse_ternary(ExprParser *p) {
       if (p->has_error) return make_error();
 
       expr_skip_whitespace(p);
-      if (p->pos >= p->end || *p->pos != ':') {
+      if (AT_END(p) || CUR_BYTE(p) != ':') {
         set_syntax_error(p);
         return make_error();
       }
@@ -1761,7 +1765,7 @@ static ExprValue parse_ternary(ExprParser *p) {
       if (p->has_error) return make_error();
 
       expr_skip_whitespace(p);
-      if (p->pos >= p->end || *p->pos != ':') {
+      if (AT_END(p) || CUR_BYTE(p) != ':') {
         set_syntax_error(p);
         return make_error();
       }
@@ -1800,19 +1804,13 @@ FeatherResult feather_builtin_expr(const FeatherHostOps *ops, FeatherInterp inte
     argc--;
   }
 
-  // Get the expression string for parsing
-  // NOTE: We still need string.get for the parser's pointer-based iteration.
-  // A future milestone (byte-at-a-time rewrite) will eliminate this.
-  size_t expr_len;
-  const char *expr_str = ops->string.get(interp, expr_obj, &expr_len);
-
-  // Initialize parser
+  // Initialize parser with position-based iteration (no string.get needed)
   ExprParser parser = {
     .ops = ops,
     .interp = interp,
-    .expr_obj = expr_obj,  // Keep the object for error messages
-    .pos = expr_str,
-    .end = expr_str + expr_len,
+    .expr_obj = expr_obj,
+    .len = ops->string.byte_length(interp, expr_obj),
+    .pos = 0,
     .has_error = 0,
     .error_msg = 0,
     .skip_mode = 0
@@ -1823,8 +1821,8 @@ FeatherResult feather_builtin_expr(const FeatherHostOps *ops, FeatherInterp inte
 
   // Check for trailing content
   expr_skip_whitespace(&parser);
-  if (!parser.has_error && parser.pos < parser.end) {
-    if (*parser.pos == ')') {
+  if (!parser.has_error && parser.pos < parser.len) {
+    if (CUR_BYTE(&parser) == ')') {
       set_close_paren_error(&parser);
     } else {
       set_syntax_error(&parser);

@@ -1,4 +1,5 @@
 #include "feather.h"
+#include "internal.h"
 #include "host.h"
 #include "charclass.h"
 #include "parse_helpers.h"
@@ -1114,13 +1115,6 @@ void feather_parse_init(FeatherParseContext *ctx, const char *script, size_t len
   ctx->script = script;
   ctx->len = len;
   ctx->pos = 0;
-}
-
-FeatherObj feather_list_parse(const FeatherHostOps *ops, FeatherInterp interp,
-                               const char *s, size_t len) {
-  ops = feather_get_ops(ops);
-  FeatherObj str = ops->string.intern(interp, s, len);
-  return feather_list_parse_obj(ops, interp, str);
 }
 
 FeatherResult feather_subst(const FeatherHostOps *ops, FeatherInterp interp,

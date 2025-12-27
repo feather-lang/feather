@@ -6,7 +6,7 @@ package interp
 #include <stdlib.h>
 
 // Implemented in callbacks.c
-extern FeatherObj call_feather_list_parse(FeatherInterp interp, const char *s, size_t len);
+extern FeatherObj call_feather_list_parse_obj(FeatherInterp interp, FeatherObj str);
 */
 import "C"
 
@@ -814,11 +814,9 @@ func (i *Interp) GetList(h FeatherObj) ([]FeatherObj, error) {
 		}
 		return handles, nil
 	}
-	// Shimmer: string → list via C's feather_list_parse
-	str := obj.String()
-	cstr := C.CString(str)
-	defer C.free(unsafe.Pointer(cstr))
-	listHandle := FeatherObj(C.call_feather_list_parse(C.FeatherInterp(i.handle), cstr, C.size_t(len(str))))
+	// Shimmer: string → list via C's feather_list_parse_obj
+	strHandle := i.internString(obj.String())
+	listHandle := FeatherObj(C.call_feather_list_parse_obj(C.FeatherInterp(i.handle), C.FeatherObj(strHandle)))
 
 	// Check for parse error (nil return means error, message in result)
 	if listHandle == 0 {
