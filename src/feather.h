@@ -387,22 +387,30 @@ typedef struct FeatherFrameOps {
 /**
  * FeatherStringOps describes the string operations the host needs to support.
  *
- * Strings are sequences of Unicode codepoints (runes).
+ * Strings are sequences of bytes. The C code never holds pointers into host
+ * memory - all string content stays in the host (Go/JS), managed by the host's
+ * garbage collector.
  *
  * feather is encoding neutral, as strings are managed by the host and all
  * characters with special meaning to the parser are part of ASCII.
  */
 typedef struct FeatherStringOps {
   /**
-   * intern returns a cached value for the given string s,
-   * caching it if not present yet.
+   * byte_at returns the byte at the given index, or -1 if out of bounds.
+   * Index is 0-based. This is the primary way C accesses string content.
    */
-  FeatherObj (*intern)(FeatherInterp interp, const char *s, size_t len);
+  int (*byte_at)(FeatherInterp interp, FeatherObj str, size_t index);
 
   /**
-   * get returns the string representation of an object.
+   * byte_length returns the length of the string in bytes.
    */
-  const char *(*get)(FeatherInterp interp, FeatherObj obj, size_t *len);
+  size_t (*byte_length)(FeatherInterp interp, FeatherObj str);
+
+  /**
+   * slice returns a new string object containing bytes [start, end).
+   * Returns empty string if start >= end or start >= length.
+   */
+  FeatherObj (*slice)(FeatherInterp interp, FeatherObj str, size_t start, size_t end);
 
   /**
    * concat returns a new object whose string value is
@@ -417,6 +425,18 @@ typedef struct FeatherStringOps {
   int (*compare)(FeatherInterp interp, FeatherObj a, FeatherObj b);
 
   /**
+   * equal returns 1 if strings are byte-equal, 0 otherwise.
+   * More efficient than compare when only equality is needed.
+   */
+  int (*equal)(FeatherInterp interp, FeatherObj a, FeatherObj b);
+
+  /**
+   * match tests if string matches a glob pattern.
+   * Returns 1 if matches, 0 otherwise.
+   */
+  int (*match)(FeatherInterp interp, FeatherObj pattern, FeatherObj str, int nocase);
+
+  /**
    * regex_match tests if a string matches a regular expression pattern.
    *
    * Returns TCL_OK and sets *result to 1 if the string matches the pattern,
@@ -425,6 +445,42 @@ typedef struct FeatherStringOps {
    */
   FeatherResult (*regex_match)(FeatherInterp interp, FeatherObj pattern, FeatherObj string,
                            int *result);
+
+  /**
+   * builder_new creates a new string builder with optional initial capacity.
+   */
+  FeatherObj (*builder_new)(FeatherInterp interp, size_t capacity);
+
+  /**
+   * builder_append_byte appends a single byte to the builder.
+   */
+  void (*builder_append_byte)(FeatherInterp interp, FeatherObj builder, int byte);
+
+  /**
+   * builder_append_obj appends another string object's bytes to the builder.
+   */
+  void (*builder_append_obj)(FeatherInterp interp, FeatherObj builder, FeatherObj str);
+
+  /**
+   * builder_finish converts builder to immutable string, returns handle.
+   * The builder handle becomes invalid after this call.
+   */
+  FeatherObj (*builder_finish)(FeatherInterp interp, FeatherObj builder);
+
+  /**
+   * intern returns a cached value for the given string s,
+   * caching it if not present yet.
+   *
+   * DEPRECATED: This will be removed. Use builder operations instead.
+   */
+  FeatherObj (*intern)(FeatherInterp interp, const char *s, size_t len);
+
+  /**
+   * get returns the string representation of an object.
+   *
+   * DEPRECATED: This will be removed. Use byte_at/byte_length instead.
+   */
+  const char *(*get)(FeatherInterp interp, FeatherObj obj, size_t *len);
 } FeatherStringOps;
 
 /**

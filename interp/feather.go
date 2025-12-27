@@ -146,6 +146,10 @@ type Interp struct {
 	cmdTraces      map[string][]TraceEntry // command name -> traces
 	execTraces     map[string][]TraceEntry // command name -> execution traces
 
+	// builders stores string builders for the byte-at-a-time string API.
+	// Used by goStringBuilderNew/AppendByte/AppendObj/Finish.
+	builders map[FeatherObj]*strings.Builder
+
 	// Commands holds registered Go command implementations.
 	// These are dispatched via the unknown handler when the C layer
 	// doesn't find a builtin or proc.
@@ -168,6 +172,7 @@ func NewInterp() *Interp {
 		varTraces:  make(map[string][]TraceEntry),
 		cmdTraces:  make(map[string][]TraceEntry),
 		execTraces: make(map[string][]TraceEntry),
+		builders:   make(map[FeatherObj]*strings.Builder),
 		Commands:   make(map[string]CommandFunc),
 		nextID:     1,
 	}
@@ -1031,6 +1036,24 @@ func (i *Interp) GetVarHandle(name string) FeatherObj {
 
 func getInterp(h C.FeatherInterp) *Interp {
 	return cgo.Handle(h).Value().(*Interp)
+}
+
+// storeBuilder stores a string builder and returns a handle for it.
+func (i *Interp) storeBuilder(b *strings.Builder) FeatherObj {
+	id := i.nextID
+	i.nextID++
+	i.builders[id] = b
+	return id
+}
+
+// getBuilder retrieves a string builder by handle.
+func (i *Interp) getBuilder(h FeatherObj) *strings.Builder {
+	return i.builders[h]
+}
+
+// releaseBuilder removes a builder from storage.
+func (i *Interp) releaseBuilder(h FeatherObj) {
+	delete(i.builders, h)
 }
 
 // Keep unused import to ensure cgo is used

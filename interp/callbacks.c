@@ -28,6 +28,43 @@ static FeatherResult c_string_regex_match(FeatherInterp interp, FeatherObj patte
     return goStringRegexMatch(interp, pattern, string, result);
 }
 
+// New byte-at-a-time string operations (B1: BYTEOPS plan)
+static int c_string_byte_at(FeatherInterp interp, FeatherObj str, size_t index) {
+    return goStringByteAt(interp, str, index);
+}
+
+static size_t c_string_byte_length(FeatherInterp interp, FeatherObj str) {
+    return goStringByteLength(interp, str);
+}
+
+static FeatherObj c_string_slice(FeatherInterp interp, FeatherObj str, size_t start, size_t end) {
+    return goStringSlice(interp, str, start, end);
+}
+
+static int c_string_equal(FeatherInterp interp, FeatherObj a, FeatherObj b) {
+    return goStringEqual(interp, a, b);
+}
+
+static int c_string_match(FeatherInterp interp, FeatherObj pattern, FeatherObj str, int nocase) {
+    return goStringMatch(interp, pattern, str, nocase);
+}
+
+static FeatherObj c_string_builder_new(FeatherInterp interp, size_t capacity) {
+    return goStringBuilderNew(interp, capacity);
+}
+
+static void c_string_builder_append_byte(FeatherInterp interp, FeatherObj builder, int byte) {
+    goStringBuilderAppendByte(interp, builder, byte);
+}
+
+static void c_string_builder_append_obj(FeatherInterp interp, FeatherObj builder, FeatherObj str) {
+    goStringBuilderAppendObj(interp, builder, str);
+}
+
+static FeatherObj c_string_builder_finish(FeatherInterp interp, FeatherObj builder) {
+    return goStringBuilderFinish(interp, builder);
+}
+
 // Rune operations (Unicode-aware)
 static size_t c_rune_length(FeatherInterp interp, FeatherObj str) {
     return goRuneLength(interp, str);
@@ -474,11 +511,20 @@ static const FeatherHostOps* get_host_ops(void) {
     cached_ops.ns.is_exported = c_ns_is_exported;
     cached_ops.ns.copy_command = c_ns_copy_command;
 
-    cached_ops.string.intern = c_string_intern;
-    cached_ops.string.get = c_string_get;
+    cached_ops.string.byte_at = c_string_byte_at;
+    cached_ops.string.byte_length = c_string_byte_length;
+    cached_ops.string.slice = c_string_slice;
     cached_ops.string.concat = c_string_concat;
     cached_ops.string.compare = c_string_compare;
+    cached_ops.string.equal = c_string_equal;
+    cached_ops.string.match = c_string_match;
     cached_ops.string.regex_match = c_string_regex_match;
+    cached_ops.string.builder_new = c_string_builder_new;
+    cached_ops.string.builder_append_byte = c_string_builder_append_byte;
+    cached_ops.string.builder_append_obj = c_string_builder_append_obj;
+    cached_ops.string.builder_finish = c_string_builder_finish;
+    cached_ops.string.intern = c_string_intern;
+    cached_ops.string.get = c_string_get;
 
     cached_ops.rune.length = c_rune_length;
     cached_ops.rune.at = c_rune_at;

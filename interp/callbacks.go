@@ -153,6 +153,133 @@ func goStringRegexMatch(interp C.FeatherInterp, pattern C.FeatherObj, str C.Feat
 	return C.TCL_OK
 }
 
+// New byte-at-a-time string operations (B1: BYTEOPS plan)
+
+//export goStringByteAt
+func goStringByteAt(interp C.FeatherInterp, obj C.FeatherObj, index C.size_t) C.int {
+	i := getInterp(interp)
+	if i == nil {
+		return -1
+	}
+	str := i.GetString(FeatherObj(obj))
+	if int(index) >= len(str) {
+		return -1
+	}
+	return C.int(str[index])
+}
+
+//export goStringByteLength
+func goStringByteLength(interp C.FeatherInterp, obj C.FeatherObj) C.size_t {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	str := i.GetString(FeatherObj(obj))
+	return C.size_t(len(str))
+}
+
+//export goStringSlice
+func goStringSlice(interp C.FeatherInterp, obj C.FeatherObj, start C.size_t, end C.size_t) C.FeatherObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	str := i.GetString(FeatherObj(obj))
+	s, e := int(start), int(end)
+	if s >= len(str) {
+		s = len(str)
+	}
+	if e > len(str) {
+		e = len(str)
+	}
+	if s >= e {
+		return C.FeatherObj(i.internString(""))
+	}
+	return C.FeatherObj(i.internString(str[s:e]))
+}
+
+//export goStringEqual
+func goStringEqual(interp C.FeatherInterp, a C.FeatherObj, b C.FeatherObj) C.int {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	strA := i.GetString(FeatherObj(a))
+	strB := i.GetString(FeatherObj(b))
+	if strA == strB {
+		return 1
+	}
+	return 0
+}
+
+//export goStringMatch
+func goStringMatch(interp C.FeatherInterp, pattern C.FeatherObj, str C.FeatherObj, nocase C.int) C.int {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	patternStr := i.GetString(FeatherObj(pattern))
+	strStr := i.GetString(FeatherObj(str))
+	if nocase != 0 {
+		patternStr = strings.ToLower(patternStr)
+		strStr = strings.ToLower(strStr)
+	}
+	if globMatch(patternStr, strStr) {
+		return 1
+	}
+	return 0
+}
+
+//export goStringBuilderNew
+func goStringBuilderNew(interp C.FeatherInterp, capacity C.size_t) C.FeatherObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	builder := &strings.Builder{}
+	builder.Grow(int(capacity))
+	return C.FeatherObj(i.storeBuilder(builder))
+}
+
+//export goStringBuilderAppendByte
+func goStringBuilderAppendByte(interp C.FeatherInterp, builder C.FeatherObj, b C.int) {
+	i := getInterp(interp)
+	if i == nil {
+		return
+	}
+	bldr := i.getBuilder(FeatherObj(builder))
+	if bldr != nil {
+		bldr.WriteByte(byte(b))
+	}
+}
+
+//export goStringBuilderAppendObj
+func goStringBuilderAppendObj(interp C.FeatherInterp, builder C.FeatherObj, str C.FeatherObj) {
+	i := getInterp(interp)
+	if i == nil {
+		return
+	}
+	bldr := i.getBuilder(FeatherObj(builder))
+	if bldr != nil {
+		bldr.WriteString(i.GetString(FeatherObj(str)))
+	}
+}
+
+//export goStringBuilderFinish
+func goStringBuilderFinish(interp C.FeatherInterp, builder C.FeatherObj) C.FeatherObj {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	bldr := i.getBuilder(FeatherObj(builder))
+	if bldr == nil {
+		return C.FeatherObj(i.internString(""))
+	}
+	result := bldr.String()
+	i.releaseBuilder(FeatherObj(builder))
+	return C.FeatherObj(i.internString(result))
+}
+
 // Rune operations (Unicode-aware)
 
 //export goRuneLength
