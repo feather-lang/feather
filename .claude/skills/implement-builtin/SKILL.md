@@ -96,8 +96,11 @@ go build -a -o bin/feather-tester ./cmd/feather-tester
 # Run new tests
 bin/harness run --host bin/feather-tester testcases/<command>.html
 
-# Run full regression
+# Run full regression (Go host)
 mise test
+
+# Run JS/WASM host tests
+mise test:js
 ```
 
 ### 8. Update Existing Tests If Needed

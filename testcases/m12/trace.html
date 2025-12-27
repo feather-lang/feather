@@ -55,7 +55,7 @@ trace add variable x {read write} myTrace
 trace info variable x</script>
     <return>TCL_OK</return>
     <error></error>
-    <stdout>{read write myTrace}</stdout>
+    <stdout>{{read write} myTrace}</stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
@@ -258,7 +258,7 @@ set ::traceLog</script>
     <script>trace add execution puts {enter leave} myTrace; trace info execution puts</script>
     <return>TCL_OK</return>
     <error></error>
-    <stdout>{enter leave myTrace}</stdout>
+    <stdout>{{enter leave} myTrace}</stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>

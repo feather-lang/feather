@@ -2333,22 +2333,24 @@ func goTraceInfo(interp C.FeatherInterp, kind C.FeatherObj, name C.FeatherObj) C
 		entries = i.execTraces[nameStr]
 	}
 
-	// Build list of {ops... script} sublists as *Obj
-	// Format: each trace is {op1 op2 ... script} where ops are individual elements
+	// Build list of {{ops} script} sublists as *Obj
+	// Format: each trace is {{op1 op2 ...} script} where ops is a sublist
 	items := make([]*Obj, 0, len(entries))
 	for _, entry := range entries {
-		// Split ops into individual elements
-		ops := strings.Fields(entry.ops)
-		subItems := make([]*Obj, 0, len(ops)+1)
-		for _, op := range ops {
-			subItems = append(subItems, NewString(op))
+		// Build ops as a sublist
+		opsList := strings.Fields(entry.ops)
+		opsItems := make([]*Obj, len(opsList))
+		for j, op := range opsList {
+			opsItems[j] = NewString(op)
 		}
+		opsObj := &Obj{intrep: ListType(opsItems)}
+
 		// Add the script at the end (need to wrap the handle)
 		scriptObj := i.getObject(entry.script)
 		if scriptObj == nil {
 			scriptObj = NewString("")
 		}
-		subItems = append(subItems, scriptObj)
+		subItems := []*Obj{opsObj, scriptObj}
 		items = append(items, &Obj{intrep: ListType(subItems)})
 	}
 	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(items)}))

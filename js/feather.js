@@ -1546,12 +1546,12 @@ async function createFeather(wasmSource) {
       const nameStr = interp.getString(name);
       const traces = interp.traces[kindStr]?.get(nameStr) || [];
       const items = traces.map(t => {
-        // Split ops into individual elements, then append script
+        // Build ops as a sublist: {{op1 op2 ...} script}
         const ops = t.ops.split(/\s+/).filter(o => o);
-        const subItems = ops.map(op => interp.store({ type: 'string', value: op }));
-        // t.script is now stored as string, wrap it as a handle
-        subItems.push(interp.store({ type: 'string', value: t.script }));
-        return interp.store({ type: 'list', items: subItems });
+        const opsItems = ops.map(op => interp.store({ type: 'string', value: op }));
+        const opsList = interp.store({ type: 'list', items: opsItems });
+        const scriptHandle = interp.store({ type: 'string', value: t.script });
+        return interp.store({ type: 'list', items: [opsList, scriptHandle] });
       });
       return interp.store({ type: 'list', items });
     },
