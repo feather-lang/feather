@@ -20,28 +20,19 @@ FeatherResult feather_builtin_proc(const FeatherHostOps *ops, FeatherInterp inte
   FeatherObj params = ops->list.shift(interp, args);
   FeatherObj body = ops->list.shift(interp, args);
 
-  // Get the proc name string
-  size_t nameLen;
-  const char *nameStr = ops->string.get(interp, name, &nameLen);
-
   // Determine the fully qualified proc name
   FeatherObj qualifiedName;
-  if (feather_is_qualified(nameStr, nameLen)) {
+  if (feather_obj_is_qualified(ops, interp, name)) {
     // Name is already qualified (starts with :: or contains ::)
     // Use it as-is, but ensure the namespace exists
     // For "::foo::bar::baz", create namespaces ::foo and ::foo::bar
 
     // Find the last :: to split namespace from proc name
-    size_t lastSep = 0;
-    for (size_t i = 0; i + 1 < nameLen; i++) {
-      if (nameStr[i] == ':' && nameStr[i + 1] == ':') {
-        lastSep = i;
-      }
-    }
+    long lastSep = feather_obj_find_last_colons(ops, interp, name);
 
     // Create namespace path if needed (everything before last ::)
     if (lastSep > 0) {
-      FeatherObj nsPath = ops->string.intern(interp, nameStr, lastSep);
+      FeatherObj nsPath = ops->string.slice(interp, name, 0, (size_t)lastSep);
       ops->ns.create(interp, nsPath);
     }
 
@@ -49,13 +40,11 @@ FeatherResult feather_builtin_proc(const FeatherHostOps *ops, FeatherInterp inte
   } else {
     // Unqualified name - prepend current namespace
     FeatherObj currentNs = ops->ns.current(interp);
-    size_t nsLen;
-    const char *nsStr = ops->string.get(interp, currentNs, &nsLen);
 
     // Always store with full namespace path
     // Global namespace (::) -> "::name"
     // Other namespace -> "::ns::name"
-    if (nsLen == 2 && nsStr[0] == ':' && nsStr[1] == ':') {
+    if (feather_obj_is_global_ns(ops, interp, currentNs)) {
       // Global namespace: prepend "::"
       qualifiedName = ops->string.intern(interp, "::", 2);
       qualifiedName = ops->string.concat(interp, qualifiedName, name);
@@ -96,16 +85,10 @@ FeatherResult feather_invoke_proc(const FeatherHostOps *ops, FeatherInterp inter
   // Check if this is a variadic proc (last param is "args")
   int is_variadic = 0;
   if (paramc > 0) {
-    // Create a copy to iterate and check the last one
-    FeatherObj paramsCopy = ops->list.from(interp, params);
-    FeatherObj lastParam = 0;
-    for (size_t i = 0; i < paramc; i++) {
-      lastParam = ops->list.shift(interp, paramsCopy);
-    }
+    // Get the last parameter to check if it's "args"
+    FeatherObj lastParam = ops->list.at(interp, params, paramc - 1);
     if (lastParam != 0) {
-      size_t lastLen;
-      const char *lastStr = ops->string.get(interp, lastParam, &lastLen);
-      is_variadic = feather_is_args_param(lastStr, lastLen);
+      is_variadic = feather_obj_is_args_param(ops, interp, lastParam);
     }
   }
 
@@ -136,16 +119,14 @@ FeatherResult feather_invoke_proc(const FeatherHostOps *ops, FeatherInterp inter
       FeatherObj space = ops->string.intern(interp, " ", 1);
       msg = ops->string.concat(interp, msg, space);
       FeatherObj param = ops->list.shift(interp, paramsCopy);
-      size_t paramLen;
-      const char *paramStr = ops->string.get(interp, param, &paramLen);
 
       // For variadic, show "?arg ...?" instead of "args"
       if (is_variadic && i == paramc - 1) {
         FeatherObj argsHint = ops->string.intern(interp, "?arg ...?", 9);
         msg = ops->string.concat(interp, msg, argsHint);
       } else {
-        FeatherObj paramPart = ops->string.intern(interp, paramStr, paramLen);
-        msg = ops->string.concat(interp, msg, paramPart);
+        // Append the param object directly (no need for string.get)
+        msg = ops->string.concat(interp, msg, param);
       }
     }
 
@@ -164,24 +145,14 @@ FeatherResult feather_invoke_proc(const FeatherHostOps *ops, FeatherInterp inter
   // Set the namespace for this frame based on the proc's qualified name
   // For "::counter::incr", the namespace is "::counter"
   // For "incr", the namespace is "::" (global)
-  size_t nameLen;
-  const char *nameStr = ops->string.get(interp, name, &nameLen);
-
-  if (feather_is_qualified(nameStr, nameLen)) {
+  if (feather_obj_is_qualified(ops, interp, name)) {
     // Find the last :: to extract the namespace part
-    size_t lastSep = 0;
-    int foundSep = 0;
-    for (size_t i = 0; i + 1 < nameLen; i++) {
-      if (nameStr[i] == ':' && nameStr[i + 1] == ':') {
-        lastSep = i;
-        foundSep = 1;
-      }
-    }
-    if (foundSep && lastSep > 0) {
+    long lastSep = feather_obj_find_last_colons(ops, interp, name);
+    if (lastSep > 0) {
       // Namespace is everything before the last ::
-      FeatherObj ns = ops->string.intern(interp, nameStr, lastSep);
+      FeatherObj ns = ops->string.slice(interp, name, 0, (size_t)lastSep);
       ops->frame.set_namespace(interp, ns);
-    } else if (foundSep && lastSep == 0) {
+    } else if (lastSep == 0) {
       // Starts with :: but has no more separators, e.g., "::incr"
       // Namespace is "::" (global)
       FeatherObj globalNs = ops->string.intern(interp, "::", 2);
@@ -248,18 +219,12 @@ FeatherResult feather_invoke_proc(const FeatherHostOps *ops, FeatherInterp inter
       FeatherObj key = ops->list.shift(interp, optsCopy);
       FeatherObj val = ops->list.shift(interp, optsCopy);
 
-      size_t keyLen;
-      const char *keyStr = ops->string.get(interp, key, &keyLen);
-
-      if (keyLen == 5 && keyStr[0] == '-' && keyStr[1] == 'c' &&
-          keyStr[2] == 'o' && keyStr[3] == 'd' && keyStr[4] == 'e') {
+      if (feather_obj_eq_literal(ops, interp, key, "-code")) {
         int64_t intVal;
         if (ops->integer.get(interp, val, &intVal) == TCL_OK) {
           code = (int)intVal;
         }
-      } else if (keyLen == 6 && keyStr[0] == '-' && keyStr[1] == 'l' &&
-                 keyStr[2] == 'e' && keyStr[3] == 'v' && keyStr[4] == 'e' &&
-                 keyStr[5] == 'l') {
+      } else if (feather_obj_eq_literal(ops, interp, key, "-level")) {
         int64_t intVal;
         if (ops->integer.get(interp, val, &intVal) == TCL_OK) {
           level = (int)intVal;

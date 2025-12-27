@@ -119,6 +119,48 @@ static inline int feather_obj_to_bool_literal(const FeatherHostOps *ops, Feather
 }
 
 /**
+ * feather_obj_is_args_param checks if an object equals "args" (variadic param).
+ *
+ * Uses ops->string.equal() for comparison.
+ */
+static inline int feather_obj_is_args_param(const FeatherHostOps *ops, FeatherInterp interp,
+                                            FeatherObj obj) {
+    return feather_obj_eq_literal(ops, interp, obj, "args");
+}
+
+/**
+ * feather_obj_is_global_ns checks if an object equals "::" (global namespace).
+ *
+ * Uses ops->string.equal() for comparison.
+ */
+static inline int feather_obj_is_global_ns(const FeatherHostOps *ops, FeatherInterp interp,
+                                           FeatherObj obj) {
+    return feather_obj_eq_literal(ops, interp, obj, "::");
+}
+
+/**
+ * feather_obj_find_last_colons finds the position of the last "::" in an object.
+ *
+ * Returns the position of the first ':' of the last "::" sequence, or -1 if not found.
+ * Uses byte-at-a-time access.
+ */
+static inline long feather_obj_find_last_colons(const FeatherHostOps *ops, FeatherInterp interp,
+                                                FeatherObj obj) {
+    size_t len = ops->string.byte_length(interp, obj);
+    long lastSep = -1;
+    for (size_t i = 0; i + 1 < len; i++) {
+        int c1 = ops->string.byte_at(interp, obj, i);
+        if (c1 == ':') {
+            int c2 = ops->string.byte_at(interp, obj, i + 1);
+            if (c2 == ':') {
+                lastSep = (long)i;
+            }
+        }
+    }
+    return lastSep;
+}
+
+/**
  * feather_lookup_builtin looks up a builtin command by name.
  * Returns NULL if no builtin with that name exists.
  */

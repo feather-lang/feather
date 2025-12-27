@@ -2,8 +2,19 @@
 #include "internal.h"
 
 // Default split characters (whitespace)
-static int is_default_split_char(char c) {
+static int is_default_split_char(int c) {
   return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+}
+
+// Check if byte c is in splitObj using byte_at()
+static int is_split_char(const FeatherHostOps *ops, FeatherInterp interp,
+                         int c, FeatherObj splitObj, size_t splitLen) {
+  for (size_t j = 0; j < splitLen; j++) {
+    if (ops->string.byte_at(interp, splitObj, j) == c) {
+      return 1;
+    }
+  }
+  return 0;
 }
 
 FeatherResult feather_builtin_split(const FeatherHostOps *ops, FeatherInterp interp,
@@ -19,19 +30,20 @@ FeatherResult feather_builtin_split(const FeatherHostOps *ops, FeatherInterp int
   }
 
   FeatherObj strObj = ops->list.shift(interp, args);
-  size_t strLen;
-  const char *str = ops->string.get(interp, strObj, &strLen);
+  size_t strLen = ops->string.byte_length(interp, strObj);
 
-  const char *splitChars = NULL;
+  FeatherObj splitObj = 0;
   size_t splitLen = 0;
   int emptyDelim = 0;
+  int hasCustomSplit = 0;
 
   if (argc == 2) {
-    FeatherObj splitObj = ops->list.shift(interp, args);
-    splitChars = ops->string.get(interp, splitObj, &splitLen);
+    splitObj = ops->list.shift(interp, args);
+    splitLen = ops->string.byte_length(interp, splitObj);
     if (splitLen == 0) {
       emptyDelim = 1;  // Split into individual characters
     }
+    hasCustomSplit = 1;
   }
 
   FeatherObj result = ops->list.create(interp);
@@ -45,7 +57,7 @@ FeatherResult feather_builtin_split(const FeatherHostOps *ops, FeatherInterp int
   // Split into individual characters
   if (emptyDelim) {
     for (size_t i = 0; i < strLen; i++) {
-      FeatherObj elem = ops->string.intern(interp, str + i, 1);
+      FeatherObj elem = ops->string.slice(interp, strObj, i, i + 1);
       result = ops->list.push(interp, result, elem);
     }
     ops->interp.set_result(interp, result);
@@ -57,23 +69,19 @@ FeatherResult feather_builtin_split(const FeatherHostOps *ops, FeatherInterp int
   for (size_t i = 0; i <= strLen; i++) {
     int isDelim = 0;
     if (i < strLen) {
-      if (splitChars) {
+      int c = ops->string.byte_at(interp, strObj, i);
+      if (hasCustomSplit) {
         // Check if current char is in split chars
-        for (size_t j = 0; j < splitLen; j++) {
-          if (str[i] == splitChars[j]) {
-            isDelim = 1;
-            break;
-          }
-        }
+        isDelim = is_split_char(ops, interp, c, splitObj, splitLen);
       } else {
         // Use default whitespace
-        isDelim = is_default_split_char(str[i]);
+        isDelim = is_default_split_char(c);
       }
     }
 
     if (isDelim || i == strLen) {
       // End of segment
-      FeatherObj elem = ops->string.intern(interp, str + start, i - start);
+      FeatherObj elem = ops->string.slice(interp, strObj, start, i);
       result = ops->list.push(interp, result, elem);
       start = i + 1;
     }

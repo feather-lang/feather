@@ -26,9 +26,6 @@ FeatherResult feather_builtin_eval(const FeatherHostOps *ops, FeatherInterp inte
     script = ops->interp.get_result(interp);
   }
 
-  size_t len;
-  const char *src = ops->string.get(interp, script, &len);
-
   ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
-  return feather_script_eval(ops, interp, src, len, 0);
+  return feather_script_eval_obj(ops, interp, script, 0);
 }
