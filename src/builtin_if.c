@@ -17,24 +17,20 @@ static FeatherResult eval_condition(const FeatherHostOps *ops, FeatherInterp int
 
   FeatherObj resultObj = ops->interp.get_result(interp);
 
-  // Check for boolean literals
-  size_t len;
-  const char *str = ops->string.get(interp, resultObj, &len);
-
-  // Check for true/false/yes/no
-  if (len == 4 && str[0] == 't' && str[1] == 'r' && str[2] == 'u' && str[3] == 'e') {
+  // Check for boolean literals using feather_obj_eq_literal
+  if (feather_obj_eq_literal(ops, interp, resultObj, "true")) {
     *result = 1;
     return TCL_OK;
   }
-  if (len == 5 && str[0] == 'f' && str[1] == 'a' && str[2] == 'l' && str[3] == 's' && str[4] == 'e') {
+  if (feather_obj_eq_literal(ops, interp, resultObj, "false")) {
     *result = 0;
     return TCL_OK;
   }
-  if (len == 3 && str[0] == 'y' && str[1] == 'e' && str[2] == 's') {
+  if (feather_obj_eq_literal(ops, interp, resultObj, "yes")) {
     *result = 1;
     return TCL_OK;
   }
-  if (len == 2 && str[0] == 'n' && str[1] == 'o') {
+  if (feather_obj_eq_literal(ops, interp, resultObj, "no")) {
     *result = 0;
     return TCL_OK;
   }
@@ -46,11 +42,10 @@ static FeatherResult eval_condition(const FeatherHostOps *ops, FeatherInterp int
     return TCL_OK;
   }
 
-  // Invalid boolean expression
+  // Invalid boolean expression - build error message using concat
   FeatherObj part1 = ops->string.intern(interp, "expected boolean value but got \"", 32);
-  FeatherObj part2 = ops->string.intern(interp, str, len);
   FeatherObj part3 = ops->string.intern(interp, "\"", 1);
-  FeatherObj msg = ops->string.concat(interp, part1, part2);
+  FeatherObj msg = ops->string.concat(interp, part1, resultObj);
   msg = ops->string.concat(interp, msg, part3);
   ops->interp.set_result(interp, msg);
   return TCL_ERROR;
@@ -76,9 +71,7 @@ FeatherResult feather_builtin_if(const FeatherHostOps *ops, FeatherInterp interp
     FeatherObj condition = ops->list.shift(interp, argsCopy);
 
     // Check for 'else' keyword
-    size_t condLen;
-    const char *condStr = ops->string.get(interp, condition, &condLen);
-    if (feather_str_eq(condStr, condLen, "else")) {
+    if (feather_obj_eq_literal(ops, interp, condition, "else")) {
       // else clause - must have body
       if (ops->list.length(interp, argsCopy) == 0) {
         FeatherObj msg = ops->string.intern(interp,
@@ -91,7 +84,7 @@ FeatherResult feather_builtin_if(const FeatherHostOps *ops, FeatherInterp interp
     }
 
     // Check for 'elseif' keyword
-    if (feather_str_eq(condStr, condLen, "elseif")) {
+    if (feather_obj_eq_literal(ops, interp, condition, "elseif")) {
       // elseif - get the actual condition
       if (ops->list.length(interp, argsCopy) == 0) {
         FeatherObj msg = ops->string.intern(interp,
@@ -112,10 +105,8 @@ FeatherResult feather_builtin_if(const FeatherHostOps *ops, FeatherInterp interp
 
     // Check for optional 'then' keyword
     FeatherObj next = ops->list.shift(interp, argsCopy);
-    size_t nextLen;
-    const char *nextStr = ops->string.get(interp, next, &nextLen);
     FeatherObj body;
-    if (feather_str_eq(nextStr, nextLen, "then")) {
+    if (feather_obj_eq_literal(ops, interp, next, "then")) {
       // Skip 'then', get body
       if (ops->list.length(interp, argsCopy) == 0) {
         FeatherObj msg = ops->string.intern(interp,

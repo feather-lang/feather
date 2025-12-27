@@ -13,6 +13,19 @@
 int feather_str_eq(const char *s, size_t len, const char *lit);
 
 /**
+ * feather_obj_eq_literal compares a FeatherObj's string representation
+ * against a null-terminated literal using ops->string.equal().
+ *
+ * This avoids calling ops->string.get() for simple string comparisons.
+ * Returns 1 if equal, 0 otherwise.
+ */
+static inline int feather_obj_eq_literal(const FeatherHostOps *ops, FeatherInterp interp,
+                                         FeatherObj obj, const char *lit) {
+    FeatherObj litObj = ops->string.intern(interp, lit, feather_strlen(lit));
+    return ops->string.equal(interp, obj, litObj);
+}
+
+/**
  * feather_lookup_builtin looks up a builtin command by name.
  * Returns NULL if no builtin with that name exists.
  */

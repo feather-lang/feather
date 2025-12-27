@@ -11,14 +11,13 @@ typedef enum {
 
 static int lsearch_compare_nocase(const FeatherHostOps *ops, FeatherInterp interp,
                           FeatherObj a, FeatherObj b) {
-  size_t lenA, lenB;
-  const char *strA = ops->string.get(interp, a, &lenA);
-  const char *strB = ops->string.get(interp, b, &lenB);
+  size_t lenA = ops->string.byte_length(interp, a);
+  size_t lenB = ops->string.byte_length(interp, b);
 
   if (lenA != lenB) return 0;
   for (size_t i = 0; i < lenA; i++) {
-    int ca = feather_char_tolower((unsigned char)strA[i]);
-    int cb = feather_char_tolower((unsigned char)strB[i]);
+    int ca = feather_char_tolower((unsigned char)ops->string.byte_at(interp, a, i));
+    int cb = feather_char_tolower((unsigned char)ops->string.byte_at(interp, b, i));
     if (ca != cb) return 0;
   }
   return 1;
@@ -73,14 +72,8 @@ static int element_matches(const FeatherHostOps *ops, FeatherInterp interp,
       break;
 
     case MATCH_GLOB: {
-      size_t elen, plen;
-      const char *estr = ops->string.get(interp, element, &elen);
-      const char *pstr = ops->string.get(interp, pattern, &plen);
-      if (nocase) {
-        matches = glob_match_nocase(pstr, plen, estr, elen);
-      } else {
-        matches = feather_glob_match(pstr, plen, estr, elen);
-      }
+      // Use host's glob match which supports nocase via the third parameter
+      matches = ops->string.match(interp, pattern, element, nocase);
       break;
     }
 
@@ -118,22 +111,20 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
   // Process options
   while (ops->list.length(interp, args) > 2) {
     FeatherObj arg = ops->list.shift(interp, args);
-    size_t len;
-    const char *str = ops->string.get(interp, arg, &len);
 
-    if (feather_str_eq(str, len, "-exact")) {
+    if (feather_obj_eq_literal(ops, interp, arg, "-exact")) {
       mode = MATCH_EXACT;
-    } else if (feather_str_eq(str, len, "-glob")) {
+    } else if (feather_obj_eq_literal(ops, interp, arg, "-glob")) {
       mode = MATCH_GLOB;
-    } else if (feather_str_eq(str, len, "-regexp")) {
+    } else if (feather_obj_eq_literal(ops, interp, arg, "-regexp")) {
       mode = MATCH_REGEXP;
-    } else if (feather_str_eq(str, len, "-nocase")) {
+    } else if (feather_obj_eq_literal(ops, interp, arg, "-nocase")) {
       nocase = 1;
-    } else if (feather_str_eq(str, len, "-all")) {
+    } else if (feather_obj_eq_literal(ops, interp, arg, "-all")) {
       all = 1;
-    } else if (feather_str_eq(str, len, "-inline")) {
+    } else if (feather_obj_eq_literal(ops, interp, arg, "-inline")) {
       inlineResult = 1;
-    } else if (feather_str_eq(str, len, "-not")) {
+    } else if (feather_obj_eq_literal(ops, interp, arg, "-not")) {
       negate = 1;
     } else {
       FeatherObj msg = ops->string.intern(interp, "bad option \"", 12);

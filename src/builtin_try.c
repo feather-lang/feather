@@ -13,14 +13,12 @@ static int try_parse_code(const FeatherHostOps *ops, FeatherInterp interp, Feath
     return (int)intVal;
   }
 
-  size_t len;
-  const char *str = ops->string.get(interp, codeObj, &len);
-
-  if (feather_str_eq(str, len, "ok")) return 0;
-  if (feather_str_eq(str, len, "error")) return 1;
-  if (feather_str_eq(str, len, "return")) return 2;
-  if (feather_str_eq(str, len, "break")) return 3;
-  if (feather_str_eq(str, len, "continue")) return 4;
+  // Check named codes using feather_obj_eq_literal
+  if (feather_obj_eq_literal(ops, interp, codeObj, "ok")) return 0;
+  if (feather_obj_eq_literal(ops, interp, codeObj, "error")) return 1;
+  if (feather_obj_eq_literal(ops, interp, codeObj, "return")) return 2;
+  if (feather_obj_eq_literal(ops, interp, codeObj, "break")) return 3;
+  if (feather_obj_eq_literal(ops, interp, codeObj, "continue")) return 4;
 
   return -1; // invalid
 }
@@ -65,10 +63,7 @@ static FeatherObj get_errorcode(const FeatherHostOps *ops, FeatherInterp interp,
     FeatherObj key = ops->list.at(interp, optsCopy, i);
     FeatherObj val = ops->list.at(interp, optsCopy, i + 1);
 
-    size_t keyLen;
-    const char *keyStr = ops->string.get(interp, key, &keyLen);
-
-    if (feather_str_eq(keyStr, keyLen, "-errorcode")) {
+    if (feather_obj_eq_literal(ops, interp, key, "-errorcode")) {
       return val;
     }
   }
@@ -78,9 +73,7 @@ static FeatherObj get_errorcode(const FeatherHostOps *ops, FeatherInterp interp,
 
 // Check if a script is the fallthrough marker "-"
 static int is_fallthrough(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj script) {
-  size_t len;
-  const char *str = ops->string.get(interp, script, &len);
-  return len == 1 && str[0] == '-';
+  return feather_obj_eq_literal(ops, interp, script, "-");
 }
 
 FeatherResult feather_builtin_try(const FeatherHostOps *ops, FeatherInterp interp,
@@ -108,22 +101,18 @@ FeatherResult feather_builtin_try(const FeatherHostOps *ops, FeatherInterp inter
   // Check for finally at the end
   if (argc >= 2) {
     FeatherObj lastArg = ops->list.at(interp, args, argc - 1);
-    size_t len;
-    const char *str = ops->string.get(interp, lastArg, &len);
 
     // Check if second-to-last is "finally"
     if (argc >= 3) {
       FeatherObj secondLast = ops->list.at(interp, args, argc - 2);
-      size_t slen;
-      const char *sstr = ops->string.get(interp, secondLast, &slen);
-      if (feather_str_eq(sstr, slen, "finally")) {
+      if (feather_obj_eq_literal(ops, interp, secondLast, "finally")) {
         finallyScript = lastArg;
         handlerEnd = argc - 2;
       }
     }
 
     // Check if last arg itself is "finally" (missing script)
-    if (feather_str_eq(str, len, "finally") && finallyScript == 0) {
+    if (feather_obj_eq_literal(ops, interp, lastArg, "finally") && finallyScript == 0) {
       FeatherObj msg = ops->string.intern(
           interp, S("wrong # args to finally clause: must be \"finally script\""));
       ops->interp.set_result(interp, msg);
@@ -151,15 +140,12 @@ FeatherResult feather_builtin_try(const FeatherHostOps *ops, FeatherInterp inter
         FeatherObj key = ops->list.at(interp, optsCopy, i);
         FeatherObj val = ops->list.at(interp, optsCopy, i + 1);
 
-        size_t keyLen;
-        const char *keyStr = ops->string.get(interp, key, &keyLen);
-
-        if (feather_str_eq(keyStr, keyLen, "-code")) {
+        if (feather_obj_eq_literal(ops, interp, key, "-code")) {
           int64_t intVal;
           if (ops->integer.get(interp, val, &intVal) == TCL_OK) {
             returnCode = (int)intVal;
           }
-        } else if (feather_str_eq(keyStr, keyLen, "-level")) {
+        } else if (feather_obj_eq_literal(ops, interp, key, "-level")) {
           int64_t intVal;
           if (ops->integer.get(interp, val, &intVal) == TCL_OK) {
             level = (int)intVal;
@@ -187,10 +173,8 @@ FeatherResult feather_builtin_try(const FeatherHostOps *ops, FeatherInterp inter
   size_t i = 1;
   while (i < handlerEnd) {
     FeatherObj handlerType = ops->list.at(interp, args, i);
-    size_t typeLen;
-    const char *typeStr = ops->string.get(interp, handlerType, &typeLen);
 
-    if (feather_str_eq(typeStr, typeLen, "on")) {
+    if (feather_obj_eq_literal(ops, interp, handlerType, "on")) {
       // on code variableList script
       if (i + 3 > handlerEnd) {
         FeatherObj msg = ops->string.intern(
@@ -273,7 +257,7 @@ FeatherResult feather_builtin_try(const FeatherHostOps *ops, FeatherInterp inter
       }
 
       i += 4;
-    } else if (feather_str_eq(typeStr, typeLen, "trap")) {
+    } else if (feather_obj_eq_literal(ops, interp, handlerType, "trap")) {
       // trap pattern variableList script
       if (i + 3 > handlerEnd) {
         FeatherObj msg = ops->string.intern(
@@ -350,7 +334,7 @@ FeatherResult feather_builtin_try(const FeatherHostOps *ops, FeatherInterp inter
       }
 
       i += 4;
-    } else if (feather_str_eq(typeStr, typeLen, "finally")) {
+    } else if (feather_obj_eq_literal(ops, interp, handlerType, "finally")) {
       // finally must be at the end - if we got here, it's malformed
       FeatherObj msg = ops->string.intern(
           interp, S("finally clause must be at the end"));

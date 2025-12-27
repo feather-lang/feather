@@ -20,14 +20,13 @@ typedef struct {
 
 static int lsort_compare_nocase(const FeatherHostOps *ops, FeatherInterp interp,
                           FeatherObj a, FeatherObj b) {
-  size_t lenA, lenB;
-  const char *strA = ops->string.get(interp, a, &lenA);
-  const char *strB = ops->string.get(interp, b, &lenB);
+  size_t lenA = ops->string.byte_length(interp, a);
+  size_t lenB = ops->string.byte_length(interp, b);
 
   size_t minLen = lenA < lenB ? lenA : lenB;
   for (size_t i = 0; i < minLen; i++) {
-    int ca = feather_char_tolower((unsigned char)strA[i]);
-    int cb = feather_char_tolower((unsigned char)strB[i]);
+    int ca = feather_char_tolower((unsigned char)ops->string.byte_at(interp, a, i));
+    int cb = feather_char_tolower((unsigned char)ops->string.byte_at(interp, b, i));
     if (ca != cb) return ca - cb;
   }
   if (lenA < lenB) return -1;
@@ -101,23 +100,22 @@ FeatherResult feather_builtin_lsort(const FeatherHostOps *ops, FeatherInterp int
   FeatherObj listObj = 0;
   while (ops->list.length(interp, args) > 0) {
     FeatherObj arg = ops->list.shift(interp, args);
-    size_t len;
-    const char *str = ops->string.get(interp, arg, &len);
 
-    if (len > 0 && str[0] == '-') {
-      if (feather_str_eq(str, len, "-ascii")) {
+    // Check if this is an option (starts with '-')
+    if (ops->string.byte_at(interp, arg, 0) == '-') {
+      if (feather_obj_eq_literal(ops, interp, arg, "-ascii")) {
         ctx.mode = SORT_ASCII;
-      } else if (feather_str_eq(str, len, "-integer")) {
+      } else if (feather_obj_eq_literal(ops, interp, arg, "-integer")) {
         ctx.mode = SORT_INTEGER;
-      } else if (feather_str_eq(str, len, "-real")) {
+      } else if (feather_obj_eq_literal(ops, interp, arg, "-real")) {
         ctx.mode = SORT_REAL;
-      } else if (feather_str_eq(str, len, "-increasing")) {
+      } else if (feather_obj_eq_literal(ops, interp, arg, "-increasing")) {
         ctx.decreasing = 0;
-      } else if (feather_str_eq(str, len, "-decreasing")) {
+      } else if (feather_obj_eq_literal(ops, interp, arg, "-decreasing")) {
         ctx.decreasing = 1;
-      } else if (feather_str_eq(str, len, "-nocase")) {
+      } else if (feather_obj_eq_literal(ops, interp, arg, "-nocase")) {
         ctx.nocase = 1;
-      } else if (feather_str_eq(str, len, "-unique")) {
+      } else if (feather_obj_eq_literal(ops, interp, arg, "-unique")) {
         unique = 1;
       } else {
         FeatherObj msg = ops->string.intern(interp, "bad option \"", 12);

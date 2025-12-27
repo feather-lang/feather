@@ -17,13 +17,10 @@ FeatherResult feather_builtin_incr(const FeatherHostOps *ops, FeatherInterp inte
   // Get current value
   FeatherObj currentVal = ops->var.get(interp, varName);
   if (ops->list.is_nil(interp, currentVal)) {
-    // Variable doesn't exist
-    size_t nameLen;
-    const char *nameStr = ops->string.get(interp, varName, &nameLen);
+    // Variable doesn't exist - build error with original varName object
     FeatherObj part1 = ops->string.intern(interp, "can't read \"", 12);
-    FeatherObj part2 = ops->string.intern(interp, nameStr, nameLen);
     FeatherObj part3 = ops->string.intern(interp, "\": no such variable", 19);
-    FeatherObj msg = ops->string.concat(interp, part1, part2);
+    FeatherObj msg = ops->string.concat(interp, part1, varName);
     msg = ops->string.concat(interp, msg, part3);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
@@ -32,12 +29,10 @@ FeatherResult feather_builtin_incr(const FeatherHostOps *ops, FeatherInterp inte
   // Convert current value to integer
   int64_t current;
   if (ops->integer.get(interp, currentVal, &current) != TCL_OK) {
-    size_t valLen;
-    const char *valStr = ops->string.get(interp, currentVal, &valLen);
+    // Build error with original value object
     FeatherObj part1 = ops->string.intern(interp, "expected integer but got \"", 26);
-    FeatherObj part2 = ops->string.intern(interp, valStr, valLen);
     FeatherObj part3 = ops->string.intern(interp, "\"", 1);
-    FeatherObj msg = ops->string.concat(interp, part1, part2);
+    FeatherObj msg = ops->string.concat(interp, part1, currentVal);
     msg = ops->string.concat(interp, msg, part3);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
@@ -48,12 +43,10 @@ FeatherResult feather_builtin_incr(const FeatherHostOps *ops, FeatherInterp inte
   if (argc == 2) {
     FeatherObj incrVal = ops->list.shift(interp, args);
     if (ops->integer.get(interp, incrVal, &increment) != TCL_OK) {
-      size_t valLen;
-      const char *valStr = ops->string.get(interp, incrVal, &valLen);
+      // Build error with original increment object
       FeatherObj part1 = ops->string.intern(interp, "expected integer but got \"", 26);
-      FeatherObj part2 = ops->string.intern(interp, valStr, valLen);
       FeatherObj part3 = ops->string.intern(interp, "\"", 1);
-      FeatherObj msg = ops->string.concat(interp, part1, part2);
+      FeatherObj msg = ops->string.concat(interp, part1, incrVal);
       msg = ops->string.concat(interp, msg, part3);
       ops->interp.set_result(interp, msg);
       return TCL_ERROR;

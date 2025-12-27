@@ -35,31 +35,29 @@ FeatherResult feather_builtin_switch(const FeatherHostOps *ops, FeatherInterp in
   // Parse options
   while (idx < argc) {
     FeatherObj arg = ops->list.at(interp, args, idx);
-    size_t len;
-    const char *str = ops->string.get(interp, arg, &len);
 
-    if (len == 0 || str[0] != '-') break;
+    // Check if this is an option (starts with '-')
+    if (ops->string.byte_at(interp, arg, 0) != '-') break;
 
-    if (str_eq(str, len, "-exact", 6)) {
+    if (feather_obj_eq_literal(ops, interp, arg, "-exact")) {
       mode = SWITCH_EXACT;
       idx++;
-    } else if (str_eq(str, len, "-glob", 5)) {
+    } else if (feather_obj_eq_literal(ops, interp, arg, "-glob")) {
       mode = SWITCH_GLOB;
       idx++;
-    } else if (str_eq(str, len, "-regexp", 7)) {
+    } else if (feather_obj_eq_literal(ops, interp, arg, "-regexp")) {
       mode = SWITCH_REGEXP;
       idx++;
-    } else if (str_eq(str, len, "--", 2)) {
+    } else if (feather_obj_eq_literal(ops, interp, arg, "--")) {
       idx++;
       break;
     } else {
-      // Unknown option
+      // Unknown option - build error with original object
       FeatherObj msg = ops->string.intern(interp,
           "bad option \"", 12);
-      FeatherObj part2 = ops->string.intern(interp, str, len);
       FeatherObj part3 = ops->string.intern(interp,
           "\": must be -exact, -glob, -regexp, or --", 40);
-      msg = ops->string.concat(interp, msg, part2);
+      msg = ops->string.concat(interp, msg, arg);
       msg = ops->string.concat(interp, msg, part3);
       ops->interp.set_result(interp, msg);
       return TCL_ERROR;
@@ -117,9 +115,7 @@ FeatherResult feather_builtin_switch(const FeatherHostOps *ops, FeatherInterp in
   // Check that 'default' is only used as the last pattern
   for (size_t i = 0; i < numItems - 2; i += 2) {
     FeatherObj pattern = ops->list.at(interp, patternBodyList, i);
-    size_t plen;
-    const char *pstr = ops->string.get(interp, pattern, &plen);
-    if (str_eq(pstr, plen, "default", 7)) {
+    if (feather_obj_eq_literal(ops, interp, pattern, "default")) {
       FeatherObj msg = ops->string.intern(interp,
           "default pattern must be last", 28);
       ops->interp.set_result(interp, msg);
@@ -127,6 +123,7 @@ FeatherResult feather_builtin_switch(const FeatherHostOps *ops, FeatherInterp in
     }
   }
 
+  // Get matchString for glob matching (feather_glob_match requires raw strings)
   size_t matchLen;
   const char *matchStr = ops->string.get(interp, matchString, &matchLen);
 
@@ -138,13 +135,8 @@ FeatherResult feather_builtin_switch(const FeatherHostOps *ops, FeatherInterp in
     FeatherObj pattern = ops->list.at(interp, patternBodyList, i);
     FeatherObj body = ops->list.at(interp, patternBodyList, i + 1);
 
-    size_t plen;
-    const char *pstr = ops->string.get(interp, pattern, &plen);
-
     // Check for fall-through (body is just "-")
-    size_t blen;
-    const char *bstr = ops->string.get(interp, body, &blen);
-    int isFallthrough = (blen == 1 && bstr[0] == '-');
+    int isFallthrough = feather_obj_eq_literal(ops, interp, body, "-");
 
     // Check if last pattern has fall-through (error)
     if (isFallthrough && i + 2 >= numItems) {
@@ -159,16 +151,21 @@ FeatherResult feather_builtin_switch(const FeatherHostOps *ops, FeatherInterp in
 
     if (!matched) {
       // Check for default pattern
-      int isDefault = str_eq(pstr, plen, "default", 7);
+      int isDefault = feather_obj_eq_literal(ops, interp, pattern, "default");
 
       if (isDefault) {
         matched = 1;
       } else {
+        // Need pattern string for glob/exact matching
+        size_t plen;
+        const char *pstr = ops->string.get(interp, pattern, &plen);
+
         switch (mode) {
           case SWITCH_EXACT:
             matched = str_eq(matchStr, matchLen, pstr, plen);
             break;
           case SWITCH_GLOB:
+            // Use feather_glob_match which handles character classes [...]
             matched = feather_glob_match(pstr, plen, matchStr, matchLen);
             break;
           case SWITCH_REGEXP: {

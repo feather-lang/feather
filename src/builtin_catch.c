@@ -42,18 +42,12 @@ FeatherResult feather_builtin_catch(const FeatherHostOps *ops, FeatherInterp int
       FeatherObj key = ops->list.shift(interp, optsCopy);
       FeatherObj val = ops->list.shift(interp, optsCopy);
 
-      size_t keyLen;
-      const char *keyStr = ops->string.get(interp, key, &keyLen);
-
-      if (keyLen == 5 && keyStr[0] == '-' && keyStr[1] == 'c' &&
-          keyStr[2] == 'o' && keyStr[3] == 'd' && keyStr[4] == 'e') {
+      if (feather_obj_eq_literal(ops, interp, key, "-code")) {
         int64_t intVal;
         if (ops->integer.get(interp, val, &intVal) == TCL_OK) {
           returnCode = (int)intVal;
         }
-      } else if (keyLen == 6 && keyStr[0] == '-' && keyStr[1] == 'l' &&
-                 keyStr[2] == 'e' && keyStr[3] == 'v' && keyStr[4] == 'e' &&
-                 keyStr[5] == 'l') {
+      } else if (feather_obj_eq_literal(ops, interp, key, "-level")) {
         int64_t intVal;
         if (ops->integer.get(interp, val, &intVal) == TCL_OK) {
           level = (int)intVal;

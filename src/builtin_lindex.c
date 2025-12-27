@@ -17,12 +17,10 @@ FeatherResult feather_builtin_lindex(const FeatherHostOps *ops, FeatherInterp in
   // Convert index to integer
   int64_t index;
   if (ops->integer.get(interp, indexObj, &index) != TCL_OK) {
-    size_t valLen;
-    const char *valStr = ops->string.get(interp, indexObj, &valLen);
+    // Build error message using concat with original object
     FeatherObj part1 = ops->string.intern(interp, "expected integer but got \"", 26);
-    FeatherObj part2 = ops->string.intern(interp, valStr, valLen);
     FeatherObj part3 = ops->string.intern(interp, "\"", 1);
-    FeatherObj msg = ops->string.concat(interp, part1, part2);
+    FeatherObj msg = ops->string.concat(interp, part1, indexObj);
     msg = ops->string.concat(interp, msg, part3);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;

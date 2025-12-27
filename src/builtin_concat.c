@@ -1,9 +1,9 @@
 #include "feather.h"
 #include "internal.h"
 
-// Helper to check if char is whitespace
-static int concat_is_whitespace(char c) {
-  return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+// Helper to check if byte is whitespace
+static int concat_is_whitespace(int ch) {
+  return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r';
 }
 
 FeatherResult feather_builtin_concat(const FeatherHostOps *ops, FeatherInterp interp,
@@ -23,21 +23,21 @@ FeatherResult feather_builtin_concat(const FeatherHostOps *ops, FeatherInterp in
 
   for (size_t i = 0; i < argc; i++) {
     FeatherObj arg = ops->list.shift(interp, args);
-    size_t len;
-    const char *str = ops->string.get(interp, arg, &len);
+    size_t len = ops->string.byte_length(interp, arg);
 
-    // Trim leading whitespace
+    // Trim leading whitespace using byte_at
     size_t start = 0;
-    while (start < len && concat_is_whitespace(str[start])) start++;
+    while (start < len && concat_is_whitespace(ops->string.byte_at(interp, arg, start))) start++;
 
     // Trim trailing whitespace
     size_t end = len;
-    while (end > start && concat_is_whitespace(str[end - 1])) end--;
+    while (end > start && concat_is_whitespace(ops->string.byte_at(interp, arg, end - 1))) end--;
 
     // Skip empty segments
     if (start >= end) continue;
 
-    FeatherObj trimmed = ops->string.intern(interp, str + start, end - start);
+    // Use slice to extract trimmed portion
+    FeatherObj trimmed = ops->string.slice(interp, arg, start, end);
 
     if (ops->list.is_nil(interp, result) || result == 0) {
       result = trimmed;

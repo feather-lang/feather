@@ -18,11 +18,9 @@ FeatherResult feather_builtin_join(const FeatherHostOps *ops, FeatherInterp inte
   size_t listLen = ops->list.length(interp, list);
 
   // Default separator is space
-  const char *sep = " ";
-  size_t sepLen = 1;
+  FeatherObj sepObj = ops->string.intern(interp, " ", 1);
   if (argc == 2) {
-    FeatherObj sepObj = ops->list.shift(interp, args);
-    sep = ops->string.get(interp, sepObj, &sepLen);
+    sepObj = ops->list.shift(interp, args);
   }
 
   // Handle empty list
@@ -39,7 +37,6 @@ FeatherResult feather_builtin_join(const FeatherHostOps *ops, FeatherInterp inte
 
   // Build result by concatenating elements with separator
   FeatherObj result = ops->list.at(interp, list, 0);
-  FeatherObj sepObj = ops->string.intern(interp, sep, sepLen);
 
   for (size_t i = 1; i < listLen; i++) {
     result = ops->string.concat(interp, result, sepObj);

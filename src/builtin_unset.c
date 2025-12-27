@@ -18,13 +18,11 @@ FeatherResult feather_builtin_unset(const FeatherHostOps *ops, FeatherInterp int
   // Check for -nocomplain option
   while (ops->list.length(interp, args) > 0) {
     FeatherObj first = ops->list.at(interp, args, 0);
-    size_t len;
-    const char *str = ops->string.get(interp, first, &len);
 
-    if (feather_str_eq(str, len, "-nocomplain")) {
+    if (feather_obj_eq_literal(ops, interp, first, "-nocomplain")) {
       nocomplain = 1;
       ops->list.shift(interp, args);
-    } else if (feather_str_eq(str, len, "--")) {
+    } else if (feather_obj_eq_literal(ops, interp, first, "--")) {
       ops->list.shift(interp, args);
       break;
     } else {
