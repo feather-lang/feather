@@ -78,8 +78,6 @@ package feather
 import (
 	"fmt"
 	"strings"
-
-	"github.com/feather-lang/feather/interp"
 )
 
 // Object represents a TCL value.
@@ -93,8 +91,8 @@ import (
 //
 // The zero value is a nil object; most methods return zero/empty values for nil objects.
 type Object struct {
-	i *interp.Interp
-	h interp.FeatherObj
+	i *InternalInterp
+	h FeatherObj
 }
 
 // String returns the string representation of the object.
@@ -368,7 +366,7 @@ func (o Object) Keys() []string {
 //	defer interp.Close()
 //	result, err := interp.Eval("expr 2 + 2")
 type Interp struct {
-	i *interp.Interp
+	i *InternalInterp
 }
 
 // New creates a new TCL interpreter with all standard commands registered.
@@ -380,7 +378,7 @@ type Interp struct {
 //	defer interp.Close()
 func New() *Interp {
 	return &Interp{
-		i: interp.NewInterp(),
+		i: NewInternalInterp(),
 	}
 }
 
@@ -549,7 +547,7 @@ func (i *Interp) DictFrom(m map[string]any) Object {
 
 // anyToHandle converts any Go value to an internal object handle.
 // Used internally for auto-conversion in SetVar, DictKV, etc.
-func (i *Interp) anyToHandle(v any) interp.FeatherObj {
+func (i *Interp) anyToHandle(v any) FeatherObj {
 	switch val := v.(type) {
 	case string:
 		return i.i.InternString(val)
@@ -709,19 +707,19 @@ type CommandFunc func(i *Interp, cmd Object, args []Object) Result
 //	    return feather.OK(a + b)
 //	})
 func (i *Interp) RegisterCommand(name string, fn CommandFunc) {
-	i.i.Register(name, func(ii *interp.Interp, cmd interp.FeatherObj, args []interp.FeatherObj) interp.FeatherResult {
+	i.i.Register(name, func(ii *InternalInterp, cmd FeatherObj, args []FeatherObj) FeatherResult {
 		objArgs := make([]Object, len(args))
 		for j, h := range args {
 			objArgs[j] = Object{ii, h}
 		}
 		r := fn(i, Object{ii, cmd}, objArgs)
 		if r.isObj && r.obj != nil {
-			if r.code == interp.ResultError {
+			if r.code == ResultError {
 				ii.SetError(r.obj.h)
 			} else {
 				ii.SetResult(r.obj.h)
 			}
-		} else if r.code == interp.ResultError {
+		} else if r.code == ResultError {
 			ii.SetErrorString(r.val)
 		} else {
 			ii.SetResultString(r.val)
@@ -786,13 +784,13 @@ func (i *Interp) Register(name string, fn any) {
 //	    return feather.Errorf("unknown command: %s", cmd.String())
 //	})
 func (i *Interp) SetUnknownHandler(fn CommandFunc) {
-	i.i.SetUnknownHandler(func(ii *interp.Interp, cmd interp.FeatherObj, args []interp.FeatherObj) interp.FeatherResult {
+	i.i.SetUnknownHandler(func(ii *InternalInterp, cmd FeatherObj, args []FeatherObj) FeatherResult {
 		objArgs := make([]Object, len(args))
 		for j, h := range args {
 			objArgs[j] = Object{ii, h}
 		}
 		r := fn(i, Object{ii, cmd}, objArgs)
-		if r.code == interp.ResultError {
+		if r.code == ResultError {
 			ii.SetErrorString(r.val)
 		} else {
 			ii.SetResultString(r.val)
@@ -822,11 +820,11 @@ func (i *Interp) Parse(script string) ParseResult {
 	}
 }
 
-// Internal returns the underlying interp.Interp for advanced usage.
+// Internal returns the underlying InternalInterp for advanced usage.
 //
 // This is an escape hatch for accessing features not yet exposed in the
 // public API. Use with caution; the internal API may change.
-func (i *Interp) Internal() *interp.Interp {
+func (i *Interp) Internal() *InternalInterp {
 	return i.i
 }
 
@@ -838,10 +836,10 @@ func (i *Interp) Internal() *interp.Interp {
 //
 // Create results using [OK], [OKObj], [Error], [ErrorObj], or [Errorf].
 type Result struct {
-	code  interp.FeatherResult
-	val   string        // used when obj is nil
-	obj   *Object       // used when non-nil (preserves type)
-	isObj bool          // true if obj should be used
+	code  FeatherResult
+	val   string  // used when obj is nil
+	obj   *Object // used when non-nil (preserves type)
+	isObj bool    // true if obj should be used
 }
 
 // OK returns a successful result with a value.
@@ -853,7 +851,7 @@ type Result struct {
 //	return feather.OK(42)
 //	return feather.OK([]string{"a", "b"})
 func OK(v any) Result {
-	return Result{code: interp.ResultOK, val: toTclString(v)}
+	return Result{code: ResultOK, val: toTclString(v)}
 }
 
 // OKObj returns a successful result with an Object, preserving its internal type.
@@ -864,14 +862,14 @@ func OK(v any) Result {
 //	list := interp.List(interp.String("a"), interp.String("b"))
 //	return feather.OKObj(list)
 func OKObj(obj Object) Result {
-	return Result{code: interp.ResultOK, obj: &obj, isObj: true}
+	return Result{code: ResultOK, obj: &obj, isObj: true}
 }
 
 // Error returns an error result with a message.
 //
 //	return feather.Error("something went wrong")
 func Error(msg string) Result {
-	return Result{code: interp.ResultError, val: msg}
+	return Result{code: ResultError, val: msg}
 }
 
 // ErrorObj returns an error result with an Object, preserving its internal type.
@@ -881,14 +879,14 @@ func Error(msg string) Result {
 //	errDict := interp.DictKV("code", "404", "message", "not found")
 //	return feather.ErrorObj(errDict)
 func ErrorObj(obj Object) Result {
-	return Result{code: interp.ResultError, obj: &obj, isObj: true}
+	return Result{code: ResultError, obj: &obj, isObj: true}
 }
 
 // Errorf returns a formatted error result.
 //
 //	return feather.Errorf("expected %d args, got %d", want, got)
 func Errorf(format string, args ...any) Result {
-	return Result{code: interp.ResultError, val: fmt.Sprintf(format, args...)}
+	return Result{code: ResultError, val: fmt.Sprintf(format, args...)}
 }
 
 // -----------------------------------------------------------------------------
@@ -900,13 +898,13 @@ type ParseStatus int
 
 const (
 	// ParseOK indicates the script is syntactically complete and valid.
-	ParseOK ParseStatus = ParseStatus(interp.ParseOK)
+	ParseOK ParseStatus = ParseStatus(InternalParseOK)
 
 	// ParseIncomplete indicates the script has unclosed braces, brackets, or quotes.
-	ParseIncomplete ParseStatus = ParseStatus(interp.ParseIncomplete)
+	ParseIncomplete ParseStatus = ParseStatus(InternalParseIncomplete)
 
 	// ParseError indicates a syntax error in the script.
-	ParseError ParseStatus = ParseStatus(interp.ParseError)
+	ParseError ParseStatus = ParseStatus(InternalParseError)
 )
 
 // ParseResult holds the result of parsing a script.
@@ -970,9 +968,9 @@ type TypeDef[T any] struct {
 //	// $c set 10
 //	// $c incr  ;# returns 11
 func RegisterType[T any](fi *Interp, name string, def TypeDef[T]) error {
-	return interp.DefineType[T](fi.i, name, interp.ForeignTypeDef[T]{
+	return DefineType[T](fi.i, name, ForeignTypeDef[T]{
 		New:       def.New,
-		Methods:   interp.Methods(def.Methods),
+		Methods:   Methods(def.Methods),
 		StringRep: def.String,
 		Destroy:   def.Destroy,
 	})

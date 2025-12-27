@@ -269,6 +269,12 @@ func (i *InternalInterp) Handle() FeatherInterp {
 	return i.handle
 }
 
+// Parse parses a script string and returns the parse status and result.
+// This is a convenience alias for ParseInternal.
+func (i *InternalInterp) Parse(script string) ParseResultInternal {
+	return i.ParseInternal(script)
+}
+
 // ParseInternal parses a script string and returns the parse status and result.
 func (i *InternalInterp) ParseInternal(script string) ParseResultInternal {
 	scriptHandle := i.internString(script)

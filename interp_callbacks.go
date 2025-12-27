@@ -642,7 +642,7 @@ func goListSetAt(interp C.FeatherInterp, list C.FeatherObj, index C.size_t, valu
 	if valueObj == nil {
 		return C.TCL_ERROR
 	}
-	ListSet(o, idx, valueObj)
+	ObjListSet(o, idx, valueObj)
 
 	return C.TCL_OK
 }
@@ -836,7 +836,7 @@ func goDictGet(interp C.FeatherInterp, dict C.FeatherObj, key C.FeatherObj) C.Fe
 	}
 	// Try direct dict access first
 	keyStr := i.GetString(FeatherObj(key))
-	if val, ok := DictGet(o, keyStr); ok {
+	if val, ok := ObjDictGet(o, keyStr); ok {
 		return C.FeatherObj(i.registerObj(val))
 	}
 	// Try shimmering if needed
@@ -872,7 +872,7 @@ func goDictSet(interp C.FeatherInterp, dict C.FeatherObj, key C.FeatherObj, valu
 	if valueObj == nil {
 		return 0
 	}
-	DictSet(o, keyStr, valueObj)
+	ObjDictSet(o, keyStr, valueObj)
 	return dict
 }
 
@@ -2174,7 +2174,7 @@ func goNsSetCommand(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherO
 	ns := i.ensureNamespace(pathStr)
 
 	cmd := &Command{
-		cmdType: CommandType(kind),
+		cmdType: InternalCommandType(kind),
 	}
 	if kind == C.TCL_CMD_BUILTIN {
 		cmd.builtin = fn
@@ -2614,7 +2614,7 @@ func goForeignIsForeign(interp C.FeatherInterp, obj C.FeatherObj) C.int {
 	if i == nil {
 		return 0
 	}
-	if i.IsForeign(FeatherObj(obj)) {
+	if i.IsForeignHandle(FeatherObj(obj)) {
 		return 1
 	}
 	return 0

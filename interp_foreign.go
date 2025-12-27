@@ -676,10 +676,16 @@ func (i *InternalInterp) Type(h FeatherObj) string {
 	return obj.Type()
 }
 
-// Exported aliases for use by the top-level feather package
+// NewForeignObj creates a foreign object with the given type name and value.
+func (i *InternalInterp) NewForeignObj(typeName string, value any) FeatherObj {
+	obj := NewForeignObj(typeName, value)
+	return i.registerObj(obj)
+}
+
+// Alias methods for compatibility with the public API
 
 // NewList creates an empty list object (alias for NewListObj).
-func (i *InternalInterp) NewListObj() FeatherObj {
+func (i *InternalInterp) NewList() FeatherObj {
 	return i.NewListObj()
 }
 
@@ -689,17 +695,17 @@ func (i *InternalInterp) ListAppend(list FeatherObj, item FeatherObj) FeatherObj
 }
 
 // NewInt creates an integer object (alias for NewIntObj).
-func (i *InternalInterp) NewIntObj(val int64) FeatherObj {
+func (i *InternalInterp) NewInt(val int64) FeatherObj {
 	return i.NewIntObj(val)
 }
 
 // NewDouble creates a floating-point object (alias for NewDoubleObj).
-func (i *InternalInterp) NewDoubleObj(val float64) FeatherObj {
+func (i *InternalInterp) NewDouble(val float64) FeatherObj {
 	return i.NewDoubleObj(val)
 }
 
 // NewDict creates an empty dict object (alias for NewDictObj).
-func (i *InternalInterp) NewDictObj() FeatherObj {
+func (i *InternalInterp) NewDict() FeatherObj {
 	return i.NewDictObj()
 }
 

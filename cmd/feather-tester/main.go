@@ -9,7 +9,6 @@ import (
 	"os"
 
 	"github.com/feather-lang/feather"
-	"github.com/feather-lang/feather/interp"
 )
 
 // Counter is a simple foreign object type for testing.
@@ -48,11 +47,11 @@ func registerTestCommands(i *feather.Interp) {
 	fi.Register("list", cmdList)
 
 	// Register the Counter foreign type
-	interp.DefineType[*Counter](fi, "Counter", interp.ForeignTypeDef[*Counter]{
+	feather.DefineType[*Counter](fi, "Counter", feather.ForeignTypeDef[*Counter]{
 		New: func() *Counter {
 			return &Counter{value: 0}
 		},
-		Methods: interp.Methods{
+		Methods: feather.Methods{
 			"get": func(c *Counter) int {
 				return c.value
 			},
@@ -71,13 +70,13 @@ func registerTestCommands(i *feather.Interp) {
 	})
 }
 
-func cmdSayHello(i *interp.Interp, cmd interp.FeatherObj, args []interp.FeatherObj) interp.FeatherResult {
+func cmdSayHello(i *feather.InternalInterp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
 	fmt.Println("hello")
 	i.SetResultString("")
-	return interp.ResultOK
+	return feather.ResultOK
 }
 
-func cmdEcho(i *interp.Interp, cmd interp.FeatherObj, args []interp.FeatherObj) interp.FeatherResult {
+func cmdEcho(i *feather.InternalInterp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
 	for idx, arg := range args {
 		if idx > 0 {
 			fmt.Print(" ")
@@ -86,15 +85,15 @@ func cmdEcho(i *interp.Interp, cmd interp.FeatherObj, args []interp.FeatherObj) 
 	}
 	fmt.Println()
 	i.SetResultString("")
-	return interp.ResultOK
+	return feather.ResultOK
 }
 
-func cmdCount(i *interp.Interp, cmd interp.FeatherObj, args []interp.FeatherObj) interp.FeatherResult {
+func cmdCount(i *feather.InternalInterp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
 	i.SetResultString(fmt.Sprintf("%d", len(args)))
-	return interp.ResultOK
+	return feather.ResultOK
 }
 
-func cmdList(i *interp.Interp, cmd interp.FeatherObj, args []interp.FeatherObj) interp.FeatherResult {
+func cmdList(i *feather.InternalInterp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
 	var parts []string
 	for _, arg := range args {
 		s := i.GetString(arg)
@@ -121,7 +120,7 @@ func cmdList(i *interp.Interp, cmd interp.FeatherObj, args []interp.FeatherObj) 
 		result += part
 	}
 	i.SetResultString(result)
-	return interp.ResultOK
+	return feather.ResultOK
 }
 
 func runREPL(i *feather.Interp) {
