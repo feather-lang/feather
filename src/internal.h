@@ -524,6 +524,17 @@ FeatherResult feather_builtin_lreplace(const FeatherHostOps *ops, FeatherInterp 
                                 FeatherObj cmd, FeatherObj args);
 
 /**
+ * feather_builtin_lreverse implements the TCL 'lreverse' command.
+ *
+ * Usage:
+ *   lreverse list
+ *
+ * Returns a list with elements in reverse order.
+ */
+FeatherResult feather_builtin_lreverse(const FeatherHostOps *ops, FeatherInterp interp,
+                                FeatherObj cmd, FeatherObj args);
+
+/**
  * feather_builtin_lsort implements the TCL 'lsort' command.
  *
  * Usage:
