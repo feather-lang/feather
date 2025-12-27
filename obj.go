@@ -144,3 +144,32 @@ func (o *Obj) SetBytes(s string) {
 		o.bytes = s
 	}
 }
+
+// Int returns the integer value of this object, shimmering if needed.
+func (o *Obj) Int() (int64, error) {
+	return AsInt(o)
+}
+
+// Double returns the float64 value of this object, shimmering if needed.
+func (o *Obj) Double() (float64, error) {
+	return AsDouble(o)
+}
+
+// Bool returns the boolean value of this object using TCL boolean rules.
+func (o *Obj) Bool() (bool, error) {
+	return AsBool(o)
+}
+
+// List returns the list elements of this object.
+// Note: This only works on objects that already have a list representation.
+// To parse a string as a list, use Interp.ParseList().
+func (o *Obj) List() ([]*Obj, error) {
+	return AsList(o)
+}
+
+// Dict returns the dictionary contents of this object.
+// Note: This only works on objects that already have a dict representation.
+// To parse a string as a dict, use Interp.ParseDict().
+func (o *Obj) Dict() (*DictType, error) {
+	return AsDict(o)
+}
