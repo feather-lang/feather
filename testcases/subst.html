@@ -1,0 +1,346 @@
+<test-suite>
+  <!-- subst command tests -->
+
+  <!-- Basic substitution -->
+
+  <test-case name="subst: simple string no substitution">
+    <script>
+subst {hello world}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subst: empty string">
+    <script>
+subst {}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Variable substitution -->
+
+  <test-case name="subst: variable substitution">
+    <script>
+set a 44
+subst {xyz {$a}}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>xyz {44}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subst: variable with braces in value">
+    <script>
+set a "p\} q \{r"
+subst {xyz {$a}}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>xyz {p} q {r}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subst: array variable">
+    <script>
+set arr(key) value
+subst {the value is $arr(key)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>the value is value</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subst: curly braces around variable">
+    <script>
+set a 5
+subst {{$a}}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{5}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subst: double quotes around variable">
+    <script>
+set a hello
+subst {"$a"}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>"hello"</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subst: dollar sign at end">
+    <script>
+subst {price: $}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>price: $</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Command substitution -->
+
+  <test-case name="subst: command substitution">
+    <script>
+subst {1 + 1 = [expr {1 + 1}]}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1 + 1 = 2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subst: nested command substitution">
+    <script>
+set x 10
+subst {result is [expr {[expr {$x + 5}] * 2}]}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>result is 30</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Backslash substitution -->
+
+  <test-case name="subst: backslash tab">
+    <script>
+subst {hello\tworld}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello	world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subst: multiple backslash escapes">
+    <script>
+subst {one\ttwo\nthree\\four}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>one	two
+three\four</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subst: backslash newline continuation">
+    <script>
+subst {line1\
+line2}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>line1 line2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- -novariables option -->
+
+  <test-case name="subst: -novariables still does command subst">
+    <script>
+set a 44
+subst -novariables {$a [format $a]}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>$a 44</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- -nocommands option -->
+
+  <test-case name="subst: -nocommands still does variable subst">
+    <script>
+set a 44
+subst -nocommands {$a [expr {$a + 1}]}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>44 [expr {44 + 1}]</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subst: -nocommands with array subscript">
+    <script>
+set a(x) hello
+subst -nocommands {$a(x)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- -nobackslashes option -->
+
+  <test-case name="subst: -nobackslashes">
+    <script>
+subst -nobackslashes {hello\tworld}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello\tworld</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Multiple options combined -->
+
+  <test-case name="subst: -nocommands -novariables">
+    <script>
+set a 44
+subst -nocommands -novariables {$a [expr {1+1}]}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>$a [expr {1+1}]</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subst: -novariables -nobackslashes">
+    <script>
+set a 10
+subst -novariables -nobackslashes {$a \t}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>$a \t</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subst: all three options">
+    <script>
+set a 10
+subst -nobackslashes -nocommands -novariables {$a [expr {1}] \t}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>$a [expr {1}] \t</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Exception handling: break -->
+
+  <test-case name="subst: break stops substitution">
+    <script>
+subst {abc,[break],def}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>abc,</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Exception handling: continue -->
+
+  <test-case name="subst: continue substitutes empty">
+    <script>
+subst {abc,[continue;expr {1+2}],def}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>abc,,def</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Exception handling: return -->
+
+  <test-case name="subst: return substitutes value">
+    <script>
+subst {abc,[return foo;expr {1+2}],def}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>abc,foo,def</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subst: return with custom code substitutes value">
+    <script>
+subst {abc,[return -code 10 bar],def}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>abc,bar,def</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Error cases -->
+
+  <test-case name="subst: no arguments">
+    <script>
+subst
+    </script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "subst ?-nobackslashes? ?-nocommands? ?-novariables? string"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="subst: invalid option">
+    <script>
+subst -invalid {test}
+    </script>
+    <return>TCL_ERROR</return>
+    <error>bad option "-invalid": must be -nobackslashes, -nocommands, or -novariables</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="subst: error in command substitution">
+    <script>
+subst {before [error "oops"] after}
+    </script>
+    <return>TCL_ERROR</return>
+    <error>oops</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="subst: undefined variable error">
+    <script>
+subst {$undefined}
+    </script>
+    <return>TCL_ERROR</return>
+    <error>can't read "undefined": no such variable</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

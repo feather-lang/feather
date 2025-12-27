@@ -9,6 +9,9 @@ async function main() {
   console.log("Extracting js/feather.js -> .vitepress/feather.js");
   await $`git -C ${REPO_PATH} show ${BRANCH}:js/feather.js > .vitepress/feather.js`;
 
+  console.log("Extracting js/feather.js -> md/public/feather.js");
+  await $`git -C ${REPO_PATH} show ${BRANCH}:js/feather.js > md/public/feather.js`;
+
   // js/feather.wasm -> md/public/feather.wasm
   console.log("Extracting js/feather.wasm -> md/public/feather.wasm");
   await $`git -C ${REPO_PATH} show ${BRANCH}:js/feather.wasm > md/public/feather.wasm`;

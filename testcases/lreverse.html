@@ -1,0 +1,158 @@
+<!doctype html>
+<html>
+  <head>
+    <title>lreverse tests</title>
+  </head>
+  <body>
+    <h1>lreverse - Reverse the order of a list</h1>
+
+    <h2>Basic reversing</h2>
+
+    <test-case name="reverse simple list">
+      <script>lreverse {a b c}</script>
+      <return>TCL_OK</return>
+      <stdout>c b a</stdout>
+      <stderr></stderr>
+      <exit-code>0</exit-code>
+    </test-case>
+
+    <test-case name="reverse numeric list">
+      <script>lreverse {1 2 3 4 5}</script>
+      <return>TCL_OK</return>
+      <stdout>5 4 3 2 1</stdout>
+      <stderr></stderr>
+      <exit-code>0</exit-code>
+    </test-case>
+
+    <test-case name="reverse list with duplicates">
+      <script>lreverse {a a b c}</script>
+      <return>TCL_OK</return>
+      <stdout>c b a a</stdout>
+      <stderr></stderr>
+      <exit-code>0</exit-code>
+    </test-case>
+
+    <h2>Nested lists</h2>
+
+    <test-case name="reverse list with nested element">
+      <script>lreverse {a b {c d} e f}</script>
+      <return>TCL_OK</return>
+      <stdout>f e {c d} b a</stdout>
+      <stderr></stderr>
+      <exit-code>0</exit-code>
+    </test-case>
+
+    <test-case name="reverse all nested">
+      <script>lreverse {{a b} {c d} {e f}}</script>
+      <return>TCL_OK</return>
+      <stdout>{e f} {c d} {a b}</stdout>
+      <stderr></stderr>
+      <exit-code>0</exit-code>
+    </test-case>
+
+    <test-case name="reverse deeply nested">
+      <script>lreverse {1 {2 3} {4 {5 6}} 7}</script>
+      <return>TCL_OK</return>
+      <stdout>7 {4 {5 6}} {2 3} 1</stdout>
+      <stderr></stderr>
+      <exit-code>0</exit-code>
+    </test-case>
+
+    <h2>Edge cases</h2>
+
+    <test-case name="reverse empty list">
+      <script>lreverse {}</script>
+      <return>TCL_OK</return>
+      <stdout></stdout>
+      <stderr></stderr>
+      <exit-code>0</exit-code>
+    </test-case>
+
+    <test-case name="reverse single element">
+      <script>lreverse {single}</script>
+      <return>TCL_OK</return>
+      <stdout>single</stdout>
+      <stderr></stderr>
+      <exit-code>0</exit-code>
+    </test-case>
+
+    <test-case name="reverse two elements">
+      <script>lreverse {a b}</script>
+      <return>TCL_OK</return>
+      <stdout>b a</stdout>
+      <stderr></stderr>
+      <exit-code>0</exit-code>
+    </test-case>
+
+    <h2>Elements with spaces (braced)</h2>
+
+    <test-case name="reverse with braced first element">
+      <script>lreverse {{hello world} foo bar}</script>
+      <return>TCL_OK</return>
+      <stdout>bar foo {hello world}</stdout>
+      <stderr></stderr>
+      <exit-code>0</exit-code>
+    </test-case>
+
+    <test-case name="reverse with braced middle element">
+      <script>lreverse {a {b c d} e}</script>
+      <return>TCL_OK</return>
+      <stdout>e {b c d} a</stdout>
+      <stderr></stderr>
+      <exit-code>0</exit-code>
+    </test-case>
+
+    <h2>List from variable</h2>
+
+    <test-case name="reverse variable list">
+      <script>set x {1 2 3}; lreverse $x</script>
+      <return>TCL_OK</return>
+      <stdout>3 2 1</stdout>
+      <stderr></stderr>
+      <exit-code>0</exit-code>
+    </test-case>
+
+    <test-case name="reverse longer variable list">
+      <script>set y {a b c d e}; lreverse $y</script>
+      <return>TCL_OK</return>
+      <stdout>e d c b a</stdout>
+      <stderr></stderr>
+      <exit-code>0</exit-code>
+    </test-case>
+
+    <h2>Error cases</h2>
+
+    <test-case name="lreverse no args">
+      <script>lreverse</script>
+      <return>TCL_ERROR</return>
+      <error>wrong # args: should be "lreverse list"</error>
+      <stderr></stderr>
+      <exit-code>1</exit-code>
+    </test-case>
+
+    <test-case name="lreverse too many args">
+      <script>lreverse a b</script>
+      <return>TCL_ERROR</return>
+      <error>wrong # args: should be "lreverse list"</error>
+      <stderr></stderr>
+      <exit-code>1</exit-code>
+    </test-case>
+
+    <test-case name="lreverse three args">
+      <script>lreverse a b c</script>
+      <return>TCL_ERROR</return>
+      <error>wrong # args: should be "lreverse list"</error>
+      <stderr></stderr>
+      <exit-code>1</exit-code>
+    </test-case>
+
+    <test-case name="lreverse invalid list">
+      <script>lreverse "not a {valid list"</script>
+      <return>TCL_ERROR</return>
+      <error>unmatched open brace in list</error>
+      <stderr></stderr>
+      <exit-code>1</exit-code>
+    </test-case>
+
+  </body>
+</html>

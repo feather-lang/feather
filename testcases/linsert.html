@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+<head><title>linsert tests</title></head>
+<body>
+<h1>linsert command tests</h1>
+
+<h2>Basic insertion</h2>
+
+<test-case name="insert at index 1">
+  <script>linsert {a b c} 1 X</script>
+  <return>TCL_OK</return>
+  <stdout>a X b c</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="insert at index 0">
+  <script>linsert {a b c} 0 X</script>
+  <return>TCL_OK</return>
+  <stdout>X a b c</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="insert at index 3 (end)">
+  <script>linsert {a b c} 3 X</script>
+  <return>TCL_OK</return>
+  <stdout>a b c X</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Insert multiple elements</h2>
+
+<test-case name="insert multiple at index 1">
+  <script>linsert {a b c} 1 X Y Z</script>
+  <return>TCL_OK</return>
+  <stdout>a X Y Z b c</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="insert multiple at index 0">
+  <script>linsert {a b c} 0 X Y Z</script>
+  <return>TCL_OK</return>
+  <stdout>X Y Z a b c</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>end-relative indexing</h2>
+
+<test-case name="insert at end">
+  <script>linsert {a b c} end X</script>
+  <return>TCL_OK</return>
+  <stdout>a b c X</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="insert at end-1">
+  <script>linsert {a b c} end-1 X</script>
+  <return>TCL_OK</return>
+  <stdout>a b X c</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="insert at end-2">
+  <script>linsert {a b c} end-2 X</script>
+  <return>TCL_OK</return>
+  <stdout>a X b c</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="insert at end+1">
+  <script>linsert {a b c} end+1 X</script>
+  <return>TCL_OK</return>
+  <stdout>a b c X</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="insert at end+10">
+  <script>linsert {a b c} end+10 X</script>
+  <return>TCL_OK</return>
+  <stdout>a b c X</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Integer arithmetic in index</h2>
+
+<test-case name="insert at 1+1">
+  <script>linsert {a b c} 1+1 X</script>
+  <return>TCL_OK</return>
+  <stdout>a b X c</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="insert at 1-1">
+  <script>linsert {a b c} 1-1 X</script>
+  <return>TCL_OK</return>
+  <stdout>X a b c</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Negative and out-of-bounds indices</h2>
+
+<test-case name="insert at -1">
+  <script>linsert {a b c} -1 X</script>
+  <return>TCL_OK</return>
+  <stdout>X a b c</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="insert at -100">
+  <script>linsert {a b c} -100 X</script>
+  <return>TCL_OK</return>
+  <stdout>X a b c</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="insert at 100">
+  <script>linsert {a b c} 100 X</script>
+  <return>TCL_OK</return>
+  <stdout>a b c X</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Empty list</h2>
+
+<test-case name="insert into empty list">
+  <script>linsert {} 0 X Y Z</script>
+  <return>TCL_OK</return>
+  <stdout>X Y Z</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="insert into empty list at end">
+  <script>linsert {} end X</script>
+  <return>TCL_OK</return>
+  <stdout>X</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>No elements to insert</h2>
+
+<test-case name="no elements to insert">
+  <script>linsert {a b c} 1</script>
+  <return>TCL_OK</return>
+  <stdout>a b c</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Complex list elements</h2>
+
+<test-case name="insert between braced elements">
+  <script>linsert {{hello world} {foo bar}} 1 X</script>
+  <return>TCL_OK</return>
+  <stdout>{hello world} X {foo bar}</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="insert braced element">
+  <script>linsert {a b c} 1 {X Y}</script>
+  <return>TCL_OK</return>
+  <stdout>a {X Y} b c</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Error cases</h2>
+
+<test-case name="no args">
+  <script>linsert</script>
+  <return>TCL_ERROR</return>
+  <error>wrong # args: should be "linsert list index ?element ...?"</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="missing index">
+  <script>linsert {a b c}</script>
+  <return>TCL_ERROR</return>
+  <error>wrong # args: should be "linsert list index ?element ...?"</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="bad index">
+  <script>linsert {a b c} badindex X</script>
+  <return>TCL_ERROR</return>
+  <error>bad index "badindex": must be integer?[+-]integer? or end?[+-]integer?</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="invalid list">
+  <script>linsert "unmatched {" 0 X</script>
+  <return>TCL_ERROR</return>
+  <error>unmatched open brace in list</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+</body>
+</html>

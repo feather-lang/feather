@@ -50,6 +50,8 @@ class FeatherInterp {
     this.foreignTypes = new Map();
     this.foreignInstances = new Map(); // handle name -> { typeName, value, objHandle }
     this.recursionLimit = DEFAULT_RECURSION_LIMIT;
+    // Injected by createFeather() - calls C's feather_list_parse via WASM
+    this._parseListFromC = null;
   }
 
   store(obj) {
@@ -199,12 +201,27 @@ class FeatherInterp {
   }
 
   getList(handle) {
-    if (handle === 0) return [];
+    if (handle === 0) return { items: [] };
     const obj = this.get(handle);
-    if (!obj) return [];
-    if (obj.type === 'list') return obj.items;
+    if (!obj) return { items: [] };
+    if (obj.type === 'list') return { items: obj.items };
+
+    // Use C's feather_list_parse
     const str = this.getString(handle);
-    return this.parseList(str);
+    const listHandle = this._parseListFromC(str);
+    if (listHandle === 0) {
+      // Error - get message from result
+      const errObj = this.get(this.result);
+      return { error: errObj ? errObj.value : 'parse error' };
+    }
+    const listObj = this.get(listHandle);
+    if (listObj?.type === 'list') {
+      // Cache the list type on the original object for shimmering
+      obj.type = 'list';
+      obj.items = listObj.items;
+      return { items: obj.items };
+    }
+    return { items: [] };
   }
 
   // getDict shimmers string/list to dict representation
@@ -223,7 +240,11 @@ class FeatherInterp {
     }
 
     // Shimmer: get as list first, then convert to dict
-    const items = this.getList(handle);
+    const listResult = this.getList(handle);
+    if (listResult.error) {
+      return null; // parse error
+    }
+    const items = listResult.items;
     if (items.length % 2 !== 0) {
       return null; // odd number of elements
     }
@@ -257,47 +278,6 @@ class FeatherInterp {
     obj.entries = entries;
 
     return { entries, order };
-  }
-
-  parseList(str) {
-    const items = [];
-    let i = 0;
-    while (i < str.length) {
-      while (i < str.length && /\s/.test(str[i])) i++;
-      if (i >= str.length) break;
-
-      let word = '';
-      let wasBraced = false;
-      if (str[i] === '{') {
-        wasBraced = true;
-        let depth = 1;
-        i++;
-        const start = i;
-        while (i < str.length && depth > 0) {
-          if (str[i] === '{') depth++;
-          else if (str[i] === '}') depth--;
-          if (depth > 0) i++;
-        }
-        word = str.slice(start, i);
-        i++;
-      } else if (str[i] === '"') {
-        wasBraced = true;
-        i++;
-        const start = i;
-        while (i < str.length && str[i] !== '"') {
-          if (str[i] === '\\') i++;
-          i++;
-        }
-        word = str.slice(start, i);
-        i++;
-      } else {
-        while (i < str.length && !/\s/.test(str[i])) {
-          word += str[i++];
-        }
-      }
-      if (word !== '' || wasBraced) items.push(this.store({ type: 'string', value: word }));
-    }
-    return items;
   }
 
   currentFrame() {
@@ -934,7 +914,7 @@ async function createFeather(wasmSource) {
       const nsPath = interp.getString(ns);
       const normalized = nsPath.replace(/^::/, '');
       const namespace = interp.ensureNamespace(nsPath);
-      const patList = interp.getList(patterns).map(h => interp.getString(h));
+      const patList = interp.getList(patterns).items.map(h => interp.getString(h));
       if (clear) {
         namespace.exports = patList;
       } else {
@@ -1056,8 +1036,29 @@ async function createFeather(wasmSource) {
     },
     feather_host_list_from: (interpId, obj) => {
       const interp = interpreters.get(interpId);
-      const items = interp.getList(obj);
-      return interp.store({ type: 'list', items: [...items] });
+      const existingObj = interp.get(obj);
+      if (existingObj?.type === 'list') {
+        // Already a list - just copy
+        return interp.store({ type: 'list', items: [...existingObj.items] });
+      }
+      // Need to parse string as list - use C's feather_list_parse
+      const str = interp.getString(obj);
+      const [ptr, len] = writeString(str);
+      const listHandle = wasmInstance.exports.feather_list_parse(0, interpId, ptr, len);
+      wasmInstance.exports.free(ptr);
+
+      if (listHandle === 0) {
+        // Parse error - error message already set in interp.result by C code
+        return 0;
+      }
+
+      // The C function returned a list handle - it's already registered in interp
+      // But we need to copy it to avoid mutation issues
+      const parsedObj = interp.get(listHandle);
+      if (parsedObj?.type === 'list') {
+        return interp.store({ type: 'list', items: [...parsedObj.items] });
+      }
+      return listHandle;
     },
     feather_host_list_push: (interpId, list, item) => {
       const interp = interpreters.get(interpId);
@@ -1067,7 +1068,8 @@ async function createFeather(wasmSource) {
         interp.invalidateStringCache(obj);
         return list;
       }
-      const items = interp.getList(list);
+      const result = interp.getList(list);
+      const items = result.items;
       items.push(item);
       return interp.store({ type: 'list', items });
     },
@@ -1088,7 +1090,8 @@ async function createFeather(wasmSource) {
         interp.invalidateStringCache(obj);
         return list;
       }
-      const items = interp.getList(list);
+      const result = interp.getList(list);
+      const items = result.items;
       items.unshift(item);
       return interp.store({ type: 'list', items });
     },
@@ -1103,16 +1106,16 @@ async function createFeather(wasmSource) {
     },
     feather_host_list_length: (interpId, list) => {
       const interp = interpreters.get(interpId);
-      return interp.getList(list).length;
+      return interp.getList(list).items.length;
     },
     feather_host_list_at: (interpId, list, index) => {
       const interp = interpreters.get(interpId);
-      const items = interp.getList(list);
+      const items = interp.getList(list).items;
       return items[index] || 0;
     },
     feather_host_list_slice: (interpId, list, first, last) => {
       const interp = interpreters.get(interpId);
-      const items = interp.getList(list);
+      const items = interp.getList(list).items;
       return interp.store({ type: 'list', items: items.slice(first, last + 1) });
     },
     feather_host_list_set_at: (interpId, list, index, value) => {
@@ -1130,13 +1133,13 @@ async function createFeather(wasmSource) {
       const interp = interpreters.get(interpId);
       const obj = interp.get(list);
       if (obj?.type === 'list') {
-        const insItems = interp.getList(insertions);
+        const insItems = interp.getList(insertions).items;
         obj.items.splice(first, deleteCount, ...insItems);
         interp.invalidateStringCache(obj);
         return list;
       }
-      const items = interp.getList(list);
-      const insItems = interp.getList(insertions);
+      const items = interp.getList(list).items;
+      const insItems = interp.getList(insertions).items;
       items.splice(first, deleteCount, ...insItems);
       return interp.store({ type: 'list', items });
     },
@@ -1439,7 +1442,7 @@ async function createFeather(wasmSource) {
       const interp = interpreters.get(interpId);
       interp.returnOptions.set('current', options);
       // Parse options to extract -code
-      const items = interp.getList(options);
+      const items = interp.getList(options).items;
       let code = TCL_OK;
       let level = 1;
       for (let i = 0; i + 1 < items.length; i += 2) {
@@ -1489,54 +1492,13 @@ async function createFeather(wasmSource) {
     feather_host_bind_unknown: (interpId, cmd, args, valuePtr) => {
       const interp = interpreters.get(interpId);
       const cmdName = interp.getString(cmd);
-      
-      // Check if this is a foreign object instance
-      const foreignInstance = interp.foreignInstances.get(cmdName);
-      if (foreignInstance) {
-        const argList = interp.getList(args).map(h => interp.getString(h));
-        const methodName = argList[0];
-        if (!methodName) {
-          interp.result = interp.store({ type: 'string', value: `wrong # args: should be "${cmdName} method ?arg ...?"` });
-          return TCL_ERROR;
-        }
-        
-        // Handle destroy specially
-        if (methodName === 'destroy') {
-          const typeDef = interp.foreignTypes.get(foreignInstance.typeName);
-          typeDef?.destroy?.(foreignInstance.value);
-          interp.foreignInstances.delete(cmdName);
-          interp.result = interp.store({ type: 'string', value: '' });
-          writeI32(valuePtr, interp.result);
-          return TCL_OK;
-        }
-        
-        const typeDef = interp.foreignTypes.get(foreignInstance.typeName);
-        const methodFn = typeDef?.methods?.[methodName];
-        if (!methodFn) {
-          const methods = Object.keys(typeDef?.methods || {}).concat(['destroy']).join(', ');
-          interp.result = interp.store({ type: 'string', value: `unknown method "${methodName}": must be ${methods}` });
-          return TCL_ERROR;
-        }
-        
-        try {
-          const result = methodFn(foreignInstance.value, ...argList.slice(1));
-          const handle = interp.store({ type: 'string', value: String(result ?? '') });
-          writeI32(valuePtr, handle);
-          return TCL_OK;
-        } catch (e) {
-          interp.result = interp.store({ type: 'string', value: e.message });
-          return TCL_ERROR;
-        }
-      }
-      
-      // Check host commands
       const hostFn = interp.hostCommands.get(cmdName);
       if (!hostFn) {
         interp.result = interp.store({ type: 'string', value: `invalid command name "${cmdName}"` });
         return TCL_ERROR;
       }
 
-      const argList = interp.getList(args).map(h => interp.getString(h));
+      const argList = interp.getList(args).items.map(h => interp.getString(h));
       try {
         const result = hostFn(argList);
         const handle = interp.store({ type: 'string', value: String(result ?? '') });
@@ -1632,7 +1594,7 @@ async function createFeather(wasmSource) {
         return TCL_ERROR;
       }
       try {
-        const argList = interp.getList(args).map(h => interp.getString(h));
+        const argList = interp.getList(args).items.map(h => interp.getString(h));
         const result = fn(o.value, ...argList);
         interp.result = interp.store({ type: 'string', value: String(result ?? '') });
         return TCL_OK;
@@ -1686,7 +1648,17 @@ async function createFeather(wasmSource) {
   return {
     create() {
       const id = nextInterpId++;
-      interpreters.set(id, new FeatherInterp(id));
+      const interp = new FeatherInterp(id);
+      interpreters.set(id, interp);
+
+      // Inject the C list parser function
+      interp._parseListFromC = (str) => {
+        const [ptr, len] = writeString(str);
+        const result = wasmInstance.exports.feather_list_parse(0, id, ptr, len);
+        wasmInstance.exports.free(ptr);
+        return result;
+      };
+
       wasmInstance.exports.feather_interp_init(0, id);
       return id;
     },
@@ -1702,9 +1674,25 @@ async function createFeather(wasmSource) {
     createForeign(interpId, typeName, value, handleName) {
       const interp = interpreters.get(interpId);
       const objHandle = interp.store({ type: 'foreign', typeName, value, stringRep: handleName });
-      // Register the instance in foreignInstances so it can be looked up by handle name
       if (handleName) {
         interp.foreignInstances.set(handleName, { typeName, value, objHandle, handleName });
+        // Register a command for this instance that dispatches to methods
+        const typeDef = interp.foreignTypes.get(typeName);
+        interp.hostCommands.set(handleName, (args) => {
+          const method = args[0];
+          if (!method) throw new Error(`wrong # args: should be "${handleName} method ?arg ...?"`);
+          if (method === 'destroy') {
+            interp.foreignInstances.delete(handleName);
+            interp.hostCommands.delete(handleName);
+            return '';
+          }
+          const methodFn = typeDef?.methods?.[method];
+          if (!methodFn) {
+            const available = Object.keys(typeDef?.methods || {}).concat('destroy').join(', ');
+            throw new Error(`unknown method "${method}": must be ${available}`);
+          }
+          return methodFn(value, ...args.slice(1));
+        });
       }
       return objHandle;
     },
@@ -1775,7 +1763,7 @@ async function createFeather(wasmSource) {
           let code = TCL_OK;
           const opts = interp.returnOptions.get('current');
           if (opts) {
-            const items = interp.getList(opts);
+            const items = interp.getList(opts).items;
             for (let j = 0; j + 1 < items.length; j += 2) {
               const key = interp.getString(items[j]);
               if (key === '-code') {
