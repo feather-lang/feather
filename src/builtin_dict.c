@@ -640,42 +640,40 @@ FeatherResult feather_builtin_dict(const FeatherHostOps *ops, FeatherInterp inte
   }
 
   FeatherObj subcmd = ops->list.shift(interp, args);
-  size_t len;
-  const char *subcmdStr = ops->string.get(interp, subcmd, &len);
 
-  if (feather_str_eq(subcmdStr, len, "create")) {
+  if (feather_obj_eq_literal(ops, interp, subcmd, "create")) {
     return dict_create(ops, interp, args);
-  } else if (feather_str_eq(subcmdStr, len, "get")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "get")) {
     return dict_get(ops, interp, args);
-  } else if (feather_str_eq(subcmdStr, len, "set")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "set")) {
     return dict_set(ops, interp, args);
-  } else if (feather_str_eq(subcmdStr, len, "exists")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "exists")) {
     return dict_exists(ops, interp, args);
-  } else if (feather_str_eq(subcmdStr, len, "keys")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "keys")) {
     return dict_keys(ops, interp, args);
-  } else if (feather_str_eq(subcmdStr, len, "values")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "values")) {
     return dict_values(ops, interp, args);
-  } else if (feather_str_eq(subcmdStr, len, "size")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "size")) {
     return dict_size(ops, interp, args);
-  } else if (feather_str_eq(subcmdStr, len, "remove")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "remove")) {
     return dict_remove(ops, interp, args);
-  } else if (feather_str_eq(subcmdStr, len, "replace")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "replace")) {
     return dict_replace(ops, interp, args);
-  } else if (feather_str_eq(subcmdStr, len, "merge")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "merge")) {
     return dict_merge(ops, interp, args);
-  } else if (feather_str_eq(subcmdStr, len, "append")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "append")) {
     return dict_append(ops, interp, args);
-  } else if (feather_str_eq(subcmdStr, len, "incr")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "incr")) {
     return dict_incr(ops, interp, args);
-  } else if (feather_str_eq(subcmdStr, len, "lappend")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "lappend")) {
     return dict_lappend(ops, interp, args);
-  } else if (feather_str_eq(subcmdStr, len, "unset")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "unset")) {
     return dict_unset(ops, interp, args);
-  } else if (feather_str_eq(subcmdStr, len, "for")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "for")) {
     return dict_for(ops, interp, args);
-  } else if (feather_str_eq(subcmdStr, len, "info")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "info")) {
     return dict_info(ops, interp, args);
-  } else if (feather_str_eq(subcmdStr, len, "getdef") || feather_str_eq(subcmdStr, len, "getwithdefault")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "getdef") || feather_obj_eq_literal(ops, interp, subcmd, "getwithdefault")) {
     return dict_getdef(ops, interp, args);
   } else {
     FeatherObj msg = ops->string.intern(interp, "unknown or ambiguous subcommand \"", 33);

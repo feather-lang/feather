@@ -61,8 +61,6 @@ static FeatherResult info_level(const FeatherHostOps *ops, FeatherInterp interp,
   FeatherObj levelObj = ops->list.at(interp, args, 0);
   int64_t levelNum;
   if (ops->integer.get(interp, levelObj, &levelNum) != TCL_OK) {
-    size_t len;
-    const char *s = ops->string.get(interp, levelObj, &len);
     // Build error message
     FeatherObj msg = ops->string.intern(interp, "expected integer but got \"", 26);
     msg = ops->string.concat(interp, msg, levelObj);
@@ -123,8 +121,6 @@ static FeatherResult info_level(const FeatherHostOps *ops, FeatherInterp interp,
 
 bad_level:
   {
-    size_t len;
-    const char *s = ops->string.get(interp, levelObj, &len);
     FeatherObj msg = ops->string.intern(interp, "bad level \"", 11);
     msg = ops->string.concat(interp, msg, levelObj);
     msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\"", 1));
@@ -792,49 +788,47 @@ FeatherResult feather_builtin_info(const FeatherHostOps *ops, FeatherInterp inte
 
   // Get subcommand
   FeatherObj subcmd = ops->list.shift(interp, args);
-  size_t subcmdLen;
-  const char *subcmdStr = ops->string.get(interp, subcmd, &subcmdLen);
 
-  if (feather_str_eq(subcmdStr, subcmdLen, "exists")) {
+  if (feather_obj_eq_literal(ops, interp, subcmd, "exists")) {
     return info_exists(ops, interp, args);
   }
-  if (feather_str_eq(subcmdStr, subcmdLen, "level")) {
+  if (feather_obj_eq_literal(ops, interp, subcmd, "level")) {
     return info_level(ops, interp, args);
   }
-  if (feather_str_eq(subcmdStr, subcmdLen, "commands")) {
+  if (feather_obj_eq_literal(ops, interp, subcmd, "commands")) {
     return info_commands(ops, interp, args);
   }
-  if (feather_str_eq(subcmdStr, subcmdLen, "procs")) {
+  if (feather_obj_eq_literal(ops, interp, subcmd, "procs")) {
     return info_procs(ops, interp, args);
   }
-  if (feather_str_eq(subcmdStr, subcmdLen, "body")) {
+  if (feather_obj_eq_literal(ops, interp, subcmd, "body")) {
     return info_body(ops, interp, args);
   }
-  if (feather_str_eq(subcmdStr, subcmdLen, "args")) {
+  if (feather_obj_eq_literal(ops, interp, subcmd, "args")) {
     return info_args(ops, interp, args);
   }
-  if (feather_str_eq(subcmdStr, subcmdLen, "frame")) {
+  if (feather_obj_eq_literal(ops, interp, subcmd, "frame")) {
     return info_frame(ops, interp, args);
   }
-  if (feather_str_eq(subcmdStr, subcmdLen, "default")) {
+  if (feather_obj_eq_literal(ops, interp, subcmd, "default")) {
     return info_default(ops, interp, args);
   }
-  if (feather_str_eq(subcmdStr, subcmdLen, "locals")) {
+  if (feather_obj_eq_literal(ops, interp, subcmd, "locals")) {
     return info_locals(ops, interp, args);
   }
-  if (feather_str_eq(subcmdStr, subcmdLen, "globals")) {
+  if (feather_obj_eq_literal(ops, interp, subcmd, "globals")) {
     return info_globals(ops, interp, args);
   }
-  if (feather_str_eq(subcmdStr, subcmdLen, "vars")) {
+  if (feather_obj_eq_literal(ops, interp, subcmd, "vars")) {
     return info_vars(ops, interp, args);
   }
-  if (feather_str_eq(subcmdStr, subcmdLen, "script")) {
+  if (feather_obj_eq_literal(ops, interp, subcmd, "script")) {
     return info_script(ops, interp, args);
   }
-  if (feather_str_eq(subcmdStr, subcmdLen, "type")) {
+  if (feather_obj_eq_literal(ops, interp, subcmd, "type")) {
     return info_type(ops, interp, args);
   }
-  if (feather_str_eq(subcmdStr, subcmdLen, "methods")) {
+  if (feather_obj_eq_literal(ops, interp, subcmd, "methods")) {
     return info_methods(ops, interp, args);
   }
 

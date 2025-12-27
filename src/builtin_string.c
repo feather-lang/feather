@@ -98,9 +98,7 @@ static FeatherResult string_match(const FeatherHostOps *ops, FeatherInterp inter
   // Check for -nocase option
   if (argc >= 1) {
     FeatherObj first = ops->list.at(interp, args, 0);
-    size_t len;
-    const char *str = ops->string.get(interp, first, &len);
-    if (feather_str_eq(str, len, "-nocase")) {
+    if (feather_obj_eq_literal(ops, interp, first, "-nocase")) {
       nocase = 1;
       ops->list.shift(interp, args);
       argc--;
@@ -281,9 +279,7 @@ static FeatherResult string_map(const FeatherHostOps *ops, FeatherInterp interp,
   int nocase = 0;
   if (argc >= 1) {
     FeatherObj first = ops->list.at(interp, args, 0);
-    size_t len;
-    const char *str = ops->string.get(interp, first, &len);
-    if (feather_str_eq(str, len, "-nocase")) {
+    if (feather_obj_eq_literal(ops, interp, first, "-nocase")) {
       nocase = 1;
       ops->list.shift(interp, args);
       argc--;
@@ -385,28 +381,26 @@ FeatherResult feather_builtin_string(const FeatherHostOps *ops, FeatherInterp in
   }
 
   FeatherObj subcmd = ops->list.shift(interp, args);
-  size_t len;
-  const char *subcmdStr = ops->string.get(interp, subcmd, &len);
 
-  if (feather_str_eq(subcmdStr, len, "length")) {
+  if (feather_obj_eq_literal(ops, interp, subcmd, "length")) {
     return string_length(ops, interp, args);
-  } else if (feather_str_eq(subcmdStr, len, "index")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "index")) {
     return string_index(ops, interp, args);
-  } else if (feather_str_eq(subcmdStr, len, "range")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "range")) {
     return string_range(ops, interp, args);
-  } else if (feather_str_eq(subcmdStr, len, "match")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "match")) {
     return string_match(ops, interp, args);
-  } else if (feather_str_eq(subcmdStr, len, "toupper")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "toupper")) {
     return string_toupper(ops, interp, args);
-  } else if (feather_str_eq(subcmdStr, len, "tolower")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "tolower")) {
     return string_tolower(ops, interp, args);
-  } else if (feather_str_eq(subcmdStr, len, "trim")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "trim")) {
     return string_trim(ops, interp, args);
-  } else if (feather_str_eq(subcmdStr, len, "trimleft")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "trimleft")) {
     return string_trimleft(ops, interp, args);
-  } else if (feather_str_eq(subcmdStr, len, "trimright")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "trimright")) {
     return string_trimright(ops, interp, args);
-  } else if (feather_str_eq(subcmdStr, len, "map")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "map")) {
     return string_map(ops, interp, args);
   } else {
     FeatherObj msg = ops->string.intern(interp, "unknown or ambiguous subcommand \"", 33);

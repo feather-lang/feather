@@ -498,28 +498,26 @@ FeatherResult feather_builtin_namespace(const FeatherHostOps *ops, FeatherInterp
   }
 
   FeatherObj subcmd = ops->list.shift(interp, args);
-  size_t subcmd_len;
-  const char *subcmd_str = ops->string.get(interp, subcmd, &subcmd_len);
 
-  if (feather_str_eq(subcmd_str, subcmd_len, "current")) {
+  if (feather_obj_eq_literal(ops, interp, subcmd, "current")) {
     return ns_current(ops, interp, args);
-  } else if (feather_str_eq(subcmd_str, subcmd_len, "eval")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "eval")) {
     return ns_eval(ops, interp, args);
-  } else if (feather_str_eq(subcmd_str, subcmd_len, "exists")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "exists")) {
     return ns_exists(ops, interp, args);
-  } else if (feather_str_eq(subcmd_str, subcmd_len, "children")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "children")) {
     return ns_children(ops, interp, args);
-  } else if (feather_str_eq(subcmd_str, subcmd_len, "parent")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "parent")) {
     return ns_parent(ops, interp, args);
-  } else if (feather_str_eq(subcmd_str, subcmd_len, "delete")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "delete")) {
     return ns_delete(ops, interp, args);
-  } else if (feather_str_eq(subcmd_str, subcmd_len, "export")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "export")) {
     return ns_export(ops, interp, args);
-  } else if (feather_str_eq(subcmd_str, subcmd_len, "import")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "import")) {
     return ns_import(ops, interp, args);
-  } else if (feather_str_eq(subcmd_str, subcmd_len, "qualifiers")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "qualifiers")) {
     return ns_qualifiers(ops, interp, args);
-  } else if (feather_str_eq(subcmd_str, subcmd_len, "tail")) {
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "tail")) {
     return ns_tail(ops, interp, args);
   } else {
     FeatherObj msg = ops->string.intern(interp,
