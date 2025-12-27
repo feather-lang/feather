@@ -755,6 +755,24 @@ func (i *InternalInterp) getObject(h FeatherObj) *Obj {
 	return i.objects[h]
 }
 
+// handleForObj returns a FeatherObj handle for a *Obj, registering it if needed.
+// Used when bridging from public *Obj API to internal handle-based operations.
+func (i *InternalInterp) handleForObj(o *Obj) FeatherObj {
+	if o == nil {
+		return 0
+	}
+	return i.registerObj(o)
+}
+
+// objForHandle returns the *Obj for a FeatherObj handle.
+// Used when bridging from internal handle-based operations to public *Obj API.
+func (i *InternalInterp) objForHandle(h FeatherObj) *Obj {
+	if h == 0 {
+		return nil
+	}
+	return i.getObject(h)
+}
+
 // GetString returns the string representation of an object.
 // Performs shimmering: converts int/double/list/dict representations to string as needed.
 func (i *InternalInterp) GetString(h FeatherObj) string {

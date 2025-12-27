@@ -32,7 +32,10 @@ func toTclString(v any) string {
 			parts[i] = quote(s)
 		}
 		return strings.Join(parts, " ")
-	case Object:
+	case *Obj:
+		if val == nil {
+			return "{}"
+		}
 		return quote(val.String())
 	default:
 		// Use reflection for other types

@@ -33,18 +33,18 @@
 //
 // For full control over argument handling, use [Interp.RegisterCommand]:
 //
-//	interp.RegisterCommand("sum", func(i *feather.Interp, cmd feather.Object, args []feather.Object) feather.Result {
+//	interp.RegisterCommand("sum", func(i *feather.Interp, cmd *feather.Obj, args []*feather.Obj) feather.Result {
 //	    if len(args) < 2 {
 //	        return feather.Errorf("wrong # args: should be \"%s a b\"", cmd.String())
 //	    }
-//	    a, _ := args[0].Int()
-//	    b, _ := args[1].Int()
+//	    a, _ := feather.AsInt(args[0])
+//	    b, _ := feather.AsInt(args[1])
 //	    return feather.OK(a + b)
 //	})
 //
 // # Working with Values
 //
-// The [Object] type represents TCL values and supports shimmering (lazy type conversion):
+// The [*Obj] type represents TCL values and supports shimmering (lazy type conversion):
 //
 //	// Create values
 //	s := interp.String("hello")
@@ -55,12 +55,12 @@
 //	dict := interp.DictKV("name", "Alice", "age", 30)
 //
 //	// Read values back
-//	s.String()      // always succeeds
-//	n.Int()         // (int64, error) - parses if needed
-//	f.Float()       // (float64, error)
-//	b.Bool()        // (bool, error) - TCL boolean rules
-//	list.List()     // ([]Object, error)
-//	dict.Dict()     // (map[string]Object, error)
+//	s.String()            // always succeeds
+//	feather.AsInt(n)      // (int64, error) - parses if needed
+//	feather.AsDouble(f)   // (float64, error)
+//	feather.AsBool(b)     // (bool, error) - TCL boolean rules
+//	feather.AsList(list)  // ([]*Obj, error)
+//	feather.AsDict(dict)  // (*DictType, error)
 //
 // # Exposing Go Types
 //
@@ -77,285 +77,7 @@ package feather
 
 import (
 	"fmt"
-	"strings"
 )
-
-// Object represents a TCL value.
-//
-// Object provides lazy access to value representations through shimmering.
-// When you call [Object.Int] on a string object, it parses the string and
-// caches the integer representation. Subsequent calls return the cached value.
-//
-// Objects are only valid while the owning interpreter is alive. Do not store
-// Objects beyond the lifetime of their interpreter.
-//
-// The zero value is a nil object; most methods return zero/empty values for nil objects.
-type Object struct {
-	i *InternalInterp
-	h FeatherObj
-}
-
-// String returns the string representation of the object.
-//
-// This method always succeeds. For typed objects (int, list, dict), it generates
-// the canonical TCL string representation.
-//
-//	interp.Int(42).String()           // "42"
-//	interp.List(...).String()         // "a b c"
-//	interp.DictKV("k", "v").String()  // "k v"
-func (o Object) String() string {
-	if o.i == nil {
-		return ""
-	}
-	return o.i.GetString(o.h)
-}
-
-// Int returns the integer representation of the object.
-//
-// If the object is not already an integer, it attempts to parse the string
-// representation. The parsed value is cached (shimmering).
-//
-// Returns an error if the value cannot be converted to an integer.
-//
-//	interp.String("42").Int()     // 42, nil
-//	interp.String("hello").Int()  // 0, error
-func (o Object) Int() (int64, error) {
-	if o.i == nil {
-		return 0, fmt.Errorf("nil object")
-	}
-	return o.i.GetInt(o.h)
-}
-
-// Float returns the floating-point representation of the object.
-//
-// If the object is not already a float, it attempts to parse the string
-// representation. Integer objects are converted to float without parsing.
-//
-// Returns an error if the value cannot be converted to a float.
-//
-//	interp.String("3.14").Float()  // 3.14, nil
-//	interp.Int(42).Float()         // 42.0, nil
-func (o Object) Float() (float64, error) {
-	if o.i == nil {
-		return 0, fmt.Errorf("nil object")
-	}
-	return o.i.GetDouble(o.h)
-}
-
-// Bool returns the boolean representation of the object.
-//
-// TCL has specific rules for boolean values:
-//   - Truthy: "1", "true", "yes", "on" (case-insensitive)
-//   - Falsy: "0", "false", "no", "off" (case-insensitive)
-//
-// Returns an error for any other value.
-//
-//	interp.String("yes").Bool()   // true, nil
-//	interp.String("0").Bool()     // false, nil
-//	interp.String("maybe").Bool() // false, error
-func (o Object) Bool() (bool, error) {
-	if o.i == nil {
-		return false, fmt.Errorf("nil object")
-	}
-	s := o.i.GetString(o.h)
-	switch strings.ToLower(s) {
-	case "1", "true", "yes", "on":
-		return true, nil
-	case "0", "false", "no", "off":
-		return false, nil
-	default:
-		return false, fmt.Errorf("expected boolean but got %q", s)
-	}
-}
-
-// List returns the list representation of the object.
-//
-// If the object is not already a list, it parses the string representation
-// as a TCL list. The parsed value is cached (shimmering).
-//
-// Returns an error if the value cannot be parsed as a TCL list.
-//
-//	interp.String("a b c").List()  // [a, b, c], nil
-//	interp.String("{a b} c").List() // [{a b}, c], nil
-func (o Object) List() ([]Object, error) {
-	if o.i == nil {
-		return nil, fmt.Errorf("nil object")
-	}
-	items, err := o.i.GetList(o.h)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]Object, len(items))
-	for i, h := range items {
-		result[i] = Object{o.i, h}
-	}
-	return result, nil
-}
-
-// Dict returns the dict representation of the object.
-//
-// If the object is not already a dict, it parses the string/list representation
-// as key-value pairs. The parsed value is cached (shimmering).
-//
-// Returns an error if the value has an odd number of elements or cannot be
-// parsed as a list.
-//
-//	interp.String("a 1 b 2").Dict()  // {"a": 1, "b": 2}, nil
-//	interp.String("a b c").Dict()    // nil, error (odd elements)
-func (o Object) Dict() (map[string]Object, error) {
-	if o.i == nil {
-		return nil, fmt.Errorf("nil object")
-	}
-	items, order, err := o.i.GetDict(o.h)
-	if err != nil {
-		return nil, err
-	}
-	result := make(map[string]Object, len(order))
-	for _, k := range order {
-		result[k] = Object{o.i, items[k]}
-	}
-	return result, nil
-}
-
-// Type returns the native type name of the object.
-//
-// Built-in types: "string", "int", "double", "list", "dict".
-// Foreign types return their registered type name (e.g., "Counter").
-//
-//	interp.Int(42).Type()           // "int"
-//	interp.String("hi").Type()      // "string"
-//	counterObj.Type()               // "Counter"
-func (o Object) Type() string {
-	if o.i == nil {
-		return "string"
-	}
-	return o.i.Type(o.h)
-}
-
-// IsNil returns true if this is a nil/invalid object.
-//
-// Nil objects occur when:
-//   - The zero value Object{} is used
-//   - A variable lookup fails
-//   - An out-of-bounds list index is accessed
-func (o Object) IsNil() bool {
-	return o.h == 0 || o.i == nil
-}
-
-// StringList returns the list as a []string for convenience.
-//
-// This is equivalent to calling [Object.List] and then converting each element
-// to a string, but more convenient when you know all elements are strings.
-//
-//	interp.String("a b c").StringList()  // ["a", "b", "c"], nil
-func (o Object) StringList() ([]string, error) {
-	items, err := o.List()
-	if err != nil {
-		return nil, err
-	}
-	result := make([]string, len(items))
-	for i, item := range items {
-		result[i] = item.String()
-	}
-	return result, nil
-}
-
-// Len returns the length of a list or dict.
-//
-// For lists, returns the number of elements.
-// For dicts, returns the number of key-value pairs times 2 (list representation).
-// For non-collections or errors, returns 0.
-//
-//	interp.List(a, b, c).Len()        // 3
-//	interp.DictKV("k", "v").Len()     // 2 (as list: "k v")
-//	interp.String("hello").Len()      // 1 (single-element list)
-func (o Object) Len() int {
-	if o.i == nil {
-		return 0
-	}
-	return o.i.ListLen(o.h)
-}
-
-// Index returns the element at index i for lists.
-//
-// Uses zero-based indexing. Returns an empty string object if the index is
-// out of bounds or the object cannot be converted to a list.
-//
-//	list := interp.List(interp.String("a"), interp.String("b"))
-//	list.Index(0).String()  // "a"
-//	list.Index(5).String()  // "" (out of bounds)
-func (o Object) Index(i int) Object {
-	if o.i == nil {
-		return Object{}
-	}
-	h := o.i.ListIndex(o.h, i)
-	if h == 0 {
-		return Object{o.i, o.i.InternString("")}
-	}
-	return Object{o.i, h}
-}
-
-// Append adds an element to a list, mutating it in place.
-//
-// If the object is not a list, it is first converted to one.
-// The string representation is invalidated and will be regenerated on next access.
-//
-//	list := interp.List(interp.Int(1), interp.Int(2))
-//	list.Append(interp.Int(3))
-//	list.String()  // "1 2 3"
-func (o Object) Append(elem Object) {
-	if o.i == nil || elem.i == nil {
-		return
-	}
-	o.i.ListAppend(o.h, elem.h)
-}
-
-// Get returns the value for a dict key.
-//
-// Returns (value, true) if the key exists, (Object{}, false) if not.
-// If the object cannot be converted to a dict, returns (Object{}, false).
-//
-//	dict := interp.DictKV("name", "Alice")
-//	v, ok := dict.Get("name")   // "Alice", true
-//	v, ok = dict.Get("missing") // Object{}, false
-func (o Object) Get(key string) (Object, bool) {
-	if o.i == nil {
-		return Object{}, false
-	}
-	h, ok := o.i.DictGet(o.h, key)
-	if !ok {
-		return Object{}, false
-	}
-	return Object{o.i, h}, true
-}
-
-// Set sets a dict key to a value, mutating the dict in place.
-//
-// If the key already exists, its value is updated. If not, the key is added.
-// The string representation is invalidated and will be regenerated on next access.
-//
-//	dict := interp.Dict()
-//	dict.Set("name", interp.String("Alice"))
-//	dict.Set("age", interp.Int(30))
-func (o Object) Set(key string, val Object) {
-	if o.i == nil || val.i == nil {
-		return
-	}
-	o.i.DictSet(o.h, key, val.h)
-}
-
-// Keys returns the keys of a dict in insertion order.
-//
-// Returns nil if the object cannot be converted to a dict or is nil.
-//
-//	dict := interp.DictKV("b", 2, "a", 1)
-//	dict.Keys()  // ["b", "a"] (insertion order preserved)
-func (o Object) Keys() []string {
-	if o.i == nil {
-		return nil
-	}
-	return o.i.DictKeys(o.h)
-}
 
 // Interp is a TCL interpreter instance.
 //
@@ -384,7 +106,7 @@ func New() *Interp {
 
 // Close releases resources associated with the interpreter.
 //
-// After Close is called, the interpreter and all Objects created from it
+// After Close is called, the interpreter and all *Obj values created from it
 // become invalid. Always use defer to ensure Close is called.
 func (i *Interp) Close() {
 	i.i.Close()
@@ -394,65 +116,57 @@ func (i *Interp) Close() {
 // Object Creation
 // -----------------------------------------------------------------------------
 
-// String creates a string Object.
+// String creates a string object.
 //
 //	s := interp.String("hello world")
 //	s.Type()   // "string"
 //	s.String() // "hello world"
-func (i *Interp) String(s string) Object {
-	return Object{i.i, i.i.InternString(s)}
+func (i *Interp) String(s string) *Obj {
+	return NewStringObj(s)
 }
 
-// Int creates an integer Object.
+// Int creates an integer object.
 //
 //	n := interp.Int(42)
 //	n.Type()   // "int"
 //	n.String() // "42"
-//	n.Int()    // 42, nil
-func (i *Interp) Int(v int64) Object {
-	return Object{i.i, i.i.NewInt(v)}
+func (i *Interp) Int(v int64) *Obj {
+	return NewIntObj(v)
 }
 
-// Float creates a floating-point Object.
+// Float creates a floating-point object.
 //
 //	f := interp.Float(3.14)
 //	f.Type()   // "double"
 //	f.String() // "3.14"
-//	f.Float()  // 3.14, nil
-func (i *Interp) Float(v float64) Object {
-	return Object{i.i, i.i.NewDouble(v)}
+func (i *Interp) Float(v float64) *Obj {
+	return NewDoubleObj(v)
 }
 
-// Bool creates a boolean Object, stored as int 1 (true) or 0 (false).
+// Bool creates a boolean object, stored as int 1 (true) or 0 (false).
 //
 // TCL has no native boolean type; booleans are represented as integers.
 //
 //	b := interp.Bool(true)
 //	b.Type()   // "int"
 //	b.String() // "1"
-//	b.Bool()   // true, nil
-func (i *Interp) Bool(v bool) Object {
+func (i *Interp) Bool(v bool) *Obj {
 	if v {
-		return Object{i.i, i.i.NewInt(1)}
+		return NewIntObj(1)
 	}
-	return Object{i.i, i.i.NewInt(0)}
+	return NewIntObj(0)
 }
 
-// List creates a list Object from the given items.
+// List creates a list object from the given items.
 //
 //	list := interp.List(interp.String("a"), interp.Int(1), interp.Bool(true))
 //	list.Type()   // "list"
 //	list.String() // "a 1 1"
-//	list.Len()    // 3
-func (i *Interp) List(items ...Object) Object {
-	l := i.i.NewList()
-	for _, item := range items {
-		i.i.ListAppend(l, item.h)
-	}
-	return Object{i.i, l}
+func (i *Interp) List(items ...*Obj) *Obj {
+	return NewListObj(items...)
 }
 
-// ListFrom creates a list Object from a Go slice.
+// ListFrom creates a list object from a Go slice.
 //
 // Supported slice types:
 //   - []string  - each element becomes a string object
@@ -468,67 +182,69 @@ func (i *Interp) List(items ...Object) Object {
 //
 //	nums := interp.ListFrom([]int{1, 2, 3})
 //	nums.String() // "1 2 3"
-func (i *Interp) ListFrom(slice any) Object {
-	l := i.i.NewList()
+func (i *Interp) ListFrom(slice any) *Obj {
+	var items []*Obj
 	switch s := slice.(type) {
 	case []string:
-		for _, v := range s {
-			i.i.ListAppend(l, i.i.InternString(v))
+		items = make([]*Obj, len(s))
+		for j, v := range s {
+			items[j] = NewStringObj(v)
 		}
 	case []int:
-		for _, v := range s {
-			i.i.ListAppend(l, i.i.NewInt(int64(v)))
+		items = make([]*Obj, len(s))
+		for j, v := range s {
+			items[j] = NewIntObj(int64(v))
 		}
 	case []int64:
-		for _, v := range s {
-			i.i.ListAppend(l, i.i.NewInt(v))
+		items = make([]*Obj, len(s))
+		for j, v := range s {
+			items[j] = NewIntObj(v)
 		}
 	case []float64:
-		for _, v := range s {
-			i.i.ListAppend(l, i.i.NewDouble(v))
+		items = make([]*Obj, len(s))
+		for j, v := range s {
+			items[j] = NewDoubleObj(v)
 		}
 	case []any:
-		for _, v := range s {
-			i.i.ListAppend(l, i.anyToHandle(v))
+		items = make([]*Obj, len(s))
+		for j, v := range s {
+			items[j] = i.anyToObj(v)
 		}
 	}
-	return Object{i.i, l}
+	return NewListObj(items...)
 }
 
-// Dict creates an empty dict Object.
+// Dict creates an empty dict object.
 //
-// Use [Object.Set] to add key-value pairs, or use [Interp.DictKV] or
+// Use dict helper functions to add key-value pairs, or use [Interp.DictKV] or
 // [Interp.DictFrom] to create a populated dict.
 //
 //	dict := interp.Dict()
-//	dict.Set("key", interp.String("value"))
-func (i *Interp) Dict() Object {
-	return Object{i.i, i.i.NewDict()}
+//	feather.ObjDictSet(dict, "key", interp.String("value"))
+func (i *Interp) Dict() *Obj {
+	return NewDictObj()
 }
 
-// DictKV creates a dict Object from alternating key-value pairs.
+// DictKV creates a dict object from alternating key-value pairs.
 //
 // Keys should be strings (non-strings are converted via fmt.Sprintf).
 // Values are auto-converted based on their Go type.
 //
 //	dict := interp.DictKV("name", "Alice", "age", 30, "active", true)
 //	dict.String() // "name Alice age 30 active 1"
-//
-//	v, _ := dict.Get("name")
-//	v.String() // "Alice"
-func (i *Interp) DictKV(kvs ...any) Object {
-	d := i.i.NewDict()
+func (i *Interp) DictKV(kvs ...any) *Obj {
+	d := NewDictObj()
 	for j := 0; j+1 < len(kvs); j += 2 {
 		key, ok := kvs[j].(string)
 		if !ok {
 			key = fmt.Sprintf("%v", kvs[j])
 		}
-		d = i.i.DictSet(d, key, i.anyToHandle(kvs[j+1]))
+		ObjDictSet(d, key, i.anyToObj(kvs[j+1]))
 	}
-	return Object{i.i, d}
+	return d
 }
 
-// DictFrom creates a dict Object from a Go map.
+// DictFrom creates a dict object from a Go map.
 //
 // Values are auto-converted based on their Go type.
 // Note: Go maps have undefined iteration order, so dict key order may vary.
@@ -537,36 +253,42 @@ func (i *Interp) DictKV(kvs ...any) Object {
 //	    "name": "Alice",
 //	    "age":  30,
 //	})
-func (i *Interp) DictFrom(m map[string]any) Object {
-	d := i.i.NewDict()
+func (i *Interp) DictFrom(m map[string]any) *Obj {
+	d := NewDictObj()
 	for k, v := range m {
-		d = i.i.DictSet(d, k, i.anyToHandle(v))
+		ObjDictSet(d, k, i.anyToObj(v))
 	}
-	return Object{i.i, d}
+	return d
+}
+
+// anyToObj converts any Go value to a *Obj.
+// Used internally for auto-conversion in SetVar, DictKV, etc.
+func (i *Interp) anyToObj(v any) *Obj {
+	switch val := v.(type) {
+	case string:
+		return NewStringObj(val)
+	case int:
+		return NewIntObj(int64(val))
+	case int64:
+		return NewIntObj(val)
+	case float64:
+		return NewDoubleObj(val)
+	case bool:
+		if val {
+			return NewIntObj(1)
+		}
+		return NewIntObj(0)
+	case *Obj:
+		return val
+	default:
+		return NewStringObj(fmt.Sprintf("%v", v))
+	}
 }
 
 // anyToHandle converts any Go value to an internal object handle.
-// Used internally for auto-conversion in SetVar, DictKV, etc.
+// Used internally for auto-conversion in SetVar, etc.
 func (i *Interp) anyToHandle(v any) FeatherObj {
-	switch val := v.(type) {
-	case string:
-		return i.i.InternString(val)
-	case int:
-		return i.i.NewInt(int64(val))
-	case int64:
-		return i.i.NewInt(val)
-	case float64:
-		return i.i.NewDouble(val)
-	case bool:
-		if val {
-			return i.i.NewInt(1)
-		}
-		return i.i.NewInt(0)
-	case Object:
-		return val.h
-	default:
-		return i.i.InternString(fmt.Sprintf("%v", v))
-	}
+	return i.i.handleForObj(i.anyToObj(v))
 }
 
 // -----------------------------------------------------------------------------
@@ -583,12 +305,12 @@ func (i *Interp) anyToHandle(v any) FeatherObj {
 //	    log.Fatal(err)
 //	}
 //	fmt.Println(result.String()) // "20"
-func (i *Interp) Eval(script string) (Object, error) {
+func (i *Interp) Eval(script string) (*Obj, error) {
 	_, err := i.i.Eval(script)
 	if err != nil {
-		return Object{}, err
+		return nil, err
 	}
-	return Object{i.i, i.i.ResultHandle()}, nil
+	return i.i.objForHandle(i.i.ResultHandle()), nil
 }
 
 // Call invokes a single TCL command with the given arguments.
@@ -599,7 +321,7 @@ func (i *Interp) Eval(script string) (Object, error) {
 //	result, err := interp.Call("expr", "2 + 2")
 //	result, err := interp.Call("llength", myList)
 //	result, err := interp.Call("myns::proc", arg1, arg2)
-func (i *Interp) Call(cmd string, args ...any) (Object, error) {
+func (i *Interp) Call(cmd string, args ...any) (*Obj, error) {
 	script := cmd
 	for _, arg := range args {
 		script += " " + toTclString(arg)
@@ -611,22 +333,21 @@ func (i *Interp) Call(cmd string, args ...any) (Object, error) {
 // Variables
 // -----------------------------------------------------------------------------
 
-// Var returns the value of a variable as an Object.
+// Var returns the value of a variable as a *Obj.
 //
 // Returns an empty string object if the variable does not exist.
 // The returned object preserves the variable's type (int, list, foreign, etc.).
 //
 //	interp.SetVar("x", 42)
 //	v := interp.Var("x")
-//	v.Int()  // 42, nil
-//	v.Type() // "int" (if SetVar preserved type) or "string"
-func (i *Interp) Var(name string) Object {
+//	feather.AsInt(v)  // 42, nil
+//	v.Type()          // "int" (if SetVar preserved type) or "string"
+func (i *Interp) Var(name string) *Obj {
 	h := i.i.GetVarHandle(name)
 	if h == 0 {
-		// Variable not found, return empty string object
-		return Object{i.i, i.i.InternString("")}
+		return NewStringObj("")
 	}
-	return Object{i.i, h}
+	return i.i.objForHandle(h)
 }
 
 // SetVar sets a variable to a value.
@@ -664,9 +385,8 @@ func (i *Interp) SetVars(vars map[string]any) {
 // Variables that don't exist will have empty string values in the result.
 //
 //	vars := interp.GetVars("x", "y", "z")
-//	fmt.Println(vars["x"].Int())
-func (i *Interp) GetVars(names ...string) map[string]Object {
-	result := make(map[string]Object, len(names))
+func (i *Interp) GetVars(names ...string) map[string]*Obj {
+	result := make(map[string]*Obj, len(names))
 	for _, name := range names {
 		result[name] = i.Var(name)
 	}
@@ -685,22 +405,22 @@ func (i *Interp) GetVars(names ...string) map[string]Object {
 //   - args: the arguments passed to the command
 //
 // Return [OK] for success or [Error]/[Errorf] for failure.
-type CommandFunc func(i *Interp, cmd Object, args []Object) Result
+type CommandFunc func(i *Interp, cmd *Obj, args []*Obj) Result
 
 // RegisterCommand adds a command using the low-level CommandFunc interface.
 //
 // Use this when you need full control over argument handling, access to the
 // interpreter, or custom error messages. For simpler cases, use [Interp.Register].
 //
-//	interp.RegisterCommand("sum", func(i *feather.Interp, cmd feather.Object, args []feather.Object) feather.Result {
+//	interp.RegisterCommand("sum", func(i *feather.Interp, cmd *feather.Obj, args []*feather.Obj) feather.Result {
 //	    if len(args) < 2 {
 //	        return feather.Errorf("wrong # args: should be \"%s a b\"", cmd.String())
 //	    }
-//	    a, err := args[0].Int()
+//	    a, err := feather.AsInt(args[0])
 //	    if err != nil {
 //	        return feather.Error(err.Error())
 //	    }
-//	    b, err := args[1].Int()
+//	    b, err := feather.AsInt(args[1])
 //	    if err != nil {
 //	        return feather.Error(err.Error())
 //	    }
@@ -708,16 +428,18 @@ type CommandFunc func(i *Interp, cmd Object, args []Object) Result
 //	})
 func (i *Interp) RegisterCommand(name string, fn CommandFunc) {
 	i.i.Register(name, func(ii *InternalInterp, cmd FeatherObj, args []FeatherObj) FeatherResult {
-		objArgs := make([]Object, len(args))
+		objArgs := make([]*Obj, len(args))
 		for j, h := range args {
-			objArgs[j] = Object{ii, h}
+			objArgs[j] = ii.objForHandle(h)
 		}
-		r := fn(i, Object{ii, cmd}, objArgs)
-		if r.isObj && r.obj != nil {
+		cmdObj := ii.objForHandle(cmd)
+		r := fn(i, cmdObj, objArgs)
+		if r.hasObj && r.obj != nil {
+			h := ii.handleForObj(r.obj)
 			if r.code == ResultError {
-				ii.SetError(r.obj.h)
+				ii.SetError(h)
 			} else {
-				ii.SetResult(r.obj.h)
+				ii.SetResult(h)
 			}
 		} else if r.code == ResultError {
 			ii.SetErrorString(r.val)
@@ -776,7 +498,7 @@ func (i *Interp) Register(name string, fn any) {
 //
 // Set to nil to restore default behavior (return "invalid command" error).
 //
-//	interp.SetUnknownHandler(func(i *feather.Interp, cmd feather.Object, args []feather.Object) feather.Result {
+//	interp.SetUnknownHandler(func(i *feather.Interp, cmd *feather.Obj, args []*feather.Obj) feather.Result {
 //	    // Try to auto-load the command
 //	    if loaded := tryLoadCommand(cmd.String()); loaded {
 //	        return i.Call(cmd.String(), args...)
@@ -785,12 +507,20 @@ func (i *Interp) Register(name string, fn any) {
 //	})
 func (i *Interp) SetUnknownHandler(fn CommandFunc) {
 	i.i.SetUnknownHandler(func(ii *InternalInterp, cmd FeatherObj, args []FeatherObj) FeatherResult {
-		objArgs := make([]Object, len(args))
+		objArgs := make([]*Obj, len(args))
 		for j, h := range args {
-			objArgs[j] = Object{ii, h}
+			objArgs[j] = ii.objForHandle(h)
 		}
-		r := fn(i, Object{ii, cmd}, objArgs)
-		if r.code == ResultError {
+		cmdObj := ii.objForHandle(cmd)
+		r := fn(i, cmdObj, objArgs)
+		if r.hasObj && r.obj != nil {
+			h := ii.handleForObj(r.obj)
+			if r.code == ResultError {
+				ii.SetError(h)
+			} else {
+				ii.SetResult(h)
+			}
+		} else if r.code == ResultError {
 			ii.SetErrorString(r.val)
 		} else {
 			ii.SetResultString(r.val)
@@ -834,52 +564,44 @@ func (i *Interp) Internal() *InternalInterp {
 
 // Result represents the result of a command execution.
 //
-// Create results using [OK], [OKObj], [Error], [ErrorObj], or [Errorf].
+// Create results using [OK], [Error], or [Errorf].
 type Result struct {
-	code  FeatherResult
-	val   string  // used when obj is nil
-	obj   *Object // used when non-nil (preserves type)
-	isObj bool    // true if obj should be used
+	code   FeatherResult
+	val    string // used when obj is nil
+	obj    *Obj   // used when non-nil (preserves type)
+	hasObj bool   // true if obj should be used
 }
 
 // OK returns a successful result with a value.
 //
 // The value is auto-converted to a TCL string representation.
-// For [Object] values, use [OKObj] to preserve the object's internal type.
+// Pass a [*Obj] directly to preserve its internal type (int, list, dict, etc.).
 //
 //	return feather.OK("success")
 //	return feather.OK(42)
 //	return feather.OK([]string{"a", "b"})
+//	return feather.OK(myObj)  // preserves *Obj type
 func OK(v any) Result {
+	if o, ok := v.(*Obj); ok {
+		return Result{code: ResultOK, obj: o, hasObj: true}
+	}
 	return Result{code: ResultOK, val: toTclString(v)}
 }
 
-// OKObj returns a successful result with an Object, preserving its internal type.
+// Error returns an error result with a message or *Obj.
 //
-// Use this instead of [OK] when you have an Object and want to preserve its
-// internal representation (int, list, dict, etc.) without string conversion.
-//
-//	list := interp.List(interp.String("a"), interp.String("b"))
-//	return feather.OKObj(list)
-func OKObj(obj Object) Result {
-	return Result{code: ResultOK, obj: &obj, isObj: true}
-}
-
-// Error returns an error result with a message.
+// Pass a string for simple error messages, or a [*Obj] for structured errors.
 //
 //	return feather.Error("something went wrong")
-func Error(msg string) Result {
-	return Result{code: ResultError, val: msg}
-}
-
-// ErrorObj returns an error result with an Object, preserving its internal type.
-//
-// Use this when you need to return a structured error value rather than a string.
-//
-//	errDict := interp.DictKV("code", "404", "message", "not found")
-//	return feather.ErrorObj(errDict)
-func ErrorObj(obj Object) Result {
-	return Result{code: ResultError, obj: &obj, isObj: true}
+//	return feather.Error(errDict)  // structured error
+func Error(v any) Result {
+	if o, ok := v.(*Obj); ok {
+		return Result{code: ResultError, obj: o, hasObj: true}
+	}
+	if s, ok := v.(string); ok {
+		return Result{code: ResultError, val: s}
+	}
+	return Result{code: ResultError, val: toTclString(v)}
 }
 
 // Errorf returns a formatted error result.
