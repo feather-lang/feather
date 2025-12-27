@@ -13,10 +13,11 @@ FeatherResult feather_builtin_set(const FeatherHostOps *ops, FeatherInterp inter
 
   // Get the variable name (first argument)
   FeatherObj varName = ops->list.shift(interp, args);
-  size_t nameLen;
-  const char *nameStr = ops->string.get(interp, varName, &nameLen);
 
   // Resolve the variable name (handles qualified names)
+  // Need to get string for feather_resolve_variable (it still uses char*)
+  size_t nameLen;
+  const char *nameStr = ops->string.get(interp, varName, &nameLen);
   FeatherObj ns, localName;
   feather_resolve_variable(ops, interp, nameStr, nameLen, &ns, &localName);
 
@@ -34,10 +35,9 @@ FeatherResult feather_builtin_set(const FeatherHostOps *ops, FeatherInterp inter
     if (ops->list.is_nil(interp, value)) {
       // Variable doesn't exist - build error message
       FeatherObj part1 = ops->string.intern(interp, "can't read \"", 12);
-      FeatherObj part2 = ops->string.intern(interp, nameStr, nameLen);
       FeatherObj part3 = ops->string.intern(interp, "\": no such variable", 19);
 
-      FeatherObj msg = ops->string.concat(interp, part1, part2);
+      FeatherObj msg = ops->string.concat(interp, part1, varName);
       msg = ops->string.concat(interp, msg, part3);
 
       ops->interp.set_result(interp, msg);

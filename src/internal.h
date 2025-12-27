@@ -26,6 +26,99 @@ static inline int feather_obj_eq_literal(const FeatherHostOps *ops, FeatherInter
 }
 
 /**
+ * feather_obj_is_qualified checks if an object's string value contains "::".
+ *
+ * Uses byte-at-a-time access to avoid ops->string.get().
+ * Returns 1 if qualified (contains "::"), 0 otherwise.
+ */
+static inline int feather_obj_is_qualified(const FeatherHostOps *ops, FeatherInterp interp,
+                                           FeatherObj obj) {
+    size_t len = ops->string.byte_length(interp, obj);
+    for (size_t i = 0; i + 1 < len; i++) {
+        int c1 = ops->string.byte_at(interp, obj, i);
+        if (c1 == ':') {
+            int c2 = ops->string.byte_at(interp, obj, i + 1);
+            if (c2 == ':') {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+/**
+ * feather_obj_contains_char checks if an object's string value contains a character.
+ *
+ * Uses byte-at-a-time access. Returns 1 if found, 0 otherwise.
+ */
+static inline int feather_obj_contains_char(const FeatherHostOps *ops, FeatherInterp interp,
+                                            FeatherObj obj, int ch) {
+    size_t len = ops->string.byte_length(interp, obj);
+    for (size_t i = 0; i < len; i++) {
+        if (ops->string.byte_at(interp, obj, i) == ch) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/**
+ * feather_obj_starts_with_char checks if an object's string value starts with a character.
+ *
+ * Uses byte-at-a-time access. Returns 1 if starts with ch, 0 otherwise.
+ */
+static inline int feather_obj_starts_with_char(const FeatherHostOps *ops, FeatherInterp interp,
+                                               FeatherObj obj, int ch) {
+    return ops->string.byte_at(interp, obj, 0) == ch;
+}
+
+/**
+ * feather_obj_is_pure_digits checks if an object's string value is all digits 0-9.
+ *
+ * Uses byte-at-a-time access. Returns 1 if all digits (and non-empty), 0 otherwise.
+ */
+static inline int feather_obj_is_pure_digits(const FeatherHostOps *ops, FeatherInterp interp,
+                                             FeatherObj obj) {
+    size_t len = ops->string.byte_length(interp, obj);
+    if (len == 0) return 0;
+    for (size_t i = 0; i < len; i++) {
+        int c = ops->string.byte_at(interp, obj, i);
+        if (c < '0' || c > '9') {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/**
+ * feather_obj_to_bool_literal attempts to parse boolean literal values.
+ *
+ * Checks for "true", "false", "yes", "no" using ops->string.equal().
+ * If matched, sets *result to 0 or 1 and returns 1.
+ * If not matched, returns 0 (caller should try integer conversion).
+ */
+static inline int feather_obj_to_bool_literal(const FeatherHostOps *ops, FeatherInterp interp,
+                                              FeatherObj obj, int *result) {
+    if (feather_obj_eq_literal(ops, interp, obj, "true")) {
+        *result = 1;
+        return 1;
+    }
+    if (feather_obj_eq_literal(ops, interp, obj, "false")) {
+        *result = 0;
+        return 1;
+    }
+    if (feather_obj_eq_literal(ops, interp, obj, "yes")) {
+        *result = 1;
+        return 1;
+    }
+    if (feather_obj_eq_literal(ops, interp, obj, "no")) {
+        *result = 0;
+        return 1;
+    }
+    return 0;
+}
+
+/**
  * feather_lookup_builtin looks up a builtin command by name.
  * Returns NULL if no builtin with that name exists.
  */

@@ -25,19 +25,15 @@ FeatherResult feather_builtin_global(const FeatherHostOps *ops, FeatherInterp in
 
   for (size_t i = 0; i < argc; i++) {
     FeatherObj varname = ops->list.at(interp, args, i);
-    size_t varname_len;
-    const char *varname_str = ops->string.get(interp, varname, &varname_len);
 
     // Check for array element syntax - not allowed
-    for (size_t j = 0; j < varname_len; j++) {
-      if (varname_str[j] == '(') {
-        FeatherObj msg = ops->string.intern(interp, "can't use \"", 11);
-        msg = ops->string.concat(interp, msg, varname);
-        FeatherObj suffix = ops->string.intern(interp, "\" as variable name: must be a scalar variable", 45);
-        msg = ops->string.concat(interp, msg, suffix);
-        ops->interp.set_result(interp, msg);
-        return TCL_ERROR;
-      }
+    if (feather_obj_contains_char(ops, interp, varname, '(')) {
+      FeatherObj msg = ops->string.intern(interp, "can't use \"", 11);
+      msg = ops->string.concat(interp, msg, varname);
+      FeatherObj suffix = ops->string.intern(interp, "\" as variable name: must be a scalar variable", 45);
+      msg = ops->string.concat(interp, msg, suffix);
+      ops->interp.set_result(interp, msg);
+      return TCL_ERROR;
     }
 
     // Determine local name and target namespace/name
@@ -47,8 +43,11 @@ FeatherResult feather_builtin_global(const FeatherHostOps *ops, FeatherInterp in
     FeatherObj target_ns;
     FeatherObj target_name;
 
-    if (feather_is_qualified(varname_str, varname_len)) {
+    if (feather_obj_is_qualified(ops, interp, varname)) {
       // Has namespace qualifiers - resolve it
+      // Need to get string for feather_resolve_variable (it still uses char*)
+      size_t varname_len;
+      const char *varname_str = ops->string.get(interp, varname, &varname_len);
       FeatherResult res = feather_resolve_variable(ops, interp, varname_str, varname_len,
                                                    &target_ns, &target_name);
       if (res != TCL_OK) {
@@ -59,7 +58,7 @@ FeatherResult feather_builtin_global(const FeatherHostOps *ops, FeatherInterp in
       local_name = target_name;
 
       // If target_ns is nil, that means it was unqualified (shouldn't happen
-      // since we checked feather_is_qualified), use global
+      // since we checked feather_obj_is_qualified), use global
       if (ops->list.is_nil(interp, target_ns)) {
         target_ns = global_ns;
       }

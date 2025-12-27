@@ -28,8 +28,6 @@ FeatherResult feather_builtin_upvar(const FeatherHostOps *ops, FeatherInterp int
 
   // Check if first arg looks like a level
   FeatherObj first = ops->list.at(interp, argsCopy, 0);
-  size_t firstLen;
-  const char *firstStr = ops->string.get(interp, first, &firstLen);
 
   // TCL's level detection rule: only consume the first arg as a level if
   // doing so leaves an EVEN number of remaining args (to form pairs).
@@ -43,17 +41,10 @@ FeatherResult feather_builtin_upvar(const FeatherHostOps *ops, FeatherInterp int
   if ((argc - 1) % 2 == 0 && argc >= 3) {
     // Check if first arg looks like a level (# prefix or purely numeric)
     int looksLikeLevel = 0;
-    if (firstLen > 0 && firstStr[0] == '#') {
+    if (feather_obj_starts_with_char(ops, interp, first, '#')) {
       looksLikeLevel = 1;
-    } else if (firstLen > 0) {
-      int isPurelyNumeric = 1;
-      for (size_t i = 0; i < firstLen; i++) {
-        if (firstStr[i] < '0' || firstStr[i] > '9') {
-          isPurelyNumeric = 0;
-          break;
-        }
-      }
-      looksLikeLevel = isPurelyNumeric;
+    } else if (feather_obj_is_pure_digits(ops, interp, first)) {
+      looksLikeLevel = 1;
     }
 
     if (looksLikeLevel) {

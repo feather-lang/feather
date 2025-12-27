@@ -19,11 +19,9 @@ FeatherResult feather_builtin_variable(const FeatherHostOps *ops, FeatherInterp 
   FeatherObj args_copy = ops->list.from(interp, args);
   while (ops->list.length(interp, args_copy) > 0) {
     FeatherObj name = ops->list.shift(interp, args_copy);
-    size_t name_len;
-    const char *name_str = ops->string.get(interp, name, &name_len);
 
     // Check if name is qualified - if so, it's an error
-    if (feather_is_qualified(name_str, name_len)) {
+    if (feather_obj_is_qualified(ops, interp, name)) {
       FeatherObj msg = ops->string.intern(interp, "can't define \"", 14);
       msg = ops->string.concat(interp, msg, name);
       FeatherObj suffix = ops->string.intern(interp, "\": name refers to an element in another namespace", 49);

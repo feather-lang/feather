@@ -23,9 +23,12 @@ FeatherResult feather_builtin_linsert(const FeatherHostOps *ops, FeatherInterp i
   }
   size_t listLen = ops->list.length(interp, list);
 
-  size_t idxLen;
-  const char *idxStr = ops->string.get(interp, indexObj, &idxLen);
-  int is_end_relative = (idxLen >= 3 && idxStr[0] == 'e' && idxStr[1] == 'n' && idxStr[2] == 'd');
+  // Check if index starts with "end"
+  size_t idxLen = ops->string.byte_length(interp, indexObj);
+  int is_end_relative = (idxLen >= 3 &&
+                         ops->string.byte_at(interp, indexObj, 0) == 'e' &&
+                         ops->string.byte_at(interp, indexObj, 1) == 'n' &&
+                         ops->string.byte_at(interp, indexObj, 2) == 'd');
 
   int64_t index;
   if (feather_parse_index(ops, interp, indexObj, listLen, &index) != TCL_OK) {

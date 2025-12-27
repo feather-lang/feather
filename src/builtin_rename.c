@@ -30,9 +30,6 @@ FeatherResult feather_builtin_rename(const FeatherHostOps *ops, FeatherInterp in
   FeatherObj newName = ops->list.at(interp, args, 1);
 
   // Resolve oldName to fully qualified form
-  size_t oldLen;
-  const char *oldStr = ops->string.get(interp, oldName, &oldLen);
-
   FeatherObj qualifiedOld = oldName;
   FeatherBuiltinCmd unusedFn = NULL;
 
@@ -50,24 +47,20 @@ FeatherResult feather_builtin_rename(const FeatherHostOps *ops, FeatherInterp in
   }
 
   // Resolve newName similarly if it's not empty
-  size_t newLen;
-  const char *newStr = ops->string.get(interp, newName, &newLen);
+  size_t newLen = ops->string.byte_length(interp, newName);
 
   FeatherObj qualifiedNew = newName;
-  if (newLen > 0 && !feather_is_qualified(newStr, newLen)) {
+  if (newLen > 0 && !feather_obj_is_qualified(ops, interp, newName)) {
     // Prepend current namespace to new name
     FeatherObj currentNs = ops->ns.current(interp);
-    size_t nsLen;
-    const char *nsStr = ops->string.get(interp, currentNs, &nsLen);
+    FeatherObj globalNs = ops->string.intern(interp, "::", 2);
 
-    if (nsLen == 2 && nsStr[0] == ':' && nsStr[1] == ':') {
+    if (ops->string.equal(interp, currentNs, globalNs)) {
       // Global namespace: prepend "::"
-      qualifiedNew = ops->string.intern(interp, "::", 2);
-      qualifiedNew = ops->string.concat(interp, qualifiedNew, newName);
+      qualifiedNew = ops->string.concat(interp, globalNs, newName);
     } else {
       // Other namespace: "::ns::name"
-      qualifiedNew = ops->string.concat(interp, currentNs,
-                                        ops->string.intern(interp, "::", 2));
+      qualifiedNew = ops->string.concat(interp, currentNs, globalNs);
       qualifiedNew = ops->string.concat(interp, qualifiedNew, newName);
     }
   }

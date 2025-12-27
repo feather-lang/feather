@@ -29,24 +29,13 @@ FeatherResult feather_builtin_uplevel(const FeatherHostOps *ops, FeatherInterp i
   // Check if first arg looks like a level (only if we have > 1 arg)
   if (argc > 1) {
     FeatherObj first = ops->list.at(interp, argsCopy, 0);
-    size_t firstLen;
-    const char *firstStr = ops->string.get(interp, first, &firstLen);
 
     // A level starts with # or is purely numeric
     int looksLikeLevel = 0;
-    if (firstLen > 0) {
-      if (firstStr[0] == '#') {
-        looksLikeLevel = 1;
-      } else if (firstStr[0] >= '0' && firstStr[0] <= '9') {
-        // Check if entirely digits
-        looksLikeLevel = 1;
-        for (size_t i = 0; i < firstLen; i++) {
-          if (firstStr[i] < '0' || firstStr[i] > '9') {
-            looksLikeLevel = 0;
-            break;
-          }
-        }
-      }
+    if (feather_obj_starts_with_char(ops, interp, first, '#')) {
+      looksLikeLevel = 1;
+    } else if (feather_obj_is_pure_digits(ops, interp, first)) {
+      looksLikeLevel = 1;
     }
 
     if (looksLikeLevel) {

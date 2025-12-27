@@ -17,25 +17,8 @@ static FeatherResult eval_while_condition(const FeatherHostOps *ops, FeatherInte
 
   FeatherObj resultObj = ops->interp.get_result(interp);
 
-  // Check for boolean literals
-  size_t len;
-  const char *str = ops->string.get(interp, resultObj, &len);
-
-  // Check for true/false/yes/no
-  if (len == 4 && str[0] == 't' && str[1] == 'r' && str[2] == 'u' && str[3] == 'e') {
-    *result = 1;
-    return TCL_OK;
-  }
-  if (len == 5 && str[0] == 'f' && str[1] == 'a' && str[2] == 'l' && str[3] == 's' && str[4] == 'e') {
-    *result = 0;
-    return TCL_OK;
-  }
-  if (len == 3 && str[0] == 'y' && str[1] == 'e' && str[2] == 's') {
-    *result = 1;
-    return TCL_OK;
-  }
-  if (len == 2 && str[0] == 'n' && str[1] == 'o') {
-    *result = 0;
+  // Check for boolean literals using helper
+  if (feather_obj_to_bool_literal(ops, interp, resultObj, result)) {
     return TCL_OK;
   }
 
@@ -48,9 +31,8 @@ static FeatherResult eval_while_condition(const FeatherHostOps *ops, FeatherInte
 
   // Invalid boolean expression
   FeatherObj part1 = ops->string.intern(interp, "expected boolean value but got \"", 32);
-  FeatherObj part2 = ops->string.intern(interp, str, len);
   FeatherObj part3 = ops->string.intern(interp, "\"", 1);
-  FeatherObj msg = ops->string.concat(interp, part1, part2);
+  FeatherObj msg = ops->string.concat(interp, part1, resultObj);
   msg = ops->string.concat(interp, msg, part3);
   ops->interp.set_result(interp, msg);
   return TCL_ERROR;
