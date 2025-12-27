@@ -1,5 +1,19 @@
 # Plan: Arena-Based Memory Management for WASM
 
+## Current Architecture
+
+The C core uses `feather_host_*` functions unconditionally for all host operations. Both native and WASM builds use the same dispatch path via `feather_get_ops(NULL)`:
+
+- **Native (Go):** `callbacks.c` implements `feather_host_*` functions that call Go exports (`go*`)
+- **WASM (JS):** `feather_host_*` functions are provided as WASM imports from JavaScript
+
+This unified architecture means:
+- Go calls C functions directly with `nil` for the ops parameter
+- No wrapper functions needed — `C.feather_script_eval_obj(nil, ...)`
+- Both builds resolve to `default_ops` which points to the actual host function implementations
+
+String handling uses byte-level accessors (`feather_host_string_byte_at`, `feather_host_string_byte_length`) which return integers rather than pointers, avoiding the need for JS to copy strings into WASM linear memory.
+
 ## Goal
 
 Eliminate memory leaks in the WASM build by implementing arena-based memory management with a clear separation between scratch (temporary) and persistent storage.
