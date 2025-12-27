@@ -167,16 +167,9 @@ func (o *Obj) List() ([]*Obj, error) {
 	return AsList(o)
 }
 
-// AsDict converts this object to a dict, shimmering if needed.
-// Lists with even length can be converted to dicts.
+// Dict returns the dict representation of this object.
+// Note: This only works on objects that already have a dict representation.
 // To parse a string as a dict, use Interp.ParseDict().
-func (o *Obj) AsDict() (*Obj, error) {
-	if o == nil {
-		return NewDictObj(), nil
-	}
-	d, err := AsDict(o)
-	if err != nil {
-		return nil, err
-	}
-	return &Obj{intrep: d}, nil
+func (o *Obj) Dict() (*DictType, error) {
+	return AsDict(o)
 }
