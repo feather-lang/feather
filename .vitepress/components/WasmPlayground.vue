@@ -2,6 +2,7 @@
   <div class="wasm-playground">
     <div class="tabs">
       <button 
+        v-if="hasJs"
         :class="['tab', { active: activeTab === 'js' }]" 
         @click="activeTab = 'js'"
       >JavaScript</button>
@@ -14,7 +15,7 @@
     </div>
 
     <div class="editor-container">
-      <div v-show="activeTab === 'js'" class="editor-wrapper">
+      <div v-if="hasJs" v-show="activeTab === 'js'" class="editor-wrapper">
         <CodeEditor
           v-model="jsCode"
           language="javascript"
@@ -55,7 +56,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import CodeEditor from './CodeEditor.vue'
 
 const props = defineProps({
@@ -73,17 +74,15 @@ const props = defineProps({
   }
 })
 
-const activeTab = ref('js')
+const hasJs = computed(() => !!props.js)
+const activeTab = ref(props.js ? 'js' : 'tcl')
 
 const jsCode = ref('')
 const tclCode = ref('')
 
 onMounted(() => {
-  jsCode.value = props.js || `// Register custom commands
-register('greet', (args) => {
-  return 'Hello, ' + (args[0] || 'World') + '!';
-});`
-  tclCode.value = props.tcl || `puts [greet "Feather"]`
+  jsCode.value = props.js || ''
+  tclCode.value = props.tcl || ''
 })
 const output = ref([])
 const ready = ref(false)
