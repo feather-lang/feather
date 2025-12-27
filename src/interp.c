@@ -18,6 +18,7 @@ static const BuiltinEntry builtins[] = {
     {"::while", feather_builtin_while},
     {"::for", feather_builtin_for},
     {"::foreach", feather_builtin_foreach},
+    {"::lmap", feather_builtin_lmap},
     {"::switch", feather_builtin_switch},
     {"::tailcall", feather_builtin_tailcall},
     {"::break", feather_builtin_break},

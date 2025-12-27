@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head><title>lmap command tests</title></head>
+<body>
+<h1>lmap command tests</h1>
+
+<h2>Basic usage</h2>
+
+<test-case name="lmap single variable single list">
+  <script>lmap x {1 2 3} {expr {$x * 2}}</script>
+  <return>TCL_OK</return>
+  <stdout>2 4 6</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="lmap returns list of body results">
+  <script>lmap x {a b c} {set x}</script>
+  <return>TCL_OK</return>
+  <stdout>a b c</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="lmap empty list returns empty">
+  <script>lmap x {} {expr {$x * 2}}</script>
+  <return>TCL_OK</return>
+  <stdout></stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Multiple variables from one list</h2>
+
+<test-case name="lmap multiple vars from one list">
+  <script>lmap {a b} {1 2 3 4 5 6} {list $a $b}</script>
+  <return>TCL_OK</return>
+  <stdout>{1 2} {3 4} {5 6}</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="lmap multiple vars uneven list">
+  <script>lmap {a b} {1 2 3 4 5} {list $a $b}</script>
+  <return>TCL_OK</return>
+  <stdout>{1 2} {3 4} {5 {}}</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Multiple lists</h2>
+
+<test-case name="lmap two lists">
+  <script>lmap x {a b c} y {1 2 3} {list $x $y}</script>
+  <return>TCL_OK</return>
+  <stdout>{a 1} {b 2} {c 3}</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="lmap unequal list lengths">
+  <script>lmap x {a b c} y {1 2} {list $x $y}</script>
+  <return>TCL_OK</return>
+  <stdout>{a 1} {b 2} {c {}}</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="lmap three lists">
+  <script>lmap a {1 2} b {x y} c {! @} {list $a $b $c}</script>
+  <return>TCL_OK</return>
+  <stdout>{1 x !} {2 y @}</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Control flow - continue</h2>
+
+<test-case name="lmap continue skips result">
+  <script>lmap x {1 2 3 4 5} {if {$x == 3} continue; set x}</script>
+  <return>TCL_OK</return>
+  <stdout>1 2 4 5</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="lmap continue first element">
+  <script>lmap x {1 2 3} {if {$x == 1} continue; set x}</script>
+  <return>TCL_OK</return>
+  <stdout>2 3</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="lmap continue last element">
+  <script>lmap x {1 2 3} {if {$x == 3} continue; set x}</script>
+  <return>TCL_OK</return>
+  <stdout>1 2</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Control flow - break</h2>
+
+<test-case name="lmap break stops iteration">
+  <script>lmap x {1 2 3 4 5} {if {$x == 4} break; set x}</script>
+  <return>TCL_OK</return>
+  <stdout>1 2 3</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="lmap break first element">
+  <script>lmap x {1 2 3} {if {$x == 1} break; set x}</script>
+  <return>TCL_OK</return>
+  <stdout></stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Control flow - return</h2>
+
+<test-case name="lmap return propagates">
+  <script>proc test {} { lmap x {1 2 3} { if {$x == 2} {return "found"}; set x } }; test</script>
+  <return>TCL_OK</return>
+  <stdout>found</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Variable scope</h2>
+
+<test-case name="lmap modifies variable in scope">
+  <script>set x "original"; lmap x {1 2 3} {set x}; set x</script>
+  <return>TCL_OK</return>
+  <stdout>3</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Nested lmap</h2>
+
+<test-case name="lmap nested">
+  <script>lmap x {1 2} {lmap y {a b} {list $x $y}}</script>
+  <return>TCL_OK</return>
+  <stdout>{{1 a} {1 b}} {{2 a} {2 b}}</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Error handling</h2>
+
+<test-case name="lmap no arguments">
+  <script>lmap</script>
+  <return>TCL_ERROR</return>
+  <error>wrong # args: should be "lmap varList list ?varList list ...? command"</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="lmap one argument">
+  <script>lmap x</script>
+  <return>TCL_ERROR</return>
+  <error>wrong # args: should be "lmap varList list ?varList list ...? command"</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="lmap two arguments">
+  <script>lmap x y</script>
+  <return>TCL_ERROR</return>
+  <error>wrong # args: should be "lmap varList list ?varList list ...? command"</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="lmap empty varlist">
+  <script>lmap {} {1 2 3} {set x}</script>
+  <return>TCL_ERROR</return>
+  <error>lmap varlist is empty</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="lmap error in body propagates">
+  <script>lmap x {1 2 3} {error "test error"}</script>
+  <return>TCL_ERROR</return>
+  <error>test error</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+</body>
+</html>

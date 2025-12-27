@@ -83,6 +83,18 @@ FeatherResult feather_builtin_foreach(const FeatherHostOps *ops, FeatherInterp i
                                FeatherObj cmd, FeatherObj args);
 
 /**
+ * feather_builtin_lmap implements the TCL 'lmap' command.
+ *
+ * Usage:
+ *   lmap varList list ?varList list ...? command
+ *
+ * Like foreach, but collects results from each iteration into a list.
+ * break stops the loop, continue skips adding to the result.
+ */
+FeatherResult feather_builtin_lmap(const FeatherHostOps *ops, FeatherInterp interp,
+                               FeatherObj cmd, FeatherObj args);
+
+/**
  * feather_builtin_switch implements the TCL 'switch' command.
  *
  * Usage:
