@@ -30,6 +30,7 @@ features:
 
 <script setup>
 import FeatherPlayground from '../.vitepress/components/FeatherPlayground.vue'
+import PlatformCard from '../.vitepress/components/PlatformCard.vue'
 </script>
 
 <div id="playground">
@@ -86,69 +87,33 @@ Feather provides libraries for using Feather directly in your programming langua
 ### Supported Platforms
 
 <div class="runs-everywhere-cards">
-  <div class="platform-card">
-    <div class="platform-logo-col">
-      <img src="/go-logo.svg" alt="Go Logo" class="platform-logo" />
-    </div>
-    <div class="platform-text">
-      <h3 data-status="alpha">Go</h3>
-      <p>The reference host implementation, with an easy embedding API.</p>
-	  <p>Quickly expose functions and structs from your program for manipulation through Feather.</p>
-    </div>
-  </div>
-  <div class="platform-card">
-    <div class="platform-logo-col">
-      <img src="/webassembly-logo.svg" alt="WebAssembly Logo" class="platform-logo" />
-    </div>
-    <div class="platform-text">
-      <h3 data-status="alpha">JavaScript / WASM</h3>
-      <p>Run in browsers and Node.js via WebAssembly. Works anywhere WASM runs.</p>
-	  <p>Host bindings for the node.js and the browser are provided.</p>
-    </div>
-  </div>
-  <div class="platform-card">
-    <div class="platform-logo-col">
-      <img src="/swift-logo.svg" alt="Swift Logo" class="platform-logo" />
-    </div>
-    <div class="platform-text">
-      <h3 data-status="planned">Swift</h3>
-      <p>Host bindings for Swift, to allow end users of apps to change their behavior at runtime.</p>
-      <p>Make any app as configurable as neovim and Emacs.</p>
-    </div>
-  </div>
-  <div class="platform-card">
-    <div class="platform-logo-col">
-      <img src="/java-logo.svg" alt="Java Logo" class="platform-logo" />
-    </div>
-    <div class="platform-text">
-      <h3 data-status="planned">Java</h3>
-      <p>Java is pretty dynamic already, but not jshell is clunky and other languages bring their own implementation of everything.</p>
-      <p>Target use cases: runtime configuration of webserver, user-scriptable cross-platform GUI apps.</p>
-    </div>
-  </div>
+  <PlatformCard href="/go" logo="/go-logo.svg" logoAlt="Go Logo" title="Go" status="alpha" clickable>
+    <p>The reference host implementation, with an easy embedding API.</p>
+    <p>Quickly expose functions and structs from your program for manipulation through Feather.</p>
+  </PlatformCard>
+  <PlatformCard href="/wasm" logo="/webassembly-logo.svg" logoAlt="WebAssembly Logo" title="JavaScript / WASM" status="alpha" clickable>
+    <p>Run in browsers and Node.js via WebAssembly. Works anywhere WASM runs.</p>
+    <p>Host bindings for the node.js and the browser are provided.</p>
+  </PlatformCard>
+  <PlatformCard logo="/swift-logo.svg" logoAlt="Swift Logo" title="Swift" status="planned">
+    <p>Host bindings for Swift, to allow end users of apps to change their behavior at runtime.</p>
+    <p>Make any app as configurable as neovim and Emacs.</p>
+  </PlatformCard>
+  <PlatformCard logo="/java-logo.svg" logoAlt="Java Logo" title="Java" status="planned">
+    <p>Java is pretty dynamic already, but not jshell is clunky and other languages bring their own implementation of everything.</p>
+    <p>Target use cases: runtime configuration of webserver, user-scriptable cross-platform GUI apps.</p>
+  </PlatformCard>
 </div>
 
 ### Intentionally not supported Platforms
 <div class="runs-everywhere-cards">
-  <div class="platform-card">
-    <div class="platform-logo-col">
-      <img src="/ruby-logo.svg" alt="Ruby Logo" class="platform-logo" />
-    </div>
-    <div class="platform-text">
-      <h3 data-status="unsupported">Ruby</h3>
-      <p>Ruby can already be programmed at runtime in Ruby.</p>
-	  <p>The introduction of Boxes in Ruby 4, and mruby cover all possible use cases.</p>
-    </div>
-  </div>
-  <div class="platform-card">
-    <div class="platform-logo-col">
-      <img src="/python-logo.svg" alt="Python Logo" class="platform-logo" />
-    </div>
-    <div class="platform-text">
-      <h3 data-status="unsupported">Python</h3>
-      <p>Python is already dynamic and untrusted user code can be executed in WASM-based Python interpreters.</p>
-    </div>
-  </div>
+  <PlatformCard logo="/ruby-logo.svg" logoAlt="Ruby Logo" title="Ruby" status="unsupported">
+    <p>Ruby can already be programmed at runtime in Ruby.</p>
+    <p>The introduction of Boxes in Ruby 4, and mruby cover all possible use cases.</p>
+  </PlatformCard>
+  <PlatformCard logo="/python-logo.svg" logoAlt="Python Logo" title="Python" status="unsupported">
+    <p>Python is already dynamic and untrusted user code can be executed in WASM-based Python interpreters.</p>
+  </PlatformCard>
 </div>
 
 
@@ -159,89 +124,6 @@ Feather provides libraries for using Feather directly in your programming langua
   gap: 24px;
   margin-top: 24px;
   flex-wrap: wrap;
-}
-
-.platform-card {
-  flex: 1 1 calc(33% - 24px);
-  max-width: calc(33% - 12px);
-  min-width: 280px;
-  padding: 24px;
-  border-radius: 12px;
-  background: var(--vp-c-bg-soft);
-  border: 1px solid var(--vp-c-divider);
-  display: flex;
-  gap: 20px;
-  align-items: flex-start;
-}
-
-@media (max-width: 1024px) {
-  .platform-card {
-    flex: 1 1 calc(50% - 24px);
-    max-width: calc(50% - 12px);
-  }
-}
-
-@media (max-width: 640px) {
-  .platform-card {
-    flex: 1 1 100%;
-    max-width: 100%;
-  }
-}
-
-.platform-logo-col {
-  flex-shrink: 0;
-  width: 80px;
-  display: flex;
-  justify-content: center;
-}
-
-.platform-logo {
-  height: 56px;
-  width: auto;
-}
-
-.platform-text {
-  text-align: left;
-}
-
-.platform-text h3 {
-  margin: 0 0 8px 0;
-  font-size: 1.2em;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.platform-text h3::after {
-  content: attr(data-status);
-  font-size: 0.65em;
-  font-weight: 600;
-  text-transform: uppercase;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: var(--vp-c-gray-2);
-  color: var(--vp-c-text-2);
-}
-
-.platform-text h3[data-status="alpha"]::after {
-  background: var(--vp-c-green-soft);
-  color: var(--vp-c-green-1);
-}
-
-.platform-text h3[data-status="planned"]::after {
-  background: var(--vp-c-yellow-soft);
-  color: var(--vp-c-yellow-1);
-}
-
-.platform-text h3[data-status="unsupported"]::after {
-  background: var(--vp-c-gray-soft);
-  color: var(--vp-c-text-3);
-}
-
-.platform-text p {
-  margin: 0;
-  color: var(--vp-c-text-2);
-  font-size: 0.95em;
 }
 </style>
 
