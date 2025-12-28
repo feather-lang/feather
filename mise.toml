@@ -34,10 +34,21 @@ description = "Run the WASM memory test checking for leaks"
 dir = "js"
 run = "mise run test:wasm-memory"
 
+[tasks."test:go-memory"]
+description = "Run the Go memory test checking for leaks"
+depends = ["build:feather-memory-tester"]
+run = "bin/feather-memory-tester"
+
 [tasks."build:feather-httpd"]
 description = "Builds the feather-httpd example server"
 run = """
 go build -o $MISE_CONFIG_ROOT/bin/feather-httpd ./cmd/feather-httpd
+"""
+
+[tasks."build:feather-memory-tester"]
+description = "Builds the feather-memory-tester binary"
+run = """
+go build -o $MISE_CONFIG_ROOT/bin/feather-memory-tester ./cmd/feather-memory-tester
 """
 
 [tasks.build]
