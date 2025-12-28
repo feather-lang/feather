@@ -209,6 +209,111 @@ func (i *InternalInterp) Close() {
 	cgo.Handle(i.handle).Delete()
 }
 
+// collectUnusedObjects performs mark-and-sweep garbage collection on the objects map.
+// This removes temporary objects created during eval that are no longer referenced.
+// Should be called after each top-level eval completes.
+func (i *InternalInterp) collectUnusedObjects() {
+	referenced := make(map[FeatherObj]bool)
+
+	// Mark interpreter-level objects
+	i.markHandle(referenced, i.result)
+	i.markHandle(referenced, i.returnOptions)
+	i.markHandle(referenced, i.globalNS)
+	i.markHandle(referenced, i.scriptPath)
+
+	// Mark all namespace variables
+	for _, ns := range i.namespaces {
+		for _, handle := range ns.vars {
+			i.markHandle(referenced, handle)
+		}
+		// Mark procedure bodies/params/names
+		for _, cmd := range ns.commands {
+			if cmd.proc != nil {
+				i.markHandle(referenced, cmd.proc.name)
+				i.markHandle(referenced, cmd.proc.params)
+				i.markHandle(referenced, cmd.proc.body)
+			}
+		}
+	}
+
+	// Mark all call frames (cmd and args)
+	for _, frame := range i.frames {
+		i.markHandle(referenced, frame.cmd)
+		i.markHandle(referenced, frame.args)
+		// Note: frame.locals is a namespace, already marked above
+	}
+
+	// Mark all trace scripts
+	for _, traces := range i.varTraces {
+		for _, trace := range traces {
+			i.markHandle(referenced, trace.script)
+		}
+	}
+	for _, traces := range i.cmdTraces {
+		for _, trace := range traces {
+			i.markHandle(referenced, trace.script)
+		}
+	}
+	for _, traces := range i.execTraces {
+		for _, trace := range traces {
+			i.markHandle(referenced, trace.script)
+		}
+	}
+
+	// Sweep phase: delete unreferenced objects
+	for handle := range i.objects {
+		if !referenced[handle] {
+			delete(i.objects, handle)
+		}
+	}
+}
+
+// markHandle recursively marks a handle and its nested objects as referenced.
+func (i *InternalInterp) markHandle(referenced map[FeatherObj]bool, handle FeatherObj) {
+	if handle == 0 || referenced[handle] {
+		return // Already marked or null handle
+	}
+	referenced[handle] = true
+
+	obj := i.objects[handle]
+	if obj == nil {
+		return
+	}
+
+	// Recursively mark list items
+	if items, err := AsList(obj); err == nil {
+		for _, item := range items {
+			// Find the handle for this item
+			if itemHandle := i.findHandle(item); itemHandle != 0 {
+				i.markHandle(referenced, itemHandle)
+			}
+		}
+	}
+
+	// Recursively mark dict values
+	if dict, err := AsDict(obj); err == nil {
+		for _, value := range dict.Items {
+			if valueHandle := i.findHandle(value); valueHandle != 0 {
+				i.markHandle(referenced, valueHandle)
+			}
+		}
+	}
+}
+
+// findHandle finds the handle for a given *Obj by searching the objects map.
+// Returns 0 if not found. This is needed because list/dict items are *Obj pointers.
+func (i *InternalInterp) findHandle(obj *Obj) FeatherObj {
+	if obj == nil {
+		return 0
+	}
+	for handle, o := range i.objects {
+		if o == obj {
+			return handle
+		}
+	}
+	return 0
+}
+
 // Register adds a Go command to the interpreter.
 // The command will be invoked when the C layer doesn't find a builtin or proc.
 func (i *InternalInterp) Register(name string, fn InternalCommandFunc) {
@@ -445,6 +550,9 @@ func (i *InternalInterp) dictObjToValue(obj *Obj) string {
 // Eval evaluates a script string using the C interpreter
 func (i *InternalInterp) Eval(script string) (string, error) {
 	scriptHandle := i.internString(script)
+
+	// Clean up temporary objects after eval completes
+	defer i.collectUnusedObjects()
 
 	// Call the C interpreter
 	result := callCEval(i.handle, scriptHandle)
