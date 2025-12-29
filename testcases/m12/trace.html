@@ -138,6 +138,68 @@ set ::traceLog</script>
     <exit-code>0</exit-code>
   </test-case>
 
+  <test-case name="unset trace fires on variable unset">
+    <script>set ::traceLog ""
+proc unsetTrace {name1 name2 op} {
+    set ::traceLog "unset:$name1"
+}
+set x hello
+trace add variable x unset unsetTrace
+unset x
+set ::traceLog</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>unset:x</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="write trace receives correct arguments">
+    <script>set ::traceLog ""
+proc writeTrace {name1 name2 op} {
+    set ::traceLog "$name1|$name2|$op"
+}
+trace add variable myvar write writeTrace
+set myvar value
+set ::traceLog</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>myvar||write</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="read trace receives correct arguments">
+    <script>set ::traceLog ""
+proc readTrace {name1 name2 op} {
+    set ::traceLog "$name1|$name2|$op"
+}
+set myvar value
+trace add variable myvar read readTrace
+expr {$myvar}
+set ::traceLog</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>myvar||read</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="trace command prefix receives appended args">
+    <script>set ::traceLog ""
+proc logArgs {args} {
+    set ::traceLog $args
+}
+trace add variable x write logArgs
+set x 10
+set ::traceLog</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>x {} write</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
   <!-- ============================================= -->
   <!-- trace add/info command                        -->
   <!-- ============================================= -->

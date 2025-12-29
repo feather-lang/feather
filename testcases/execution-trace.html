@@ -1,0 +1,223 @@
+<test-suite name="execution-traces">
+  <!--
+    Execution Traces Test Suite
+
+    trace add execution name ops command    - add an execution trace
+    trace remove execution name ops command - remove an execution trace
+    trace info execution name               - list execution traces on name
+
+    ops is a list of: enter, leave, enterstep, leavestep
+
+    For "enter" and "enterstep" traces, the callback receives:
+      command-list op
+
+    For "leave" and "leavestep" traces, the callback receives:
+      command-list code result op
+
+    Note: command-list is a flat list of words (command name + args)
+    Note: Multiple traces fire in LIFO order (last added fires first)
+  -->
+
+  <!-- ============================================= -->
+  <!-- Basic enter traces                           -->
+  <!-- ============================================= -->
+
+  <test-case name="enter trace fires on command invocation">
+    <script>set log {}
+proc traceProc args { global log; lappend log $args }
+proc myCmd {} { return "result" }
+trace add execution myCmd enter traceProc
+myCmd
+set log</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{myCmd enter}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="enter trace receives command with args">
+    <script>set log {}
+proc traceProc args { global log; lappend log $args }
+proc myCmd {a b} { return "$a $b" }
+trace add execution myCmd enter traceProc
+myCmd hello world
+set log</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{{myCmd hello world} enter}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="enter trace on builtin command">
+    <script>set log {}
+proc traceProc args { global log; lappend log $args }
+trace add execution incr enter traceProc
+set x 1
+incr x
+set log</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{{incr x} enter}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Basic leave traces                           -->
+  <!-- ============================================= -->
+
+  <test-case name="leave trace fires after command completes">
+    <script>set log {}
+proc traceProc args { global log; lappend log $args }
+proc myCmd {} { return "result" }
+trace add execution myCmd leave traceProc
+myCmd
+set log</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{myCmd 0 result leave}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="leave trace receives return code and result">
+    <script>set log {}
+proc traceProc args { global log; lappend log $args }
+proc myCmd {a b} { return "$a+$b" }
+trace add execution myCmd leave traceProc
+myCmd x y
+set log</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{{myCmd x y} 0 x+y leave}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="leave trace shows error code on command error">
+    <script>set log {}
+proc traceProc args { global log; lappend log $args }
+proc myCmd {} { error "oops" }
+trace add execution myCmd leave traceProc
+catch { myCmd }
+set log</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{myCmd 1 oops leave}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Combined enter and leave traces              -->
+  <!-- ============================================= -->
+
+  <test-case name="enter and leave traces both fire">
+    <script>set log {}
+proc traceProc args { global log; lappend log $args }
+proc myCmd {} { return "done" }
+trace add execution myCmd {enter leave} traceProc
+myCmd
+set log</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{myCmd enter} {myCmd 0 done leave}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Multiple traces (LIFO order)                 -->
+  <!-- ============================================= -->
+
+  <test-case name="multiple enter traces fire in LIFO order">
+    <script>set log {}
+proc trace1 args { global log; lappend log "t1:[lindex $args 0]" }
+proc trace2 args { global log; lappend log "t2:[lindex $args 0]" }
+proc myCmd {} { return ok }
+trace add execution myCmd enter trace1
+trace add execution myCmd enter trace2
+myCmd
+set log</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>t2:myCmd t1:myCmd</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Trace info and remove                        -->
+  <!-- ============================================= -->
+
+  <test-case name="trace info execution shows registered traces">
+    <script>proc traceProc args {}
+proc myCmd {} {}
+trace add execution myCmd enter traceProc
+trace info execution myCmd</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{enter traceProc}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="trace remove execution removes a trace">
+    <script>proc traceProc args {}
+proc myCmd {} {}
+trace add execution myCmd enter traceProc
+trace remove execution myCmd enter traceProc
+trace info execution myCmd</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="trace info execution returns empty for untraced command">
+    <script>proc myCmd {} {}
+trace info execution myCmd</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Trace firing correctness                     -->
+  <!-- ============================================= -->
+
+  <test-case name="trace callback is command prefix">
+    <script>set log {}
+proc logWithPrefix {prefix args} { global log; lappend log "$prefix:$args" }
+proc myCmd {} { return ok }
+trace add execution myCmd enter {logWithPrefix EXEC}
+myCmd
+set log</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{EXEC:myCmd enter}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="removed trace does not fire">
+    <script>set log {}
+proc traceProc args { global log; lappend log "fired" }
+proc myCmd {} { return ok }
+trace add execution myCmd enter traceProc
+trace remove execution myCmd enter traceProc
+myCmd
+set log</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

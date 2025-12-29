@@ -39,12 +39,9 @@ class FeatherInterp {
     const globalNS = { vars: new Map(), children: new Map(), exports: [], commands: new Map() };
     this.namespaces = new Map([['', globalNS]]);
     // Frame 0's vars IS the global namespace's vars (unified storage)
-    this.frames = [{ vars: globalNS.vars, cmd: 0, args: 0, ns: '::' }];
+    this.frames = [{ vars: globalNS.vars, cmd: 0, args: 0, ns: '::', line: 0, lambda: 0 }];
     this.activeLevel = 0;
-    this.procs = new Map();
-    this.builtins = new Map();
     this.hostCommands = new Map();
-    this.traces = { variable: new Map(), command: new Map(), execution: new Map() };
     this.returnOptions = new Map();
     this.scriptPath = '';
     this.foreignTypes = new Map();
@@ -146,7 +143,11 @@ class FeatherInterp {
       if (s.includes('.') || s.includes('e') || s.includes('E')) return s;
       return s + '.0';
     }
-    if (obj.type === 'list') return obj.items.map(h => this.quoteListElement(this.getString(h))).join(' ');
+    if (obj.type === 'list') {
+      // Use original string representation if available (preserves correct quoting)
+      if (obj.originalString !== undefined) return obj.originalString;
+      return obj.items.map(h => this.quoteListElement(this.getString(h))).join(' ');
+    }
     if (obj.type === 'dict') {
       const parts = [];
       for (const [k, v] of obj.entries) {
@@ -217,6 +218,10 @@ class FeatherInterp {
     const listObj = this.get(listHandle);
     if (listObj?.type === 'list') {
       // Cache the list type on the original object for shimmering
+      // Preserve the original string for proper re-serialization
+      if (obj.type === 'string') {
+        obj.originalString = obj.value;
+      }
       obj.type = 'list';
       obj.items = listObj.items;
       return { items: obj.items };
@@ -314,62 +319,6 @@ async function createFeather(wasmSource) {
   let wasmMemory;
   let wasmInstance;
 
-  // Helper to fire variable traces
-  const fireVarTraces = (interp, varName, op) => {
-    const traces = interp.traces.variable.get(varName);
-    if (!traces || traces.length === 0) return;
-
-    for (const trace of traces) {
-      // Check if this trace matches the operation
-      const ops = trace.ops.split(/\s+/);
-      if (!ops.includes(op)) continue;
-
-      // Build the command: script name1 name2 op
-      // trace.script is now stored as string directly
-      const cmd = `${trace.script} ${varName} {} ${op}`;
-      const [ptr, len] = writeString(cmd);
-      wasmInstance.exports.feather_script_eval(0, interp.id, ptr, len, 0);
-      wasmInstance.exports.free(ptr);
-    }
-  };
-
-  // Helper to convert fully qualified name to display name (strip :: for global commands)
-  const displayName = (name) => {
-    if (name.length > 2 && name.startsWith('::')) {
-      const rest = name.slice(2);
-      if (!rest.includes('::')) {
-        return rest;
-      }
-    }
-    return name;
-  };
-
-  // Helper to fire command traces
-  const fireCmdTraces = (interp, oldName, newName, op) => {
-    // Look up traces using the qualified name (traces are stored with :: prefix)
-    const qualifiedOld = oldName.startsWith('::') ? oldName : '::' + oldName;
-    const traces = interp.traces.command.get(qualifiedOld);
-    if (!traces || traces.length === 0) return;
-
-    for (const trace of traces) {
-      // Check if this trace matches the operation
-      const ops = trace.ops.split(/\s+/);
-      if (!ops.includes(op)) continue;
-
-      // Build the command: script oldName newName op
-      // Use display names (strip :: for global namespace commands)
-      // trace.script is now stored as string directly
-      const displayOld = displayName(oldName);
-      const displayNew = displayName(newName);
-      // Empty strings must be properly quoted with {}
-      const quotedNew = displayNew === '' ? '{}' : displayNew;
-      const cmd = `${trace.script} ${displayOld} ${quotedNew} ${op}`;
-      const [ptr, len] = writeString(cmd);
-      wasmInstance.exports.feather_script_eval(0, interp.id, ptr, len, 0);
-      wasmInstance.exports.free(ptr);
-    }
-  };
-
   const readString = (ptr, len) => {
     const bytes = new Uint8Array(wasmMemory.buffer, ptr, len);
     return new TextDecoder().decode(bytes);
@@ -420,7 +369,8 @@ async function createFeather(wasmSource) {
       }
       const parentNs = interp.frames[interp.frames.length - 1].ns;
       // New frames get their own vars Map (NOT shared with namespace)
-      interp.frames.push({ vars: new Map(), cmd, args, ns: parentNs });
+      // line and lambda fields for info frame support
+      interp.frames.push({ vars: new Map(), cmd, args, ns: parentNs, line: 0, lambda: 0 });
       interp.activeLevel = interp.frames.length - 1;
       return TCL_OK;
     },
@@ -463,6 +413,26 @@ async function createFeather(wasmSource) {
       const interp = interpreters.get(interpId);
       return interp.store({ type: 'string', value: interp.currentFrame().ns });
     },
+    feather_host_frame_set_line: (interpId, line) => {
+      const interp = interpreters.get(interpId);
+      interp.currentFrame().line = line;
+      return TCL_OK;
+    },
+    feather_host_frame_get_line: (interpId, level) => {
+      const interp = interpreters.get(interpId);
+      if (level >= interp.frames.length) return 0;
+      return interp.frames[level].line || 0;
+    },
+    feather_host_frame_set_lambda: (interpId, lambda) => {
+      const interp = interpreters.get(interpId);
+      interp.currentFrame().lambda = lambda;
+      return TCL_OK;
+    },
+    feather_host_frame_get_lambda: (interpId, level) => {
+      const interp = interpreters.get(interpId);
+      if (level >= interp.frames.length) return 0;
+      return interp.frames[level].lambda || 0;
+    },
 
     // Variable operations
     feather_host_var_get: (interpId, name) => {
@@ -486,8 +456,6 @@ async function createFeather(wasmSource) {
         materialized = entry.value;
       }
       if (!materialized) return 0;
-      // Fire read traces
-      fireVarTraces(interp, varName, 'read');
       return interp.wrap(materialized);
     },
     feather_host_var_set: (interpId, name, value) => {
@@ -510,15 +478,11 @@ async function createFeather(wasmSource) {
       } else {
         frame.vars.set(varName, { value: materialized });
       }
-      // Fire write traces
-      fireVarTraces(interp, varName, 'write');
     },
     feather_host_var_unset: (interpId, name) => {
       const interp = interpreters.get(interpId);
       const varName = interp.getString(name);
       interp.currentFrame().vars.delete(varName);
-      // Fire unset traces
-      fireVarTraces(interp, varName, 'unset');
     },
     feather_host_var_exists: (interpId, name) => {
       const interp = interpreters.get(interpId);
@@ -564,199 +528,12 @@ async function createFeather(wasmSource) {
       const items = names.map(n => interp.store({ type: 'string', value: n }));
       return interp.store({ type: 'list', items });
     },
-
-    // Proc operations
-    feather_host_proc_define: (interpId, name, params, body) => {
+    feather_host_var_is_link: (interpId, name) => {
       const interp = interpreters.get(interpId);
-      const procName = interp.getString(name);
-      
-      // Materialize for persistent storage
-      const materializedParams = interp.materialize(params);
-      const materializedBody = interp.materialize(body);
-      
-      interp.procs.set(procName, { params: materializedParams, body: materializedBody });
-
-      // Also store in namespace commands map for ns_list_commands
-      // Extract namespace and simple name from qualified name (e.g., "::foo::bar" -> ns="foo", name="bar")
-      let nsPath = '';
-      let simpleName = procName;
-      if (procName.startsWith('::')) {
-        const withoutLeading = procName.slice(2);
-        const lastSep = withoutLeading.lastIndexOf('::');
-        if (lastSep !== -1) {
-          nsPath = withoutLeading.slice(0, lastSep);
-          simpleName = withoutLeading.slice(lastSep + 2);
-        } else {
-          simpleName = withoutLeading;
-        }
-      }
-      const namespace = interp.ensureNamespace('::' + nsPath);
-      namespace.commands.set(simpleName, { kind: TCL_CMD_PROC, fn: 0, params: materializedParams, body: materializedBody });
-    },
-    feather_host_proc_exists: (interpId, name) => {
-      const interp = interpreters.get(interpId);
-      return interp.procs.has(interp.getString(name)) ? 1 : 0;
-    },
-    feather_host_proc_params: (interpId, name, resultPtr) => {
-      const interp = interpreters.get(interpId);
-      const procName = interp.getString(name);
-      // Try both qualified and simple names
-      const proc = interp.procs.get(procName) || interp.procs.get(`::${procName}`);
-      if (proc) {
-        writeI32(resultPtr, interp.wrap(proc.params));
-        return TCL_OK;
-      }
-      return TCL_ERROR;
-    },
-    feather_host_proc_body: (interpId, name, resultPtr) => {
-      const interp = interpreters.get(interpId);
-      const procName = interp.getString(name);
-      // Try both qualified and simple names
-      const proc = interp.procs.get(procName) || interp.procs.get(`::${procName}`);
-      if (proc) {
-        writeI32(resultPtr, interp.wrap(proc.body));
-        return TCL_OK;
-      }
-      return TCL_ERROR;
-    },
-    feather_host_proc_names: (interpId, namespace) => {
-      const interp = interpreters.get(interpId);
-      let nsPath = '::';
-      if (namespace !== 0) {
-        nsPath = interp.getString(namespace);
-      }
-      const normalized = nsPath.replace(/^::/, '');
-      const ns = interp.namespaces.get(normalized);
-      const names = [];
-      if (ns) {
-        for (const [name, entry] of ns.commands) {
-          names.push(name);
-        }
-      }
-      // Also include global procs if looking at global namespace
-      if (normalized === '') {
-        for (const name of interp.procs.keys()) {
-          const simpleName = name.replace(/^::/, '');
-          if (!simpleName.includes('::') && !names.includes(simpleName)) {
-            names.push(simpleName);
-          }
-        }
-        for (const name of interp.builtins.keys()) {
-          const simpleName = name.replace(/^::/, '');
-          if (!simpleName.includes('::') && !names.includes(simpleName)) {
-            names.push(simpleName);
-          }
-        }
-      }
-      const items = names.map(n => interp.store({ type: 'string', value: n }));
-      return interp.store({ type: 'list', items });
-    },
-    feather_host_proc_resolve_namespace: (interpId, path, resultPtr) => {
-      const interp = interpreters.get(interpId);
-      let nsPath = '::';
-      if (path !== 0) {
-        nsPath = interp.getString(path);
-      }
-      const normalized = nsPath.replace(/^::/, '');
-      if (!interp.namespaces.has(normalized)) return TCL_ERROR;
-      writeI32(resultPtr, interp.store({ type: 'string', value: '::' + normalized }));
-      return TCL_OK;
-    },
-    feather_host_proc_register_builtin: (interpId, name, fn) => {
-      const interp = interpreters.get(interpId);
-      interp.builtins.set(interp.getString(name), fn);
-    },
-    feather_host_proc_lookup: (interpId, name, fnPtr) => {
-      const interp = interpreters.get(interpId);
-      const procName = interp.getString(name);
-      if (interp.builtins.has(procName)) {
-        writeI32(fnPtr, interp.builtins.get(procName));
-        return TCL_CMD_BUILTIN;
-      }
-      if (interp.procs.has(procName)) {
-        writeI32(fnPtr, 0);
-        return TCL_CMD_PROC;
-      }
-      writeI32(fnPtr, 0);
-      return TCL_CMD_NONE;
-    },
-    feather_host_proc_rename: (interpId, oldName, newName) => {
-      const interp = interpreters.get(interpId);
-      const oldN = interp.getString(oldName);
-      const newN = interp.getString(newName);
-
-      // Helper to split qualified name into namespace path and simple name
-      const splitQualified = (name) => {
-        if (name.startsWith('::')) {
-          const withoutLeading = name.slice(2);
-          const lastSep = withoutLeading.lastIndexOf('::');
-          if (lastSep !== -1) {
-            return [withoutLeading.slice(0, lastSep), withoutLeading.slice(lastSep + 2)];
-          }
-          return ['', withoutLeading]; // global namespace
-        }
-        return ['', name]; // unqualified = global
-      };
-
-      const [oldNsPath, oldSimple] = splitQualified(oldN);
-      const oldNs = interp.namespaces.get(oldNsPath);
-
-      // Check if command exists in namespace
-      if (!oldNs?.commands.has(oldSimple)) {
-        // Also check legacy procs/builtins maps
-        if (!interp.procs.has(oldN) && !interp.builtins.has(oldN)) {
-          interp.result = interp.store({ type: 'string', value: `can't rename "${displayName(oldN)}": command doesn't exist` });
-          return TCL_ERROR;
-        }
-      }
-
-      // Check if target already exists (before we do anything)
-      if (newN) {
-        const [newNsPath, newSimple] = splitQualified(newN);
-        const newNs = interp.namespaces.get(newNsPath);
-        if (newNs?.commands.has(newSimple)) {
-          interp.result = interp.store({ type: 'string', value: `can't rename to "${displayName(newN)}": command already exists` });
-          return TCL_ERROR;
-        }
-      }
-
-      // Determine the operation for trace firing
-      const op = newN ? 'rename' : 'delete';
-
-      // Get the command from namespace or legacy maps
-      let cmd = oldNs?.commands.get(oldSimple);
-      if (!cmd && interp.procs.has(oldN)) {
-        const proc = interp.procs.get(oldN);
-        cmd = { kind: TCL_CMD_PROC, fn: 0, params: proc.params, body: proc.body };
-      } else if (!cmd && interp.builtins.has(oldN)) {
-        cmd = { kind: TCL_CMD_BUILTIN, fn: interp.builtins.get(oldN) };
-      }
-
-      if (!cmd) return TCL_ERROR;
-
-      // Fire command traces before the rename/delete
-      fireCmdTraces(interp, oldN, newN, op);
-
-      // Delete from old location
-      if (oldNs) oldNs.commands.delete(oldSimple);
-      interp.procs.delete(oldN);
-      interp.builtins.delete(oldSimple);
-
-      // Add to new location if not deleting
-      if (newN) {
-        const [newNsPath, newSimple] = splitQualified(newN);
-        const newNs = interp.ensureNamespace('::' + newNsPath);
-        newNs.commands.set(newSimple, cmd);
-
-        // Also update legacy maps
-        if (cmd.kind === TCL_CMD_PROC) {
-          interp.procs.set(newN, { params: cmd.params, body: cmd.body });
-        } else if (cmd.kind === TCL_CMD_BUILTIN) {
-          interp.builtins.set(newSimple, cmd.fn);
-        }
-      }
-
-      return TCL_OK;
+      const varName = interp.getString(name);
+      const entry = interp.currentFrame().vars.get(varName);
+      // A variable is a link if it has 'link' (upvar) or 'nsLink' (global/variable)
+      return (entry && (entry.link || entry.nsLink)) ? 1 : 0;
     },
 
     // Namespace operations
@@ -850,7 +627,7 @@ async function createFeather(wasmSource) {
       const namespace = interp.getNamespace(nsPath);
       if (namespace) namespace.vars.delete(varName);
     },
-    feather_host_ns_get_command: (interpId, ns, name, fnPtr) => {
+    feather_host_ns_get_command: (interpId, ns, name, fnPtr, paramsPtr, bodyPtr) => {
       const interp = interpreters.get(interpId);
       const nsPath = interp.getString(ns);
       const cmdName = interp.getString(name);
@@ -858,14 +635,20 @@ async function createFeather(wasmSource) {
       const namespace = interp.namespaces.get(normalized);
       if (!namespace) {
         writeI32(fnPtr, 0);
+        if (paramsPtr) writeI32(paramsPtr, 0);
+        if (bodyPtr) writeI32(bodyPtr, 0);
         return TCL_CMD_NONE;
       }
       const cmd = namespace.commands.get(cmdName);
       if (!cmd) {
         writeI32(fnPtr, 0);
+        if (paramsPtr) writeI32(paramsPtr, 0);
+        if (bodyPtr) writeI32(bodyPtr, 0);
         return TCL_CMD_NONE;
       }
       writeI32(fnPtr, cmd.fn || 0);
+      if (paramsPtr) writeI32(paramsPtr, cmd.params ? interp.wrap(cmd.params) : 0);
+      if (bodyPtr) writeI32(bodyPtr, cmd.body ? interp.wrap(cmd.body) : 0);
       return cmd.kind;
     },
     feather_host_ns_set_command: (interpId, ns, name, kind, fn, params, body) => {
@@ -940,17 +723,9 @@ async function createFeather(wasmSource) {
       const srcNamespace = interp.namespaces.get(srcNsPath);
       const dstNamespace = interp.ensureNamespace('::' + dstNsPath);
 
-      // Copy from namespace commands
       if (srcNamespace?.commands.has(src)) {
         const cmd = srcNamespace.commands.get(src);
         dstNamespace.commands.set(dst, { ...cmd });
-        // Also update legacy maps
-        if (cmd.kind === TCL_CMD_BUILTIN) {
-          interp.builtins.set(dst, cmd.fn);
-        } else if (cmd.kind === TCL_CMD_PROC) {
-          const fullName = dstNsPath === '' ? `::${dst}` : `::${dstNsPath}::${dst}`;
-          interp.procs.set(fullName, { params: cmd.params, body: cmd.body });
-        }
         return TCL_OK;
       }
       return TCL_ERROR;
@@ -1567,52 +1342,6 @@ async function createFeather(wasmSource) {
       }
     },
 
-    // Trace operations
-    feather_host_trace_add: (interpId, kind, name, ops, script) => {
-      const interp = interpreters.get(interpId);
-      const kindStr = interp.getString(kind);
-      const nameStr = interp.getString(name);
-      const opsStr = interp.getString(ops);
-      // Materialize script as string for persistent storage
-      const scriptStr = interp.getString(script);
-      const traces = interp.traces[kindStr];
-      if (!traces) return TCL_ERROR;
-      if (!traces.has(nameStr)) traces.set(nameStr, []);
-      traces.get(nameStr).push({ ops: opsStr, script: scriptStr });
-      return TCL_OK;
-    },
-    feather_host_trace_remove: (interpId, kind, name, ops, script) => {
-      const interp = interpreters.get(interpId);
-      const kindStr = interp.getString(kind);
-      const nameStr = interp.getString(name);
-      const opsStr = interp.getString(ops);
-      const traces = interp.traces[kindStr]?.get(nameStr);
-      if (!traces) return TCL_ERROR;
-      const scriptStr = interp.getString(script);
-      // trace.script is now stored as string, compare directly
-      const idx = traces.findIndex(t => t.ops === opsStr && t.script === scriptStr);
-      if (idx >= 0) {
-        traces.splice(idx, 1);
-        return TCL_OK;
-      }
-      return TCL_ERROR;
-    },
-    feather_host_trace_info: (interpId, kind, name) => {
-      const interp = interpreters.get(interpId);
-      const kindStr = interp.getString(kind);
-      const nameStr = interp.getString(name);
-      const traces = interp.traces[kindStr]?.get(nameStr) || [];
-      const items = traces.map(t => {
-        // Build ops as a sublist: {{op1 op2 ...} script}
-        const ops = t.ops.split(/\s+/).filter(o => o);
-        const opsItems = ops.map(op => interp.store({ type: 'string', value: op }));
-        const opsList = interp.store({ type: 'list', items: opsItems });
-        const scriptHandle = interp.store({ type: 'string', value: t.script });
-        return interp.store({ type: 'list', items: [opsList, scriptHandle] });
-      });
-      return interp.store({ type: 'list', items });
-    },
-
     // Foreign object operations
     feather_host_foreign_is_foreign: (interpId, obj) => {
       const interp = interpreters.get(interpId);
@@ -1893,11 +1622,18 @@ async function createFeather(wasmSource) {
 
     memoryStats(interpId) {
       const interp = interpreters.get(interpId);
+      // Count procs from namespace storage
+      let procCount = 0;
+      for (const ns of interp.namespaces.values()) {
+        for (const cmd of ns.commands.values()) {
+          if (cmd.kind === TCL_CMD_PROC) procCount++;
+        }
+      }
       return {
         scratchHandles: interp.scratch.objects.size,
         wasmArenaUsed: wasmInstance.exports.feather_arena_used(),
         namespaceCount: interp.namespaces.size,
-        procCount: interp.procs.size,
+        procCount,
         evalDepth: interp.evalDepth,
       };
     },
