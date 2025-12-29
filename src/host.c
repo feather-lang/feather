@@ -11,6 +11,10 @@ static FeatherHostOps default_ops = {
         .info = feather_host_frame_info,
         .set_namespace = feather_host_frame_set_namespace,
         .get_namespace = feather_host_frame_get_namespace,
+        .set_line = feather_host_frame_set_line,
+        .get_line = feather_host_frame_get_line,
+        .set_lambda = feather_host_frame_set_lambda,
+        .get_lambda = feather_host_frame_get_lambda,
     },
     .var = {
         .get = feather_host_var_get,
@@ -20,6 +24,7 @@ static FeatherHostOps default_ops = {
         .link = feather_host_var_link,
         .link_ns = feather_host_var_link_ns,
         .names = feather_host_var_names,
+        .is_link = feather_host_var_is_link,
     },
     .ns = {
         .create = feather_host_ns_create,

@@ -86,10 +86,18 @@ FeatherResult feather_builtin_apply(const FeatherHostOps *ops, FeatherInterp int
     return TCL_ERROR;
   }
 
+  // Get line number from parent frame before pushing
+  size_t parentLevel = ops->frame.level(interp);
+  size_t parentLine = ops->frame.get_line(interp, parentLevel);
+
   FeatherObj applyName = ops->string.intern(interp, "apply", 5);
   if (ops->frame.push(interp, applyName, args) != TCL_OK) {
     return TCL_ERROR;
   }
+
+  // Copy line number from parent and store the lambda expression
+  ops->frame.set_line(interp, parentLine);
+  ops->frame.set_lambda(interp, lambdaExpr);
 
   if (ns != 0) {
     FeatherObj absNs;

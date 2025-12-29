@@ -186,6 +186,11 @@ FeatherResult feather_script_eval_obj(const FeatherHostOps *ops, FeatherInterp i
 
     // Only execute non-empty commands
     if (ops->list.length(interp, parsed) > 0) {
+      // Note: The line is set by feather_parse_command_obj before parsing,
+      // so command substitutions during parsing don't overwrite it.
+      // The parser also handles the check to prevent nested evals from
+      // overwriting the outer command's line.
+
       result = feather_command_exec(ops, interp, parsed, flags);
       if (result != TCL_OK) {
         return result;

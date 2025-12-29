@@ -186,6 +186,8 @@ typedef struct {
   const char *script;  // Original script
   size_t len;          // Total length
   size_t pos;          // Current position
+  size_t line;         // Current line number (1-based)
+  size_t cmd_line;     // Line number where current command started
 } FeatherParseContext;
 
 /**
@@ -196,6 +198,8 @@ typedef struct {
   FeatherObj script;   // Script as object
   size_t len;          // Total length
   size_t pos;          // Current position
+  size_t line;         // Current line number (1-based)
+  size_t cmd_line;     // Line number where current command started
 } FeatherParseContextObj;
 
 /**
@@ -415,6 +419,30 @@ typedef struct FeatherFrameOps {
    * get_namespace returns the namespace of the current frame.
    */
   FeatherObj (*get_namespace)(FeatherInterp interp);
+
+  /**
+   * set_line sets the line number for the current frame.
+   * Used to track source location for debugging and error reporting.
+   */
+  FeatherResult (*set_line)(FeatherInterp interp, size_t line);
+
+  /**
+   * get_line returns the line number for a frame at the given level.
+   * Returns 0 if no line info is available.
+   */
+  size_t (*get_line)(FeatherInterp interp, size_t level);
+
+  /**
+   * set_lambda stores the lambda expression for the current frame.
+   * Used by apply to record the lambda for info frame.
+   */
+  FeatherResult (*set_lambda)(FeatherInterp interp, FeatherObj lambda);
+
+  /**
+   * get_lambda returns the lambda expression for a frame at the given level.
+   * Returns 0 if no lambda info is available (not an apply frame).
+   */
+  FeatherObj (*get_lambda)(FeatherInterp interp, size_t level);
 } FeatherFrameOps;
 
 /**
@@ -810,6 +838,18 @@ typedef struct FeatherVarOps {
    * explicitly linked.
    */
   FeatherObj (*names)(FeatherInterp interp, FeatherObj ns);
+
+  /**
+   * is_link checks if a variable in the current frame is a link.
+   *
+   * Returns 1 if the variable is linked to another location
+   * (via upvar, global, or variable commands).
+   * Returns 0 if it's a true local variable defined in this frame.
+   *
+   * Only meaningful for frame-local variables. For namespace variables,
+   * always returns 0.
+   */
+  int (*is_link)(FeatherInterp interp, FeatherObj name);
 } FeatherVarOps;
 
 /**

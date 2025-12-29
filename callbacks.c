@@ -304,6 +304,22 @@ FeatherObj feather_host_frame_get_namespace(FeatherInterp interp) {
     return goFrameGetNamespace(interp);
 }
 
+FeatherResult feather_host_frame_set_line(FeatherInterp interp, size_t line) {
+    return goFrameSetLine(interp, line);
+}
+
+size_t feather_host_frame_get_line(FeatherInterp interp, size_t level) {
+    return goFrameGetLine(interp, level);
+}
+
+FeatherResult feather_host_frame_set_lambda(FeatherInterp interp, FeatherObj lambda) {
+    return goFrameSetLambda(interp, lambda);
+}
+
+FeatherObj feather_host_frame_get_lambda(FeatherInterp interp, size_t level) {
+    return goFrameGetLambda(interp, level);
+}
+
 // ============================================================================
 // Variable Operations
 // ============================================================================
@@ -334,6 +350,10 @@ void feather_host_var_link_ns(FeatherInterp interp, FeatherObj local, FeatherObj
 
 FeatherObj feather_host_var_names(FeatherInterp interp, FeatherObj ns) {
     return goVarNames(interp, ns);
+}
+
+int feather_host_var_is_link(FeatherInterp interp, FeatherObj name) {
+    return goVarIsLink(interp, name);
 }
 
 // ============================================================================

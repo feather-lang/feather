@@ -1886,6 +1886,61 @@ func goFrameGetNamespace(interp C.FeatherInterp) C.FeatherObj {
 	return C.FeatherObj(i.internString("::"))
 }
 
+//export goFrameSetLine
+func goFrameSetLine(interp C.FeatherInterp, line C.size_t) C.FeatherResult {
+	i := getInternalInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	if i.active >= len(i.frames) {
+		return C.TCL_ERROR
+	}
+	i.frames[i.active].line = int(line)
+	return C.TCL_OK
+}
+
+//export goFrameGetLine
+func goFrameGetLine(interp C.FeatherInterp, level C.size_t) C.size_t {
+	i := getInternalInterp(interp)
+	if i == nil {
+		return 0
+	}
+	lvl := int(level)
+	if lvl < 0 || lvl >= len(i.frames) {
+		return 0
+	}
+	return C.size_t(i.frames[lvl].line)
+}
+
+//export goFrameSetLambda
+func goFrameSetLambda(interp C.FeatherInterp, lambda C.FeatherObj) C.FeatherResult {
+	i := getInternalInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	if i.active >= len(i.frames) {
+		return C.TCL_ERROR
+	}
+	i.frames[i.active].lambda = i.getObject(FeatherObj(lambda))
+	return C.TCL_OK
+}
+
+//export goFrameGetLambda
+func goFrameGetLambda(interp C.FeatherInterp, level C.size_t) C.FeatherObj {
+	i := getInternalInterp(interp)
+	if i == nil {
+		return 0
+	}
+	lvl := int(level)
+	if lvl < 0 || lvl >= len(i.frames) {
+		return 0
+	}
+	if i.frames[lvl].lambda == nil {
+		return 0
+	}
+	return C.FeatherObj(i.registerObjScratch(i.frames[lvl].lambda))
+}
+
 //export goVarLinkNs
 func goVarLinkNs(interp C.FeatherInterp, local C.FeatherObj, nsPath C.FeatherObj, name C.FeatherObj) {
 	i := getInternalInterp(interp)
@@ -1976,6 +2031,22 @@ func goVarNames(interp C.FeatherInterp, ns C.FeatherObj) C.FeatherObj {
 		items[idx] = NewStringObj(name)
 	}
 	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(items)}))
+}
+
+//export goVarIsLink
+func goVarIsLink(interp C.FeatherInterp, name C.FeatherObj) C.int {
+	i := getInternalInterp(interp)
+	if i == nil {
+		return 0
+	}
+	nameStr := i.GetString(FeatherObj(name))
+	frame := i.frames[i.active]
+
+	// Check if the variable is in the links map
+	if _, isLink := frame.links[nameStr]; isLink {
+		return 1
+	}
+	return 0
 }
 
 //export goNsGetExports

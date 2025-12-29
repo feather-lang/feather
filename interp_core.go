@@ -95,6 +95,8 @@ type CallFrame struct {
 	links  map[string]varLink // upvar links: local name -> target variable
 	level  int                // frame index on the call stack
 	ns     *Namespace         // current namespace context
+	line   int                // line number where command was invoked (0 = not set)
+	lambda *Obj               // lambda expression for apply frames (nil = not apply)
 }
 
 // Procedure represents a user-defined procedure

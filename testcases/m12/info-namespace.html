@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>info namespace behaviors</title>
+</head>
+<body>
+  <h1>info namespace behaviors</h1>
+  <p>
+    Tests for namespace-aware info commands:
+    - info commands/procs search current namespace + global
+    - Qualified patterns return fully qualified names
+    - info locals excludes linked variables
+    - info vars includes linked variables
+  </p>
+
+  <!-- ==========================================================  -->
+  <!-- info commands namespace behavior                            -->
+  <!-- ==========================================================  -->
+
+  <h2>info commands namespace behavior</h2>
+
+  <test-case name="info commands finds commands in current namespace">
+    <script>
+namespace eval ::testns {
+    proc myproc {} { return 1 }
+    expr {[lsearch [info commands] myproc] >= 0}
+}
+    </script>
+    <return>TCL_OK</return>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info commands with qualified pattern returns qualified names">
+    <script>
+namespace eval ::testns {
+    proc foo {} {}
+    proc bar {} {}
+}
+lsort [info commands ::testns::*]
+    </script>
+    <return>TCL_OK</return>
+    <stdout>::testns::bar ::testns::foo</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info commands with unqualified pattern returns simple names">
+    <script>
+namespace eval ::testns {
+    proc foo {} {}
+    expr {[lsearch [info commands foo] foo] >= 0}
+}
+    </script>
+    <return>TCL_OK</return>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info commands in namespace also sees global commands">
+    <script>
+namespace eval ::testns {
+    expr {[lsearch [info commands] set] >= 0}
+}
+    </script>
+    <return>TCL_OK</return>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info commands qualified pattern for global namespace">
+    <script>
+expr {[lsearch [info commands ::set] ::set] >= 0}
+    </script>
+    <return>TCL_OK</return>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ==========================================================  -->
+  <!-- info procs namespace behavior                               -->
+  <!-- ==========================================================  -->
+
+  <h2>info procs namespace behavior</h2>
+
+  <test-case name="info procs finds procs in current namespace">
+    <script>
+namespace eval ::testns {
+    proc myproc {} { return 1 }
+    expr {[lsearch [info procs] myproc] >= 0}
+}
+    </script>
+    <return>TCL_OK</return>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info procs with qualified pattern returns qualified names">
+    <script>
+namespace eval ::testns {
+    proc alpha {} {}
+    proc beta {} {}
+}
+lsort [info procs ::testns::*]
+    </script>
+    <return>TCL_OK</return>
+    <stdout>::testns::alpha ::testns::beta</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info procs excludes builtins even with qualified pattern">
+    <script>
+expr {[llength [info procs ::set]] == 0}
+    </script>
+    <return>TCL_OK</return>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info procs in namespace sees global procs">
+    <script>
+proc global_proc {} { return 1 }
+namespace eval ::testns {
+    expr {[lsearch [info procs] global_proc] >= 0}
+}
+    </script>
+    <return>TCL_OK</return>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ==========================================================  -->
+  <!-- info vars namespace behavior                                -->
+  <!-- ==========================================================  -->
+
+  <h2>info vars namespace behavior</h2>
+
+  <test-case name="info vars with qualified pattern returns qualified names">
+    <script>
+namespace eval ::testns {
+    variable x 1
+    variable y 2
+}
+lsort [info vars ::testns::*]
+    </script>
+    <return>TCL_OK</return>
+    <stdout>::testns::x ::testns::y</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info vars includes global-linked variables">
+    <script>
+proc test_vars {} {
+    global x
+    set y 1
+    lsort [info vars]
+}
+set x 10
+test_vars
+    </script>
+    <return>TCL_OK</return>
+    <stdout>x y</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info vars includes upvar-linked variables">
+    <script>
+proc test_vars {varName} {
+    upvar 1 $varName linked
+    set local 1
+    lsort [info vars]
+}
+set outer 10
+test_vars outer
+    </script>
+    <return>TCL_OK</return>
+    <stdout>linked local varName</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ==========================================================  -->
+  <!-- info locals excludes linked variables                       -->
+  <!-- ==========================================================  -->
+
+  <h2>info locals excludes linked variables</h2>
+
+  <test-case name="info locals excludes global-linked variables">
+    <script>
+proc test_locals {} {
+    global x
+    set y 1
+    set z 2
+    lsort [info locals]
+}
+set x 10
+test_locals
+    </script>
+    <return>TCL_OK</return>
+    <stdout>y z</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info locals excludes upvar-linked variables">
+    <script>
+proc test_locals {varName} {
+    upvar 1 $varName linked
+    set local1 1
+    lsort [info locals]
+}
+set outer 10
+test_locals outer
+    </script>
+    <return>TCL_OK</return>
+    <stdout>local1 varName</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info locals excludes namespace variable links">
+    <script>
+namespace eval ::testns {
+    variable nsvar 100
+    proc test_locals {} {
+        variable nsvar
+        set local 1
+        lsort [info locals]
+    }
+}
+::testns::test_locals
+    </script>
+    <return>TCL_OK</return>
+    <stdout>local</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info locals with pattern excludes linked variables">
+    <script>
+proc test_locals {} {
+    global gvar
+    set lvar1 1
+    set lvar2 2
+    lsort [info locals l*]
+}
+set gvar 10
+test_locals
+    </script>
+    <return>TCL_OK</return>
+    <stdout>lvar1 lvar2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info locals includes proc arguments">
+    <script>
+proc test_locals {arg1 arg2} {
+    set local 1
+    lsort [info locals]
+}
+test_locals a b
+    </script>
+    <return>TCL_OK</return>
+    <stdout>arg1 arg2 local</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ==========================================================  -->
+  <!-- Difference between info locals and info vars                -->
+  <!-- ==========================================================  -->
+
+  <h2>Difference between info locals and info vars</h2>
+
+  <test-case name="info vars includes more than info locals when globals linked">
+    <script>
+proc test_diff {} {
+    global g
+    set l 1
+    set locals_count [llength [info locals]]
+    set vars_count [llength [info vars]]
+    expr {$vars_count > $locals_count}
+}
+set g 10
+test_diff
+    </script>
+    <return>TCL_OK</return>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info vars and info locals same when no links">
+    <script>
+proc test_same {} {
+    set a 1
+    set b 2
+    # Compare the actual variable names, not counts
+    # (counts would differ due to timing of when temp vars are created)
+    expr {[lsort [info locals]] eq [lsort [info vars]]}
+}
+test_same
+    </script>
+    <return>TCL_OK</return>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ==========================================================  -->
+  <!-- info frame improvements                                     -->
+  <!-- ==========================================================  -->
+
+  <h2>info frame improvements</h2>
+
+  <test-case name="info frame type is proc for procedure calls">
+    <script>
+proc test {} {
+    dict get [info frame 1] type
+}
+test
+    </script>
+    <return>TCL_OK</return>
+    <stdout>proc</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info frame type is eval for toplevel">
+    <script>
+# At toplevel, looking at frame 0 (the eval frame)
+dict get [info frame 0] type
+    </script>
+    <return>TCL_OK</return>
+    <stdout>eval</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info frame has proc key for procedure calls">
+    <script>
+proc mytest {} {
+    dict get [info frame 1] proc
+}
+mytest
+    </script>
+    <return>TCL_OK</return>
+    <stdout>mytest</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info frame has cmd key with command list">
+    <script>
+proc mytest {a b} {
+    dict get [info frame 1] cmd
+}
+mytest 1 2
+    </script>
+    <return>TCL_OK</return>
+    <stdout>mytest 1 2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info frame has level key">
+    <script>
+proc test {} {
+    dict get [info frame 1] level
+}
+test
+    </script>
+    <return>TCL_OK</return>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info frame has namespace key">
+    <script>
+proc test {} {
+    dict get [info frame 1] namespace
+}
+test
+    </script>
+    <return>TCL_OK</return>
+    <stdout>::</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info frame namespace reflects current namespace">
+    <script>
+namespace eval ::myns {
+    proc test {} {
+        dict get [info frame 1] namespace
+    }
+}
+::myns::test
+    </script>
+    <return>TCL_OK</return>
+    <stdout>::myns</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info frame no argument returns depth">
+    <script>
+proc outer {} { inner }
+proc inner {} { info frame }
+expr {[outer] >= 2}
+    </script>
+    <return>TCL_OK</return>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info frame has line for proc call">
+    <script>proc test {} {
+    dict get [info frame 1] line
+}
+test</script>
+    <return>TCL_OK</return>
+    <stdout>4</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info frame has lambda for apply">
+    <script>
+apply {{} {
+    dict exists [info frame 1] lambda
+}}
+    </script>
+    <return>TCL_OK</return>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info frame lambda contains lambda expression">
+    <script>
+apply {{x} {
+    dict get [info frame 1] lambda
+}} hello
+    </script>
+    <return>TCL_OK</return>
+    <stdout>{x} {
+    dict get [info frame 1] lambda
+}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info frame has no lambda for proc call">
+    <script>
+proc test {} {
+    dict exists [info frame 1] lambda
+}
+test
+    </script>
+    <return>TCL_OK</return>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="info frame line tracks command position">
+    <script># Line 1: comment
+# Line 2: comment
+proc test {} {
+    dict get [info frame 1] line
+}
+# Line 6: comment
+test</script>
+    <return>TCL_OK</return>
+    <stdout>7</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</body>
+</html>

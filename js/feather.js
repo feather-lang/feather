@@ -39,7 +39,7 @@ class FeatherInterp {
     const globalNS = { vars: new Map(), children: new Map(), exports: [], commands: new Map() };
     this.namespaces = new Map([['', globalNS]]);
     // Frame 0's vars IS the global namespace's vars (unified storage)
-    this.frames = [{ vars: globalNS.vars, cmd: 0, args: 0, ns: '::' }];
+    this.frames = [{ vars: globalNS.vars, cmd: 0, args: 0, ns: '::', line: 0, lambda: 0 }];
     this.activeLevel = 0;
     this.hostCommands = new Map();
     this.returnOptions = new Map();
@@ -143,7 +143,11 @@ class FeatherInterp {
       if (s.includes('.') || s.includes('e') || s.includes('E')) return s;
       return s + '.0';
     }
-    if (obj.type === 'list') return obj.items.map(h => this.quoteListElement(this.getString(h))).join(' ');
+    if (obj.type === 'list') {
+      // Use original string representation if available (preserves correct quoting)
+      if (obj.originalString !== undefined) return obj.originalString;
+      return obj.items.map(h => this.quoteListElement(this.getString(h))).join(' ');
+    }
     if (obj.type === 'dict') {
       const parts = [];
       for (const [k, v] of obj.entries) {
@@ -214,6 +218,10 @@ class FeatherInterp {
     const listObj = this.get(listHandle);
     if (listObj?.type === 'list') {
       // Cache the list type on the original object for shimmering
+      // Preserve the original string for proper re-serialization
+      if (obj.type === 'string') {
+        obj.originalString = obj.value;
+      }
       obj.type = 'list';
       obj.items = listObj.items;
       return { items: obj.items };
@@ -361,7 +369,8 @@ async function createFeather(wasmSource) {
       }
       const parentNs = interp.frames[interp.frames.length - 1].ns;
       // New frames get their own vars Map (NOT shared with namespace)
-      interp.frames.push({ vars: new Map(), cmd, args, ns: parentNs });
+      // line and lambda fields for info frame support
+      interp.frames.push({ vars: new Map(), cmd, args, ns: parentNs, line: 0, lambda: 0 });
       interp.activeLevel = interp.frames.length - 1;
       return TCL_OK;
     },
@@ -403,6 +412,26 @@ async function createFeather(wasmSource) {
     feather_host_frame_get_namespace: (interpId) => {
       const interp = interpreters.get(interpId);
       return interp.store({ type: 'string', value: interp.currentFrame().ns });
+    },
+    feather_host_frame_set_line: (interpId, line) => {
+      const interp = interpreters.get(interpId);
+      interp.currentFrame().line = line;
+      return TCL_OK;
+    },
+    feather_host_frame_get_line: (interpId, level) => {
+      const interp = interpreters.get(interpId);
+      if (level >= interp.frames.length) return 0;
+      return interp.frames[level].line || 0;
+    },
+    feather_host_frame_set_lambda: (interpId, lambda) => {
+      const interp = interpreters.get(interpId);
+      interp.currentFrame().lambda = lambda;
+      return TCL_OK;
+    },
+    feather_host_frame_get_lambda: (interpId, level) => {
+      const interp = interpreters.get(interpId);
+      if (level >= interp.frames.length) return 0;
+      return interp.frames[level].lambda || 0;
     },
 
     // Variable operations
@@ -498,6 +527,13 @@ async function createFeather(wasmSource) {
       }
       const items = names.map(n => interp.store({ type: 'string', value: n }));
       return interp.store({ type: 'list', items });
+    },
+    feather_host_var_is_link: (interpId, name) => {
+      const interp = interpreters.get(interpId);
+      const varName = interp.getString(name);
+      const entry = interp.currentFrame().vars.get(varName);
+      // A variable is a link if it has 'link' (upvar) or 'nsLink' (global/variable)
+      return (entry && (entry.link || entry.nsLink)) ? 1 : 0;
     },
 
     // Namespace operations

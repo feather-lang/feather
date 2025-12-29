@@ -462,6 +462,8 @@ void feather_parse_init_obj(FeatherParseContextObj *ctx, FeatherObj script, size
   ctx->script = script;
   ctx->len = len;
   ctx->pos = 0;
+  ctx->line = 1;
+  ctx->cmd_line = 1;
 }
 
 /**
@@ -623,25 +625,37 @@ FeatherObj feather_list_parse_obj(const FeatherHostOps *ops, FeatherInterp inter
 
 /**
  * Skip whitespace, backslash-newline continuations, and comments.
+ * Updates ctx->line when encountering newlines.
  */
-static size_t skip_whitespace_and_comments_obj(const FeatherHostOps *ops, FeatherInterp interp,
-                                                FeatherObj script, size_t len, size_t pos) {
-  while (pos < len) {
-    int c = ops->string.byte_at(interp, script, pos);
+static void skip_whitespace_and_comments_ctx(const FeatherHostOps *ops, FeatherInterp interp,
+                                              FeatherParseContextObj *ctx) {
+  FeatherObj script = ctx->script;
+  size_t len = ctx->len;
+
+  while (ctx->pos < len) {
+    int c = ops->string.byte_at(interp, script, ctx->pos);
 
     // Skip whitespace
     if (parse_is_whitespace(c)) {
-      pos++;
+      ctx->pos++;
+      continue;
+    }
+
+    // Handle newline - increment line counter
+    if (c == '\n') {
+      ctx->pos++;
+      ctx->line++;
       continue;
     }
 
     // Skip backslash-newline continuation
-    if (c == '\\' && pos + 1 < len) {
-      int c2 = ops->string.byte_at(interp, script, pos + 1);
+    if (c == '\\' && ctx->pos + 1 < len) {
+      int c2 = ops->string.byte_at(interp, script, ctx->pos + 1);
       if (c2 == '\n') {
-        pos += 2;
-        while (pos < len && parse_is_whitespace(ops->string.byte_at(interp, script, pos))) {
-          pos++;
+        ctx->pos += 2;
+        ctx->line++;
+        while (ctx->pos < len && parse_is_whitespace(ops->string.byte_at(interp, script, ctx->pos))) {
+          ctx->pos++;
         }
         continue;
       }
@@ -649,28 +663,28 @@ static size_t skip_whitespace_and_comments_obj(const FeatherHostOps *ops, Feathe
 
     // Skip comments (# at start of command)
     if (c == '#') {
-      while (pos < len && ops->string.byte_at(interp, script, pos) != '\n') {
-        pos++;
+      while (ctx->pos < len && ops->string.byte_at(interp, script, ctx->pos) != '\n') {
+        ctx->pos++;
       }
-      if (pos < len) {
-        pos++; // skip newline
+      if (ctx->pos < len) {
+        ctx->pos++; // skip newline
+        ctx->line++;
       }
       continue;
     }
 
     break;
   }
-
-  return pos;
 }
 
 /**
  * Parse a single word using object-based access.
  */
 static FeatherObj parse_word_obj(const FeatherHostOps *ops, FeatherInterp interp,
-                                  FeatherObj script, size_t len, size_t *pos,
+                                  FeatherObj script, size_t len,
+                                  FeatherParseContextObj *ctx,
                                   FeatherParseStatus *status) {
-  size_t p = *pos;
+  size_t p = ctx->pos;
   FeatherObj word = 0;
   size_t word_start = p;
 
@@ -686,9 +700,17 @@ static FeatherObj parse_word_obj(const FeatherHostOps *ops, FeatherInterp interp
       while (p < len && depth > 0) {
         int ch = ops->string.byte_at(interp, script, p);
         if (ch == '\\' && p + 1 < len) {
-          p++;
+          p++; // skip backslash
+          // Check if the escaped character is a newline for line tracking
+          ch = ops->string.byte_at(interp, script, p);
+          if (ch == '\n') {
+            ctx->line++;
+          }
           if (p < len) p++;
           continue;
+        }
+        if (ch == '\n') {
+          ctx->line++;
         }
         if (ch == '{') depth++;
         else if (ch == '}') depth--;
@@ -742,6 +764,11 @@ static FeatherObj parse_word_obj(const FeatherHostOps *ops, FeatherInterp interp
             word = append_slice_to_word(ops, interp, word, script, seg_start, p);
           }
           p++; // skip backslash
+          // Check if backslash-newline for line tracking
+          int escaped = ops->string.byte_at(interp, script, p);
+          if (escaped == '\n') {
+            ctx->line++;
+          }
           char escape_buf[4];
           size_t escape_len;
           size_t consumed = process_backslash_obj(ops, interp, script, p, len, escape_buf, &escape_len);
@@ -774,6 +801,9 @@ static FeatherObj parse_word_obj(const FeatherHostOps *ops, FeatherInterp interp
           p += consumed;
           seg_start = p;
         } else {
+          if (ch == '\n') {
+            ctx->line++;
+          }
           p++;
         }
       }
@@ -821,6 +851,7 @@ static FeatherObj parse_word_obj(const FeatherHostOps *ops, FeatherInterp interp
         int ch = ops->string.byte_at(interp, script, p);
         if (ch == '\n') {
           // Backslash-newline in bare word acts as word terminator
+          ctx->line++;
           p++;
           while (p < len && parse_is_whitespace(ops->string.byte_at(interp, script, p))) {
             p++;
@@ -869,7 +900,7 @@ static FeatherObj parse_word_obj(const FeatherHostOps *ops, FeatherInterp interp
     }
   }
 
-  *pos = p;
+  ctx->pos = p;
   *status = TCL_PARSE_OK;
 
   // Handle empty word case (e.g., from "" or {})
@@ -987,7 +1018,7 @@ FeatherParseStatus feather_parse_command_obj(const FeatherHostOps *ops, FeatherI
   size_t len = ctx->len;
 
   // Skip whitespace and comments between commands
-  ctx->pos = skip_whitespace_and_comments_obj(ops, interp, script, len, ctx->pos);
+  skip_whitespace_and_comments_ctx(ops, interp, ctx);
 
   // Check if we've reached the end
   if (ctx->pos >= len) {
@@ -996,12 +1027,29 @@ FeatherParseStatus feather_parse_command_obj(const FeatherHostOps *ops, FeatherI
 
   int c = ops->string.byte_at(interp, script, ctx->pos);
 
-  // Skip command terminator if we're at one
-  if (is_command_terminator(c) && c != '\0' && c >= 0) {
+  // Skip command terminator if we're at one (semicolon - newlines handled by skip_whitespace)
+  if (c == ';') {
     ctx->pos++;
-    ctx->pos = skip_whitespace_and_comments_obj(ops, interp, script, len, ctx->pos);
+    skip_whitespace_and_comments_ctx(ops, interp, ctx);
     if (ctx->pos >= len) {
       return TCL_PARSE_DONE;
+    }
+  }
+
+  // Record the line where this command starts
+  ctx->cmd_line = ctx->line;
+
+  // Set the line on frame 0 immediately, before any command substitutions
+  // happen during word parsing. Only set on the global frame, and only if
+  // this is the outermost eval (not a nested eval from command substitution).
+  // We detect nested eval by checking: if we're at line 1 but the frame
+  // already has a higher line number, we're in a nested eval context.
+  size_t currentLevel = ops->frame.level(interp);
+  if (currentLevel == 0) {
+    size_t existingLine = ops->frame.get_line(interp, 0);
+    // Only update if this is not a nested eval that would reset to line 1
+    if (ctx->cmd_line >= existingLine || existingLine == 0) {
+      ops->frame.set_line(interp, ctx->cmd_line);
     }
   }
 
@@ -1023,6 +1071,7 @@ FeatherParseStatus feather_parse_command_obj(const FeatherHostOps *ops, FeatherI
       int ch2 = ops->string.byte_at(interp, script, ctx->pos + 1);
       if (ch2 != '\n') break;
       ctx->pos += 2;
+      ctx->line++;  // Track newline in backslash continuation
       while (ctx->pos < len && parse_is_whitespace(ops->string.byte_at(interp, script, ctx->pos))) {
         ctx->pos++;
       }
@@ -1037,9 +1086,13 @@ FeatherParseStatus feather_parse_command_obj(const FeatherHostOps *ops, FeatherI
     // Check for command terminator
     if (is_command_terminator(c)) {
       // Move past the terminator for next call
-      if (c != '\0' && c >= 0) {
+      if (c == '\n') {
+        ctx->pos++;
+        ctx->line++;
+      } else if (c == ';') {
         ctx->pos++;
       }
+      // For \0 or < 0, don't advance
       break;
     }
 
@@ -1060,7 +1113,7 @@ FeatherParseStatus feather_parse_command_obj(const FeatherHostOps *ops, FeatherI
 
     // Parse a word
     FeatherParseStatus status;
-    FeatherObj word = parse_word_obj(ops, interp, script, len, &ctx->pos, &status);
+    FeatherObj word = parse_word_obj(ops, interp, script, len, ctx, &status);
     if (status != TCL_PARSE_OK) {
       return status;
     }
@@ -1096,6 +1149,8 @@ void feather_parse_init(FeatherParseContext *ctx, const char *script, size_t len
   ctx->script = script;
   ctx->len = len;
   ctx->pos = 0;
+  ctx->line = 1;
+  ctx->cmd_line = 1;
 }
 
 FeatherResult feather_subst(const FeatherHostOps *ops, FeatherInterp interp,
@@ -1113,10 +1168,14 @@ FeatherParseStatus feather_parse_command(const FeatherHostOps *ops, FeatherInter
   FeatherParseContextObj objCtx;
   feather_parse_init_obj(&objCtx, script, ctx->len);
   objCtx.pos = ctx->pos;
+  objCtx.line = ctx->line;
+  objCtx.cmd_line = ctx->cmd_line;
 
   FeatherParseStatus status = feather_parse_command_obj(ops, interp, &objCtx);
 
-  // Update char* context position
+  // Update char* context
   ctx->pos = objCtx.pos;
+  ctx->line = objCtx.line;
+  ctx->cmd_line = objCtx.cmd_line;
   return status;
 }

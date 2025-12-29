@@ -32,6 +32,10 @@ extern FeatherResult feather_host_frame_info(FeatherInterp interp, size_t level,
                                              FeatherObj *cmd, FeatherObj *args, FeatherObj *ns);
 extern FeatherResult feather_host_frame_set_namespace(FeatherInterp interp, FeatherObj ns);
 extern FeatherObj feather_host_frame_get_namespace(FeatherInterp interp);
+extern FeatherResult feather_host_frame_set_line(FeatherInterp interp, size_t line);
+extern size_t feather_host_frame_get_line(FeatherInterp interp, size_t level);
+extern FeatherResult feather_host_frame_set_lambda(FeatherInterp interp, FeatherObj lambda);
+extern FeatherObj feather_host_frame_get_lambda(FeatherInterp interp, size_t level);
 
 /* ============================================================================
  * Variable Operations (7 functions)
@@ -46,6 +50,7 @@ extern void feather_host_var_link(FeatherInterp interp, FeatherObj local, size_t
 extern void feather_host_var_link_ns(FeatherInterp interp, FeatherObj local, FeatherObj ns,
                                      FeatherObj name);
 extern FeatherObj feather_host_var_names(FeatherInterp interp, FeatherObj ns);
+extern int feather_host_var_is_link(FeatherInterp interp, FeatherObj name);
 
 /* ============================================================================
  * Namespace Operations (18 functions)

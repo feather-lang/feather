@@ -118,7 +118,35 @@ bad_level:
 }
 
 /**
+ * Helper to parse a pattern into namespace and simple pattern parts.
+ *
+ * For "::foo::bar*", returns ns="::foo", pattern="bar*"
+ * For "bar*" (unqualified), returns ns=current namespace, pattern="bar*"
+ * For "::bar*" (global), returns ns="::", pattern="bar*"
+ */
+static void parse_pattern_namespace(const FeatherHostOps *ops, FeatherInterp interp,
+                                    FeatherObj fullPattern,
+                                    FeatherObj *nsOut, FeatherObj *patternOut) {
+  // Check if pattern is qualified
+  if (feather_obj_is_qualified(ops, interp, fullPattern)) {
+    // Split into namespace and simple pattern
+    feather_obj_split_command(ops, interp, fullPattern, nsOut, patternOut);
+    if (ops->list.is_nil(interp, *nsOut)) {
+      *nsOut = ops->string.intern(interp, "::", 2);
+    }
+  } else {
+    // Unqualified pattern - use current namespace
+    *nsOut = ops->ns.current(interp);
+    *patternOut = fullPattern;
+  }
+}
+
+/**
  * info commands ?pattern?
+ *
+ * Returns names of all commands visible in the current namespace.
+ * If pattern is given, returns only those names that match.
+ * Only the last component of pattern is a pattern - other components identify a namespace.
  */
 static FeatherResult info_commands(const FeatherHostOps *ops, FeatherInterp interp,
                                FeatherObj args) {
@@ -130,27 +158,100 @@ static FeatherResult info_commands(const FeatherHostOps *ops, FeatherInterp inte
     return TCL_ERROR;
   }
 
-  // Get all command names from global namespace
-  // Names are already simple (no :: prefix)
   FeatherObj globalNs = ops->string.intern(interp, "::", 2);
-  FeatherObj allNames = ops->ns.list_commands(interp, globalNs);
-  size_t count = ops->list.length(interp, allNames);
+  FeatherObj currentNs = ops->ns.current(interp);
+  int inGlobalNs = feather_obj_is_global_ns(ops, interp, currentNs);
 
   if (argc == 0) {
-    // No pattern - return all commands (names are already simple)
-    ops->interp.set_result(interp, allNames);
+    // No pattern - return all visible commands
+    // Visible = current namespace + global namespace (merged, no duplicates)
+    FeatherObj result = ops->list.create(interp);
+
+    // First add commands from current namespace
+    FeatherObj currentNames = ops->ns.list_commands(interp, currentNs);
+    size_t currentCount = ops->list.length(interp, currentNames);
+    for (size_t i = 0; i < currentCount; i++) {
+      result = ops->list.push(interp, result, ops->list.at(interp, currentNames, i));
+    }
+
+    // If not in global namespace, also add global commands (avoiding duplicates)
+    if (!inGlobalNs) {
+      FeatherObj globalNames = ops->ns.list_commands(interp, globalNs);
+      size_t globalCount = ops->list.length(interp, globalNames);
+      for (size_t i = 0; i < globalCount; i++) {
+        FeatherObj name = ops->list.at(interp, globalNames, i);
+        // Check if already in result (from current namespace)
+        int found = 0;
+        for (size_t j = 0; j < currentCount; j++) {
+          if (ops->string.equal(interp, name, ops->list.at(interp, currentNames, j))) {
+            found = 1;
+            break;
+          }
+        }
+        if (!found) {
+          result = ops->list.push(interp, result, name);
+        }
+      }
+    }
+
+    ops->interp.set_result(interp, result);
     return TCL_OK;
   }
 
-  // Filter by pattern
-  FeatherObj pattern = ops->list.at(interp, args, 0);
+  // Pattern specified - parse namespace and pattern parts
+  FeatherObj fullPattern = ops->list.at(interp, args, 0);
+  FeatherObj searchNs, pattern;
+  parse_pattern_namespace(ops, interp, fullPattern, &searchNs, &pattern);
+
+  int patternIsQualified = feather_obj_is_qualified(ops, interp, fullPattern);
+
+  // Get commands from the target namespace
+  FeatherObj allNames = ops->ns.list_commands(interp, searchNs);
+  size_t count = ops->list.length(interp, allNames);
 
   FeatherObj result = ops->list.create(interp);
+  FeatherObj colons = ops->string.intern(interp, "::", 2);
+
   for (size_t i = 0; i < count; i++) {
     FeatherObj name = ops->list.at(interp, allNames, i);
-
     if (feather_obj_glob_match(ops, interp, pattern, name)) {
-      result = ops->list.push(interp, result, name);
+      // When pattern was qualified, return fully qualified names
+      if (patternIsQualified) {
+        FeatherObj qualifiedName;
+        if (feather_obj_is_global_ns(ops, interp, searchNs)) {
+          qualifiedName = ops->string.concat(interp, colons, name);
+        } else {
+          qualifiedName = ops->string.concat(interp, searchNs, colons);
+          qualifiedName = ops->string.concat(interp, qualifiedName, name);
+        }
+        result = ops->list.push(interp, result, qualifiedName);
+      } else {
+        result = ops->list.push(interp, result, name);
+      }
+    }
+  }
+
+  // If searching current namespace (unqualified pattern) and not in global,
+  // also search global namespace for matches
+  if (!patternIsQualified && !inGlobalNs) {
+    FeatherObj globalNames = ops->ns.list_commands(interp, globalNs);
+    size_t globalCount = ops->list.length(interp, globalNames);
+    for (size_t i = 0; i < globalCount; i++) {
+      FeatherObj name = ops->list.at(interp, globalNames, i);
+      if (feather_obj_glob_match(ops, interp, pattern, name)) {
+        // Check if already in result (from current namespace)
+        int found = 0;
+        size_t resultLen = ops->list.length(interp, result);
+        for (size_t j = 0; j < resultLen; j++) {
+          if (ops->string.equal(interp, name, ops->list.at(interp, result, j))) {
+            found = 1;
+            break;
+          }
+        }
+        if (!found) {
+          result = ops->list.push(interp, result, name);
+        }
+      }
     }
   }
 
@@ -159,7 +260,68 @@ static FeatherResult info_commands(const FeatherHostOps *ops, FeatherInterp inte
 }
 
 /**
+ * Helper to add procs from a namespace to result list, filtering by pattern.
+ * If qualifyOutput is true, returns fully qualified names.
+ * Avoids adding duplicates (checks if name already in result).
+ */
+static void add_procs_from_ns(const FeatherHostOps *ops, FeatherInterp interp,
+                              FeatherObj ns, FeatherObj pattern, FeatherObj result,
+                              int qualifyOutput) {
+  FeatherObj allNames = ops->ns.list_commands(interp, ns);
+  size_t count = ops->list.length(interp, allNames);
+  FeatherObj colons = ops->string.intern(interp, "::", 2);
+  int nsIsGlobal = feather_obj_is_global_ns(ops, interp, ns);
+
+  for (size_t i = 0; i < count; i++) {
+    FeatherObj name = ops->list.at(interp, allNames, i);
+
+    // Check if it's a user-defined procedure (not a builtin)
+    FeatherBuiltinCmd unusedFn = NULL;
+    FeatherCommandType cmdType = ops->ns.get_command(interp, ns, name, &unusedFn, NULL, NULL);
+    if (cmdType != TCL_CMD_PROC) {
+      continue;
+    }
+
+    // Apply pattern filter if specified
+    if (!ops->list.is_nil(interp, pattern)) {
+      if (!feather_obj_glob_match(ops, interp, pattern, name)) {
+        continue;
+      }
+    }
+
+    // Build output name (qualified or simple)
+    FeatherObj outputName = name;
+    if (qualifyOutput) {
+      if (nsIsGlobal) {
+        outputName = ops->string.concat(interp, colons, name);
+      } else {
+        outputName = ops->string.concat(interp, ns, colons);
+        outputName = ops->string.concat(interp, outputName, name);
+      }
+    }
+
+    // Check if already in result (avoid duplicates)
+    size_t resultLen = ops->list.length(interp, result);
+    int found = 0;
+    for (size_t j = 0; j < resultLen; j++) {
+      if (ops->string.equal(interp, outputName, ops->list.at(interp, result, j))) {
+        found = 1;
+        break;
+      }
+    }
+    if (!found) {
+      ops->list.push(interp, result, outputName);
+    }
+  }
+}
+
+/**
  * info procs ?pattern?
+ *
+ * Returns names of all visible procedures (user-defined procs, not builtins).
+ * If pattern is given, returns only those names that match.
+ * Only the final component in pattern is a pattern - other components identify a namespace.
+ * When pattern is qualified, results are fully qualified.
  */
 static FeatherResult info_procs(const FeatherHostOps *ops, FeatherInterp interp,
                             FeatherObj args) {
@@ -171,38 +333,40 @@ static FeatherResult info_procs(const FeatherHostOps *ops, FeatherInterp interp,
     return TCL_ERROR;
   }
 
-  // Get all command names from global namespace
   FeatherObj globalNs = ops->string.intern(interp, "::", 2);
-  FeatherObj allNames = ops->ns.list_commands(interp, globalNs);
+  FeatherObj currentNs = ops->ns.current(interp);
+  int inGlobalNs = feather_obj_is_global_ns(ops, interp, currentNs);
 
   FeatherObj result = ops->list.create(interp);
-  size_t count = ops->list.length(interp, allNames);
 
-  // Optional pattern
-  FeatherObj pattern = 0;
-  if (argc == 1) {
-    pattern = ops->list.at(interp, args, 0);
+  if (argc == 0) {
+    // No pattern - return all visible procs (simple names)
+    // Add procs from current namespace first
+    add_procs_from_ns(ops, interp, currentNs, 0, result, 0);
+
+    // If not in global namespace, also add global procs
+    if (!inGlobalNs) {
+      add_procs_from_ns(ops, interp, globalNs, 0, result, 0);
+    }
+
+    ops->interp.set_result(interp, result);
+    return TCL_OK;
   }
 
-  for (size_t i = 0; i < count; i++) {
-    FeatherObj name = ops->list.at(interp, allNames, i);
+  // Pattern specified - parse namespace and pattern parts
+  FeatherObj fullPattern = ops->list.at(interp, args, 0);
+  FeatherObj searchNs, pattern;
+  parse_pattern_namespace(ops, interp, fullPattern, &searchNs, &pattern);
 
-    // Check if it's a user-defined procedure (not a builtin)
-    // Use ns.get_command to check the type
-    FeatherBuiltinCmd unusedFn = NULL;
-    FeatherCommandType cmdType = ops->ns.get_command(interp, globalNs, name, &unusedFn, NULL, NULL);
-    if (cmdType != TCL_CMD_PROC) {
-      continue;
-    }
+  int patternIsQualified = feather_obj_is_qualified(ops, interp, fullPattern);
 
-    // Apply pattern filter if specified
-    if (pattern != 0) {
-      if (!feather_obj_glob_match(ops, interp, pattern, name)) {
-        continue;
-      }
-    }
+  // Add procs from the target namespace
+  add_procs_from_ns(ops, interp, searchNs, pattern, result, patternIsQualified);
 
-    result = ops->list.push(interp, result, name);
+  // If searching current namespace (unqualified pattern) and not in global,
+  // also search global namespace
+  if (!patternIsQualified && !inGlobalNs) {
+    add_procs_from_ns(ops, interp, globalNs, pattern, result, 0);
   }
 
   ops->interp.set_result(interp, result);
@@ -299,13 +463,13 @@ static FeatherResult info_args(const FeatherHostOps *ops, FeatherInterp interp,
 /**
  * info frame ?number?
  *
- * With no argument, returns the current stack level (same as info level).
+ * With no argument, returns the current frame depth.
  * With a number, returns a dictionary with information about that frame:
- *   type: call (for proc call frames)
- *   cmd: the command being executed
- *   proc: the procedure name
+ *   type: proc, eval, or source
+ *   cmd: the command being executed (as a list)
+ *   proc: the procedure name (only if type is proc)
  *   level: the stack level
- *   namespace: the namespace context
+ *   file: the script file path (only if type is source)
  */
 static FeatherResult info_frame(const FeatherHostOps *ops, FeatherInterp interp,
                             FeatherObj args) {
@@ -363,12 +527,34 @@ static FeatherResult info_frame(const FeatherHostOps *ops, FeatherInterp interp,
   // Use display name for the command (strips :: for global namespace)
   FeatherObj displayCmd = feather_get_display_name(ops, interp, cmd);
 
+  // Determine frame type: check if command is a user-defined proc
+  FeatherCommandType cmdType = feather_lookup_command(ops, interp, cmd, NULL, NULL, NULL);
+  int isProc = (cmdType == TCL_CMD_PROC);
+
+  // Check if we're in a source context
+  FeatherObj scriptPath = ops->interp.get_script(interp);
+  int hasScriptPath = (ops->string.byte_length(interp, scriptPath) > 0);
+
+  // Determine type string
+  const char *typeStr;
+  size_t typeLen;
+  if (isProc) {
+    typeStr = "proc";
+    typeLen = 4;
+  } else if (hasScriptPath) {
+    typeStr = "source";
+    typeLen = 6;
+  } else {
+    typeStr = "eval";
+    typeLen = 4;
+  }
+
   // Build result dictionary as a list: {key value key value ...}
   FeatherObj result = ops->list.create(interp);
 
-  // type call
+  // type
   result = ops->list.push(interp, result, ops->string.intern(interp, "type", 4));
-  result = ops->list.push(interp, result, ops->string.intern(interp, "call", 4));
+  result = ops->list.push(interp, result, ops->string.intern(interp, typeStr, typeLen));
 
   // cmd {cmdname arg1 arg2 ...}
   result = ops->list.push(interp, result, ops->string.intern(interp, "cmd", 3));
@@ -380,17 +566,39 @@ static FeatherResult info_frame(const FeatherHostOps *ops, FeatherInterp interp,
   }
   result = ops->list.push(interp, result, cmdList);
 
-  // proc name
-  result = ops->list.push(interp, result, ops->string.intern(interp, "proc", 4));
-  result = ops->list.push(interp, result, displayCmd);
+  // proc name (only if type is proc)
+  if (isProc) {
+    result = ops->list.push(interp, result, ops->string.intern(interp, "proc", 4));
+    result = ops->list.push(interp, result, displayCmd);
+  }
 
   // level number
   result = ops->list.push(interp, result, ops->string.intern(interp, "level", 5));
   result = ops->list.push(interp, result, ops->integer.create(interp, (int64_t)targetLevel));
 
+  // file (only if type is source)
+  if (hasScriptPath) {
+    result = ops->list.push(interp, result, ops->string.intern(interp, "file", 4));
+    result = ops->list.push(interp, result, scriptPath);
+  }
+
   // namespace
   result = ops->list.push(interp, result, ops->string.intern(interp, "namespace", 9));
   result = ops->list.push(interp, result, frameNs);
+
+  // line (if available)
+  size_t lineNum = ops->frame.get_line(interp, targetLevel);
+  if (lineNum > 0) {
+    result = ops->list.push(interp, result, ops->string.intern(interp, "line", 4));
+    result = ops->list.push(interp, result, ops->integer.create(interp, (int64_t)lineNum));
+  }
+
+  // lambda (only for apply frames)
+  FeatherObj lambda = ops->frame.get_lambda(interp, targetLevel);
+  if (!ops->list.is_nil(interp, lambda)) {
+    result = ops->list.push(interp, result, ops->string.intern(interp, "lambda", 6));
+    result = ops->list.push(interp, result, lambda);
+  }
 
   ops->interp.set_result(interp, result);
   return TCL_OK;
@@ -485,6 +693,7 @@ static FeatherResult info_default(const FeatherHostOps *ops, FeatherInterp inter
  * info locals ?pattern?
  *
  * Returns a list of local variable names in the current frame.
+ * Excludes variables linked via global, upvar, or variable commands.
  */
 static FeatherResult info_locals(const FeatherHostOps *ops, FeatherInterp interp,
                              FeatherObj args) {
@@ -496,26 +705,34 @@ static FeatherResult info_locals(const FeatherHostOps *ops, FeatherInterp interp
     return TCL_ERROR;
   }
 
-  // Get all local variable names (pass nil for current frame)
+  // Get all variable names in current frame (includes linked)
   FeatherObj allNames = ops->var.names(interp, 0);
+  size_t count = ops->list.length(interp, allNames);
 
-  if (argc == 0) {
-    // No pattern - return all locals
-    ops->interp.set_result(interp, allNames);
-    return TCL_OK;
+  // Optional pattern
+  FeatherObj pattern = 0;
+  if (argc == 1) {
+    pattern = ops->list.at(interp, args, 0);
   }
 
-  // Filter by pattern
-  FeatherObj pattern = ops->list.at(interp, args, 0);
-
+  // Filter out linked variables and apply pattern
   FeatherObj result = ops->list.create(interp);
-  size_t count = ops->list.length(interp, allNames);
   for (size_t i = 0; i < count; i++) {
     FeatherObj name = ops->list.at(interp, allNames, i);
 
-    if (feather_obj_glob_match(ops, interp, pattern, name)) {
-      result = ops->list.push(interp, result, name);
+    // Skip linked variables (upvar, global, variable)
+    if (ops->var.is_link(interp, name)) {
+      continue;
     }
+
+    // Apply pattern filter if specified
+    if (pattern != 0) {
+      if (!feather_obj_glob_match(ops, interp, pattern, name)) {
+        continue;
+      }
+    }
+
+    result = ops->list.push(interp, result, name);
   }
 
   ops->interp.set_result(interp, result);
@@ -567,16 +784,79 @@ static FeatherResult info_globals(const FeatherHostOps *ops, FeatherInterp inter
 /**
  * info vars ?pattern?
  *
- * Returns a list of visible variable names (locals + globals via upvar/global).
- * This is the same as info locals for now since we don't have a separate
- * mechanism to track which globals have been imported.
+ * Returns a list of all visible variable names.
+ * If pattern contains namespace qualifiers, searches that namespace and
+ * returns fully qualified names.
+ * Otherwise returns current frame variables (locals + linked via upvar/global/variable).
  */
 static FeatherResult info_vars(const FeatherHostOps *ops, FeatherInterp interp,
                            FeatherObj args) {
-  // For now, info vars behaves like info locals
-  // In a full implementation, it would also include globals that have
-  // been made visible via 'global' or 'upvar'
-  return info_locals(ops, interp, args);
+  size_t argc = ops->list.length(interp, args);
+  if (argc > 1) {
+    ops->interp.set_result(
+        interp,
+        ops->string.intern(interp, "wrong # args: should be \"info vars ?pattern?\"", 45));
+    return TCL_ERROR;
+  }
+
+  if (argc == 0) {
+    // No pattern - return all visible variables in current frame
+    FeatherObj allNames = ops->var.names(interp, 0);
+    ops->interp.set_result(interp, allNames);
+    return TCL_OK;
+  }
+
+  // Pattern specified
+  FeatherObj fullPattern = ops->list.at(interp, args, 0);
+
+  // Check if pattern is namespace-qualified
+  if (feather_obj_is_qualified(ops, interp, fullPattern)) {
+    // Split into namespace and pattern parts
+    FeatherObj searchNs, pattern;
+    parse_pattern_namespace(ops, interp, fullPattern, &searchNs, &pattern);
+
+    // Get variables from the target namespace
+    FeatherObj allNames = ops->var.names(interp, searchNs);
+    size_t count = ops->list.length(interp, allNames);
+
+    FeatherObj result = ops->list.create(interp);
+    FeatherObj colons = ops->string.intern(interp, "::", 2);
+    int nsIsGlobal = feather_obj_is_global_ns(ops, interp, searchNs);
+    for (size_t i = 0; i < count; i++) {
+      FeatherObj name = ops->list.at(interp, allNames, i);
+      if (feather_obj_glob_match(ops, interp, pattern, name)) {
+        // Return fully qualified names when pattern was qualified
+        FeatherObj qualifiedName;
+        if (nsIsGlobal) {
+          // Global namespace: "::x"
+          qualifiedName = ops->string.concat(interp, colons, name);
+        } else {
+          // Other namespace: "::foo::x"
+          qualifiedName = ops->string.concat(interp, searchNs, colons);
+          qualifiedName = ops->string.concat(interp, qualifiedName, name);
+        }
+        result = ops->list.push(interp, result, qualifiedName);
+      }
+    }
+
+    ops->interp.set_result(interp, result);
+    return TCL_OK;
+  }
+
+  // Unqualified pattern - search current frame variables
+  FeatherObj allNames = ops->var.names(interp, 0);
+  size_t count = ops->list.length(interp, allNames);
+
+  FeatherObj result = ops->list.create(interp);
+  for (size_t i = 0; i < count; i++) {
+    FeatherObj name = ops->list.at(interp, allNames, i);
+    if (feather_obj_glob_match(ops, interp, fullPattern, name)) {
+      result = ops->list.push(interp, result, name);
+    }
+  }
+
+  ops->interp.set_result(interp, result);
+  return TCL_OK;
 }
 
 /**

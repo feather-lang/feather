@@ -136,9 +136,16 @@ FeatherResult feather_invoke_proc(const FeatherHostOps *ops, FeatherInterp inter
   }
 
   // Push a new call frame
+  // First, get the line number from the parent frame (set by eval before calling us)
+  size_t parentLevel = ops->frame.level(interp);
+  size_t parentLine = ops->frame.get_line(interp, parentLevel);
+
   if (ops->frame.push(interp, name, args) != TCL_OK) {
     return TCL_ERROR;
   }
+
+  // Copy the line number from the parent frame to the new frame
+  ops->frame.set_line(interp, parentLine);
 
   // Set the namespace for this frame based on the proc's qualified name
   // For "::counter::incr", the namespace is "::counter"
