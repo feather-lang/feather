@@ -318,17 +318,6 @@ async function createFeather(wasmSource) {
     return new TextDecoder().decode(bytes);
   };
 
-  // Helper to convert fully qualified name to display name (strip :: for global commands)
-  const displayName = (name) => {
-    if (name.length > 2 && name.startsWith('::')) {
-      const rest = name.slice(2);
-      if (!rest.includes('::')) {
-        return rest;
-      }
-    }
-    return name;
-  };
-
   const writeString = (str) => {
     const bytes = new TextEncoder().encode(str);
     const ptr = wasmInstance.exports.alloc(bytes.length + 1);
@@ -617,6 +606,8 @@ async function createFeather(wasmSource) {
     feather_host_proc_lookup: (interpId, name, fnPtr) => {
       const interp = interpreters.get(interpId);
       const procName = interp.getString(name);
+
+      // Check legacy maps first
       if (interp.builtins.has(procName)) {
         writeI32(fnPtr, interp.builtins.get(procName));
         return TCL_CMD_BUILTIN;
@@ -625,6 +616,32 @@ async function createFeather(wasmSource) {
         writeI32(fnPtr, 0);
         return TCL_CMD_PROC;
       }
+
+      // Check namespace storage
+      // Split qualified name into namespace path and simple name
+      let nsPath = '';
+      let simpleName = procName;
+      if (procName.startsWith('::')) {
+        const withoutLeading = procName.slice(2);
+        const lastSep = withoutLeading.lastIndexOf('::');
+        if (lastSep !== -1) {
+          nsPath = withoutLeading.slice(0, lastSep);
+          simpleName = withoutLeading.slice(lastSep + 2);
+        } else {
+          nsPath = '';
+          simpleName = withoutLeading;
+        }
+      }
+
+      const namespace = interp.namespaces.get(nsPath);
+      if (namespace) {
+        const cmd = namespace.commands.get(simpleName);
+        if (cmd) {
+          writeI32(fnPtr, cmd.fn || 0);
+          return cmd.kind;
+        }
+      }
+
       writeI32(fnPtr, 0);
       return TCL_CMD_NONE;
     },
@@ -649,29 +666,8 @@ async function createFeather(wasmSource) {
       const [oldNsPath, oldSimple] = splitQualified(oldN);
       const oldNs = interp.namespaces.get(oldNsPath);
 
-      // Check if command exists in namespace
-      if (!oldNs?.commands.has(oldSimple)) {
-        // Also check legacy procs/builtins maps
-        if (!interp.procs.has(oldN) && !interp.builtins.has(oldN)) {
-          interp.result = interp.store({ type: 'string', value: `can't rename "${displayName(oldN)}": command doesn't exist` });
-          return TCL_ERROR;
-        }
-      }
-
-      // Check if target already exists (before we do anything)
-      if (newN) {
-        const [newNsPath, newSimple] = splitQualified(newN);
-        const newNs = interp.namespaces.get(newNsPath);
-        if (newNs?.commands.has(newSimple)) {
-          interp.result = interp.store({ type: 'string', value: `can't rename to "${displayName(newN)}": command already exists` });
-          return TCL_ERROR;
-        }
-      }
-
-      // Determine the operation for trace firing
-      const op = newN ? 'rename' : 'delete';
-
       // Get the command from namespace or legacy maps
+      // Validation is done by C core, so command should exist
       let cmd = oldNs?.commands.get(oldSimple);
       if (!cmd && interp.procs.has(oldN)) {
         const proc = interp.procs.get(oldN);

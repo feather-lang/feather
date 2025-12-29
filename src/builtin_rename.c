@@ -1,5 +1,6 @@
 #include "feather.h"
 #include "internal.h"
+#include "namespace_util.h"
 
 /**
  * feather_builtin_rename implements the TCL 'rename' command.
@@ -50,6 +51,16 @@ FeatherResult feather_builtin_rename(const FeatherHostOps *ops, FeatherInterp in
     qualifiedOld = ops->string.concat(interp, globalQualified, oldName);
   }
 
+  // Validate: old command must exist
+  if (cmdType == TCL_CMD_NONE) {
+    FeatherObj displayOld = feather_get_display_name(ops, interp, oldName);
+    FeatherObj msg = ops->string.intern(interp, "can't rename \"", 14);
+    msg = ops->string.concat(interp, msg, displayOld);
+    msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\": command doesn't exist", 24));
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
   // Resolve newName similarly if it's not empty
   size_t newLen = ops->string.byte_length(interp, newName);
 
@@ -69,7 +80,21 @@ FeatherResult feather_builtin_rename(const FeatherHostOps *ops, FeatherInterp in
     }
   }
 
+  // Validate: new command must not exist (if newName is not empty)
+  if (newLen > 0) {
+    FeatherCommandType newCmdType = ops->proc.lookup(interp, qualifiedNew, &unusedFn);
+    if (newCmdType != TCL_CMD_NONE) {
+      FeatherObj displayNew = feather_get_display_name(ops, interp, newName);
+      FeatherObj msg = ops->string.intern(interp, "can't rename to \"", 17);
+      msg = ops->string.concat(interp, msg, displayNew);
+      msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\": command already exists", 25));
+      ops->interp.set_result(interp, msg);
+      return TCL_ERROR;
+    }
+  }
+
   // Delegate to host's rename operation with resolved names
+  // Host no longer needs to validate - just do the mechanical rename
   FeatherResult result = ops->proc.rename(interp, qualifiedOld, qualifiedNew);
 
   // Fire command traces if rename succeeded

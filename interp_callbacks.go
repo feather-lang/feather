@@ -1716,15 +1716,13 @@ func goProcRename(interp C.FeatherInterp, oldName C.FeatherObj, newName C.Feathe
 	// Get old namespace location
 	oldNsPath, oldSimple := splitQualified(oldNameStr)
 
-	// Check if old command exists in namespace
-	oldNs, ok := i.namespaces[oldNsPath]
-	if !ok {
-		i.SetErrorString("can't rename \"" + i.DisplayName(oldNameStr) + "\": command doesn't exist")
+	// Get the command (validation is done by C core, so command should exist)
+	oldNs := i.namespaces[oldNsPath]
+	if oldNs == nil {
 		return C.TCL_ERROR
 	}
-	cmd, ok := oldNs.commands[oldSimple]
-	if !ok {
-		i.SetErrorString("can't rename \"" + i.DisplayName(oldNameStr) + "\": command doesn't exist")
+	cmd := oldNs.commands[oldSimple]
+	if cmd == nil {
 		return C.TCL_ERROR
 	}
 
@@ -1737,14 +1735,8 @@ func goProcRename(interp C.FeatherInterp, oldName C.FeatherObj, newName C.Feathe
 	// Get new namespace location
 	newNsPath, newSimple := splitQualified(newNameStr)
 
-	// Check if new name already exists
-	newNs := i.ensureNamespace(newNsPath)
-	if _, exists := newNs.commands[newSimple]; exists {
-		i.SetErrorString("can't rename to \"" + i.DisplayName(newNameStr) + "\": command already exists")
-		return C.TCL_ERROR
-	}
-
 	// Move command from old namespace to new namespace
+	newNs := i.ensureNamespace(newNsPath)
 	delete(oldNs.commands, oldSimple)
 	newNs.commands[newSimple] = cmd
 

@@ -808,20 +808,6 @@ func (i *InternalInterp) GetString(h FeatherObj) string {
 	return ""
 }
 
-// DisplayName returns a user-friendly name for a command.
-// Strips the leading "::" for global namespace commands (e.g., "::set" -> "set")
-// but preserves the full path for nested namespaces (e.g., "::foo::bar" stays as-is).
-func (i *InternalInterp) DisplayName(name string) string {
-	if len(name) > 2 && name[0] == ':' && name[1] == ':' {
-		// Check if there's another :: after the initial one
-		rest := name[2:]
-		if !strings.Contains(rest, "::") {
-			// Global namespace only - strip the leading ::
-			return rest
-		}
-	}
-	return name
-}
 
 // GetInt returns the integer representation of an object.
 // Performs shimmering: parses string representation as integer if needed.
