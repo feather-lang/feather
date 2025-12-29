@@ -129,6 +129,8 @@ static FeatherHostOps default_ops = {
         .add = feather_host_trace_add,
         .remove = feather_host_trace_remove,
         .info = feather_host_trace_info,
+        .fire_enter = feather_host_trace_fire_enter,
+        .fire_leave = feather_host_trace_fire_leave,
     },
     .foreign = {
         .is_foreign = feather_host_foreign_is_foreign,

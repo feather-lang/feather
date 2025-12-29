@@ -2473,6 +2473,91 @@ func goTraceInfo(interp C.FeatherInterp, kind C.FeatherObj, name C.FeatherObj) C
 	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(items)}))
 }
 
+//export goTraceFireEnter
+func goTraceFireEnter(interp C.FeatherInterp, cmdName C.FeatherObj, cmdList C.FeatherObj) {
+	i := getInternalInterp(interp)
+	if i == nil {
+		return
+	}
+	nameStr := i.GetString(FeatherObj(cmdName))
+
+	entries := i.execTraces[nameStr]
+	if len(entries) == 0 {
+		return
+	}
+
+	// Fire traces in LIFO order (iterate backwards)
+	fireExecTraces(i, FeatherObj(cmdList), 0, 0, "enter", entries)
+}
+
+//export goTraceFireLeave
+func goTraceFireLeave(interp C.FeatherInterp, cmdName C.FeatherObj, cmdList C.FeatherObj, code C.FeatherResult, result C.FeatherObj) {
+	i := getInternalInterp(interp)
+	if i == nil {
+		return
+	}
+	nameStr := i.GetString(FeatherObj(cmdName))
+
+	entries := i.execTraces[nameStr]
+	if len(entries) == 0 {
+		return
+	}
+
+	// Fire traces in LIFO order (iterate backwards)
+	fireExecTraces(i, FeatherObj(cmdList), int(code), FeatherObj(result), "leave", entries)
+}
+
+// fireExecTraces fires execution traces for the given operation.
+// This function must be called WITHOUT holding the mutex.
+func fireExecTraces(i *InternalInterp, cmdList FeatherObj, code int, result FeatherObj, op string, traces []TraceEntry) {
+	// Execution traces are invoked as:
+	// - enter: script cmdList "enter"
+	// - leave: script cmdList code result "leave"
+	//
+	// cmdList is passed as a single list argument
+	// Traces fire in LIFO order (last added first)
+
+	// Convert cmdList to a proper TCL list string
+	cmdListStr := i.GetString(cmdList)
+
+	// Fire in LIFO order (iterate backwards)
+	for idx := len(traces) - 1; idx >= 0; idx-- {
+		trace := traces[idx]
+
+		// Check if this trace matches the operation
+		ops := strings.Fields(trace.ops)
+		matches := false
+		for _, traceOp := range ops {
+			if traceOp == op {
+				matches = true
+				break
+			}
+		}
+		if !matches {
+			continue
+		}
+
+		// Get the script command prefix
+		scriptStr := trace.script.String()
+
+		// Build the full command
+		var cmd string
+		if op == "enter" {
+			// script cmdList enter
+			cmd = scriptStr + " {" + cmdListStr + "} " + op
+		} else {
+			// script cmdList code result leave
+			resultStr := i.GetString(result)
+			cmd = scriptStr + " {" + cmdListStr + "} " + strconv.Itoa(code) + " " + resultStr + " " + op
+		}
+
+		cmdObj := i.internString(cmd)
+
+		// Fire the trace by evaluating the command
+		callCEval(i.handle, cmdObj)
+	}
+}
+
 //export goNsGetExports
 func goNsGetExports(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherObj {
 	i := getInternalInterp(interp)

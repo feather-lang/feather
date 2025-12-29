@@ -13,6 +13,10 @@ FeatherResult feather_command_exec(const FeatherHostOps *ops, FeatherInterp inte
     return TCL_OK;
   }
 
+  // Save the original command list for execution traces
+  // Use list.from to create a copy (it creates a new list from an existing one)
+  FeatherObj originalCmd = ops->list.from(interp, command);
+
   // Extract the command name (first element)
   FeatherObj cmd = ops->list.shift(interp, command);
   if (ops->list.is_nil(interp, cmd)) {
@@ -82,17 +86,27 @@ FeatherResult feather_command_exec(const FeatherHostOps *ops, FeatherInterp inte
     }
   }
 
+  // Fire "enter" execution traces before command executes
+  ops->trace.fire_enter(interp, lookupName, originalCmd);
+
+  FeatherResult code;
   switch (cmdType) {
   case TCL_CMD_BUILTIN:
     if (builtin != NULL) {
       // Call the builtin function directly
-      return builtin(ops, interp, lookupName, args);
+      code = builtin(ops, interp, lookupName, args);
+      // Fire "leave" execution traces after command completes
+      ops->trace.fire_leave(interp, lookupName, originalCmd, code, ops->interp.get_result(interp));
+      return code;
     }
     // NULL builtin means host-registered command - fall through to unknown
     break;
   case TCL_CMD_PROC:
     // For procs, use the fully qualified name for lookup
-    return feather_invoke_proc(ops, interp, lookupName, args);
+    code = feather_invoke_proc(ops, interp, lookupName, args);
+    // Fire "leave" execution traces after command completes
+    ops->trace.fire_leave(interp, lookupName, originalCmd, code, ops->interp.get_result(interp));
+    return code;
   case TCL_CMD_NONE:
     // Fall through to unknown handling
     break;
@@ -113,16 +127,22 @@ FeatherResult feather_command_exec(const FeatherHostOps *ops, FeatherInterp inte
       unknownArgs = ops->list.push(interp, unknownArgs, arg);
     }
     FeatherObj unknownName = ops->string.intern(interp, "::unknown", 9);
-    return feather_invoke_proc(ops, interp, unknownName, unknownArgs);
+    code = feather_invoke_proc(ops, interp, unknownName, unknownArgs);
+    // Fire "leave" execution traces after command completes
+    ops->trace.fire_leave(interp, lookupName, originalCmd, code, ops->interp.get_result(interp));
+    return code;
   }
 
   // Fall back to host command lookup via bind.unknown
   FeatherObj result;
-  FeatherResult code = ops->bind.unknown(interp, cmd, args, &result);
+  code = ops->bind.unknown(interp, cmd, args, &result);
 
   if (code == TCL_OK) {
     ops->interp.set_result(interp, result);
   }
+
+  // Fire "leave" execution traces after command completes
+  ops->trace.fire_leave(interp, lookupName, originalCmd, code, ops->interp.get_result(interp));
 
   return code;
 }

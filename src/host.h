@@ -215,7 +215,7 @@ extern FeatherResult feather_host_bind_unknown(FeatherInterp interp, FeatherObj 
                                                FeatherObj args, FeatherObj *value);
 
 /* ============================================================================
- * Trace Operations (3 functions)
+ * Trace Operations (5 functions)
  * ============================================================================ */
 
 extern FeatherResult feather_host_trace_add(FeatherInterp interp, FeatherObj kind, FeatherObj name,
@@ -223,6 +223,9 @@ extern FeatherResult feather_host_trace_add(FeatherInterp interp, FeatherObj kin
 extern FeatherResult feather_host_trace_remove(FeatherInterp interp, FeatherObj kind,
                                                FeatherObj name, FeatherObj ops, FeatherObj script);
 extern FeatherObj feather_host_trace_info(FeatherInterp interp, FeatherObj kind, FeatherObj name);
+extern void feather_host_trace_fire_enter(FeatherInterp interp, FeatherObj cmdName, FeatherObj cmdList);
+extern void feather_host_trace_fire_leave(FeatherInterp interp, FeatherObj cmdName, FeatherObj cmdList,
+                                          FeatherResult code, FeatherObj result);
 
 /* ============================================================================
  * Foreign Operations (6 functions)

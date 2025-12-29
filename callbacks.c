@@ -471,6 +471,14 @@ FeatherObj feather_host_trace_info(FeatherInterp interp, FeatherObj kind, Feathe
     return goTraceInfo(interp, kind, name);
 }
 
+void feather_host_trace_fire_enter(FeatherInterp interp, FeatherObj cmdName, FeatherObj cmdList) {
+    goTraceFireEnter(interp, cmdName, cmdList);
+}
+
+void feather_host_trace_fire_leave(FeatherInterp interp, FeatherObj cmdName, FeatherObj cmdList, FeatherResult code, FeatherObj result) {
+    goTraceFireLeave(interp, cmdName, cmdList, code, result);
+}
+
 // ============================================================================
 // Foreign Operations
 // ============================================================================

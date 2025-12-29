@@ -1327,6 +1327,31 @@ typedef struct FeatherTraceOps {
    * Returns empty list if no traces.
    */
   FeatherObj (*info)(FeatherInterp interp, FeatherObj kind, FeatherObj name);
+
+  /**
+   * fire_enter fires "enter" execution traces before a command executes.
+   *
+   * cmdName: the fully qualified command name (e.g., "::myproc")
+   * cmdList: the full command as a list [cmdname, arg1, arg2, ...]
+   *
+   * The trace callback receives: cmdList "enter"
+   * Traces fire in LIFO order (last added first).
+   */
+  void (*fire_enter)(FeatherInterp interp, FeatherObj cmdName, FeatherObj cmdList);
+
+  /**
+   * fire_leave fires "leave" execution traces after a command executes.
+   *
+   * cmdName: the fully qualified command name
+   * cmdList: the full command as a list [cmdname, arg1, arg2, ...]
+   * code: the return code (TCL_OK=0, TCL_ERROR=1, etc.)
+   * result: the command result
+   *
+   * The trace callback receives: cmdList code result "leave"
+   * Traces fire in LIFO order (last added first).
+   */
+  void (*fire_leave)(FeatherInterp interp, FeatherObj cmdName, FeatherObj cmdList,
+                     FeatherResult code, FeatherObj result);
 } FeatherTraceOps;
 
 /**
