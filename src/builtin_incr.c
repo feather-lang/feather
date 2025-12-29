@@ -1,4 +1,5 @@
 #include "feather.h"
+#include "internal.h"
 
 FeatherResult feather_builtin_incr(const FeatherHostOps *ops, FeatherInterp interp,
                             FeatherObj cmd, FeatherObj args) {
@@ -14,8 +15,20 @@ FeatherResult feather_builtin_incr(const FeatherHostOps *ops, FeatherInterp inte
   // Get variable name
   FeatherObj varName = ops->list.shift(interp, args);
 
+  // Resolve the variable name (handles qualified names like ::varname)
+  FeatherObj ns, localName;
+  feather_obj_resolve_variable(ops, interp, varName, &ns, &localName);
+
   // Get current value
-  FeatherObj currentVal = ops->var.get(interp, varName);
+  FeatherObj currentVal;
+  if (ops->list.is_nil(interp, ns)) {
+    // Unqualified - frame-local lookup
+    currentVal = ops->var.get(interp, localName);
+  } else {
+    // Qualified - namespace lookup
+    currentVal = ops->ns.get_var(interp, ns, localName);
+  }
+
   if (ops->list.is_nil(interp, currentVal)) {
     // Variable doesn't exist - build error with original varName object
     FeatherObj part1 = ops->string.intern(interp, "can't read \"", 12);
@@ -56,7 +69,16 @@ FeatherResult feather_builtin_incr(const FeatherHostOps *ops, FeatherInterp inte
   // Compute new value and store
   int64_t newVal = current + increment;
   FeatherObj newObj = ops->integer.create(interp, newVal);
-  ops->var.set(interp, varName, newObj);
+
+  // Store back in variable
+  if (ops->list.is_nil(interp, ns)) {
+    // Unqualified - frame-local
+    ops->var.set(interp, localName, newObj);
+  } else {
+    // Qualified - namespace
+    ops->ns.set_var(interp, ns, localName, newObj);
+  }
+
   ops->interp.set_result(interp, newObj);
   return TCL_OK;
 }

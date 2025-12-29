@@ -1612,6 +1612,49 @@ async function createFeather(wasmSource) {
       });
       return interp.store({ type: 'list', items });
     },
+    feather_host_trace_fire_enter: (interpId, cmdName, cmdList) => {
+      const interp = interpreters.get(interpId);
+      const nameStr = interp.getString(cmdName);
+      const traces = interp.traces.execution?.get(nameStr);
+      if (!traces || traces.length === 0) return;
+
+      const cmdListStr = interp.getString(cmdList);
+
+      // Fire in LIFO order (last added first)
+      for (let i = traces.length - 1; i >= 0; i--) {
+        const trace = traces[i];
+        const ops = trace.ops.split(/\s+/).filter(o => o);
+        if (!ops.includes('enter')) continue;
+
+        // Build command: script {cmdList} enter
+        const cmd = `${trace.script} {${cmdListStr}} enter`;
+        const [ptr, len] = writeString(cmd);
+        wasmInstance.exports.feather_script_eval(0, interpId, ptr, len, 0);
+        wasmInstance.exports.free(ptr);
+      }
+    },
+    feather_host_trace_fire_leave: (interpId, cmdName, cmdList, code, result) => {
+      const interp = interpreters.get(interpId);
+      const nameStr = interp.getString(cmdName);
+      const traces = interp.traces.execution?.get(nameStr);
+      if (!traces || traces.length === 0) return;
+
+      const cmdListStr = interp.getString(cmdList);
+      const resultStr = interp.getString(result);
+
+      // Fire in LIFO order (last added first)
+      for (let i = traces.length - 1; i >= 0; i--) {
+        const trace = traces[i];
+        const ops = trace.ops.split(/\s+/).filter(o => o);
+        if (!ops.includes('leave')) continue;
+
+        // Build command: script {cmdList} code result leave
+        const cmd = `${trace.script} {${cmdListStr}} ${code} ${resultStr} leave`;
+        const [ptr, len] = writeString(cmd);
+        wasmInstance.exports.feather_script_eval(0, interpId, ptr, len, 0);
+        wasmInstance.exports.free(ptr);
+      }
+    },
 
     // Foreign object operations
     feather_host_foreign_is_foreign: (interpId, obj) => {

@@ -1,0 +1,149 @@
+<test-suite name="qualified-varname">
+  <!--
+    Qualified Variable Name Test Suite
+
+    Tests that lappend, append, and incr work with qualified variable names
+    like ::varname inside procs (not just set).
+  -->
+
+  <!-- ============================================= -->
+  <!-- lappend with ::varname inside proc           -->
+  <!-- ============================================= -->
+
+  <test-case name="lappend ::varname inside proc">
+    <script>set ::mylist {}
+proc addItem {item} { lappend ::mylist $item }
+addItem a
+addItem b
+addItem c
+set ::mylist</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="lappend ::varname creates var if missing">
+    <script>unset -nocomplain ::newlist
+proc addFirst {item} { lappend ::newlist $item }
+addFirst x
+set ::newlist</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>x</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- append with ::varname inside proc            -->
+  <!-- ============================================= -->
+
+  <test-case name="append ::varname inside proc">
+    <script>set ::mystr ""
+proc addStr {s} { append ::mystr $s }
+addStr hello
+addStr " "
+addStr world
+set ::mystr</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="append ::varname creates var if missing">
+    <script>unset -nocomplain ::newstr
+proc appendFirst {s} { append ::newstr $s }
+appendFirst abc
+set ::newstr</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>abc</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- incr with ::varname inside proc              -->
+  <!-- ============================================= -->
+
+  <test-case name="incr ::varname inside proc">
+    <script>set ::counter 0
+proc bump {} { incr ::counter }
+bump
+bump
+bump
+set ::counter</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="incr ::varname with increment inside proc">
+    <script>set ::counter 10
+proc bumpBy {n} { incr ::counter $n }
+bumpBy 5
+bumpBy -3
+set ::counter</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>12</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Comparison: global vs ::varname              -->
+  <!-- ============================================= -->
+
+  <test-case name="lappend global varname equivalent to ::varname">
+    <script>set ::list1 {}
+set ::list2 {}
+proc addGlobal {item} { global list1; lappend list1 $item }
+proc addQualified {item} { lappend ::list2 $item }
+addGlobal a
+addQualified a
+expr {$::list1 eq $::list2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="append global varname equivalent to ::varname">
+    <script>set ::str1 ""
+set ::str2 ""
+proc appendGlobal {s} { global str1; append str1 $s }
+proc appendQualified {s} { append ::str2 $s }
+appendGlobal hello
+appendQualified hello
+expr {$::str1 eq $::str2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="incr global varname equivalent to ::varname">
+    <script>set ::cnt1 0
+set ::cnt2 0
+proc incrGlobal {} { global cnt1; incr cnt1 }
+proc incrQualified {} { incr ::cnt2 }
+incrGlobal
+incrQualified
+expr {$::cnt1 eq $::cnt2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

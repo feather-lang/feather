@@ -15,8 +15,20 @@ FeatherResult feather_builtin_lappend(const FeatherHostOps *ops, FeatherInterp i
 
   FeatherObj varName = ops->list.shift(interp, args);
 
+  // Resolve the variable name (handles qualified names like ::varname)
+  FeatherObj ns, localName;
+  feather_obj_resolve_variable(ops, interp, varName, &ns, &localName);
+
   // Get current value or create empty list
-  FeatherObj current = ops->var.get(interp, varName);
+  FeatherObj current;
+  if (ops->list.is_nil(interp, ns)) {
+    // Unqualified - frame-local lookup
+    current = ops->var.get(interp, localName);
+  } else {
+    // Qualified - namespace lookup
+    current = ops->ns.get_var(interp, ns, localName);
+  }
+
   FeatherObj list;
   if (ops->list.is_nil(interp, current)) {
     list = ops->list.create(interp);
@@ -32,7 +44,14 @@ FeatherResult feather_builtin_lappend(const FeatherHostOps *ops, FeatherInterp i
   }
 
   // Store back in variable
-  ops->var.set(interp, varName, list);
+  if (ops->list.is_nil(interp, ns)) {
+    // Unqualified - frame-local
+    ops->var.set(interp, localName, list);
+  } else {
+    // Qualified - namespace
+    ops->ns.set_var(interp, ns, localName, list);
+  }
+
   ops->interp.set_result(interp, list);
   return TCL_OK;
 }
