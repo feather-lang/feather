@@ -1,3 +1,3 @@
 module github.com/feather-lang/feather
 
-go 1.25.5
+go 1.23

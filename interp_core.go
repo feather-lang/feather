@@ -81,7 +81,7 @@ type Namespace struct {
 	fullPath       string
 	parent         *Namespace
 	children       map[string]*Namespace
-	vars           map[string]FeatherObj
+	vars           map[string]*Obj     // variables stored directly as *Obj (not handles)
 	commands       map[string]*Command // commands defined in this namespace
 	exportPatterns []string            // patterns for exported commands (e.g., "get*", "set*")
 }
@@ -89,8 +89,8 @@ type Namespace struct {
 // CallFrame represents an execution frame on the call stack.
 // Each frame has its own variable environment.
 type CallFrame struct {
-	cmd    FeatherObj         // command being evaluated
-	args   FeatherObj         // arguments to the command
+	cmd    *Obj               // command being evaluated (persistent)
+	args   *Obj               // arguments to the command (persistent)
 	locals *Namespace         // local variable storage (for global frame, this IS the :: namespace)
 	links  map[string]varLink // upvar links: local name -> target variable
 	level  int                // frame index on the call stack
@@ -99,9 +99,9 @@ type CallFrame struct {
 
 // Procedure represents a user-defined procedure
 type Procedure struct {
-	name   FeatherObj
-	params FeatherObj
-	body   FeatherObj
+	name   *Obj // procedure name (persistent)
+	params *Obj // parameter list (persistent)
+	body   *Obj // procedure body (persistent)
 }
 
 // CommandType indicates the type of a command
@@ -123,23 +123,30 @@ type Command struct {
 // TraceEntry represents a single trace registration
 type TraceEntry struct {
 	ops    string // space-separated operations: "read write" or "rename delete"
-	script FeatherObj // the command prefix to invoke
+	script *Obj   // the command prefix to invoke (persistent)
 }
+
+// scratchHandleBit is the high bit used to mark scratch arena handles.
+// Handles with this bit set belong to the scratch arena (temporary objects).
+// Handles without this bit belong to permanent storage (foreign objects, etc.).
+const scratchHandleBit FeatherObj = 1 << 63
 
 // InternalInterp represents a TCL interpreter instance (low-level)
 type InternalInterp struct {
 	handle         FeatherInterp
-	objects        map[FeatherObj]*Obj
+	objects        map[FeatherObj]*Obj // permanent storage (foreign objects)
+	scratch        map[FeatherObj]*Obj // scratch arena (temporary objects, reset after eval)
+	scratchNextID  FeatherObj          // next ID for scratch arena (has high bit set)
 	globalNS       FeatherObj              // global namespace object (FeatherObj handle for "::")
 	namespaces     map[string]*Namespace // namespace path -> Namespace
 	globalNamespace *Namespace           // the global namespace "::"
-	nextID         FeatherObj
-	result         FeatherObj
-	returnOptions  FeatherObj       // options from the last return command
+	nextID         FeatherObj            // next ID for permanent storage (no high bit)
+	result         *Obj                  // current result (persistent, not handle)
+	returnOptions  *Obj                  // options from the last return command (persistent)
 	frames         []*CallFrame // call stack (frame 0 is global)
 	active         int          // currently active frame index
 	recursionLimit int          // maximum call stack depth (0 means use default)
-	scriptPath     FeatherObj       // current script file being executed (0 = none)
+	scriptPath     *Obj             // current script file being executed (nil = none)
 	varTraces      map[string][]TraceEntry // variable name -> traces
 	cmdTraces      map[string][]TraceEntry // command name -> traces
 	execTraces     map[string][]TraceEntry // command name -> execution traces
@@ -165,21 +172,23 @@ type InternalInterp struct {
 // NewInternalInterp creates a new interpreter
 func NewInternalInterp() *InternalInterp {
 	interp := &InternalInterp{
-		objects:    make(map[FeatherObj]*Obj),
-		namespaces: make(map[string]*Namespace),
-		varTraces:  make(map[string][]TraceEntry),
-		cmdTraces:  make(map[string][]TraceEntry),
-		execTraces: make(map[string][]TraceEntry),
-		builders:   make(map[FeatherObj]*strings.Builder),
-		Commands:   make(map[string]InternalCommandFunc),
-		nextID:     1,
+		objects:       make(map[FeatherObj]*Obj),
+		scratch:       make(map[FeatherObj]*Obj),
+		scratchNextID: scratchHandleBit | 1, // Start scratch IDs with high bit set
+		namespaces:    make(map[string]*Namespace),
+		varTraces:     make(map[string][]TraceEntry),
+		cmdTraces:     make(map[string][]TraceEntry),
+		execTraces:    make(map[string][]TraceEntry),
+		builders:      make(map[FeatherObj]*strings.Builder),
+		Commands:      make(map[string]InternalCommandFunc),
+		nextID:        1, // Permanent IDs start at 1 (no high bit)
 	}
 	// Create the global namespace
 	globalNS := &Namespace{
 		fullPath: "::",
 		parent:   nil,
 		children: make(map[string]*Namespace),
-		vars:     make(map[string]FeatherObj),
+		vars:     make(map[string]*Obj),
 		commands: make(map[string]*Command),
 	}
 	interp.globalNamespace = globalNS
@@ -197,7 +206,8 @@ func NewInternalInterp() *InternalInterp {
 	// Use cgo.Handle to allow C callbacks to find this interpreter
 	interp.handle = FeatherInterp(cgo.NewHandle(interp))
 	// Create the global namespace object (FeatherObj handle for "::")
-	interp.globalNS = interp.internString("::")
+	// Use permanent storage since this must persist across evals
+	interp.globalNS = interp.internStringPermanent("::")
 	// Initialize the C interpreter (registers builtins)
 	callCInterpInit(interp.handle)
 	return interp
@@ -207,6 +217,39 @@ func NewInternalInterp() *InternalInterp {
 // Must be called when the interpreter is no longer needed.
 func (i *InternalInterp) Close() {
 	cgo.Handle(i.handle).Delete()
+}
+
+// isScratchHandle returns true if the handle belongs to the scratch arena.
+func isScratchHandle(h FeatherObj) bool {
+	return h&scratchHandleBit != 0
+}
+
+// resetScratch clears the scratch arena, releasing all temporary objects.
+// Called after each top-level eval completes.
+func (i *InternalInterp) resetScratch() {
+	i.scratch = make(map[FeatherObj]*Obj)
+	i.scratchNextID = scratchHandleBit | 1
+}
+
+// internStringScratch creates a string object in the scratch arena.
+// Use for temporary strings that don't need to persist after eval.
+func (i *InternalInterp) internStringScratch(s string) FeatherObj {
+	id := i.scratchNextID
+	i.scratchNextID++
+	i.scratch[id] = NewStringObj(s)
+	return id
+}
+
+// registerObjScratch stores an *Obj in the scratch arena and returns its handle.
+// Use when C code needs a handle to a Go object during eval.
+func (i *InternalInterp) registerObjScratch(obj *Obj) FeatherObj {
+	if obj == nil {
+		return 0
+	}
+	id := i.scratchNextID
+	i.scratchNextID++
+	i.scratch[id] = obj
+	return id
 }
 
 // Register adds a Go command to the interpreter.
@@ -284,11 +327,11 @@ func (i *InternalInterp) ParseInternal(script string) ParseResultInternal {
 
 	var resultStr string
 	var errorMsg string
-	if obj := i.getObject(i.result); obj != nil {
-		resultStr = i.objToString(obj)
+	if i.result != nil {
+		resultStr = i.objToString(i.result)
 		// For parse errors, extract the error message (4th element) directly from the list
 		if InternalParseStatus(status) == InternalParseError {
-			if listItems, err := AsList(obj); err == nil && len(listItems) >= 4 {
+			if listItems, err := AsList(i.result); err == nil && len(listItems) >= 4 {
 				if msgObj := listItems[3]; msgObj != nil {
 					errorMsg = msgObj.String()
 				}
@@ -442,28 +485,38 @@ func (i *InternalInterp) dictObjToValue(obj *Obj) string {
 	return result
 }
 
+// resultString returns the result as a string, handling nil.
+func (i *InternalInterp) resultString() string {
+	if i.result == nil {
+		return ""
+	}
+	return i.result.String()
+}
+
 // Eval evaluates a script string using the C interpreter
 func (i *InternalInterp) Eval(script string) (string, error) {
-	scriptHandle := i.internString(script)
+	scriptHandle := i.internStringScratch(script)
+
+	// Reset scratch arena after eval completes
+	defer i.resetScratch()
 
 	// Call the C interpreter
 	result := callCEval(i.handle, scriptHandle)
 
 	if result == C.TCL_OK {
-		return i.GetString(i.result), nil
+		return i.resultString(), nil
 	}
 
 	// Handle TCL_RETURN at top level - apply the return options
 	if result == C.TCL_RETURN {
 		// Get return options and apply the code
 		var code C.FeatherResult = C.TCL_OK
-		if i.returnOptions != 0 {
-			items, err := i.GetList(i.returnOptions)
-			if err == nil {
+		if i.returnOptions != nil {
+			if items, err := AsList(i.returnOptions); err == nil {
 				for j := 0; j+1 < len(items); j += 2 {
-					key := i.GetString(items[j])
+					key := items[j].String()
 					if key == "-code" {
-						if codeVal, err := i.GetInt(items[j+1]); err == nil {
+						if codeVal, err := AsInt(items[j+1]); err == nil {
 							code = C.FeatherResult(codeVal)
 						}
 					}
@@ -472,10 +525,10 @@ func (i *InternalInterp) Eval(script string) (string, error) {
 		}
 		// Apply the extracted code
 		if code == C.TCL_OK {
-			return i.GetString(i.result), nil
+			return i.resultString(), nil
 		}
 		if code == C.TCL_ERROR {
-			return "", &EvalError{Message: i.GetString(i.result)}
+			return "", &EvalError{Message: i.resultString()}
 		}
 		if code == C.TCL_BREAK {
 			return "", &EvalError{Message: "invoked \"break\" outside of a loop"}
@@ -484,7 +537,7 @@ func (i *InternalInterp) Eval(script string) (string, error) {
 			return "", &EvalError{Message: "invoked \"continue\" outside of a loop"}
 		}
 		// For other codes, treat as ok
-		return i.GetString(i.result), nil
+		return i.resultString(), nil
 	}
 
 	// Convert break/continue outside loop to errors at the top level
@@ -495,17 +548,21 @@ func (i *InternalInterp) Eval(script string) (string, error) {
 		return "", &EvalError{Message: "invoked \"continue\" outside of a loop"}
 	}
 
-	return "", &EvalError{Message: i.GetString(i.result)}
+	return "", &EvalError{Message: i.resultString()}
 }
 
 // Result returns the current result string
 func (i *InternalInterp) Result() string {
-	return i.GetString(i.result)
+	if i.result == nil {
+		return ""
+	}
+	return i.result.String()
 }
 
 // ResultHandle returns the current result object handle.
+// Creates a scratch handle for C code to use.
 func (i *InternalInterp) ResultHandle() FeatherObj {
-	return i.result
+	return i.registerObjScratch(i.result)
 }
 
 // EvalError represents an evaluation error
@@ -539,47 +596,7 @@ func (i *InternalInterp) EvalTyped(script string) (ResultInfo, error) {
 	if err != nil {
 		return ResultInfo{}, err
 	}
-	return i.getResultInfo(i.result), nil
-}
-
-// getResultInfo extracts type information from a FeatherObj.
-func (i *InternalInterp) getResultInfo(h FeatherObj) ResultInfo {
-	obj := i.objects[h]
-	if obj == nil {
-		return ResultInfo{String: ""}
-	}
-
-	info := ResultInfo{
-		String: obj.String(),
-	}
-
-	// Check type based on intrep
-	switch t := obj.intrep.(type) {
-	case IntType:
-		info.IsInt = true
-		info.IntVal = int64(t)
-	case DoubleType:
-		info.IsDouble = true
-		info.DoubleVal = float64(t)
-	case ListType:
-		info.IsList = true
-		info.ListItems = make([]ResultInfo, len(t))
-		for idx, item := range t {
-			info.ListItems[idx] = i.objToResultInfo(item)
-		}
-	case *DictType:
-		info.IsDict = true
-		info.DictKeys = t.Order
-		info.DictValues = make(map[string]ResultInfo, len(t.Items))
-		for k, v := range t.Items {
-			info.DictValues[k] = i.objToResultInfo(v)
-		}
-	case *ForeignType:
-		info.IsForeign = true
-		info.ForeignType = t.TypeName
-	}
-
-	return info
+	return i.objToResultInfo(i.result), nil
 }
 
 // objToResultInfo returns information about an *Obj for inspection.
@@ -621,8 +638,15 @@ func (i *InternalInterp) objToResultInfo(obj *Obj) ResultInfo {
 	return info
 }
 
-// internString stores a string and returns its handle
+// internString stores a string in the scratch arena and returns its handle.
+// Use internStringPermanent for strings that need to persist after eval.
 func (i *InternalInterp) internString(s string) FeatherObj {
+	return i.internStringScratch(s)
+}
+
+// internStringPermanent stores a string in permanent storage.
+// Use for strings that must persist across evals (e.g., namespace paths).
+func (i *InternalInterp) internStringPermanent(s string) FeatherObj {
 	id := i.nextID
 	i.nextID++
 	i.objects[id] = NewStringObj(s)
@@ -634,9 +658,15 @@ func (i *InternalInterp) InternString(s string) FeatherObj {
 	return i.internString(s)
 }
 
-// registerObj stores an *Obj and returns its handle.
+// registerObj stores an *Obj in the scratch arena and returns its handle.
 // Used when we need to give C a handle to an existing *Obj.
 func (i *InternalInterp) registerObj(obj *Obj) FeatherObj {
+	return i.registerObjScratch(obj)
+}
+
+// registerObjPermanent stores an *Obj in permanent storage.
+// Use for objects that must persist across evals (e.g., foreign objects).
+func (i *InternalInterp) registerObjPermanent(obj *Obj) FeatherObj {
 	if obj == nil {
 		return 0
 	}
@@ -690,12 +720,14 @@ func (i *InternalInterp) setListItems(h FeatherObj, items []*Obj) {
 // NewForeignHandle creates a new foreign object with the given type name and Go value.
 // The string representation is generated as "<TypeName:id>".
 // Returns the handle to the new foreign object.
+// Foreign objects are stored in permanent storage (not scratch) for explicit lifecycle.
 func (i *InternalInterp) NewForeignHandle(typeName string, value any) FeatherObj {
 	id := i.nextID
 	i.nextID++
 	obj := NewForeignObj(typeName, value)
 	// Override the string representation to include the handle ID
 	obj.bytes = fmt.Sprintf("<%s:%d>", typeName, id)
+	// Use permanent storage - foreign objects have explicit lifecycle management
 	i.objects[id] = obj
 	return id
 }
@@ -750,8 +782,14 @@ func (i *InternalInterp) GetForeignValue(h FeatherObj) any {
 	return nil
 }
 
-// getObject retrieves an object by handle
+// getObject retrieves an object by handle from either arena.
 func (i *InternalInterp) getObject(h FeatherObj) *Obj {
+	if h == 0 {
+		return nil
+	}
+	if isScratchHandle(h) {
+		return i.scratch[h]
+	}
 	return i.objects[h]
 }
 
@@ -843,11 +881,8 @@ func (i *InternalInterp) GetList(h FeatherObj) ([]FeatherObj, error) {
 	// Check for parse error (nil return means error, message in result)
 	if listHandle == 0 {
 		// Get error message from interp result
-		if i.result != 0 {
-			errObj := i.getObject(i.result)
-			if errObj != nil {
-				return nil, fmt.Errorf("%s", errObj.String())
-			}
+		if i.result != nil {
+			return nil, fmt.Errorf("%s", i.result.String())
 		}
 		return nil, fmt.Errorf("failed to parse list")
 	}
@@ -1006,40 +1041,44 @@ func (i *InternalInterp) IsNativeList(h FeatherObj) bool {
 
 
 
-// SetResult sets the interpreter's result to the given object.
+// SetResult sets the interpreter's result to the given object handle.
+// The object is retrieved from the arena and stored directly.
 func (i *InternalInterp) SetResult(obj FeatherObj) {
+	i.result = i.getObject(obj)
+}
+
+// SetResultObj sets the interpreter's result to the given *Obj directly.
+func (i *InternalInterp) SetResultObj(obj *Obj) {
 	i.result = obj
 }
 
 // SetResultString sets the interpreter's result to a string value.
 func (i *InternalInterp) SetResultString(s string) {
-	i.result = i.internString(s)
+	i.result = NewStringObj(s)
 }
 
 // SetErrorString sets the interpreter's result to an error message.
 func (i *InternalInterp) SetErrorString(s string) {
-	i.result = i.internString(s)
+	i.result = NewStringObj(s)
 }
 
-// SetError sets the interpreter's result to the given object (for error results).
+// SetError sets the interpreter's result to the given object handle (for error results).
 // This is symmetric with SetResult but semantically indicates an error value.
 func (i *InternalInterp) SetError(obj FeatherObj) {
-	i.result = obj
+	i.result = i.getObject(obj)
 }
 
 // SetVar sets a variable by name to a string value in the current frame.
 func (i *InternalInterp) SetVar(name, value string) {
 	frame := i.frames[i.active]
-	frame.locals.vars[name] = i.registerObj(NewStringObj(value))
+	frame.locals.vars[name] = NewStringObj(value)
 }
 
 // GetVar returns the string value of a variable from the current frame, or empty string if not found.
 func (i *InternalInterp) GetVar(name string) string {
 	frame := i.frames[i.active]
-	if val, ok := frame.locals.vars[name]; ok {
-		if obj := i.getObject(val); obj != nil {
-			return obj.String()
-		}
+	if val, ok := frame.locals.vars[name]; ok && val != nil {
+		return val.String()
 	}
 	return ""
 }
@@ -1048,8 +1087,8 @@ func (i *InternalInterp) GetVar(name string) string {
 // Returns 0 if the variable is not found.
 func (i *InternalInterp) GetVarHandle(name string) FeatherObj {
 	frame := i.frames[i.active]
-	if val, ok := frame.locals.vars[name]; ok {
-		return val
+	if val, ok := frame.locals.vars[name]; ok && val != nil {
+		return i.registerObjScratch(val)
 	}
 	return 0
 }

@@ -53,7 +53,8 @@ func goBindUnknown(interp C.FeatherInterp, cmd C.FeatherObj, args C.FeatherObj, 
 
 	// Dispatch to registered Go commands
 	result := i.dispatch(FeatherObj(cmd), argSlice)
-	*value = C.FeatherObj(i.result)
+	// Return a scratch handle for C code
+	*value = C.FeatherObj(i.registerObjScratch(i.result))
 	return C.FeatherResult(result)
 }
 
@@ -109,8 +110,8 @@ func goStringRegexMatch(interp C.FeatherInterp, pattern C.FeatherObj, str C.Feat
 
 	re, err := regexp.Compile(patternStr)
 	if err != nil {
-		errMsg := i.internString("couldn't compile regular expression pattern: " + err.Error())
-		i.result = errMsg
+		// Store error message as *Obj directly
+		i.result = NewStringObj("couldn't compile regular expression pattern: " + err.Error())
 		return C.TCL_ERROR
 	}
 
@@ -352,7 +353,8 @@ func goInterpSetResult(interp C.FeatherInterp, result C.FeatherObj) C.FeatherRes
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	i.result = FeatherObj(result)
+	// Store the *Obj directly (not handle)
+	i.result = i.getObject(FeatherObj(result))
 	return C.TCL_OK
 }
 
@@ -362,7 +364,8 @@ func goInterpGetResult(interp C.FeatherInterp) C.FeatherObj {
 	if i == nil {
 		return 0
 	}
-	return C.FeatherObj(i.result)
+	// Return a scratch handle for C code
+	return C.FeatherObj(i.registerObjScratch(i.result))
 }
 
 //export goInterpResetResult
@@ -371,7 +374,8 @@ func goInterpResetResult(interp C.FeatherInterp, result C.FeatherObj) C.FeatherR
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	i.result = 0
+	// Store the *Obj directly
+	i.result = i.getObject(FeatherObj(result))
 	return C.TCL_OK
 }
 
@@ -381,7 +385,8 @@ func goInterpSetReturnOptions(interp C.FeatherInterp, options C.FeatherObj) C.Fe
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	i.returnOptions = FeatherObj(options)
+	// Store the *Obj directly (not handle)
+	i.returnOptions = i.getObject(FeatherObj(options))
 	return C.TCL_OK
 }
 
@@ -391,7 +396,8 @@ func goInterpGetReturnOptions(interp C.FeatherInterp, code C.FeatherResult) C.Fe
 	if i == nil {
 		return 0
 	}
-	return C.FeatherObj(i.returnOptions)
+	// Return a scratch handle for C code
+	return C.FeatherObj(i.registerObjScratch(i.returnOptions))
 }
 
 //export goListCreate
@@ -420,9 +426,8 @@ func goListFrom(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 	// Get the list items (with shimmering)
 	items, err := i.GetList(FeatherObj(obj))
 	if err != nil {
-		// Set error message as result for caller to retrieve
-		errObj := i.registerObj(NewStringObj(err.Error()))
-		i.result = errObj
+		// Set error message as result *Obj directly
+		i.result = NewStringObj(err.Error())
 		return 0
 	}
 	// Create a new list with copied items as *Obj
@@ -1139,7 +1144,7 @@ func goDoubleMath(interp C.FeatherInterp, op C.FeatherMathOp, a C.double, b C.do
 	case C.FEATHER_MATH_HYPOT:
 		result = math.Hypot(va, vb)
 	default:
-		i.result = i.internString("unknown math operation")
+		i.result = NewStringObj("unknown math operation")
 		return C.TCL_ERROR
 	}
 
@@ -1163,7 +1168,7 @@ func goFramePush(interp C.FeatherInterp, cmd C.FeatherObj, args C.FeatherObj) C.
 	}
 	if newLevel >= limit {
 		// Set error message and return error
-		i.result = i.internString("too many nested evaluations (infinite loop?)")
+		i.result = NewStringObj("too many nested evaluations (infinite loop?)")
 		return C.TCL_ERROR
 	}
 	// Inherit namespace from current frame
@@ -1173,11 +1178,11 @@ func goFramePush(interp C.FeatherInterp, cmd C.FeatherObj, args C.FeatherObj) C.
 	}
 	// Create an anonymous locals namespace for this frame's variables
 	localsNS := &Namespace{
-		vars: make(map[string]FeatherObj),
+		vars: make(map[string]*Obj),
 	}
 	frame := &CallFrame{
-		cmd:    FeatherObj(cmd),
-		args:   FeatherObj(args),
+		cmd:    i.getObject(FeatherObj(cmd)),   // Store *Obj directly
+		args:   i.getObject(FeatherObj(args)),  // Store *Obj directly
 		locals: localsNS,
 		links:  make(map[string]varLink),
 		level:  newLevel,
@@ -1246,8 +1251,9 @@ func goFrameInfo(interp C.FeatherInterp, level C.size_t, cmd *C.FeatherObj, args
 		return C.TCL_ERROR
 	}
 	frame := i.frames[lvl]
-	*cmd = C.FeatherObj(frame.cmd)
-	*args = C.FeatherObj(frame.args)
+	// Return scratch handles for C code
+	*cmd = C.FeatherObj(i.registerObjScratch(frame.cmd))
+	*args = C.FeatherObj(i.registerObjScratch(frame.args))
 	// Return the frame's namespace
 	if frame.ns != nil {
 		*ns = C.FeatherObj(i.internString(frame.ns.fullPath))
@@ -1284,7 +1290,8 @@ func goVarGet(interp C.FeatherInterp, name C.FeatherObj) C.FeatherObj {
 						if len(traces) > 0 {
 							fireVarTraces(i, originalVarName, "read", traces)
 						}
-						return C.FeatherObj(val)
+						// Return scratch handle for C code
+						return C.FeatherObj(i.registerObjScratch(val))
 					}
 				}
 				return 0
@@ -1300,7 +1307,8 @@ func goVarGet(interp C.FeatherInterp, name C.FeatherObj) C.FeatherObj {
 	}
 	var result C.FeatherObj
 	if val, ok := frame.locals.vars[varName]; ok {
-		result = C.FeatherObj(val)
+		// Return scratch handle for C code
+		result = C.FeatherObj(i.registerObjScratch(val))
 	}
 	// Copy traces before unlocking
 	traces := make([]TraceEntry, len(i.varTraces[originalVarName]))
@@ -1322,6 +1330,8 @@ func goVarSet(interp C.FeatherInterp, name C.FeatherObj, value C.FeatherObj) {
 	if nameObj == nil {
 		return
 	}
+	// Get the *Obj to store (not handle)
+	valueObj := i.getObject(FeatherObj(value))
 	frame := i.frames[i.active]
 	varName := nameObj.String()
 	originalVarName := varName // Save for trace firing
@@ -1331,7 +1341,7 @@ func goVarSet(interp C.FeatherInterp, name C.FeatherObj, value C.FeatherObj) {
 			if link.targetLevel == -1 {
 				// Namespace variable link
 				if ns, ok := i.namespaces[link.nsPath]; ok {
-					ns.vars[link.nsName] = FeatherObj(value)
+					ns.vars[link.nsName] = valueObj
 				}
 				// Copy traces before unlocking
 				traces := make([]TraceEntry, len(i.varTraces[originalVarName]))
@@ -1351,7 +1361,7 @@ func goVarSet(interp C.FeatherInterp, name C.FeatherObj, value C.FeatherObj) {
 			break
 		}
 	}
-	frame.locals.vars[varName] = FeatherObj(value)
+	frame.locals.vars[varName] = valueObj
 	// Copy traces before unlocking
 	traces := make([]TraceEntry, len(i.varTraces[originalVarName]))
 	copy(traces, i.varTraces[originalVarName])
@@ -1475,9 +1485,9 @@ func goProcDefine(interp C.FeatherInterp, name C.FeatherObj, params C.FeatherObj
 	}
 	nameStr := i.GetString(FeatherObj(name))
 	proc := &Procedure{
-		name:   FeatherObj(name),
-		params: FeatherObj(params),
-		body:   FeatherObj(body),
+		name:   i.getObject(FeatherObj(name)),
+		params: i.getObject(FeatherObj(params)),
+		body:   i.getObject(FeatherObj(body)),
 	}
 	cmd := &Command{
 		cmdType: CmdProc,
@@ -1559,7 +1569,7 @@ func goProcParams(interp C.FeatherInterp, name C.FeatherObj, result *C.FeatherOb
 	if !ok || cmd.cmdType != CmdProc || cmd.proc == nil {
 		return C.TCL_ERROR
 	}
-	*result = C.FeatherObj(cmd.proc.params)
+	*result = C.FeatherObj(i.registerObjScratch(cmd.proc.params))
 	return C.TCL_OK
 }
 
@@ -1574,7 +1584,7 @@ func goProcBody(interp C.FeatherInterp, name C.FeatherObj, result *C.FeatherObj)
 	if !ok || cmd.cmdType != CmdProc || cmd.proc == nil {
 		return C.TCL_ERROR
 	}
-	*result = C.FeatherObj(cmd.proc.body)
+	*result = C.FeatherObj(i.registerObjScratch(cmd.proc.body))
 	return C.TCL_OK
 }
 
@@ -1604,8 +1614,8 @@ func fireVarTraces(i *InternalInterp, varName string, op string, traces []TraceE
 			continue
 		}
 
-		// Get the script command prefix - GetString acquires lock internally
-		scriptStr := i.GetString(trace.script)
+		// Get the script command prefix
+		scriptStr := trace.script.String()
 		// Build the full command: script name1 name2 op
 		// We'll construct this as a string to eval
 		cmd := scriptStr + " " + varName + " {} " + op
@@ -1637,8 +1647,8 @@ func fireCmdTraces(i *InternalInterp, oldName string, newName string, op string,
 			continue
 		}
 
-		// Get the script command prefix - GetString acquires lock internally
-		scriptStr := i.GetString(trace.script)
+		// Get the script command prefix
+		scriptStr := trace.script.String()
 		// Build the full command: script oldName newName op
 		// Use display names (strip :: for global namespace commands)
 		displayOld := i.DisplayName(oldName)
@@ -1914,7 +1924,7 @@ func (i *InternalInterp) ensureNamespace(path string) *Namespace {
 				fullPath: childPath,
 				parent:   current,
 				children: make(map[string]*Namespace),
-				vars:     make(map[string]FeatherObj),
+				vars:     make(map[string]*Obj),
 				commands: make(map[string]*Command),
 			}
 			current.children[part] = child
@@ -2070,7 +2080,7 @@ func goNsGetVar(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj) 
 		return 0
 	}
 	if val, ok := ns.vars[nameStr]; ok {
-		return C.FeatherObj(val)
+		return C.FeatherObj(i.registerObjScratch(val))
 	}
 	return 0
 }
@@ -2086,7 +2096,7 @@ func goNsSetVar(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj, 
 
 	// Create namespace if needed
 	ns := i.ensureNamespace(pathStr)
-	ns.vars[nameStr] = FeatherObj(value)
+	ns.vars[nameStr] = i.getObject(FeatherObj(value))
 }
 
 //export goNsVarExists
@@ -2180,9 +2190,9 @@ func goNsSetCommand(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherO
 		cmd.builtin = fn
 	} else if kind == C.TCL_CMD_PROC {
 		cmd.proc = &Procedure{
-			name:   FeatherObj(name),
-			params: FeatherObj(params),
-			body:   FeatherObj(body),
+			name:   i.getObject(FeatherObj(name)),
+			params: i.getObject(FeatherObj(params)),
+			body:   i.getObject(FeatherObj(body)),
 		}
 	}
 	ns.commands[nameStr] = cmd
@@ -2288,11 +2298,12 @@ func goInterpGetScript(interp C.FeatherInterp) C.FeatherObj {
 	if i == nil {
 		return 0
 	}
-	if i.scriptPath == 0 {
+	if i.scriptPath == nil {
 		// Return empty string if no script path set
 		return C.FeatherObj(i.internString(""))
 	}
-	return C.FeatherObj(i.scriptPath)
+	// Return scratch handle for C code
+	return C.FeatherObj(i.registerObjScratch(i.scriptPath))
 }
 
 //export goInterpSetScript
@@ -2301,7 +2312,8 @@ func goInterpSetScript(interp C.FeatherInterp, path C.FeatherObj) {
 	if i == nil {
 		return
 	}
-	i.scriptPath = FeatherObj(path)
+	// Store *Obj directly
+	i.scriptPath = i.getObject(FeatherObj(path))
 }
 
 //export goVarNames
@@ -2367,7 +2379,7 @@ func goTraceAdd(interp C.FeatherInterp, kind C.FeatherObj, name C.FeatherObj, op
 
 	entry := TraceEntry{
 		ops:    opsStr,
-		script: FeatherObj(script),
+		script: i.getObject(FeatherObj(script)),
 	}
 
 	if kindStr == "variable" {
@@ -2408,7 +2420,7 @@ func goTraceRemove(interp C.FeatherInterp, kind C.FeatherObj, name C.FeatherObj,
 	// Find and remove matching trace - compare by string value, not handle
 	entries := (*traces)[nameStr]
 	for idx, entry := range entries {
-		entryScriptStr := i.GetString(entry.script)
+		entryScriptStr := entry.script.String()
 		if entry.ops == opsStr && entryScriptStr == scriptStr {
 			// Remove this entry
 			(*traces)[nameStr] = append(entries[:idx], entries[idx+1:]...)
@@ -2450,8 +2462,8 @@ func goTraceInfo(interp C.FeatherInterp, kind C.FeatherObj, name C.FeatherObj) C
 		}
 		opsObj := &Obj{intrep: ListType(opsItems)}
 
-		// Add the script at the end (need to wrap the handle)
-		scriptObj := i.getObject(entry.script)
+		// Add the script at the end
+		scriptObj := entry.script
 		if scriptObj == nil {
 			scriptObj = NewStringObj("")
 		}
