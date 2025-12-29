@@ -7,144 +7,148 @@ Based on user feedback:
 - **Remove `ns.{get,set,unset,var_exists}`**: Yes
 - **Approach**: Change interface (add `ns` parameter to `var.*` operations)
 
-## New Interface
+## Current State (after commit 2f86926)
 
-### Updated `FeatherVarOps` Signatures
+The trace refactoring moved all trace logic to C:
+- `feather_fire_var_traces()` in `src/trace.c` handles trace firing
+- C wrappers exist in `src/var.c`:
+  - `feather_get_var(ops, interp, name)` - calls `ops->var.get` + fires traces
+  - `feather_set_var(ops, interp, name, value)` - calls `ops->var.set` + fires traces
+  - `feather_unset_var(ops, interp, name)` - fires traces + calls `ops->var.unset`
+- Go host no longer handles traces (removed `fireVarTraces`, `TraceEntry`, etc.)
+
+**Current inconsistencies:**
+- `builtin_set.c`, `builtin_unset.c`, `parse.c`, `builtin_expr.c` - use wrappers, fire traces
+- `builtin_append.c`, `builtin_incr.c`, `builtin_lappend.c` - use raw `ops->var.*`/`ops->ns.*`, NO traces
+
+## Revised Approach
+
+Since trace firing is now in C, extend the existing C wrappers instead of changing `FeatherVarOps`:
+
+### Updated C Wrapper Signatures (`src/var.c`)
 
 ```c
 // Add ns parameter (can be nil for frame-local)
-FeatherObj (*get)(FeatherInterp interp, FeatherObj name, FeatherObj ns);
-void (*set)(FeatherInterp interp, FeatherObj name, FeatherObj ns, FeatherObj value);
-void (*unset)(FeatherInterp interp, FeatherObj name, FeatherObj ns);
-FeatherResult (*exists)(FeatherInterp interp, FeatherObj name, FeatherObj ns);
-
-// Unchanged
-void (*link)(FeatherInterp interp, FeatherObj local, size_t target_level, FeatherObj target);
-void (*link_ns)(FeatherInterp interp, FeatherObj local, FeatherObj ns, FeatherObj name);
-FeatherObj (*names)(FeatherInterp interp, FeatherObj ns);
+FeatherObj feather_get_var(const FeatherHostOps *ops, FeatherInterp interp,
+                           FeatherObj name, FeatherObj ns);
+void feather_set_var(const FeatherHostOps *ops, FeatherInterp interp,
+                     FeatherObj name, FeatherObj ns, FeatherObj value);
+void feather_unset_var(const FeatherHostOps *ops, FeatherInterp interp,
+                       FeatherObj name, FeatherObj ns);
 ```
 
 ### Semantics
 
 | `ns` parameter | Behavior |
 |----------------|----------|
-| `nil` | Frame-local: follow upvar/variable links, fire traces |
-| namespace path | Direct namespace access, fire traces, NO link following |
+| `0` (nil) | Frame-local: `ops->var.*` + fire traces on `name` |
+| namespace path | Namespace: `ops->ns.*_var` + fire traces on qualified name |
 
 ## Files to Modify
 
-### 1. `src/feather.h`
-- Update `FeatherVarOps` struct signatures
-- Update docstrings
-- Remove from `FeatherNamespaceOps`: `get_var`, `set_var`, `var_exists`, `unset_var`
-- Update `link_ns` docstring (remove references to removed ops)
+### 1. `src/var.c` - Extend wrappers
+```c
+FeatherObj feather_get_var(const FeatherHostOps *ops, FeatherInterp interp,
+                           FeatherObj name, FeatherObj ns) {
+  ops = feather_get_ops(ops);
+  FeatherObj value;
+  FeatherObj traceName;
+  if (ops->list.is_nil(interp, ns)) {
+    value = ops->var.get(interp, name);
+    traceName = name;
+  } else {
+    value = ops->ns.get_var(interp, ns, name);
+    // Build qualified name for trace: ns + "::" + name (or just use original varName)
+    traceName = /* reconstruct qualified name */;
+  }
+  feather_fire_var_traces(ops, interp, traceName, "read");
+  return value;
+}
+```
 
-### 2. `interp_callbacks.go`
-- Modify `goVarGet`, `goVarSet`, `goVarUnset`, `goVarExists`:
-  - Add `ns C.FeatherObj` parameter
-  - When `ns != 0`: access `i.namespaces[nsPath].vars[name]` directly + fire traces
-  - When `ns == 0`: current behavior (link following + frame lookup + traces)
+### 2. `src/internal.h` - Update declarations
+
+### 3. `src/feather.h`
+- Remove from `FeatherNamespaceOps`: `get_var`, `set_var`, `var_exists`, `unset_var`
+
+### 4. `interp_callbacks.go`
 - Remove: `goNsGetVar`, `goNsSetVar`, `goNsVarExists`, `goNsUnsetVar`
 
-### 3. `callbacks.c`
-- Update function pointer setup for var ops
-- Remove function pointer setup for ns var ops
+### 5. `callbacks.c`
+- Remove initialization of removed ns var ops
 
-### 4. C Builtins (remove branch pattern)
+### 6. C Builtins - Use wrappers with ns parameter
 
-**`src/builtin_set.c`** (lines 25-31, 56-62):
+**`src/builtin_set.c`**:
 ```c
-// Before:
+// Before (lines 25-33):
 if (ops->list.is_nil(interp, ns)) {
-    value = ops->var.get(interp, localName);
+    value = feather_get_var(ops, interp, localName);
 } else {
     value = ops->ns.get_var(interp, ns, localName);
+    feather_fire_var_traces(ops, interp, varName, "read");
 }
 
 // After:
-value = ops->var.get(interp, localName, ns);
+value = feather_get_var(ops, interp, localName, ns);
 ```
 
-**`src/builtin_append.c`** (lines 24-30, 47-53):
-- Same pattern
-
-**`src/builtin_lappend.c`** (lines 24-30, 47-53):
-- Same pattern
-
-**`src/builtin_incr.c`** (lines 24-30, 74-80):
-- Same pattern
-
-**`src/builtin_info.c`** (line 30):
+**`src/builtin_append.c`** - Add trace firing (currently missing!):
 ```c
-// Before:
-exists = ops->ns.var_exists(interp, ns, localName);
+// Before (no traces):
+current = ops->var.get(interp, localName);
+// or
+current = ops->ns.get_var(interp, ns, localName);
 
 // After:
-exists = (ops->var.exists(interp, localName, ns) == TCL_OK);
+current = feather_get_var(ops, interp, localName, ns);
 ```
 
-**`src/builtin_variable.c`** (line 42):
-```c
-// Before:
-ops->ns.set_var(interp, current_ns, name, value);
+**`src/builtin_lappend.c`** - Same as append
 
-// After:
-ops->var.set(interp, name, current_ns, value);
-```
+**`src/builtin_incr.c`** - Same pattern
 
-**`src/parse.c`** (lines 356, 400 - variable substitution):
-```c
-// Before:
-value = ops->ns.get_var(interp, ns, localName);
+**`src/builtin_info.c`** - Use wrapper for exists check
 
-// After:
-value = ops->var.get(interp, localName, ns);
-```
+**`src/builtin_variable.c`** - Use wrapper
 
-**`src/builtin_expr.c`** (line 371):
-```c
-// Before:
-value = p->ops->ns.get_var(p->interp, ns, localName);
+**`src/parse.c`** - Already uses wrapper, just add ns param
 
-// After:
-value = p->ops->var.get(p->interp, localName, ns);
-```
+**`src/builtin_expr.c`** - Already uses wrapper, just add ns param
 
 ## Implementation Steps
 
-### Step 1: Update `src/feather.h`
-1. Change `FeatherVarOps` function pointer signatures
-2. Remove `get_var`, `set_var`, `var_exists`, `unset_var` from `FeatherNamespaceOps`
-3. Update documentation
+### Step 1: Extend C wrappers in `src/var.c`
+1. Add `ns` parameter to `feather_get_var`, `feather_set_var`, `feather_unset_var`
+2. When `ns != 0`: use `ops->ns.get_var` etc. + fire traces
+3. When `ns == 0`: current behavior
 
-### Step 2: Update Go implementation
-1. Modify `goVarGet(interp, name, ns)` in `interp_callbacks.go`:
-   - If `ns != 0`: lookup in `i.namespaces[nsPath]`, fire traces
-   - If `ns == 0`: current frame-local behavior
-2. Same for `goVarSet`, `goVarUnset`, `goVarExists`
-3. Delete `goNsGetVar`, `goNsSetVar`, `goNsVarExists`, `goNsUnsetVar`
+### Step 2: Update `src/internal.h` declarations
 
-### Step 3: Update `callbacks.c`
-- Remove initialization of removed ns ops
-- Update any function pointer assignments
+### Step 3: Update all callers to pass ns parameter
+- `builtin_set.c` - pass ns, remove manual branch
+- `builtin_unset.c` - pass ns (if applicable)
+- `parse.c` - pass ns
+- `builtin_expr.c` - pass ns
 
-### Step 4: Update C builtins
-- `builtin_set.c` - replace branch with unified call
-- `builtin_append.c` - replace branch with unified call
-- `builtin_lappend.c` - replace branch with unified call
-- `builtin_incr.c` - replace branch with unified call
-- `builtin_info.c` - use `var.exists` with ns param
-- `builtin_variable.c` - use `var.set` with ns param
-- `parse.c` - use `var.get` with ns param
-- `builtin_expr.c` - use `var.get` with ns param
+### Step 4: Fix missing trace firing
+- `builtin_append.c` - switch to wrappers
+- `builtin_lappend.c` - switch to wrappers
+- `builtin_incr.c` - switch to wrappers
 
-### Step 5: Test
-- `mise test` - verify all tests pass
+### Step 5: Remove ns var ops from interface
+- `src/feather.h` - remove `get_var`, `set_var`, `var_exists`, `unset_var` from `FeatherNamespaceOps`
+- `interp_callbacks.go` - remove `goNsGetVar`, `goNsSetVar`, `goNsVarExists`, `goNsUnsetVar`
+- `callbacks.c` - remove initialization
+
+### Step 6: Test
+- `mise test` - verify all 1497+ tests pass
 - `mise test:js` - verify JS/WASM host still works
 
 ## Benefits
 
 1. **Reduced duplication**: No more branch pattern in every builtin
-2. **Fixed trace semantics**: Qualified access (`::x`) now fires traces
-3. **Simpler API**: 4 fewer operations in `FeatherNamespaceOps`
-4. **Cleaner mental model**: One way to access variables
+2. **Fixed trace semantics**: Qualified access (`::x`) now fires traces consistently
+3. **Fixed missing traces**: `append`, `lappend`, `incr` will fire traces
+4. **Simpler API**: 4 fewer operations in `FeatherNamespaceOps`
+5. **Cleaner mental model**: One way to access variables with traces
