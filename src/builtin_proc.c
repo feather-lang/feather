@@ -57,7 +57,7 @@ FeatherResult feather_builtin_proc(const FeatherHostOps *ops, FeatherInterp inte
   }
 
   // Register the procedure with its fully qualified name
-  ops->proc.define(interp, qualifiedName, params, body);
+  feather_register_command(ops, interp, qualifiedName, TCL_CMD_PROC, NULL, params, body);
 
   // proc returns empty string
   FeatherObj empty = ops->string.intern(interp, "", 0);
@@ -69,12 +69,10 @@ FeatherResult feather_builtin_proc(const FeatherHostOps *ops, FeatherInterp inte
 FeatherResult feather_invoke_proc(const FeatherHostOps *ops, FeatherInterp interp,
                           FeatherObj name, FeatherObj args) {
   // Get the procedure's parameter list and body
-  FeatherObj params;
-  FeatherObj body;
-  if (ops->proc.params(interp, name, &params) != TCL_OK) {
-    return TCL_ERROR;
-  }
-  if (ops->proc.body(interp, name, &body) != TCL_OK) {
+  FeatherObj params = 0;
+  FeatherObj body = 0;
+  FeatherCommandType cmdType = feather_lookup_command(ops, interp, name, NULL, &params, &body);
+  if (cmdType != TCL_CMD_PROC || params == 0 || body == 0) {
     return TCL_ERROR;
   }
 

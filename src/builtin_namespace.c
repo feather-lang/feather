@@ -406,7 +406,7 @@ static FeatherResult ns_import(const FeatherHostOps *ops, FeatherInterp interp, 
 
       // Check if command already exists in current namespace
       FeatherBuiltinCmd unusedFn = NULL;
-      FeatherCommandType existingType = ops->ns.get_command(interp, current, cmdName, &unusedFn);
+      FeatherCommandType existingType = ops->ns.get_command(interp, current, cmdName, &unusedFn, NULL, NULL);
       if (existingType != TCL_CMD_NONE && !force) {
         FeatherObj msg = ops->string.intern(interp, "can't import command \"", 22);
         msg = ops->string.concat(interp, msg, cmdName);

@@ -21,16 +21,6 @@ static FeatherHostOps default_ops = {
         .link_ns = feather_host_var_link_ns,
         .names = feather_host_var_names,
     },
-    .proc = {
-        .define = feather_host_proc_define,
-        .exists = feather_host_proc_exists,
-        .params = feather_host_proc_params,
-        .body = feather_host_proc_body,
-        .names = feather_host_proc_names,
-        .resolve_namespace = feather_host_proc_resolve_namespace,
-        .lookup = feather_host_proc_lookup,
-        .rename = feather_host_proc_rename,
-    },
     .ns = {
         .create = feather_host_ns_create,
         .delete = feather_host_ns_delete,

@@ -48,25 +48,6 @@ extern void feather_host_var_link_ns(FeatherInterp interp, FeatherObj local, Fea
 extern FeatherObj feather_host_var_names(FeatherInterp interp, FeatherObj ns);
 
 /* ============================================================================
- * Proc Operations (9 functions)
- * ============================================================================ */
-
-extern void feather_host_proc_define(FeatherInterp interp, FeatherObj name, FeatherObj params,
-                                     FeatherObj body);
-extern int feather_host_proc_exists(FeatherInterp interp, FeatherObj name);
-extern FeatherResult feather_host_proc_params(FeatherInterp interp, FeatherObj name,
-                                              FeatherObj *result);
-extern FeatherResult feather_host_proc_body(FeatherInterp interp, FeatherObj name,
-                                            FeatherObj *result);
-extern FeatherObj feather_host_proc_names(FeatherInterp interp, FeatherObj namespace);
-extern FeatherResult feather_host_proc_resolve_namespace(FeatherInterp interp, FeatherObj path,
-                                                         FeatherObj *result);
-extern FeatherCommandType feather_host_proc_lookup(FeatherInterp interp, FeatherObj name,
-                                                   FeatherBuiltinCmd *fn);
-extern FeatherResult feather_host_proc_rename(FeatherInterp interp, FeatherObj oldName,
-                                              FeatherObj newName);
-
-/* ============================================================================
  * Namespace Operations (18 functions)
  * ============================================================================ */
 
@@ -83,7 +64,8 @@ extern void feather_host_ns_set_var(FeatherInterp interp, FeatherObj ns, Feather
 extern int feather_host_ns_var_exists(FeatherInterp interp, FeatherObj ns, FeatherObj name);
 extern void feather_host_ns_unset_var(FeatherInterp interp, FeatherObj ns, FeatherObj name);
 extern FeatherCommandType feather_host_ns_get_command(FeatherInterp interp, FeatherObj ns,
-                                                      FeatherObj name, FeatherBuiltinCmd *fn);
+                                                      FeatherObj name, FeatherBuiltinCmd *fn,
+                                                      FeatherObj *params, FeatherObj *body);
 extern void feather_host_ns_set_command(FeatherInterp interp, FeatherObj ns, FeatherObj name,
                                         FeatherCommandType kind, FeatherBuiltinCmd fn,
                                         FeatherObj params, FeatherObj body);

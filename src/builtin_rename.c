@@ -32,16 +32,15 @@ FeatherResult feather_builtin_rename(const FeatherHostOps *ops, FeatherInterp in
 
   // Resolve oldName to fully qualified form
   FeatherObj qualifiedOld = oldName;
-  FeatherBuiltinCmd unusedFn = NULL;
 
   // First try the name as-is
-  FeatherCommandType cmdType = ops->proc.lookup(interp, oldName, &unusedFn);
+  FeatherCommandType cmdType = feather_lookup_command(ops, interp, oldName, NULL, NULL, NULL);
 
   if (cmdType == TCL_CMD_NONE) {
     // Try with :: prefix
     FeatherObj globalQualified = ops->string.intern(interp, "::", 2);
     globalQualified = ops->string.concat(interp, globalQualified, oldName);
-    cmdType = ops->proc.lookup(interp, globalQualified, &unusedFn);
+    cmdType = feather_lookup_command(ops, interp, globalQualified, NULL, NULL, NULL);
     if (cmdType != TCL_CMD_NONE) {
       qualifiedOld = globalQualified;
     }
@@ -82,7 +81,7 @@ FeatherResult feather_builtin_rename(const FeatherHostOps *ops, FeatherInterp in
 
   // Validate: new command must not exist (if newName is not empty)
   if (newLen > 0) {
-    FeatherCommandType newCmdType = ops->proc.lookup(interp, qualifiedNew, &unusedFn);
+    FeatherCommandType newCmdType = feather_lookup_command(ops, interp, qualifiedNew, NULL, NULL, NULL);
     if (newCmdType != TCL_CMD_NONE) {
       FeatherObj displayNew = feather_get_display_name(ops, interp, newName);
       FeatherObj msg = ops->string.intern(interp, "can't rename to \"", 17);
@@ -93,9 +92,8 @@ FeatherResult feather_builtin_rename(const FeatherHostOps *ops, FeatherInterp in
     }
   }
 
-  // Delegate to host's rename operation with resolved names
-  // Host no longer needs to validate - just do the mechanical rename
-  FeatherResult result = ops->proc.rename(interp, qualifiedOld, qualifiedNew);
+  // Perform the rename operation
+  FeatherResult result = feather_rename_command(ops, interp, qualifiedOld, qualifiedNew);
 
   // Fire command traces if rename succeeded
   if (result == TCL_OK) {

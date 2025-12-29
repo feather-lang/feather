@@ -200,7 +200,7 @@ static FeatherResult info_procs(const FeatherHostOps *ops, FeatherInterp interp,
     // Check if it's a user-defined procedure (not a builtin)
     // Use ns.get_command to check the type
     FeatherBuiltinCmd unusedFn = NULL;
-    FeatherCommandType cmdType = ops->ns.get_command(interp, globalNs, name, &unusedFn);
+    FeatherCommandType cmdType = ops->ns.get_command(interp, globalNs, name, &unusedFn, NULL, NULL);
     if (cmdType != TCL_CMD_PROC) {
       continue;
     }
@@ -227,14 +227,14 @@ static FeatherResult info_procs(const FeatherHostOps *ops, FeatherInterp interp,
 static FeatherObj resolve_proc_name(const FeatherHostOps *ops, FeatherInterp interp,
                                 FeatherObj procName) {
   // First try the name as-is
-  if (ops->proc.exists(interp, procName)) {
+  if (feather_proc_exists(ops, interp, procName)) {
     return procName;
   }
 
   // Try with :: prefix
   FeatherObj qualified = ops->string.intern(interp, "::", 2);
   qualified = ops->string.concat(interp, qualified, procName);
-  if (ops->proc.exists(interp, qualified)) {
+  if (feather_proc_exists(ops, interp, qualified)) {
     return qualified;
   }
 
@@ -258,18 +258,10 @@ static FeatherResult info_body(const FeatherHostOps *ops, FeatherInterp interp,
   FeatherObj procName = ops->list.at(interp, args, 0);
   FeatherObj resolvedName = resolve_proc_name(ops, interp, procName);
 
-  // Check if it's a user-defined procedure
-  if (!ops->proc.exists(interp, resolvedName)) {
-    FeatherObj msg = ops->string.intern(interp, "\"", 1);
-    msg = ops->string.concat(interp, msg, procName);
-    msg = ops->string.concat(interp, msg,
-                              ops->string.intern(interp, "\" isn't a procedure", 19));
-    ops->interp.set_result(interp, msg);
-    return TCL_ERROR;
-  }
-
-  FeatherObj body;
-  if (ops->proc.body(interp, resolvedName, &body) != TCL_OK) {
+  // Check if it's a user-defined procedure and get its body
+  FeatherObj body = 0;
+  FeatherCommandType cmdType = feather_lookup_command(ops, interp, resolvedName, NULL, NULL, &body);
+  if (cmdType != TCL_CMD_PROC || body == 0) {
     FeatherObj msg = ops->string.intern(interp, "\"", 1);
     msg = ops->string.concat(interp, msg, procName);
     msg = ops->string.concat(interp, msg,
@@ -298,18 +290,10 @@ static FeatherResult info_args(const FeatherHostOps *ops, FeatherInterp interp,
   FeatherObj procName = ops->list.at(interp, args, 0);
   FeatherObj resolvedName = resolve_proc_name(ops, interp, procName);
 
-  // Check if it's a user-defined procedure
-  if (!ops->proc.exists(interp, resolvedName)) {
-    FeatherObj msg = ops->string.intern(interp, "\"", 1);
-    msg = ops->string.concat(interp, msg, procName);
-    msg = ops->string.concat(interp, msg,
-                              ops->string.intern(interp, "\" isn't a procedure", 19));
-    ops->interp.set_result(interp, msg);
-    return TCL_ERROR;
-  }
-
-  FeatherObj params;
-  if (ops->proc.params(interp, resolvedName, &params) != TCL_OK) {
+  // Check if it's a user-defined procedure and get its params
+  FeatherObj params = 0;
+  FeatherCommandType cmdType = feather_lookup_command(ops, interp, resolvedName, NULL, &params, NULL);
+  if (cmdType != TCL_CMD_PROC || params == 0) {
     FeatherObj msg = ops->string.intern(interp, "\"", 1);
     msg = ops->string.concat(interp, msg, procName);
     msg = ops->string.concat(interp, msg,
@@ -454,18 +438,10 @@ static FeatherResult info_default(const FeatherHostOps *ops, FeatherInterp inter
 
   FeatherObj resolvedName = resolve_proc_name(ops, interp, procName);
 
-  // Check if it's a user-defined procedure
-  if (!ops->proc.exists(interp, resolvedName)) {
-    FeatherObj msg = ops->string.intern(interp, "\"", 1);
-    msg = ops->string.concat(interp, msg, procName);
-    msg = ops->string.concat(interp, msg,
-                              ops->string.intern(interp, "\" isn't a procedure", 19));
-    ops->interp.set_result(interp, msg);
-    return TCL_ERROR;
-  }
-
-  FeatherObj params;
-  if (ops->proc.params(interp, resolvedName, &params) != TCL_OK) {
+  // Check if it's a user-defined procedure and get its params
+  FeatherObj params = 0;
+  FeatherCommandType cmdType = feather_lookup_command(ops, interp, resolvedName, NULL, &params, NULL);
+  if (cmdType != TCL_CMD_PROC || params == 0) {
     FeatherObj msg = ops->string.intern(interp, "\"", 1);
     msg = ops->string.concat(interp, msg, procName);
     msg = ops->string.concat(interp, msg,

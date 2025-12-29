@@ -1431,117 +1431,6 @@ func goVarLink(interp C.FeatherInterp, local C.FeatherObj, target_level C.size_t
 	}
 }
 
-//export goProcDefine
-func goProcDefine(interp C.FeatherInterp, name C.FeatherObj, params C.FeatherObj, body C.FeatherObj) {
-	i := getInternalInterp(interp)
-	if i == nil {
-		return
-	}
-	nameStr := i.GetString(FeatherObj(name))
-	proc := &Procedure{
-		name:   i.getObject(FeatherObj(name)),
-		params: i.getObject(FeatherObj(params)),
-		body:   i.getObject(FeatherObj(body)),
-	}
-	cmd := &Command{
-		cmdType: CmdProc,
-		proc:    proc,
-	}
-
-	// Store in namespace's commands map
-	// Split the qualified name into namespace and simple name
-	var nsPath, simpleName string
-	if strings.HasPrefix(nameStr, "::") {
-		// Absolute path like "::foo::bar" or "::cmd"
-		lastSep := strings.LastIndex(nameStr, "::")
-		if lastSep == 0 {
-			// Just "::cmd"
-			nsPath = "::"
-			simpleName = nameStr[2:]
-		} else {
-			nsPath = nameStr[:lastSep]
-			simpleName = nameStr[lastSep+2:]
-		}
-	} else {
-		// Should not happen - procs should always be fully qualified by now
-		nsPath = "::"
-		simpleName = nameStr
-	}
-
-	ns := i.ensureNamespace(nsPath)
-	ns.commands[simpleName] = cmd
-}
-
-// lookupCommandByQualified looks up a command by its fully-qualified name.
-// Returns the command and true if found, nil and false otherwise.
-func (i *InternalInterp) lookupCommandByQualified(nameStr string) (*Command, bool) {
-	var nsPath, simpleName string
-	if strings.HasPrefix(nameStr, "::") {
-		lastSep := strings.LastIndex(nameStr, "::")
-		if lastSep == 0 {
-			nsPath = "::"
-			simpleName = nameStr[2:]
-		} else {
-			nsPath = nameStr[:lastSep]
-			simpleName = nameStr[lastSep+2:]
-		}
-	} else {
-		nsPath = "::"
-		simpleName = nameStr
-	}
-
-	ns, ok := i.namespaces[nsPath]
-	if !ok {
-		return nil, false
-	}
-	cmd, ok := ns.commands[simpleName]
-	return cmd, ok
-}
-
-//export goProcExists
-func goProcExists(interp C.FeatherInterp, name C.FeatherObj) C.int {
-	i := getInternalInterp(interp)
-	if i == nil {
-		return 0
-	}
-	nameStr := i.GetString(FeatherObj(name))
-	cmd, ok := i.lookupCommandByQualified(nameStr)
-	if ok && cmd.cmdType == CmdProc {
-		return 1
-	}
-	return 0
-}
-
-//export goProcParams
-func goProcParams(interp C.FeatherInterp, name C.FeatherObj, result *C.FeatherObj) C.FeatherResult {
-	i := getInternalInterp(interp)
-	if i == nil {
-		return C.TCL_ERROR
-	}
-	nameStr := i.GetString(FeatherObj(name))
-	cmd, ok := i.lookupCommandByQualified(nameStr)
-	if !ok || cmd.cmdType != CmdProc || cmd.proc == nil {
-		return C.TCL_ERROR
-	}
-	*result = C.FeatherObj(i.registerObjScratch(cmd.proc.params))
-	return C.TCL_OK
-}
-
-//export goProcBody
-func goProcBody(interp C.FeatherInterp, name C.FeatherObj, result *C.FeatherObj) C.FeatherResult {
-	i := getInternalInterp(interp)
-	if i == nil {
-		return C.TCL_ERROR
-	}
-	nameStr := i.GetString(FeatherObj(name))
-	cmd, ok := i.lookupCommandByQualified(nameStr)
-	if !ok || cmd.cmdType != CmdProc || cmd.proc == nil {
-		return C.TCL_ERROR
-	}
-	*result = C.FeatherObj(i.registerObjScratch(cmd.proc.body))
-	return C.TCL_OK
-}
-
 // callCEval invokes the C interpreter
 func callCEval(interpHandle FeatherInterp, scriptHandle FeatherObj) C.FeatherResult {
 	return C.feather_script_eval_obj(nil, C.FeatherInterp(interpHandle), C.FeatherObj(scriptHandle), C.TCL_EVAL_LOCAL)
@@ -1564,151 +1453,6 @@ func callCParse(interpHandle FeatherInterp, scriptHandle FeatherObj) C.FeatherPa
 // callCInterpInit invokes the C interpreter initialization
 func callCInterpInit(interpHandle FeatherInterp) {
 	C.feather_interp_init(nil, C.FeatherInterp(interpHandle))
-}
-
-//export goProcNames
-func goProcNames(interp C.FeatherInterp, namespace C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
-	if i == nil {
-		return 0
-	}
-
-	// Determine which namespace to list (default to global)
-	nsPath := "::"
-	if namespace != 0 {
-		nsPath = i.GetString(FeatherObj(namespace))
-	}
-	if nsPath == "" {
-		nsPath = "::"
-	}
-
-	ns, ok := i.namespaces[nsPath]
-	if !ok {
-		// Return empty list
-		return C.FeatherObj(i.registerObj(NewListObj()))
-	}
-
-	// Collect command names and build fully-qualified names
-	names := make([]string, 0, len(ns.commands))
-	for name := range ns.commands {
-		// Build fully-qualified name
-		var fullName string
-		if nsPath == "::" {
-			fullName = "::" + name
-		} else {
-			fullName = nsPath + "::" + name
-		}
-		names = append(names, fullName)
-	}
-
-	// Sort for consistent ordering
-	sort.Strings(names)
-
-	// Create a list object with all names as *Obj
-	items := make([]*Obj, len(names))
-	for idx, name := range names {
-		items[idx] = NewStringObj(name)
-	}
-	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(items)}))
-}
-
-//export goProcResolveNamespace
-func goProcResolveNamespace(interp C.FeatherInterp, path C.FeatherObj, result *C.FeatherObj) C.FeatherResult {
-	i := getInternalInterp(interp)
-	if i == nil {
-		return C.TCL_ERROR
-	}
-	// For now, only the global namespace "::" exists
-	// If path is nil, empty, or "::", return global namespace
-	if path == 0 {
-		*result = C.FeatherObj(i.globalNS)
-		return C.TCL_OK
-	}
-	pathStr := i.GetString(FeatherObj(path))
-	if pathStr == "" || pathStr == "::" {
-		*result = C.FeatherObj(i.globalNS)
-		return C.TCL_OK
-	}
-	// Any other namespace doesn't exist yet
-	i.SetErrorString("namespace \"" + pathStr + "\" not found")
-	return C.TCL_ERROR
-}
-
-//export goProcLookup
-func goProcLookup(interp C.FeatherInterp, name C.FeatherObj, fn *C.FeatherBuiltinCmd) C.FeatherCommandType {
-	i := getInternalInterp(interp)
-	if i == nil {
-		*fn = nil
-		return C.TCL_CMD_NONE
-	}
-	nameStr := i.GetString(FeatherObj(name))
-	cmd, ok := i.lookupCommandByQualified(nameStr)
-	if !ok {
-		*fn = nil
-		return C.TCL_CMD_NONE
-	}
-	switch cmd.cmdType {
-	case CmdBuiltin:
-		*fn = cmd.builtin
-		return C.TCL_CMD_BUILTIN
-	case CmdProc:
-		*fn = nil
-		return C.TCL_CMD_PROC
-	default:
-		*fn = nil
-		return C.TCL_CMD_NONE
-	}
-}
-
-//export goProcRename
-func goProcRename(interp C.FeatherInterp, oldName C.FeatherObj, newName C.FeatherObj) C.FeatherResult {
-	i := getInternalInterp(interp)
-	if i == nil {
-		return C.TCL_ERROR
-	}
-	oldNameStr := i.GetString(FeatherObj(oldName))
-	newNameStr := i.GetString(FeatherObj(newName))
-
-	// Helper to split qualified name into namespace and simple name
-	splitQualified := func(name string) (nsPath, simple string) {
-		if strings.HasPrefix(name, "::") {
-			lastSep := strings.LastIndex(name, "::")
-			if lastSep == 0 {
-				return "::", name[2:]
-			}
-			return name[:lastSep], name[lastSep+2:]
-		}
-		return "::", name
-	}
-
-	// Get old namespace location
-	oldNsPath, oldSimple := splitQualified(oldNameStr)
-
-	// Get the command (validation is done by C core, so command should exist)
-	oldNs := i.namespaces[oldNsPath]
-	if oldNs == nil {
-		return C.TCL_ERROR
-	}
-	cmd := oldNs.commands[oldSimple]
-	if cmd == nil {
-		return C.TCL_ERROR
-	}
-
-	// If newName is empty, delete the command
-	if newNameStr == "" {
-		delete(oldNs.commands, oldSimple)
-		return C.TCL_OK
-	}
-
-	// Get new namespace location
-	newNsPath, newSimple := splitQualified(newNameStr)
-
-	// Move command from old namespace to new namespace
-	newNs := i.ensureNamespace(newNsPath)
-	delete(oldNs.commands, oldSimple)
-	newNs.commands[newSimple] = cmd
-
-	return C.TCL_OK
 }
 
 // Helper to create or get a namespace by path
@@ -1950,10 +1694,19 @@ func goNsUnsetVar(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj
 }
 
 //export goNsGetCommand
-func goNsGetCommand(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj, fn *C.FeatherBuiltinCmd) C.FeatherCommandType {
+func goNsGetCommand(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj,
+	fn *C.FeatherBuiltinCmd, params *C.FeatherObj, body *C.FeatherObj) C.FeatherCommandType {
 	i := getInternalInterp(interp)
 	if i == nil {
-		*fn = nil
+		if fn != nil {
+			*fn = nil
+		}
+		if params != nil {
+			*params = 0
+		}
+		if body != nil {
+			*body = 0
+		}
 		return C.TCL_CMD_NONE
 	}
 	pathStr := i.GetString(FeatherObj(nsPath))
@@ -1961,25 +1714,69 @@ func goNsGetCommand(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherO
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
-		*fn = nil
+		if fn != nil {
+			*fn = nil
+		}
+		if params != nil {
+			*params = 0
+		}
+		if body != nil {
+			*body = 0
+		}
 		return C.TCL_CMD_NONE
 	}
 
 	cmd, ok := ns.commands[nameStr]
 	if !ok {
-		*fn = nil
+		if fn != nil {
+			*fn = nil
+		}
+		if params != nil {
+			*params = 0
+		}
+		if body != nil {
+			*body = 0
+		}
 		return C.TCL_CMD_NONE
 	}
 
 	switch cmd.cmdType {
 	case CmdBuiltin:
-		*fn = cmd.builtin
+		if fn != nil {
+			*fn = cmd.builtin
+		}
+		if params != nil {
+			*params = 0
+		}
+		if body != nil {
+			*body = 0
+		}
 		return C.TCL_CMD_BUILTIN
 	case CmdProc:
-		*fn = nil
+		if fn != nil {
+			*fn = nil
+		}
+		if params != nil && cmd.proc != nil {
+			*params = C.FeatherObj(i.registerObjScratch(cmd.proc.params))
+		} else if params != nil {
+			*params = 0
+		}
+		if body != nil && cmd.proc != nil {
+			*body = C.FeatherObj(i.registerObjScratch(cmd.proc.body))
+		} else if body != nil {
+			*body = 0
+		}
 		return C.TCL_CMD_PROC
 	default:
-		*fn = nil
+		if fn != nil {
+			*fn = nil
+		}
+		if params != nil {
+			*params = 0
+		}
+		if body != nil {
+			*body = 0
+		}
 		return C.TCL_CMD_NONE
 	}
 }

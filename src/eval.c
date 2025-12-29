@@ -49,11 +49,11 @@ FeatherResult feather_command_exec(const FeatherHostOps *ops, FeatherInterp inte
     if (ops->list.is_nil(interp, lookupNs)) {
       lookupNs = globalNs;
     }
-    cmdType = ops->ns.get_command(interp, lookupNs, simpleName, &builtin);
+    cmdType = ops->ns.get_command(interp, lookupNs, simpleName, &builtin, NULL, NULL);
   } else {
     // Unqualified name - try current namespace first, then global
     if (!inGlobalNs) {
-      cmdType = ops->ns.get_command(interp, currentNs, cmd, &builtin);
+      cmdType = ops->ns.get_command(interp, currentNs, cmd, &builtin, NULL, NULL);
       if (cmdType != TCL_CMD_NONE) {
         lookupNs = currentNs;
         simpleName = cmd;
@@ -62,7 +62,7 @@ FeatherResult feather_command_exec(const FeatherHostOps *ops, FeatherInterp inte
 
     // If not found in current namespace, try global namespace
     if (cmdType == TCL_CMD_NONE) {
-      cmdType = ops->ns.get_command(interp, globalNs, cmd, &builtin);
+      cmdType = ops->ns.get_command(interp, globalNs, cmd, &builtin, NULL, NULL);
       if (cmdType != TCL_CMD_NONE) {
         lookupNs = globalNs;
         simpleName = cmd;
@@ -115,7 +115,7 @@ FeatherResult feather_command_exec(const FeatherHostOps *ops, FeatherInterp inte
   // Check for user-defined 'unknown' procedure in global namespace
   FeatherObj unknownSimple = ops->string.intern(interp, "unknown", 7);
   FeatherBuiltinCmd unusedFn = NULL;
-  FeatherCommandType unknownType = ops->ns.get_command(interp, globalNs, unknownSimple, &unusedFn);
+  FeatherCommandType unknownType = ops->ns.get_command(interp, globalNs, unknownSimple, &unusedFn, NULL, NULL);
 
   if (unknownType == TCL_CMD_PROC) {
     // Build args list: [originalCmd, arg1, arg2, ...]

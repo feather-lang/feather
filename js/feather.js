@@ -500,210 +500,6 @@ async function createFeather(wasmSource) {
       return interp.store({ type: 'list', items });
     },
 
-    // Proc operations
-    feather_host_proc_define: (interpId, name, params, body) => {
-      const interp = interpreters.get(interpId);
-      const procName = interp.getString(name);
-
-      // Materialize for persistent storage
-      const materializedParams = interp.materialize(params);
-      const materializedBody = interp.materialize(body);
-
-      // Extract namespace and simple name from qualified name (e.g., "::foo::bar" -> ns="foo", name="bar")
-      let nsPath = '';
-      let simpleName = procName;
-      if (procName.startsWith('::')) {
-        const withoutLeading = procName.slice(2);
-        const lastSep = withoutLeading.lastIndexOf('::');
-        if (lastSep !== -1) {
-          nsPath = withoutLeading.slice(0, lastSep);
-          simpleName = withoutLeading.slice(lastSep + 2);
-        } else {
-          simpleName = withoutLeading;
-        }
-      }
-      const namespace = interp.ensureNamespace('::' + nsPath);
-      namespace.commands.set(simpleName, { kind: TCL_CMD_PROC, fn: 0, params: materializedParams, body: materializedBody });
-    },
-    feather_host_proc_exists: (interpId, name) => {
-      const interp = interpreters.get(interpId);
-      const procName = interp.getString(name);
-
-      // Split qualified name into namespace path and simple name
-      let nsPath = '';
-      let simpleName = procName;
-      if (procName.startsWith('::')) {
-        const withoutLeading = procName.slice(2);
-        const lastSep = withoutLeading.lastIndexOf('::');
-        if (lastSep !== -1) {
-          nsPath = withoutLeading.slice(0, lastSep);
-          simpleName = withoutLeading.slice(lastSep + 2);
-        } else {
-          simpleName = withoutLeading;
-        }
-      }
-
-      const namespace = interp.namespaces.get(nsPath);
-      if (namespace) {
-        const cmd = namespace.commands.get(simpleName);
-        if (cmd && cmd.kind === TCL_CMD_PROC) {
-          return 1;
-        }
-      }
-      return 0;
-    },
-    feather_host_proc_params: (interpId, name, resultPtr) => {
-      const interp = interpreters.get(interpId);
-      const procName = interp.getString(name);
-
-      // Split qualified name into namespace path and simple name
-      let nsPath = '';
-      let simpleName = procName;
-      if (procName.startsWith('::')) {
-        const withoutLeading = procName.slice(2);
-        const lastSep = withoutLeading.lastIndexOf('::');
-        if (lastSep !== -1) {
-          nsPath = withoutLeading.slice(0, lastSep);
-          simpleName = withoutLeading.slice(lastSep + 2);
-        } else {
-          simpleName = withoutLeading;
-        }
-      }
-
-      const namespace = interp.namespaces.get(nsPath);
-      if (namespace) {
-        const cmd = namespace.commands.get(simpleName);
-        if (cmd && cmd.kind === TCL_CMD_PROC) {
-          writeI32(resultPtr, interp.wrap(cmd.params));
-          return TCL_OK;
-        }
-      }
-      return TCL_ERROR;
-    },
-    feather_host_proc_body: (interpId, name, resultPtr) => {
-      const interp = interpreters.get(interpId);
-      const procName = interp.getString(name);
-
-      // Split qualified name into namespace path and simple name
-      let nsPath = '';
-      let simpleName = procName;
-      if (procName.startsWith('::')) {
-        const withoutLeading = procName.slice(2);
-        const lastSep = withoutLeading.lastIndexOf('::');
-        if (lastSep !== -1) {
-          nsPath = withoutLeading.slice(0, lastSep);
-          simpleName = withoutLeading.slice(lastSep + 2);
-        } else {
-          simpleName = withoutLeading;
-        }
-      }
-
-      const namespace = interp.namespaces.get(nsPath);
-      if (namespace) {
-        const cmd = namespace.commands.get(simpleName);
-        if (cmd && cmd.kind === TCL_CMD_PROC) {
-          writeI32(resultPtr, interp.wrap(cmd.body));
-          return TCL_OK;
-        }
-      }
-      return TCL_ERROR;
-    },
-    feather_host_proc_names: (interpId, namespace) => {
-      const interp = interpreters.get(interpId);
-      let nsPath = '::';
-      if (namespace !== 0) {
-        nsPath = interp.getString(namespace);
-      }
-      const normalized = nsPath.replace(/^::/, '');
-      const ns = interp.namespaces.get(normalized);
-      const names = [];
-      if (ns) {
-        for (const [name, entry] of ns.commands) {
-          names.push(name);
-        }
-      }
-      const items = names.map(n => interp.store({ type: 'string', value: n }));
-      return interp.store({ type: 'list', items });
-    },
-    feather_host_proc_resolve_namespace: (interpId, path, resultPtr) => {
-      const interp = interpreters.get(interpId);
-      let nsPath = '::';
-      if (path !== 0) {
-        nsPath = interp.getString(path);
-      }
-      const normalized = nsPath.replace(/^::/, '');
-      if (!interp.namespaces.has(normalized)) return TCL_ERROR;
-      writeI32(resultPtr, interp.store({ type: 'string', value: '::' + normalized }));
-      return TCL_OK;
-    },
-    feather_host_proc_lookup: (interpId, name, fnPtr) => {
-      const interp = interpreters.get(interpId);
-      const procName = interp.getString(name);
-
-      // Split qualified name into namespace path and simple name
-      let nsPath = '';
-      let simpleName = procName;
-      if (procName.startsWith('::')) {
-        const withoutLeading = procName.slice(2);
-        const lastSep = withoutLeading.lastIndexOf('::');
-        if (lastSep !== -1) {
-          nsPath = withoutLeading.slice(0, lastSep);
-          simpleName = withoutLeading.slice(lastSep + 2);
-        } else {
-          simpleName = withoutLeading;
-        }
-      }
-
-      const namespace = interp.namespaces.get(nsPath);
-      if (namespace) {
-        const cmd = namespace.commands.get(simpleName);
-        if (cmd) {
-          writeI32(fnPtr, cmd.fn || 0);
-          return cmd.kind;
-        }
-      }
-
-      writeI32(fnPtr, 0);
-      return TCL_CMD_NONE;
-    },
-    feather_host_proc_rename: (interpId, oldName, newName) => {
-      const interp = interpreters.get(interpId);
-      const oldN = interp.getString(oldName);
-      const newN = interp.getString(newName);
-
-      // Helper to split qualified name into namespace path and simple name
-      const splitQualified = (name) => {
-        if (name.startsWith('::')) {
-          const withoutLeading = name.slice(2);
-          const lastSep = withoutLeading.lastIndexOf('::');
-          if (lastSep !== -1) {
-            return [withoutLeading.slice(0, lastSep), withoutLeading.slice(lastSep + 2)];
-          }
-          return ['', withoutLeading]; // global namespace
-        }
-        return ['', name]; // unqualified = global
-      };
-
-      const [oldNsPath, oldSimple] = splitQualified(oldN);
-      const oldNs = interp.namespaces.get(oldNsPath);
-
-      // Get the command (validation is done by C core, so command should exist)
-      const cmd = oldNs?.commands.get(oldSimple);
-      if (!cmd) return TCL_ERROR;
-
-      // Delete from old location
-      oldNs.commands.delete(oldSimple);
-
-      // Add to new location if not deleting
-      if (newN) {
-        const [newNsPath, newSimple] = splitQualified(newN);
-        const newNs = interp.ensureNamespace('::' + newNsPath);
-        newNs.commands.set(newSimple, cmd);
-      }
-
-      return TCL_OK;
-    },
-
     // Namespace operations
     feather_host_ns_create: (interpId, path) => {
       const interp = interpreters.get(interpId);
@@ -795,7 +591,7 @@ async function createFeather(wasmSource) {
       const namespace = interp.getNamespace(nsPath);
       if (namespace) namespace.vars.delete(varName);
     },
-    feather_host_ns_get_command: (interpId, ns, name, fnPtr) => {
+    feather_host_ns_get_command: (interpId, ns, name, fnPtr, paramsPtr, bodyPtr) => {
       const interp = interpreters.get(interpId);
       const nsPath = interp.getString(ns);
       const cmdName = interp.getString(name);
@@ -803,14 +599,20 @@ async function createFeather(wasmSource) {
       const namespace = interp.namespaces.get(normalized);
       if (!namespace) {
         writeI32(fnPtr, 0);
+        if (paramsPtr) writeI32(paramsPtr, 0);
+        if (bodyPtr) writeI32(bodyPtr, 0);
         return TCL_CMD_NONE;
       }
       const cmd = namespace.commands.get(cmdName);
       if (!cmd) {
         writeI32(fnPtr, 0);
+        if (paramsPtr) writeI32(paramsPtr, 0);
+        if (bodyPtr) writeI32(bodyPtr, 0);
         return TCL_CMD_NONE;
       }
       writeI32(fnPtr, cmd.fn || 0);
+      if (paramsPtr) writeI32(paramsPtr, cmd.params ? interp.wrap(cmd.params) : 0);
+      if (bodyPtr) writeI32(bodyPtr, cmd.body ? interp.wrap(cmd.body) : 0);
       return cmd.kind;
     },
     feather_host_ns_set_command: (interpId, ns, name, kind, fn, params, body) => {

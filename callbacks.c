@@ -337,42 +337,6 @@ FeatherObj feather_host_var_names(FeatherInterp interp, FeatherObj ns) {
 }
 
 // ============================================================================
-// Proc Operations
-// ============================================================================
-
-void feather_host_proc_define(FeatherInterp interp, FeatherObj name, FeatherObj params, FeatherObj body) {
-    goProcDefine(interp, name, params, body);
-}
-
-int feather_host_proc_exists(FeatherInterp interp, FeatherObj name) {
-    return goProcExists(interp, name);
-}
-
-FeatherResult feather_host_proc_params(FeatherInterp interp, FeatherObj name, FeatherObj *result) {
-    return goProcParams(interp, name, result);
-}
-
-FeatherResult feather_host_proc_body(FeatherInterp interp, FeatherObj name, FeatherObj *result) {
-    return goProcBody(interp, name, result);
-}
-
-FeatherObj feather_host_proc_names(FeatherInterp interp, FeatherObj namespace) {
-    return goProcNames(interp, namespace);
-}
-
-FeatherResult feather_host_proc_resolve_namespace(FeatherInterp interp, FeatherObj path, FeatherObj *result) {
-    return goProcResolveNamespace(interp, path, result);
-}
-
-FeatherCommandType feather_host_proc_lookup(FeatherInterp interp, FeatherObj name, FeatherBuiltinCmd *fn) {
-    return goProcLookup(interp, name, fn);
-}
-
-FeatherResult feather_host_proc_rename(FeatherInterp interp, FeatherObj oldName, FeatherObj newName) {
-    return goProcRename(interp, oldName, newName);
-}
-
-// ============================================================================
 // Namespace Operations
 // ============================================================================
 
@@ -416,8 +380,9 @@ void feather_host_ns_unset_var(FeatherInterp interp, FeatherObj ns, FeatherObj n
     goNsUnsetVar(interp, ns, name);
 }
 
-FeatherCommandType feather_host_ns_get_command(FeatherInterp interp, FeatherObj ns, FeatherObj name, FeatherBuiltinCmd *fn) {
-    return goNsGetCommand(interp, ns, name, fn);
+FeatherCommandType feather_host_ns_get_command(FeatherInterp interp, FeatherObj ns, FeatherObj name,
+                                               FeatherBuiltinCmd *fn, FeatherObj *params, FeatherObj *body) {
+    return goNsGetCommand(interp, ns, name, fn, params, body);
 }
 
 void feather_host_ns_set_command(FeatherInterp interp, FeatherObj ns, FeatherObj name,

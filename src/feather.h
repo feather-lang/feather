@@ -822,81 +822,6 @@ typedef enum {
 } FeatherCommandType;
 
 /**
- * FeatherProcOps define operations on the interpreter's symbol table.
- *
- * Variables and procs exist in separate namespaces, so having a variable xyz
- * and a proc named xyz at the same time is perfectly valid.
- *
- * Procs are collected in namespaces, of which there is presently only one,
- * the global namespace called "::".
- *
- * The global namespace need not be explicitly stated when referring to entries
- * in the symbol table through this API.
- */
-typedef struct FeatherProcOps {
-  /**
-   * define overwrites the symbol table entry with the given procedure.
-   *
-   * Nested namespaces are created automatically.
-   */
-  void (*define)(FeatherInterp interp, FeatherObj name, FeatherObj params, FeatherObj body);
-
-  /**
-   * exists reports whether a procedure entry with the given name exists.
-   */
-  int (*exists)(FeatherInterp interp, FeatherObj name);
-
-  /**
-   * params returns the parameter list associated with a procedure.
-   *
-   * Trying to retrieve the parameter list of a non-existing procedure
-   * puts the interpreter into an error state as indicated by the result.
-   */
-  FeatherResult (*params)(FeatherInterp interp, FeatherObj name, FeatherObj *result);
-
-  /**
-   * body returns the body list associated with a procedure.
-   *
-   * Trying to retrieve the body list of a non-existing procedure
-   * puts the interpreter into an error state as indicated by the result.
-   */
-  FeatherResult (*body)(FeatherInterp interp, FeatherObj name, FeatherObj *result);
-
-  /**
-   * names returns a list of all command names visible in the given namespace.
-   *
-   * If namespace is nil (0), uses the global namespace.
-   * This includes builtins, user-defined procs, and host-registered commands.
-   */
-  FeatherObj (*names)(FeatherInterp interp, FeatherObj namespace);
-
-  /**
-   * resolve_namespace resolves a namespace path and returns the namespace object.
-   *
-   * If path is nil or empty, returns the global namespace object.
-   * Returns TCL_ERROR if the namespace does not exist.
-   */
-  FeatherResult (*resolve_namespace)(FeatherInterp interp, FeatherObj path, FeatherObj *result);
-
-  /**
-   * lookup checks if a command exists and returns its type.
-   *
-   * For builtins, sets *fn to the function pointer.
-   * For procs, *fn is set to NULL.
-   * For non-existent commands, returns TCL_CMD_NONE and *fn is NULL.
-   */
-  FeatherCommandType (*lookup)(FeatherInterp interp, FeatherObj name, FeatherBuiltinCmd *fn);
-
-  /**
-   * rename changes a command's name in the unified command table.
-   *
-   * If newName is empty (zero-length string), the command is deleted.
-   * Returns TCL_ERROR if oldName doesn't exist or newName already exists.
-   */
-  FeatherResult (*rename)(FeatherInterp interp, FeatherObj oldName, FeatherObj newName);
-} FeatherProcOps;
-
-/**
  * FeatherListOps define the operations necessary for the interpreter to work with
  * lists.
  *
@@ -1196,12 +1121,14 @@ typedef struct FeatherNamespaceOps {
    * The 'name' parameter must be unqualified (just "set", not "::set").
    * The 'ns' parameter must be an absolute namespace path.
    *
-   * For builtins, sets *fn to the function pointer and returns TCL_CMD_BUILTIN.
-   * For procs, sets *fn to NULL and returns TCL_CMD_PROC.
+   * For builtins: sets *fn to function pointer, *params and *body to 0.
+   * For procs: sets *fn to NULL, *params to parameter list, *body to body.
    * Returns TCL_CMD_NONE if the command doesn't exist in this namespace.
+   *
+   * The params and body pointers may be NULL if not needed.
    */
   FeatherCommandType (*get_command)(FeatherInterp interp, FeatherObj ns, FeatherObj name,
-                                FeatherBuiltinCmd *fn);
+                                FeatherBuiltinCmd *fn, FeatherObj *params, FeatherObj *body);
 
   /**
    * set_command stores a command in a namespace.
@@ -1368,7 +1295,6 @@ typedef struct FeatherForeignOps {
 typedef struct FeatherHostOps {
   FeatherFrameOps frame;
   FeatherVarOps var;
-  FeatherProcOps proc;
   FeatherNamespaceOps ns;
   FeatherStringOps string;
   FeatherRuneOps rune;
