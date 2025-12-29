@@ -343,23 +343,10 @@ static FeatherResult substitute_variable_obj(const FeatherHostOps *ops, FeatherI
     // Found closing brace
     FeatherObj varName = ops->string.slice(interp, script, name_start, p);
 
-    // Resolve the variable name (handles qualified names)
-    FeatherObj ns, localName;
-    feather_obj_resolve_variable(ops, interp, varName, &ns, &localName);
-
-    FeatherObj value;
-    if (ops->list.is_nil(interp, ns)) {
-      // Unqualified - frame-local lookup (with trace firing)
-      value = feather_get_var(ops, interp, localName);
-    } else {
-      // Qualified - namespace lookup
-      value = ops->ns.get_var(interp, ns, localName);
-      // Fire traces for qualified variable access
-      feather_fire_var_traces(ops, interp, varName, "read");
-    }
+    // feather_get_var handles qualified names and fires traces
+    FeatherObj value = feather_get_var(ops, interp, varName);
 
     if (ops->list.is_nil(interp, value)) {
-      // Variable not found - raise error
       FeatherObj msg1 = ops->string.intern(interp, "can't read \"", 12);
       FeatherObj msg3 = ops->string.intern(interp, "\": no such variable", 19);
       FeatherObj msg = ops->string.concat(interp, msg1, varName);
@@ -391,20 +378,8 @@ static FeatherResult substitute_variable_obj(const FeatherHostOps *ops, FeatherI
     }
     FeatherObj varName = ops->string.slice(interp, script, name_start, p);
 
-    // Resolve the variable name (handles qualified names)
-    FeatherObj ns, localName;
-    feather_obj_resolve_variable(ops, interp, varName, &ns, &localName);
-
-    FeatherObj value;
-    if (ops->list.is_nil(interp, ns)) {
-      // Unqualified - frame-local lookup (with trace firing)
-      value = feather_get_var(ops, interp, localName);
-    } else {
-      // Qualified - namespace lookup
-      value = ops->ns.get_var(interp, ns, localName);
-      // Fire traces for qualified variable access
-      feather_fire_var_traces(ops, interp, varName, "read");
-    }
+    // feather_get_var handles qualified names and fires traces
+    FeatherObj value = feather_get_var(ops, interp, varName);
 
     if (ops->list.is_nil(interp, value)) {
       FeatherObj msg1 = ops->string.intern(interp, "can't read \"", 12);

@@ -15,19 +15,9 @@ FeatherResult feather_builtin_append(const FeatherHostOps *ops, FeatherInterp in
 
   FeatherObj varName = ops->list.shift(interp, args);
 
-  // Resolve the variable name (handles qualified names like ::varname)
-  FeatherObj ns, localName;
-  feather_obj_resolve_variable(ops, interp, varName, &ns, &localName);
-
   // Get current value or empty string
-  FeatherObj current;
-  if (ops->list.is_nil(interp, ns)) {
-    // Unqualified - frame-local lookup
-    current = ops->var.get(interp, localName);
-  } else {
-    // Qualified - namespace lookup
-    current = ops->ns.get_var(interp, ns, localName);
-  }
+  // feather_get_var handles qualified names and fires read traces
+  FeatherObj current = feather_get_var(ops, interp, varName);
 
   FeatherObj result;
   if (ops->list.is_nil(interp, current)) {
@@ -44,13 +34,8 @@ FeatherResult feather_builtin_append(const FeatherHostOps *ops, FeatherInterp in
   }
 
   // Store back in variable
-  if (ops->list.is_nil(interp, ns)) {
-    // Unqualified - frame-local
-    ops->var.set(interp, localName, result);
-  } else {
-    // Qualified - namespace
-    ops->ns.set_var(interp, ns, localName, result);
-  }
+  // feather_set_var handles qualified names and fires write traces
+  feather_set_var(ops, interp, varName, result);
 
   ops->interp.set_result(interp, result);
   return TCL_OK;

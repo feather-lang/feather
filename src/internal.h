@@ -960,7 +960,7 @@ void feather_fire_exec_traces(const FeatherHostOps *ops, FeatherInterp interp,
 /**
  * feather_get_var retrieves a variable and fires read traces.
  *
- * This is the traced version of ops->var.get().
+ * Handles both qualified names (::foo::bar) and unqualified names (x).
  * All builtins should use this instead of ops->var.get() directly.
  */
 FeatherObj feather_get_var(const FeatherHostOps *ops, FeatherInterp interp,
@@ -969,7 +969,7 @@ FeatherObj feather_get_var(const FeatherHostOps *ops, FeatherInterp interp,
 /**
  * feather_set_var sets a variable and fires write traces.
  *
- * This is the traced version of ops->var.set().
+ * Handles both qualified names (::foo::bar) and unqualified names (x).
  * All builtins should use this instead of ops->var.set() directly.
  */
 void feather_set_var(const FeatherHostOps *ops, FeatherInterp interp,
@@ -978,11 +978,20 @@ void feather_set_var(const FeatherHostOps *ops, FeatherInterp interp,
 /**
  * feather_unset_var unsets a variable and fires unset traces.
  *
- * This is the traced version of ops->var.unset().
+ * Handles both qualified names (::foo::bar) and unqualified names (x).
  * All builtins should use this instead of ops->var.unset() directly.
  * Note: unset traces fire BEFORE the variable is actually unset.
  */
 void feather_unset_var(const FeatherHostOps *ops, FeatherInterp interp,
+                       FeatherObj name);
+
+/**
+ * feather_var_exists checks if a variable exists.
+ *
+ * Handles both qualified names (::foo::bar) and unqualified names (x).
+ * Returns 1 if the variable exists, 0 otherwise.
+ */
+int feather_var_exists(const FeatherHostOps *ops, FeatherInterp interp,
                        FeatherObj name);
 
 #endif

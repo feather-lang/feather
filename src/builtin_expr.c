@@ -358,20 +358,8 @@ static ExprValue parse_variable(ExprParser *p) {
   // Extract the variable name as an object
   FeatherObj name_obj = p->ops->string.slice(p->interp, p->expr_obj, name_start, name_start + name_len);
 
-  // Resolve the qualified variable name using object-based version
-  FeatherObj ns, localName;
-  feather_obj_resolve_variable(p->ops, p->interp, name_obj, &ns, &localName);
-
-  FeatherObj value;
-  if (p->ops->list.is_nil(p->interp, ns)) {
-    // Unqualified - frame-local lookup (with trace firing)
-    value = feather_get_var(p->ops, p->interp, localName);
-  } else {
-    // Qualified - namespace lookup
-    value = p->ops->ns.get_var(p->interp, ns, localName);
-    // Fire traces for qualified variable access
-    feather_fire_var_traces(p->ops, p->interp, name_obj, "read");
-  }
+  // feather_get_var handles qualified names and fires traces
+  FeatherObj value = feather_get_var(p->ops, p->interp, name_obj);
 
   if (p->ops->list.is_nil(p->interp, value)) {
     FeatherObj part1 = p->ops->string.intern(p->interp, "can't read \"", 12);

@@ -5,13 +5,29 @@
 /**
  * feather_get_var retrieves a variable and fires read traces.
  *
- * This is the traced version of ops->var.get().
- * All builtins should use this instead of ops->var.get() directly.
+ * Handles both qualified names (::foo::bar) and unqualified names (x).
+ * For qualified names, looks up in namespace storage.
+ * For unqualified names, uses frame-local lookup.
+ * Fires read traces on the original name in all cases.
  */
 FeatherObj feather_get_var(const FeatherHostOps *ops, FeatherInterp interp,
                            FeatherObj name) {
   ops = feather_get_ops(ops);
-  FeatherObj value = ops->var.get(interp, name);
+
+  // Resolve qualified name
+  FeatherObj ns, localName;
+  feather_obj_resolve_variable(ops, interp, name, &ns, &localName);
+
+  FeatherObj value;
+  if (ops->list.is_nil(interp, ns)) {
+    // Unqualified - frame-local
+    value = ops->var.get(interp, localName);
+  } else {
+    // Qualified - namespace storage
+    value = ops->ns.get_var(interp, ns, localName);
+  }
+
+  // Fire traces on original name
   feather_fire_var_traces(ops, interp, name, "read");
   return value;
 }
@@ -19,26 +35,76 @@ FeatherObj feather_get_var(const FeatherHostOps *ops, FeatherInterp interp,
 /**
  * feather_set_var sets a variable and fires write traces.
  *
- * This is the traced version of ops->var.set().
- * All builtins should use this instead of ops->var.set() directly.
+ * Handles both qualified names (::foo::bar) and unqualified names (x).
+ * For qualified names, stores in namespace storage.
+ * For unqualified names, uses frame-local storage.
+ * Fires write traces on the original name in all cases.
  */
 void feather_set_var(const FeatherHostOps *ops, FeatherInterp interp,
                      FeatherObj name, FeatherObj value) {
   ops = feather_get_ops(ops);
-  ops->var.set(interp, name, value);
+
+  // Resolve qualified name
+  FeatherObj ns, localName;
+  feather_obj_resolve_variable(ops, interp, name, &ns, &localName);
+
+  if (ops->list.is_nil(interp, ns)) {
+    // Unqualified - frame-local
+    ops->var.set(interp, localName, value);
+  } else {
+    // Qualified - namespace storage
+    ops->ns.set_var(interp, ns, localName, value);
+  }
+
+  // Fire traces on original name
   feather_fire_var_traces(ops, interp, name, "write");
 }
 
 /**
  * feather_unset_var unsets a variable and fires unset traces.
  *
- * This is the traced version of ops->var.unset().
- * All builtins should use this instead of ops->var.unset() directly.
- * Note: unset traces fire BEFORE the variable is actually unset.
+ * Handles both qualified names (::foo::bar) and unqualified names (x).
+ * Fires unset traces on the original name BEFORE the variable is unset.
  */
 void feather_unset_var(const FeatherHostOps *ops, FeatherInterp interp,
                        FeatherObj name) {
   ops = feather_get_ops(ops);
+
+  // Fire traces BEFORE unset (standard TCL behavior)
   feather_fire_var_traces(ops, interp, name, "unset");
-  ops->var.unset(interp, name);
+
+  // Resolve qualified name
+  FeatherObj ns, localName;
+  feather_obj_resolve_variable(ops, interp, name, &ns, &localName);
+
+  if (ops->list.is_nil(interp, ns)) {
+    // Unqualified - frame-local
+    ops->var.unset(interp, localName);
+  } else {
+    // Qualified - namespace storage
+    ops->ns.unset_var(interp, ns, localName);
+  }
+}
+
+/**
+ * feather_var_exists checks if a variable exists.
+ *
+ * Handles both qualified names (::foo::bar) and unqualified names (x).
+ * Returns 1 if the variable exists, 0 otherwise.
+ */
+int feather_var_exists(const FeatherHostOps *ops, FeatherInterp interp,
+                       FeatherObj name) {
+  ops = feather_get_ops(ops);
+
+  // Resolve qualified name
+  FeatherObj ns, localName;
+  feather_obj_resolve_variable(ops, interp, name, &ns, &localName);
+
+  if (ops->list.is_nil(interp, ns)) {
+    // Unqualified - frame-local
+    return (ops->var.exists(interp, localName) == TCL_OK) ? 1 : 0;
+  } else {
+    // Qualified - namespace storage
+    return ops->ns.var_exists(interp, ns, localName);
+  }
 }

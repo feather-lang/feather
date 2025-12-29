@@ -17,18 +17,8 @@ static FeatherResult info_exists(const FeatherHostOps *ops, FeatherInterp interp
 
   FeatherObj varName = ops->list.at(interp, args, 0);
 
-  // Resolve the variable name (handles qualified names)
-  FeatherObj ns, localName;
-  feather_obj_resolve_variable(ops, interp, varName, &ns, &localName);
-
-  int exists;
-  if (ops->list.is_nil(interp, ns)) {
-    // Unqualified - frame-local lookup
-    exists = (ops->var.exists(interp, localName) == TCL_OK);
-  } else {
-    // Qualified - namespace lookup
-    exists = ops->ns.var_exists(interp, ns, localName);
-  }
+  // feather_var_exists handles qualified names
+  int exists = feather_var_exists(ops, interp, varName);
 
   ops->interp.set_result(interp, ops->integer.create(interp, exists ? 1 : 0));
   return TCL_OK;
@@ -470,11 +460,11 @@ static FeatherResult info_default(const FeatherHostOps *ops, FeatherInterp inter
       if (paramLen >= 2) {
         // Has default value
         FeatherObj defaultVal = ops->list.at(interp, paramList, 1);
-        ops->var.set(interp, varName, defaultVal);
+        feather_set_var(ops, interp, varName, defaultVal);
         ops->interp.set_result(interp, ops->integer.create(interp, 1));
       } else {
         // No default
-        ops->var.set(interp, varName, ops->string.intern(interp, "", 0));
+        feather_set_var(ops, interp, varName, ops->string.intern(interp, "", 0));
         ops->interp.set_result(interp, ops->integer.create(interp, 0));
       }
       return TCL_OK;

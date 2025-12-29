@@ -3,6 +3,7 @@
 
 FeatherResult feather_builtin_variable(const FeatherHostOps *ops, FeatherInterp interp,
                                 FeatherObj cmd, FeatherObj args) {
+  (void)cmd;
   size_t argc = ops->list.length(interp, args);
 
   if (argc == 0) {
@@ -37,9 +38,22 @@ FeatherResult feather_builtin_variable(const FeatherHostOps *ops, FeatherInterp 
       value = ops->list.shift(interp, args_copy);
     }
 
-    // If value provided, set it in namespace storage
+    // If value provided, set it in namespace storage using qualified name
+    // Construct fully qualified name: current_ns + :: + name (or just ::name for global)
     if (has_value) {
-      ops->ns.set_var(interp, current_ns, name, value);
+      FeatherObj qualifiedName;
+      FeatherObj globalNs = ops->string.intern(interp, "::", 2);
+      if (ops->string.equal(interp, current_ns, globalNs)) {
+        // In global namespace: ::name
+        qualifiedName = ops->string.concat(interp, globalNs, name);
+      } else {
+        // In other namespace: ns::name
+        FeatherObj sep = ops->string.intern(interp, "::", 2);
+        qualifiedName = ops->string.concat(interp, current_ns, sep);
+        qualifiedName = ops->string.concat(interp, qualifiedName, name);
+      }
+      // feather_set_var handles qualified names and fires traces
+      feather_set_var(ops, interp, qualifiedName, value);
     }
 
     // Create link from local variable to namespace variable
