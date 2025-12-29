@@ -364,10 +364,6 @@ FeatherResult feather_host_proc_resolve_namespace(FeatherInterp interp, FeatherO
     return goProcResolveNamespace(interp, path, result);
 }
 
-void feather_host_proc_register_builtin(FeatherInterp interp, FeatherObj name, FeatherBuiltinCmd fn) {
-    goProcRegisterBuiltin(interp, name, fn);
-}
-
 FeatherCommandType feather_host_proc_lookup(FeatherInterp interp, FeatherObj name, FeatherBuiltinCmd *fn) {
     return goProcLookup(interp, name, fn);
 }

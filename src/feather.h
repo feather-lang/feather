@@ -879,14 +879,6 @@ typedef struct FeatherProcOps {
   FeatherResult (*resolve_namespace)(FeatherInterp interp, FeatherObj path, FeatherObj *result);
 
   /**
-   * register_builtin records a builtin command with its implementation.
-   *
-   * Used by feather_interp_init to register builtin commands with the host.
-   * The host stores the function pointer for later dispatch.
-   */
-  void (*register_builtin)(FeatherInterp interp, FeatherObj name, FeatherBuiltinCmd fn);
-
-  /**
    * lookup checks if a command exists and returns its type.
    *
    * For builtins, sets *fn to the function pointer.

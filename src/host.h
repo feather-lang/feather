@@ -61,8 +61,6 @@ extern FeatherResult feather_host_proc_body(FeatherInterp interp, FeatherObj nam
 extern FeatherObj feather_host_proc_names(FeatherInterp interp, FeatherObj namespace);
 extern FeatherResult feather_host_proc_resolve_namespace(FeatherInterp interp, FeatherObj path,
                                                          FeatherObj *result);
-extern void feather_host_proc_register_builtin(FeatherInterp interp, FeatherObj name,
-                                               FeatherBuiltinCmd fn);
 extern FeatherCommandType feather_host_proc_lookup(FeatherInterp interp, FeatherObj name,
                                                    FeatherBuiltinCmd *fn);
 extern FeatherResult feather_host_proc_rename(FeatherInterp interp, FeatherObj oldName,

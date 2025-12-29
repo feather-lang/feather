@@ -28,7 +28,6 @@ static FeatherHostOps default_ops = {
         .body = feather_host_proc_body,
         .names = feather_host_proc_names,
         .resolve_namespace = feather_host_proc_resolve_namespace,
-        .register_builtin = feather_host_proc_register_builtin,
         .lookup = feather_host_proc_lookup,
         .rename = feather_host_proc_rename,
     },

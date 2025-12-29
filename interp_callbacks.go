@@ -1634,38 +1634,6 @@ func goProcResolveNamespace(interp C.FeatherInterp, path C.FeatherObj, result *C
 	return C.TCL_ERROR
 }
 
-//export goProcRegisterBuiltin
-func goProcRegisterBuiltin(interp C.FeatherInterp, name C.FeatherObj, fn C.FeatherBuiltinCmd) {
-	i := getInternalInterp(interp)
-	if i == nil {
-		return
-	}
-	nameStr := i.GetString(FeatherObj(name))
-
-	// Split the qualified name and store in namespace
-	var nsPath, simpleName string
-	if strings.HasPrefix(nameStr, "::") {
-		lastSep := strings.LastIndex(nameStr, "::")
-		if lastSep == 0 {
-			nsPath = "::"
-			simpleName = nameStr[2:]
-		} else {
-			nsPath = nameStr[:lastSep]
-			simpleName = nameStr[lastSep+2:]
-		}
-	} else {
-		nsPath = "::"
-		simpleName = nameStr
-	}
-
-	cmd := &Command{
-		cmdType: CmdBuiltin,
-		builtin: fn,
-	}
-	ns := i.ensureNamespace(nsPath)
-	ns.commands[simpleName] = cmd
-}
-
 //export goProcLookup
 func goProcLookup(interp C.FeatherInterp, name C.FeatherObj, fn *C.FeatherBuiltinCmd) C.FeatherCommandType {
 	i := getInternalInterp(interp)
