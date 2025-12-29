@@ -125,13 +125,6 @@ static FeatherHostOps default_ops = {
     .bind = {
         .unknown = feather_host_bind_unknown,
     },
-    .trace = {
-        .add = feather_host_trace_add,
-        .remove = feather_host_trace_remove,
-        .info = feather_host_trace_info,
-        .fire_enter = feather_host_trace_fire_enter,
-        .fire_leave = feather_host_trace_fire_leave,
-    },
     .foreign = {
         .is_foreign = feather_host_foreign_is_foreign,
         .type_name = feather_host_foreign_type_name,

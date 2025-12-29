@@ -349,11 +349,13 @@ static FeatherResult substitute_variable_obj(const FeatherHostOps *ops, FeatherI
 
     FeatherObj value;
     if (ops->list.is_nil(interp, ns)) {
-      // Unqualified - frame-local lookup
-      value = ops->var.get(interp, localName);
+      // Unqualified - frame-local lookup (with trace firing)
+      value = feather_get_var(ops, interp, localName);
     } else {
       // Qualified - namespace lookup
       value = ops->ns.get_var(interp, ns, localName);
+      // Fire traces for qualified variable access
+      feather_fire_var_traces(ops, interp, varName, "read");
     }
 
     if (ops->list.is_nil(interp, value)) {
@@ -395,9 +397,13 @@ static FeatherResult substitute_variable_obj(const FeatherHostOps *ops, FeatherI
 
     FeatherObj value;
     if (ops->list.is_nil(interp, ns)) {
-      value = ops->var.get(interp, localName);
+      // Unqualified - frame-local lookup (with trace firing)
+      value = feather_get_var(ops, interp, localName);
     } else {
+      // Qualified - namespace lookup
       value = ops->ns.get_var(interp, ns, localName);
+      // Fire traces for qualified variable access
+      feather_fire_var_traces(ops, interp, varName, "read");
     }
 
     if (ops->list.is_nil(interp, value)) {

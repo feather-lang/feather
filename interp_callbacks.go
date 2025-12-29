@@ -1275,7 +1275,6 @@ func goVarGet(interp C.FeatherInterp, name C.FeatherObj) C.FeatherObj {
 	}
 	frame := i.frames[i.active]
 	varName := nameObj.String()
-	originalVarName := varName // Save for trace firing
 	// Follow links to find the actual variable location
 	for {
 		if link, ok := frame.links[varName]; ok {
@@ -1283,13 +1282,6 @@ func goVarGet(interp C.FeatherInterp, name C.FeatherObj) C.FeatherObj {
 				// Namespace variable link
 				if ns, ok := i.namespaces[link.nsPath]; ok {
 					if val, ok := ns.vars[link.nsName]; ok {
-						// Copy traces before unlocking
-						traces := make([]TraceEntry, len(i.varTraces[originalVarName]))
-						copy(traces, i.varTraces[originalVarName])
-						// Fire read traces
-						if len(traces) > 0 {
-							fireVarTraces(i, originalVarName, "read", traces)
-						}
 						// Return scratch handle for C code
 						return C.FeatherObj(i.registerObjScratch(val))
 					}
@@ -1305,19 +1297,11 @@ func goVarGet(interp C.FeatherInterp, name C.FeatherObj) C.FeatherObj {
 			break
 		}
 	}
-	var result C.FeatherObj
 	if val, ok := frame.locals.vars[varName]; ok {
 		// Return scratch handle for C code
-		result = C.FeatherObj(i.registerObjScratch(val))
+		return C.FeatherObj(i.registerObjScratch(val))
 	}
-	// Copy traces before unlocking
-	traces := make([]TraceEntry, len(i.varTraces[originalVarName]))
-	copy(traces, i.varTraces[originalVarName])
-	// Fire read traces
-	if len(traces) > 0 {
-		fireVarTraces(i, originalVarName, "read", traces)
-	}
-	return result
+	return 0
 }
 
 //export goVarSet
@@ -1334,7 +1318,6 @@ func goVarSet(interp C.FeatherInterp, name C.FeatherObj, value C.FeatherObj) {
 	valueObj := i.getObject(FeatherObj(value))
 	frame := i.frames[i.active]
 	varName := nameObj.String()
-	originalVarName := varName // Save for trace firing
 	// Follow links to find the actual variable location
 	for {
 		if link, ok := frame.links[varName]; ok {
@@ -1342,13 +1325,6 @@ func goVarSet(interp C.FeatherInterp, name C.FeatherObj, value C.FeatherObj) {
 				// Namespace variable link
 				if ns, ok := i.namespaces[link.nsPath]; ok {
 					ns.vars[link.nsName] = valueObj
-				}
-				// Copy traces before unlocking
-				traces := make([]TraceEntry, len(i.varTraces[originalVarName]))
-				copy(traces, i.varTraces[originalVarName])
-				// Fire write traces
-				if len(traces) > 0 {
-					fireVarTraces(i, originalVarName, "write", traces)
 				}
 				return
 			} else if link.targetLevel >= 0 && link.targetLevel < len(i.frames) {
@@ -1362,13 +1338,6 @@ func goVarSet(interp C.FeatherInterp, name C.FeatherObj, value C.FeatherObj) {
 		}
 	}
 	frame.locals.vars[varName] = valueObj
-	// Copy traces before unlocking
-	traces := make([]TraceEntry, len(i.varTraces[originalVarName]))
-	copy(traces, i.varTraces[originalVarName])
-	// Fire write traces
-	if len(traces) > 0 {
-		fireVarTraces(i, originalVarName, "write", traces)
-	}
 }
 
 //export goVarUnset
@@ -1383,7 +1352,6 @@ func goVarUnset(interp C.FeatherInterp, name C.FeatherObj) {
 	}
 	frame := i.frames[i.active]
 	varName := nameObj.String()
-	originalVarName := varName // Save for trace firing
 	// Follow links to find the actual variable location
 	for {
 		if link, ok := frame.links[varName]; ok {
@@ -1391,13 +1359,6 @@ func goVarUnset(interp C.FeatherInterp, name C.FeatherObj) {
 				// Namespace variable link
 				if ns, ok := i.namespaces[link.nsPath]; ok {
 					delete(ns.vars, link.nsName)
-				}
-				// Copy traces before unlocking
-				traces := make([]TraceEntry, len(i.varTraces[originalVarName]))
-				copy(traces, i.varTraces[originalVarName])
-				// Fire unset traces
-				if len(traces) > 0 {
-					fireVarTraces(i, originalVarName, "unset", traces)
 				}
 				return
 			} else if link.targetLevel >= 0 && link.targetLevel < len(i.frames) {
@@ -1411,13 +1372,6 @@ func goVarUnset(interp C.FeatherInterp, name C.FeatherObj) {
 		}
 	}
 	delete(frame.locals.vars, varName)
-	// Copy traces before unlocking
-	traces := make([]TraceEntry, len(i.varTraces[originalVarName]))
-	copy(traces, i.varTraces[originalVarName])
-	// Fire unset traces
-	if len(traces) > 0 {
-		fireVarTraces(i, originalVarName, "unset", traces)
-	}
 }
 
 //export goVarExists
@@ -1593,79 +1547,6 @@ func callCEval(interpHandle FeatherInterp, scriptHandle FeatherObj) C.FeatherRes
 	return C.feather_script_eval_obj(nil, C.FeatherInterp(interpHandle), C.FeatherObj(scriptHandle), C.TCL_EVAL_LOCAL)
 }
 
-// fireVarTraces fires variable traces for the given operation.
-// This function must be called WITHOUT holding the mutex.
-func fireVarTraces(i *InternalInterp, varName string, op string, traces []TraceEntry) {
-	// Variable traces are invoked as: command name1 name2 op
-	// - name1 is the variable name
-	// - name2 is empty (array element, not supported)
-	// - op is "read", "write", or "unset"
-	for _, trace := range traces {
-		// Check if this trace matches the operation
-		ops := strings.Fields(trace.ops)
-		matches := false
-		for _, traceOp := range ops {
-			if traceOp == op {
-				matches = true
-				break
-			}
-		}
-		if !matches {
-			continue
-		}
-
-		// Get the script command prefix
-		scriptStr := trace.script.String()
-		// Build the full command: script name1 name2 op
-		// We'll construct this as a string to eval
-		cmd := scriptStr + " " + varName + " {} " + op
-		cmdObj := i.internString(cmd)
-
-		// Fire the trace by evaluating the command
-		callCEval(i.handle, cmdObj)
-	}
-}
-
-// fireCmdTraces fires command traces for the given operation.
-// This function must be called WITHOUT holding the mutex.
-func fireCmdTraces(i *InternalInterp, oldName string, newName string, op string, traces []TraceEntry) {
-	// Command traces are invoked as: command oldName newName op
-	// - oldName is the original command name
-	// - newName is the new name (empty for delete)
-	// - op is "rename" or "delete"
-	for _, trace := range traces {
-		// Check if this trace matches the operation
-		ops := strings.Fields(trace.ops)
-		matches := false
-		for _, traceOp := range ops {
-			if traceOp == op {
-				matches = true
-				break
-			}
-		}
-		if !matches {
-			continue
-		}
-
-		// Get the script command prefix
-		scriptStr := trace.script.String()
-		// Build the full command: script oldName newName op
-		// Use display names (strip :: for global namespace commands)
-		displayOld := i.DisplayName(oldName)
-		displayNew := i.DisplayName(newName)
-		// Empty strings must be properly quoted with {}
-		quotedNew := displayNew
-		if displayNew == "" {
-			quotedNew = "{}"
-		}
-		cmd := scriptStr + " " + displayOld + " " + quotedNew + " " + op
-		cmdObj := i.internString(cmd)
-
-		// Fire the trace by evaluating the command
-		callCEval(i.handle, cmdObj)
-	}
-}
-
 // callCParse invokes the C parser
 func callCParse(interpHandle FeatherInterp, scriptHandle FeatherObj) C.FeatherParseStatus {
 	ops := C.feather_get_ops(nil)
@@ -1835,17 +1716,6 @@ func goProcRename(interp C.FeatherInterp, oldName C.FeatherObj, newName C.Feathe
 	// Get old namespace location
 	oldNsPath, oldSimple := splitQualified(oldNameStr)
 
-	// Compute fully qualified name for trace lookups
-	// Traces are always registered with fully qualified names
-	oldQualified := oldNameStr
-	if !strings.HasPrefix(oldNameStr, "::") {
-		if oldNsPath == "::" {
-			oldQualified = "::" + oldSimple
-		} else {
-			oldQualified = oldNsPath + "::" + oldSimple
-		}
-	}
-
 	// Check if old command exists in namespace
 	oldNs, ok := i.namespaces[oldNsPath]
 	if !ok {
@@ -1861,13 +1731,6 @@ func goProcRename(interp C.FeatherInterp, oldName C.FeatherObj, newName C.Feathe
 	// If newName is empty, delete the command
 	if newNameStr == "" {
 		delete(oldNs.commands, oldSimple)
-		// Copy traces before unlocking - use fully qualified name
-		traces := make([]TraceEntry, len(i.cmdTraces[oldQualified]))
-		copy(traces, i.cmdTraces[oldQualified])
-		// Fire delete traces
-		if len(traces) > 0 {
-			fireCmdTraces(i, oldQualified, "", "delete", traces)
-		}
 		return C.TCL_OK
 	}
 
@@ -1884,14 +1747,6 @@ func goProcRename(interp C.FeatherInterp, oldName C.FeatherObj, newName C.Feathe
 	// Move command from old namespace to new namespace
 	delete(oldNs.commands, oldSimple)
 	newNs.commands[newSimple] = cmd
-
-	// Copy traces before unlocking - use fully qualified name
-	traces := make([]TraceEntry, len(i.cmdTraces[oldQualified]))
-	copy(traces, i.cmdTraces[oldQualified])
-	// Fire rename traces
-	if len(traces) > 0 {
-		fireCmdTraces(i, oldQualified, newNameStr, "rename", traces)
-	}
 
 	return C.TCL_OK
 }
@@ -2364,198 +2219,6 @@ func goVarNames(interp C.FeatherInterp, ns C.FeatherObj) C.FeatherObj {
 		items[idx] = NewStringObj(name)
 	}
 	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(items)}))
-}
-
-//export goTraceAdd
-func goTraceAdd(interp C.FeatherInterp, kind C.FeatherObj, name C.FeatherObj, ops C.FeatherObj, script C.FeatherObj) C.FeatherResult {
-	i := getInternalInterp(interp)
-	if i == nil {
-		return C.TCL_ERROR
-	}
-	kindStr := i.GetString(FeatherObj(kind))
-	nameStr := i.GetString(FeatherObj(name))
-	opsStr := i.GetString(FeatherObj(ops))
-
-
-	entry := TraceEntry{
-		ops:    opsStr,
-		script: i.getObject(FeatherObj(script)),
-	}
-
-	if kindStr == "variable" {
-		i.varTraces[nameStr] = append(i.varTraces[nameStr], entry)
-	} else if kindStr == "command" {
-		i.cmdTraces[nameStr] = append(i.cmdTraces[nameStr], entry)
-	} else if kindStr == "execution" {
-		i.execTraces[nameStr] = append(i.execTraces[nameStr], entry)
-	} else {
-		return C.TCL_ERROR
-	}
-
-	return C.TCL_OK
-}
-
-//export goTraceRemove
-func goTraceRemove(interp C.FeatherInterp, kind C.FeatherObj, name C.FeatherObj, ops C.FeatherObj, script C.FeatherObj) C.FeatherResult {
-	i := getInternalInterp(interp)
-	if i == nil {
-		return C.TCL_ERROR
-	}
-	kindStr := i.GetString(FeatherObj(kind))
-	nameStr := i.GetString(FeatherObj(name))
-	opsStr := i.GetString(FeatherObj(ops))
-	scriptStr := i.GetString(FeatherObj(script))
-
-	var traces *map[string][]TraceEntry
-	if kindStr == "variable" {
-		traces = &i.varTraces
-	} else if kindStr == "command" {
-		traces = &i.cmdTraces
-	} else if kindStr == "execution" {
-		traces = &i.execTraces
-	} else {
-		return C.TCL_ERROR
-	}
-
-	// Find and remove matching trace - compare by string value, not handle
-	entries := (*traces)[nameStr]
-	for idx, entry := range entries {
-		entryScriptStr := entry.script.String()
-		if entry.ops == opsStr && entryScriptStr == scriptStr {
-			// Remove this entry
-			(*traces)[nameStr] = append(entries[:idx], entries[idx+1:]...)
-			return C.TCL_OK
-		}
-	}
-
-	// No matching trace found
-	return C.TCL_ERROR
-}
-
-//export goTraceInfo
-func goTraceInfo(interp C.FeatherInterp, kind C.FeatherObj, name C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
-	if i == nil {
-		return 0
-	}
-	kindStr := i.GetString(FeatherObj(kind))
-	nameStr := i.GetString(FeatherObj(name))
-
-	var entries []TraceEntry
-	if kindStr == "variable" {
-		entries = i.varTraces[nameStr]
-	} else if kindStr == "command" {
-		entries = i.cmdTraces[nameStr]
-	} else if kindStr == "execution" {
-		entries = i.execTraces[nameStr]
-	}
-
-	// Build list of {{ops} script} sublists as *Obj
-	// Format: each trace is {{op1 op2 ...} script} where ops is a sublist
-	items := make([]*Obj, 0, len(entries))
-	for _, entry := range entries {
-		// Build ops as a sublist
-		opsList := strings.Fields(entry.ops)
-		opsItems := make([]*Obj, len(opsList))
-		for j, op := range opsList {
-			opsItems[j] = NewStringObj(op)
-		}
-		opsObj := &Obj{intrep: ListType(opsItems)}
-
-		// Add the script at the end
-		scriptObj := entry.script
-		if scriptObj == nil {
-			scriptObj = NewStringObj("")
-		}
-		subItems := []*Obj{opsObj, scriptObj}
-		items = append(items, &Obj{intrep: ListType(subItems)})
-	}
-	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(items)}))
-}
-
-//export goTraceFireEnter
-func goTraceFireEnter(interp C.FeatherInterp, cmdName C.FeatherObj, cmdList C.FeatherObj) {
-	i := getInternalInterp(interp)
-	if i == nil {
-		return
-	}
-	nameStr := i.GetString(FeatherObj(cmdName))
-
-	entries := i.execTraces[nameStr]
-	if len(entries) == 0 {
-		return
-	}
-
-	// Fire traces in LIFO order (iterate backwards)
-	fireExecTraces(i, FeatherObj(cmdList), 0, 0, "enter", entries)
-}
-
-//export goTraceFireLeave
-func goTraceFireLeave(interp C.FeatherInterp, cmdName C.FeatherObj, cmdList C.FeatherObj, code C.FeatherResult, result C.FeatherObj) {
-	i := getInternalInterp(interp)
-	if i == nil {
-		return
-	}
-	nameStr := i.GetString(FeatherObj(cmdName))
-
-	entries := i.execTraces[nameStr]
-	if len(entries) == 0 {
-		return
-	}
-
-	// Fire traces in LIFO order (iterate backwards)
-	fireExecTraces(i, FeatherObj(cmdList), int(code), FeatherObj(result), "leave", entries)
-}
-
-// fireExecTraces fires execution traces for the given operation.
-// This function must be called WITHOUT holding the mutex.
-func fireExecTraces(i *InternalInterp, cmdList FeatherObj, code int, result FeatherObj, op string, traces []TraceEntry) {
-	// Execution traces are invoked as:
-	// - enter: script cmdList "enter"
-	// - leave: script cmdList code result "leave"
-	//
-	// cmdList is passed as a single list argument
-	// Traces fire in LIFO order (last added first)
-
-	// Convert cmdList to a proper TCL list string
-	cmdListStr := i.GetString(cmdList)
-
-	// Fire in LIFO order (iterate backwards)
-	for idx := len(traces) - 1; idx >= 0; idx-- {
-		trace := traces[idx]
-
-		// Check if this trace matches the operation
-		ops := strings.Fields(trace.ops)
-		matches := false
-		for _, traceOp := range ops {
-			if traceOp == op {
-				matches = true
-				break
-			}
-		}
-		if !matches {
-			continue
-		}
-
-		// Get the script command prefix
-		scriptStr := trace.script.String()
-
-		// Build the full command
-		var cmd string
-		if op == "enter" {
-			// script cmdList enter
-			cmd = scriptStr + " {" + cmdListStr + "} " + op
-		} else {
-			// script cmdList code result leave
-			resultStr := i.GetString(result)
-			cmd = scriptStr + " {" + cmdListStr + "} " + strconv.Itoa(code) + " " + resultStr + " " + op
-		}
-
-		cmdObj := i.internString(cmd)
-
-		// Fire the trace by evaluating the command
-		callCEval(i.handle, cmdObj)
-	}
 }
 
 //export goNsGetExports

@@ -891,4 +891,98 @@ FeatherResult feather_builtin_subst(const FeatherHostOps *ops, FeatherInterp int
 FeatherResult feather_builtin_eval(const FeatherHostOps *ops, FeatherInterp interp,
                                    FeatherObj cmd, FeatherObj args);
 
+// ============================================================================
+// Trace system helpers
+// ============================================================================
+
+/**
+ * feather_trace_get_dict retrieves the trace dict for a given kind.
+ *
+ * kind must be "variable", "command", or "execution".
+ * Returns the dict stored in ::tcl::trace::{kind}.
+ * Returns nil if kind is invalid (caller should validate before calling).
+ */
+FeatherObj feather_trace_get_dict(const FeatherHostOps *ops, FeatherInterp interp,
+                                  const char *kind);
+
+/**
+ * feather_trace_set_dict updates the trace dict for a given kind.
+ *
+ * kind must be "variable", "command", or "execution".
+ * Stores dict in ::tcl::trace::{kind}.
+ */
+void feather_trace_set_dict(const FeatherHostOps *ops, FeatherInterp interp,
+                            const char *kind, FeatherObj dict);
+
+/**
+ * feather_fire_var_traces fires variable traces for the given operation.
+ *
+ * varName: the variable name
+ * op: "read", "write", or "unset"
+ *
+ * Traces fire in FIFO order (first added, first fired).
+ * The trace callback receives: script varName {} op
+ */
+void feather_fire_var_traces(const FeatherHostOps *ops, FeatherInterp interp,
+                             FeatherObj varName, const char *op);
+
+/**
+ * feather_fire_cmd_traces fires command traces for the given operation.
+ *
+ * oldName: the original command name (fully qualified)
+ * newName: the new command name (empty for delete)
+ * op: "rename" or "delete"
+ *
+ * Traces fire in FIFO order (first added, first fired).
+ */
+void feather_fire_cmd_traces(const FeatherHostOps *ops, FeatherInterp interp,
+                             FeatherObj oldName, FeatherObj newName, const char *op);
+
+/**
+ * feather_fire_exec_traces fires execution traces for enter or leave.
+ *
+ * cmdName: the command name (fully qualified, for lookup)
+ * cmdList: the full command as a list [cmdname, arg1, arg2, ...]
+ * op: "enter" or "leave"
+ * code: return code (only for leave, 0 for enter)
+ * result: command result (only for leave, 0 for enter)
+ *
+ * Traces fire in LIFO order (last added, first fired).
+ */
+void feather_fire_exec_traces(const FeatherHostOps *ops, FeatherInterp interp,
+                              FeatherObj cmdName, FeatherObj cmdList,
+                              const char *op, int code, FeatherObj result);
+
+// ============================================================================
+// Variable access wrappers (with trace support)
+// ============================================================================
+
+/**
+ * feather_get_var retrieves a variable and fires read traces.
+ *
+ * This is the traced version of ops->var.get().
+ * All builtins should use this instead of ops->var.get() directly.
+ */
+FeatherObj feather_get_var(const FeatherHostOps *ops, FeatherInterp interp,
+                           FeatherObj name);
+
+/**
+ * feather_set_var sets a variable and fires write traces.
+ *
+ * This is the traced version of ops->var.set().
+ * All builtins should use this instead of ops->var.set() directly.
+ */
+void feather_set_var(const FeatherHostOps *ops, FeatherInterp interp,
+                     FeatherObj name, FeatherObj value);
+
+/**
+ * feather_unset_var unsets a variable and fires unset traces.
+ *
+ * This is the traced version of ops->var.unset().
+ * All builtins should use this instead of ops->var.unset() directly.
+ * Note: unset traces fire BEFORE the variable is actually unset.
+ */
+void feather_unset_var(const FeatherHostOps *ops, FeatherInterp interp,
+                       FeatherObj name);
+
 #endif

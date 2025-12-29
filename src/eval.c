@@ -87,7 +87,7 @@ FeatherResult feather_command_exec(const FeatherHostOps *ops, FeatherInterp inte
   }
 
   // Fire "enter" execution traces before command executes
-  ops->trace.fire_enter(interp, lookupName, originalCmd);
+  feather_fire_exec_traces(ops, interp, lookupName, originalCmd, "enter", 0, 0);
 
   FeatherResult code;
   switch (cmdType) {
@@ -96,7 +96,7 @@ FeatherResult feather_command_exec(const FeatherHostOps *ops, FeatherInterp inte
       // Call the builtin function directly
       code = builtin(ops, interp, lookupName, args);
       // Fire "leave" execution traces after command completes
-      ops->trace.fire_leave(interp, lookupName, originalCmd, code, ops->interp.get_result(interp));
+      feather_fire_exec_traces(ops, interp, lookupName, originalCmd, "leave", code, ops->interp.get_result(interp));
       return code;
     }
     // NULL builtin means host-registered command - fall through to unknown
@@ -105,7 +105,7 @@ FeatherResult feather_command_exec(const FeatherHostOps *ops, FeatherInterp inte
     // For procs, use the fully qualified name for lookup
     code = feather_invoke_proc(ops, interp, lookupName, args);
     // Fire "leave" execution traces after command completes
-    ops->trace.fire_leave(interp, lookupName, originalCmd, code, ops->interp.get_result(interp));
+    feather_fire_exec_traces(ops, interp, lookupName, originalCmd, "leave", code, ops->interp.get_result(interp));
     return code;
   case TCL_CMD_NONE:
     // Fall through to unknown handling
@@ -129,7 +129,7 @@ FeatherResult feather_command_exec(const FeatherHostOps *ops, FeatherInterp inte
     FeatherObj unknownName = ops->string.intern(interp, "::unknown", 9);
     code = feather_invoke_proc(ops, interp, unknownName, unknownArgs);
     // Fire "leave" execution traces after command completes
-    ops->trace.fire_leave(interp, lookupName, originalCmd, code, ops->interp.get_result(interp));
+    feather_fire_exec_traces(ops, interp, lookupName, originalCmd, "leave", code, ops->interp.get_result(interp));
     return code;
   }
 
@@ -142,7 +142,7 @@ FeatherResult feather_command_exec(const FeatherHostOps *ops, FeatherInterp inte
   }
 
   // Fire "leave" execution traces after command completes
-  ops->trace.fire_leave(interp, lookupName, originalCmd, code, ops->interp.get_result(interp));
+  feather_fire_exec_traces(ops, interp, lookupName, originalCmd, "leave", code, ops->interp.get_result(interp));
 
   return code;
 }

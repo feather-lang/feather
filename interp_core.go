@@ -120,12 +120,6 @@ type Command struct {
 	proc    *Procedure       // procedure info (only for CmdProc)
 }
 
-// TraceEntry represents a single trace registration
-type TraceEntry struct {
-	ops    string // space-separated operations: "read write" or "rename delete"
-	script *Obj   // the command prefix to invoke (persistent)
-}
-
 // scratchHandleBit is the high bit used to mark scratch arena handles.
 // Handles with this bit set belong to the scratch arena (temporary objects).
 // Handles without this bit belong to permanent storage (foreign objects, etc.).
@@ -147,9 +141,6 @@ type InternalInterp struct {
 	active         int          // currently active frame index
 	recursionLimit int          // maximum call stack depth (0 means use default)
 	scriptPath     *Obj             // current script file being executed (nil = none)
-	varTraces      map[string][]TraceEntry // variable name -> traces
-	cmdTraces      map[string][]TraceEntry // command name -> traces
-	execTraces     map[string][]TraceEntry // command name -> execution traces
 
 	// builders stores string builders for the byte-at-a-time string API.
 	// Used by goStringBuilderNew/AppendByte/AppendObj/Finish.
@@ -176,9 +167,6 @@ func NewInternalInterp() *InternalInterp {
 		scratch:       make(map[FeatherObj]*Obj),
 		scratchNextID: scratchHandleBit | 1, // Start scratch IDs with high bit set
 		namespaces:    make(map[string]*Namespace),
-		varTraces:     make(map[string][]TraceEntry),
-		cmdTraces:     make(map[string][]TraceEntry),
-		execTraces:    make(map[string][]TraceEntry),
 		builders:      make(map[FeatherObj]*strings.Builder),
 		Commands:      make(map[string]InternalCommandFunc),
 		nextID:        1, // Permanent IDs start at 1 (no high bit)

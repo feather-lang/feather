@@ -23,11 +23,13 @@ FeatherResult feather_builtin_set(const FeatherHostOps *ops, FeatherInterp inter
     // One argument: get variable value
     FeatherObj value;
     if (ops->list.is_nil(interp, ns)) {
-      // Unqualified - frame-local lookup
-      value = ops->var.get(interp, localName);
+      // Unqualified - frame-local lookup (with trace firing)
+      value = feather_get_var(ops, interp, localName);
     } else {
       // Qualified - namespace lookup
       value = ops->ns.get_var(interp, ns, localName);
+      // Fire traces for qualified variable access
+      feather_fire_var_traces(ops, interp, varName, "read");
     }
 
     if (ops->list.is_nil(interp, value)) {
@@ -54,11 +56,13 @@ FeatherResult feather_builtin_set(const FeatherHostOps *ops, FeatherInterp inter
   FeatherObj value = ops->list.shift(interp, args);
 
   if (ops->list.is_nil(interp, ns)) {
-    // Unqualified - frame-local
-    ops->var.set(interp, localName, value);
+    // Unqualified - frame-local (with trace firing)
+    feather_set_var(ops, interp, localName, value);
   } else {
     // Qualified - namespace
     ops->ns.set_var(interp, ns, localName, value);
+    // Fire traces for qualified variable access
+    feather_fire_var_traces(ops, interp, varName, "write");
   }
 
   ops->interp.set_result(interp, value);

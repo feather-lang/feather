@@ -46,7 +46,7 @@ FeatherResult feather_builtin_unset(const FeatherHostOps *ops, FeatherInterp int
         return TCL_ERROR;
       }
     } else {
-      ops->var.unset(interp, varName);
+      feather_unset_var(ops, interp, varName);
     }
   }
 

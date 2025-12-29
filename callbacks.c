@@ -456,30 +456,6 @@ FeatherResult feather_host_ns_copy_command(FeatherInterp interp, FeatherObj srcN
 }
 
 // ============================================================================
-// Trace Operations
-// ============================================================================
-
-FeatherResult feather_host_trace_add(FeatherInterp interp, FeatherObj kind, FeatherObj name, FeatherObj ops, FeatherObj script) {
-    return goTraceAdd(interp, kind, name, ops, script);
-}
-
-FeatherResult feather_host_trace_remove(FeatherInterp interp, FeatherObj kind, FeatherObj name, FeatherObj ops, FeatherObj script) {
-    return goTraceRemove(interp, kind, name, ops, script);
-}
-
-FeatherObj feather_host_trace_info(FeatherInterp interp, FeatherObj kind, FeatherObj name) {
-    return goTraceInfo(interp, kind, name);
-}
-
-void feather_host_trace_fire_enter(FeatherInterp interp, FeatherObj cmdName, FeatherObj cmdList) {
-    goTraceFireEnter(interp, cmdName, cmdList);
-}
-
-void feather_host_trace_fire_leave(FeatherInterp interp, FeatherObj cmdName, FeatherObj cmdList, FeatherResult code, FeatherObj result) {
-    goTraceFireLeave(interp, cmdName, cmdList, code, result);
-}
-
-// ============================================================================
 // Foreign Operations
 // ============================================================================
 

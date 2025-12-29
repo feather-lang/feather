@@ -19,6 +19,8 @@
 #include "./src/resolve.c"
 #include "./src/interp.c"
 #include "./src/eval.c"
+#include "./src/trace.c"
+#include "./src/var.c"
 
 /* Builtins */
 #include "./src/builtin_append.c"

@@ -44,6 +44,10 @@ FeatherResult feather_builtin_rename(const FeatherHostOps *ops, FeatherInterp in
     if (cmdType != TCL_CMD_NONE) {
       qualifiedOld = globalQualified;
     }
+  } else if (!feather_obj_is_qualified(ops, interp, oldName)) {
+    // Command found with unqualified name - qualify it for trace lookup
+    FeatherObj globalQualified = ops->string.intern(interp, "::", 2);
+    qualifiedOld = ops->string.concat(interp, globalQualified, oldName);
   }
 
   // Resolve newName similarly if it's not empty
@@ -66,5 +70,13 @@ FeatherResult feather_builtin_rename(const FeatherHostOps *ops, FeatherInterp in
   }
 
   // Delegate to host's rename operation with resolved names
-  return ops->proc.rename(interp, qualifiedOld, qualifiedNew);
+  FeatherResult result = ops->proc.rename(interp, qualifiedOld, qualifiedNew);
+
+  // Fire command traces if rename succeeded
+  if (result == TCL_OK) {
+    const char *op = (newLen == 0) ? "delete" : "rename";
+    feather_fire_cmd_traces(ops, interp, qualifiedOld, qualifiedNew, op);
+  }
+
+  return result;
 }

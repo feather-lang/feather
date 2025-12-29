@@ -135,4 +135,33 @@ void feather_interp_init(const FeatherHostOps *ops, FeatherInterp interp) {
     // Store command in namespace
     ops->ns.set_command(interp, ns, simpleName, TCL_CMD_BUILTIN, entry->cmd, 0, 0);
   }
+
+  // Create ::tcl::trace namespace and initialize trace storage dicts
+  FeatherObj traceNs = ops->string.intern(interp, "::tcl::trace", 12);
+  ops->ns.create(interp, traceNs);
+
+  FeatherObj emptyDict = ops->dict.create(interp);
+  FeatherObj varName = ops->string.intern(interp, "variable", 8);
+  FeatherObj cmdName = ops->string.intern(interp, "command", 7);
+  FeatherObj execName = ops->string.intern(interp, "execution", 9);
+
+  ops->ns.set_var(interp, traceNs, varName, emptyDict);
+  ops->ns.set_var(interp, traceNs, cmdName, emptyDict);
+  ops->ns.set_var(interp, traceNs, execName, emptyDict);
+}
+
+FeatherObj feather_trace_get_dict(const FeatherHostOps *ops, FeatherInterp interp,
+                                  const char *kind) {
+  ops = feather_get_ops(ops);
+  FeatherObj traceNs = ops->string.intern(interp, "::tcl::trace", 12);
+  FeatherObj kindName = ops->string.intern(interp, kind, feather_strlen(kind));
+  return ops->ns.get_var(interp, traceNs, kindName);
+}
+
+void feather_trace_set_dict(const FeatherHostOps *ops, FeatherInterp interp,
+                            const char *kind, FeatherObj dict) {
+  ops = feather_get_ops(ops);
+  FeatherObj traceNs = ops->string.intern(interp, "::tcl::trace", 12);
+  FeatherObj kindName = ops->string.intern(interp, kind, feather_strlen(kind));
+  ops->ns.set_var(interp, traceNs, kindName, dict);
 }

@@ -1277,84 +1277,6 @@ typedef struct FeatherNamespaceOps {
 } FeatherNamespaceOps;
 
 /**
- * FeatherTraceOps provides unified trace management for variables and commands.
- *
- * Traces are callbacks that fire when certain events occur on variables
- * or commands. The host is responsible for:
- * - Storing trace registrations
- * - Triggering traces at appropriate points (in var.get/set/unset, command dispatch)
- * - Executing trace scripts by calling back into the interpreter
- *
- * Trace operations (ops parameter) are strings:
- * - Variable: "read", "write", "unset", or combinations like "read write"
- * - Command: "rename", "delete"
- */
-typedef struct FeatherTraceOps {
-  /**
-   * add registers a trace callback.
-   *
-   * kind: "variable" or "command"
-   * name: the variable or command name to trace
-   * ops: space-separated list of operations ("read write", "rename delete")
-   * script: the command prefix to invoke when trace fires
-   *
-   * For variable traces, the script is invoked as: script name1 name2 op
-   *   - name1: variable name
-   *   - name2: empty (array element index, not supported)
-   *   - op: "read", "write", or "unset"
-   *
-   * For command traces, the script is invoked as: script oldName newName op
-   *   - oldName: original command name
-   *   - newName: new name (empty for delete)
-   *   - op: "rename" or "delete"
-   */
-  FeatherResult (*add)(FeatherInterp interp, FeatherObj kind, FeatherObj name,
-                   FeatherObj ops, FeatherObj script);
-
-  /**
-   * remove unregisters a trace callback.
-   *
-   * All parameters must match a previously registered trace.
-   * Returns TCL_ERROR if no matching trace found.
-   */
-  FeatherResult (*remove)(FeatherInterp interp, FeatherObj kind, FeatherObj name,
-                      FeatherObj ops, FeatherObj script);
-
-  /**
-   * info returns a list of traces on a variable or command.
-   *
-   * Returns a list of {ops script} pairs for each registered trace.
-   * Returns empty list if no traces.
-   */
-  FeatherObj (*info)(FeatherInterp interp, FeatherObj kind, FeatherObj name);
-
-  /**
-   * fire_enter fires "enter" execution traces before a command executes.
-   *
-   * cmdName: the fully qualified command name (e.g., "::myproc")
-   * cmdList: the full command as a list [cmdname, arg1, arg2, ...]
-   *
-   * The trace callback receives: cmdList "enter"
-   * Traces fire in LIFO order (last added first).
-   */
-  void (*fire_enter)(FeatherInterp interp, FeatherObj cmdName, FeatherObj cmdList);
-
-  /**
-   * fire_leave fires "leave" execution traces after a command executes.
-   *
-   * cmdName: the fully qualified command name
-   * cmdList: the full command as a list [cmdname, arg1, arg2, ...]
-   * code: the return code (TCL_OK=0, TCL_ERROR=1, etc.)
-   * result: the command result
-   *
-   * The trace callback receives: cmdList code result "leave"
-   * Traces fire in LIFO order (last added first).
-   */
-  void (*fire_leave)(FeatherInterp interp, FeatherObj cmdName, FeatherObj cmdList,
-                     FeatherResult code, FeatherObj result);
-} FeatherTraceOps;
-
-/**
  * FeatherBindOps defines the operations for host <> interpreter interop.
  */
 typedef struct FeatherBindOpts {
@@ -1464,7 +1386,6 @@ typedef struct FeatherHostOps {
   FeatherDoubleOps dbl;
   FeatherInterpOps interp;
   FeatherBindOpts bind;
-  FeatherTraceOps trace;
   FeatherForeignOps foreign;
 } FeatherHostOps;
 

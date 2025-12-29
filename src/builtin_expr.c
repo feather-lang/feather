@@ -364,11 +364,13 @@ static ExprValue parse_variable(ExprParser *p) {
 
   FeatherObj value;
   if (p->ops->list.is_nil(p->interp, ns)) {
-    // Unqualified - frame-local lookup
-    value = p->ops->var.get(p->interp, localName);
+    // Unqualified - frame-local lookup (with trace firing)
+    value = feather_get_var(p->ops, p->interp, localName);
   } else {
     // Qualified - namespace lookup
     value = p->ops->ns.get_var(p->interp, ns, localName);
+    // Fire traces for qualified variable access
+    feather_fire_var_traces(p->ops, p->interp, name_obj, "read");
   }
 
   if (p->ops->list.is_nil(p->interp, value)) {
