@@ -67,6 +67,21 @@ func (o *Obj) Type() string {
 	return o.intrep.Name()
 }
 
+// InternalRep returns the internal representation of the object.
+// Returns nil for pure string objects.
+//
+// Use type assertion to access custom ObjType implementations:
+//
+//	if myType, ok := obj.InternalRep().(*MyType); ok {
+//	    // use myType
+//	}
+func (o *Obj) InternalRep() ObjType {
+	if o == nil {
+		return nil
+	}
+	return o.intrep
+}
+
 // invalidate clears the cached string representation.
 // Should be called after mutating the internal representation.
 func (o *Obj) invalidate() {
