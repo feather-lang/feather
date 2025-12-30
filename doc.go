@@ -32,6 +32,145 @@
 //	result, _ = interp.Eval(`env HOME`)
 //	fmt.Println(result.String()) // "/home/user"
 //
+// # Thread Safety
+//
+// An [*Interp] is NOT safe for concurrent use from multiple goroutines.
+// Each goroutine that needs to evaluate TCL must have its own interpreter:
+//
+//	// WRONG: sharing interpreter between goroutines
+//	interp := feather.New()
+//	go func() { interp.Eval("...") }() // data race!
+//	go func() { interp.Eval("...") }() // data race!
+//
+//	// CORRECT: one interpreter per goroutine
+//	go func() {
+//	    interp := feather.New()
+//	    defer interp.Close()
+//	    interp.Eval("...")
+//	}()
+//
+// For server applications, use a pool of interpreters or create one per request.
+// [*Obj] values are also tied to their interpreter and must not be shared.
+//
+// # Supported TCL Commands
+//
+// feather implements a substantial subset of TCL 8.6. Available commands:
+//
+// Control flow:
+//
+//	if, while, for, foreach, switch, break, continue, return, tailcall
+//
+// Procedures and evaluation:
+//
+//	proc, apply, eval, uplevel, upvar, catch, try, throw, error
+//
+// Variables and namespaces:
+//
+//	set, unset, incr, append, global, variable, namespace, rename, trace
+//
+// Lists:
+//
+//	list, llength, lindex, lrange, lappend, lset, linsert, lreplace,
+//	lreverse, lrepeat, lsort, lsearch, lmap, lassign, split, join, concat
+//
+// Dictionaries:
+//
+//	dict (with subcommands: create, get, set, exists, keys, values, etc.)
+//
+// Strings:
+//
+//	string (with subcommands: length, index, range, equal, compare,
+//	        match, map, tolower, toupper, trim, replace, first, last, etc.)
+//	format, scan, subst
+//
+// Introspection:
+//
+//	info (with subcommands: exists, commands, procs, vars, body, args,
+//	      level, frame, script, etc.)
+//
+// Math functions (via expr):
+//
+//	sqrt, exp, log, log10, sin, cos, tan, asin, acos, atan, atan2,
+//	sinh, cosh, tanh, floor, ceil, round, abs, pow, fmod, hypot,
+//	double, int, wide, isnan, isinf
+//
+// NOT implemented: file I/O, sockets, regex, clock, encoding, interp (safe interps),
+// and most Tk-related commands. Use [Interp.Register] to add these if needed.
+//
+// # Error Handling
+//
+// Errors from [Interp.Eval] are returned as [*EvalError]:
+//
+//	result, err := interp.Eval("expr {1/0}")
+//	if err != nil {
+//	    // err is *EvalError, err.Error() returns the message
+//	    fmt.Println("Error:", err)
+//	}
+//
+// To return errors from Go commands, use [Error] or [Errorf]:
+//
+//	interp.RegisterCommand("fail", func(i *feather.Interp, cmd *feather.Obj, args []*feather.Obj) feather.Result {
+//	    // For Go errors, use err.Error() to get the string
+//	    _, err := os.Open("/nonexistent")
+//	    if err != nil {
+//	        return feather.Error(err.Error())
+//	    }
+//	    return feather.OK("success")
+//	})
+//
+// For functions registered with [Interp.Register], return an error as the last value:
+//
+//	interp.Register("openfile", func(path string) (string, error) {
+//	    data, err := os.ReadFile(path)
+//	    return string(data), err  // error automatically becomes TCL error
+//	})
+//
+// In TCL, use catch or try to handle errors:
+//
+//	if {[catch {openfile /nonexistent} errmsg]} {
+//	    puts "Error: $errmsg"
+//	}
+//
+// Note: feather does not currently provide stack traces or line numbers in errors.
+// The error message is the only diagnostic information available.
+//
+// # Working with Results
+//
+// [Interp.Eval] returns (*Obj, error). The result is the value of the last
+// command executed. Extract values using methods on [*Obj] or the As* functions:
+//
+//	result, _ := interp.Eval("expr {2 + 2}")
+//
+//	// As string (always works)
+//	s := result.String()  // "4"
+//
+//	// As typed values (may error if not convertible)
+//	n, err := result.Int()       // 4, nil
+//	f, err := result.Double()    // 4.0, nil
+//	b, err := result.Bool()      // true, nil
+//
+//	// For lists, first check if it's already a list or parse it
+//	result, _ = interp.Eval("list a b c")
+//	items, err := result.List()  // []*Obj{"a", "b", "c"}
+//	// Or parse a string as a list:
+//	items, err = interp.ParseList("a b {c d}")
+//
+// The [Result] type is only used when implementing commands with [Interp.RegisterCommand].
+// Create results with [OK], [Error], or [Errorf].
+//
+// # Memory and Lifetime
+//
+// [*Obj] values are managed by Go's garbage collector. You don't need to
+// explicitly free them. However:
+//
+//   - After [Interp.Close], all [*Obj] values from that interpreter become invalid
+//   - Don't store [*Obj] values beyond the interpreter's lifetime
+//   - Don't share [*Obj] values between interpreters
+//
+// For long-lived applications, be aware that string representations are cached.
+// An object that shimmers between int and string keeps both representations
+// until garbage collected.
+//
 // # The Obj Type System
 //
 // TCL values are represented by [*Obj]. Each Obj has two representations:
@@ -198,10 +337,31 @@
 //	    }
 //	    n, err := feather.AsInt(args[0])
 //	    if err != nil {
-//	        return feather.Error(err)
+//	        return feather.Error(err.Error())
 //	    }
 //	    return feather.OK(n * 2)
 //	})
+//
+// # Configuration
+//
+// Set the recursion limit to prevent stack overflow from deeply nested calls:
+//
+//	interp.SetRecursionLimit(500)  // Default is 1000
+//
+// # Parsing Without Evaluation
+//
+// Use [Interp.Parse] to check if a script is syntactically complete without
+// evaluating it. This is useful for implementing REPLs:
+//
+//	pr := interp.Parse("set x {")
+//	switch pr.Status {
+//	case feather.ParseOK:
+//	    // Complete, ready to evaluate
+//	case feather.ParseIncomplete:
+//	    // Unclosed brace/bracket/quote, prompt for more input
+//	case feather.ParseError:
+//	    // Syntax error, pr.Message has details
+//	}
 //
 // # Internal Types (Do Not Use)
 //
@@ -213,6 +373,13 @@
 //   - ObjHandle - Handle wrapper with interpreter reference
 //   - InternalCommandFunc - Low-level command signature
 //   - InternalParseStatus, ParseResultInternal - Internal parsing types
+//   - CallFrame, Namespace, Procedure, Command - Interpreter internals
+//   - ForeignRegistry, ForeignType, ForeignTypeDef - Use [TypeDef] instead
+//   - ListSortContext - Internal sorting state
+//   - FeatherResult, InternalCommandType - C interop constants
 //
 // These types may change or be removed in any version.
+//
+// Note: [Register] (the package-level generic function) is deprecated.
+// Use [RegisterType] instead.
 package feather
