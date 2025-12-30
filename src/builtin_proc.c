@@ -2,6 +2,7 @@
 #include "internal.h"
 #include "namespace_util.h"
 #include "charclass.h"
+#include "error_trace.h"
 
 FeatherResult feather_builtin_proc(const FeatherHostOps *ops, FeatherInterp interp,
                            FeatherObj cmd, FeatherObj args) {
@@ -203,6 +204,12 @@ FeatherResult feather_invoke_proc(const FeatherHostOps *ops, FeatherInterp inter
 
   // Evaluate the body as a script
   FeatherResult result = feather_script_eval_obj(ops, interp, body, TCL_EVAL_LOCAL);
+
+  // Append stack frame if error in progress
+  if (result == TCL_ERROR && feather_error_is_active(ops, interp)) {
+    size_t errorLine = ops->frame.get_line(interp, ops->frame.level(interp));
+    feather_error_append_frame(ops, interp, name, args, errorLine);
+  }
 
   // Pop the call frame
   ops->frame.pop(interp);

@@ -1,5 +1,6 @@
 #include "feather.h"
 #include "internal.h"
+#include "error_trace.h"
 
 // Helper macro
 #define S(lit) (lit), feather_strlen(lit)
@@ -62,6 +63,11 @@ FeatherResult feather_builtin_catch(const FeatherHostOps *ops, FeatherInterp int
       code = (FeatherResult)returnCode;
     }
     // If level > 0, keep code as TCL_RETURN (2)
+  }
+
+  // Finalize error state before getting options (transfers accumulated trace to opts)
+  if (code == TCL_ERROR && feather_error_is_active(ops, interp)) {
+    feather_error_finalize(ops, interp);
   }
 
   // Get the result (either normal result or error message)

@@ -21,6 +21,7 @@
 #include "./src/eval.c"
 #include "./src/trace.c"
 #include "./src/var.c"
+#include "./src/error_trace.c"
 
 /* Builtins */
 #include "./src/builtin_append.c"

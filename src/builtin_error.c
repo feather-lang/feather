@@ -1,5 +1,6 @@
 #include "feather.h"
 #include "internal.h"
+#include "error_trace.h"
 
 // Helper macro
 #define S(lit) (lit), feather_strlen(lit)
@@ -48,6 +49,11 @@ FeatherResult feather_builtin_error(const FeatherHostOps *ops, FeatherInterp int
 
   // Set the error message as result
   ops->interp.set_result(interp, message);
+
+  // Initialize error trace state if not already active and no explicit -errorinfo
+  if (argc < 2 && !feather_error_is_active(ops, interp)) {
+    feather_error_init(ops, interp, message, cmd, args);
+  }
 
   return TCL_ERROR;
 }

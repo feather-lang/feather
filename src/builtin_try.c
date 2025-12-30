@@ -1,5 +1,6 @@
 #include "feather.h"
 #include "internal.h"
+#include "error_trace.h"
 
 // Helper macro
 #define S(lit) (lit), feather_strlen(lit)
@@ -159,6 +160,13 @@ FeatherResult feather_builtin_try(const FeatherHostOps *ops, FeatherInterp inter
     if (level <= 0) {
       effectiveCode = (FeatherResult)returnCode;
     }
+  }
+
+  // Finalize error state before matching handlers (transfers accumulated trace to opts)
+  if (effectiveCode == TCL_ERROR && feather_error_is_active(ops, interp)) {
+    feather_error_finalize(ops, interp);
+    // Update bodyOptions to include the newly added error info
+    bodyOptions = ops->interp.get_return_options(interp, effectiveCode);
   }
 
   // Try to find a matching handler

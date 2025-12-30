@@ -148,6 +148,20 @@ void feather_interp_init(const FeatherHostOps *ops, FeatherInterp interp) {
   ops->ns.set_var(interp, traceNs, varName, emptyDict);
   ops->ns.set_var(interp, traceNs, cmdName, emptyDict);
   ops->ns.set_var(interp, traceNs, execName, emptyDict);
+
+  // Create ::tcl::errors namespace and initialize error state variables
+  FeatherObj errorsNs = ops->string.intern(interp, "::tcl::errors", 13);
+  ops->ns.create(interp, errorsNs);
+
+  FeatherObj activeName = ops->string.intern(interp, "active", 6);
+  FeatherObj infoName = ops->string.intern(interp, "info", 4);
+  FeatherObj stackName = ops->string.intern(interp, "stack", 5);
+  FeatherObj lineName = ops->string.intern(interp, "line", 4);
+
+  ops->ns.set_var(interp, errorsNs, activeName, ops->string.intern(interp, "0", 1));
+  ops->ns.set_var(interp, errorsNs, infoName, ops->string.intern(interp, "", 0));
+  ops->ns.set_var(interp, errorsNs, stackName, ops->list.create(interp));
+  ops->ns.set_var(interp, errorsNs, lineName, ops->integer.create(interp, 0));
 }
 
 FeatherObj feather_trace_get_dict(const FeatherHostOps *ops, FeatherInterp interp,
