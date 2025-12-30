@@ -1,0 +1,308 @@
+<test-suite>
+  <!--
+    Stack Trace Tests
+
+    Tests for -errorinfo, -errorstack, and -errorline in return options.
+    These accumulate during error propagation through procedure calls.
+  -->
+
+  <!-- ============================================= -->
+  <!-- Basic error state variables                   -->
+  <!-- ============================================= -->
+
+  <test-case name="tcl::errors::active is 0 initially">
+    <script>set ::tcl::errors::active</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="tcl::errors namespace exists">
+    <script>namespace exists ::tcl::errors</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Basic errorinfo in catch                      -->
+  <!-- ============================================= -->
+
+  <test-case name="catch captures errorinfo">
+    <script>catch {error oops} result opts
+expr {[lsearch $opts -errorinfo] != -1}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="catch captures errorstack">
+    <script>catch {error oops} result opts
+expr {[lsearch $opts -errorstack] != -1}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="catch captures errorline">
+    <script>catch {error oops} result opts
+expr {[lsearch $opts -errorline] != -1}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="errorinfo contains error message">
+    <script>catch {error "my error"} result opts
+set idx [lsearch $opts -errorinfo]
+set info [lindex $opts [expr {$idx + 1}]]
+string match "*my error*" $info</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="errorinfo contains while executing">
+    <script>catch {error "my error"} result opts
+set idx [lsearch $opts -errorinfo]
+set info [lindex $opts [expr {$idx + 1}]]
+string match "*while executing*" $info</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Errorstack format                             -->
+  <!-- ============================================= -->
+
+  <test-case name="errorstack starts with INNER">
+    <script>catch {error oops} result opts
+set idx [lsearch $opts -errorstack]
+set stack [lindex $opts [expr {$idx + 1}]]
+lindex $stack 0</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>INNER</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="errorstack has command entry after INNER">
+    <script>catch {error "test message"} result opts
+set idx [lsearch $opts -errorstack]
+set stack [lindex $opts [expr {$idx + 1}]]
+set cmdEntry [lindex $stack 1]
+lindex $cmdEntry 0</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>error</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Procedure stack frames                        -->
+  <!-- ============================================= -->
+
+  <test-case name="error through proc shows procedure in errorinfo">
+    <script>proc foo {} { error oops }
+catch {foo} result opts
+set idx [lsearch $opts -errorinfo]
+set info [lindex $opts [expr {$idx + 1}]]
+string match "*procedure*foo*" $info</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="error through proc shows invoked from within">
+    <script>proc bar {} { error oops }
+catch {bar} result opts
+set idx [lsearch $opts -errorinfo]
+set info [lindex $opts [expr {$idx + 1}]]
+string match "*invoked from within*" $info</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="errorstack includes CALL for procedure">
+    <script>proc baz {} { error oops }
+catch {baz} result opts
+set idx [lsearch $opts -errorstack]
+set stack [lindex $opts [expr {$idx + 1}]]
+expr {[lsearch $stack CALL] != -1}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Nested procedure calls                        -->
+  <!-- ============================================= -->
+
+  <test-case name="nested procs accumulate in errorstack">
+    <script>proc inner {} { error oops }
+proc outer {} { inner }
+catch {outer} result opts
+set idx [lsearch $opts -errorstack]
+set stack [lindex $opts [expr {$idx + 1}]]
+llength $stack</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>6</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="nested procs show both in errorinfo">
+    <script>proc a {} { error fail }
+proc b {} { a }
+catch {b} result opts
+set idx [lsearch $opts -errorinfo]
+set info [lindex $opts [expr {$idx + 1}]]
+expr {[string match "*procedure*a*" $info] && [string match "*procedure*b*" $info]}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Global ::errorInfo variable                   -->
+  <!-- ============================================= -->
+
+  <test-case name="catch sets global errorInfo">
+    <script>catch {error "test error"} result opts
+string match "*test error*" $::errorInfo</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="catch sets global errorCode">
+    <script>catch {error "test"} result opts
+info exists ::errorCode</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- throw command stack trace                     -->
+  <!-- ============================================= -->
+
+  <test-case name="throw creates errorstack">
+    <script>catch {throw {MY ERROR} "thrown"} result opts
+set idx [lsearch $opts -errorstack]
+set stack [lindex $opts [expr {$idx + 1}]]
+lindex $stack 0</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>INNER</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="throw creates errorinfo">
+    <script>catch {throw {ERR} "thrown error"} result opts
+set idx [lsearch $opts -errorinfo]
+set info [lindex $opts [expr {$idx + 1}]]
+string match "*thrown error*" $info</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- try command stack trace                       -->
+  <!-- ============================================= -->
+
+  <test-case name="try on error receives errorinfo">
+    <script>try {
+    error oops
+} on error {result opts} {
+    set idx [lsearch $opts -errorinfo]
+    expr {$idx != -1}
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="try trap receives errorinfo">
+    <script>try {
+    throw {MY ERR} "fail"
+} trap {MY ERR} {result opts} {
+    set idx [lsearch $opts -errorinfo]
+    expr {$idx != -1}
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Error state reset after catch                 -->
+  <!-- ============================================= -->
+
+  <test-case name="error state is reset after catch">
+    <script>catch {error oops} result opts
+set ::tcl::errors::active</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="nested catch handles separate errors">
+    <script>catch {
+    catch {error first} r1 o1
+    error second
+} r2 o2
+set idx1 [lsearch $o1 -errorinfo]
+set idx2 [lsearch $o2 -errorinfo]
+set info1 [lindex $o1 [expr {$idx1 + 1}]]
+set info2 [lindex $o2 [expr {$idx2 + 1}]]
+list [string match "*first*" $info1] [string match "*second*" $info2]</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1 1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>
