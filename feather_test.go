@@ -323,8 +323,8 @@ func TestInterpObjectCreation(t *testing.T) {
 		}
 	})
 
-	t.Run("Float", func(t *testing.T) {
-		v := interp.Float(3.14)
+	t.Run("Double", func(t *testing.T) {
+		v := interp.Double(3.14)
 		if v.Type() != "double" {
 			t.Errorf("expected type 'double', got %q", v.Type())
 		}

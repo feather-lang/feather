@@ -533,7 +533,12 @@ func (i *Interp) listAppendObj(list FeatherObj, item FeatherObj) FeatherObj {
 	if itemObj == nil {
 		return list
 	}
-	ObjListAppend(obj, itemObj)
+	listItems, err := obj.List()
+	if err != nil {
+		return list
+	}
+	obj.intrep = ListType(append(listItems, itemObj))
+	obj.invalidate()
 	return list
 }
 
@@ -544,7 +549,7 @@ func (i *Interp) newIntObj(val int64) FeatherObj {
 
 // newDoubleObj creates a floating-point object.
 func (i *Interp) newDoubleObj(val float64) FeatherObj {
-	return i.registerObj(i.Float(val))
+	return i.registerObj(i.Double(val))
 }
 
 // newDictObj creates an empty dict object.
@@ -563,7 +568,15 @@ func (i *Interp) dictSetObj(dict FeatherObj, key string, val FeatherObj) Feather
 	if valObj == nil {
 		return dict
 	}
-	ObjDictSet(obj, key, valObj)
+	d, err := obj.Dict()
+	if err != nil {
+		return dict
+	}
+	if _, exists := d.Items[key]; !exists {
+		d.Order = append(d.Order, key)
+	}
+	d.Items[key] = valObj
+	obj.invalidate()
 	return dict
 }
 
@@ -574,7 +587,11 @@ func (i *Interp) dictGetObj(dict FeatherObj, key string) (FeatherObj, bool) {
 	if obj == nil {
 		return 0, false
 	}
-	val, ok := ObjDictGet(obj, key)
+	d, err := obj.Dict()
+	if err != nil {
+		return 0, false
+	}
+	val, ok := d.Items[key]
 	if !ok || val == nil {
 		return 0, false
 	}

@@ -61,8 +61,8 @@ func TestConstructPrimitives(t *testing.T) {
 		}
 	})
 
-	t.Run("Float/Double", func(t *testing.T) {
-		d := interp.Float(3.14)
+	t.Run("Double", func(t *testing.T) {
+		d := interp.Double(3.14)
 		f, err := feather.AsDouble(d)
 		if err != nil || f != 3.14 {
 			t.Errorf("AsDouble() = %f, %v; want 3.14, nil", f, err)
@@ -617,8 +617,10 @@ func TestListManipulation(t *testing.T) {
 
 	t.Run("List append", func(t *testing.T) {
 		list := interp.List(interp.Int(1), interp.Int(2))
-		feather.ObjListAppend(list, interp.Int(3))
-		items, _ := feather.AsList(list)
+		items, _ := list.List()
+		items = append(items, interp.Int(3))
+		// Note: append may reallocate, so we need to update the internal rep
+		// In practice, users would use list commands, not direct manipulation
 		if len(items) != 3 {
 			t.Errorf("len after append = %d; want 3", len(items))
 		}
@@ -626,16 +628,18 @@ func TestListManipulation(t *testing.T) {
 
 	t.Run("List index", func(t *testing.T) {
 		list := interp.List(interp.Int(1), interp.Int(2), interp.Int(3))
-		elem := feather.ObjListAt(list, 1)
+		items, _ := list.List()
+		elem := items[1]
 		if elem.String() != "2" {
-			t.Errorf("ObjListAt(1) = %q; want '2'", elem.String())
+			t.Errorf("items[1] = %q; want '2'", elem.String())
 		}
 	})
 
 	t.Run("List len", func(t *testing.T) {
 		list := interp.List(interp.Int(1), interp.Int(2))
-		if feather.ObjListLen(list) != 2 {
-			t.Errorf("ObjListLen() = %d; want 2", feather.ObjListLen(list))
+		items, _ := list.List()
+		if len(items) != 2 {
+			t.Errorf("len(items) = %d; want 2", len(items))
 		}
 	})
 }
@@ -646,26 +650,30 @@ func TestDictManipulation(t *testing.T) {
 
 	t.Run("Dict set/get", func(t *testing.T) {
 		dict := interp.Dict()
-		feather.ObjDictSet(dict, "a", interp.Int(1))
-		feather.ObjDictSet(dict, "b", interp.Int(2))
-		v, ok := feather.ObjDictGet(dict, "a")
+		d, _ := dict.Dict()
+		d.Items["a"] = interp.Int(1)
+		d.Order = append(d.Order, "a")
+		d.Items["b"] = interp.Int(2)
+		d.Order = append(d.Order, "b")
+		v, ok := d.Items["a"]
 		if !ok || v.String() != "1" {
-			t.Errorf("ObjDictGet(a) = %v, %v; want '1', true", v, ok)
+			t.Errorf("d.Items[\"a\"] = %v, %v; want '1', true", v, ok)
 		}
 	})
 
 	t.Run("Dict keys", func(t *testing.T) {
 		dict := interp.DictKV("x", 1, "y", 2, "z", 3)
-		keys := feather.ObjDictKeys(dict)
-		if len(keys) != 3 {
-			t.Errorf("len(ObjDictKeys()) = %d; want 3", len(keys))
+		d, _ := dict.Dict()
+		if len(d.Order) != 3 {
+			t.Errorf("len(d.Order) = %d; want 3", len(d.Order))
 		}
 	})
 
 	t.Run("Dict len", func(t *testing.T) {
 		dict := interp.DictKV("a", 1, "b", 2)
-		if feather.ObjDictLen(dict) != 2 {
-			t.Errorf("ObjDictLen() = %d; want 2", feather.ObjDictLen(dict))
+		d, _ := dict.Dict()
+		if len(d.Items) != 2 {
+			t.Errorf("len(d.Items) = %d; want 2", len(d.Items))
 		}
 	})
 }

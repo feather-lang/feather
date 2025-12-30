@@ -421,12 +421,12 @@ func (s *HTTPServer) cmdTemplateList(i *feather.Interp) feather.Result {
 	s.templateMu.RLock()
 	defer s.templateMu.RUnlock()
 
-	list := i.List()
+	items := make([]*feather.Obj, 0, len(s.templates))
 	for name := range s.templates {
-		feather.ObjListAppend(list, i.String(name))
+		items = append(items, i.String(name))
 	}
 
-	return feather.OK(list)
+	return feather.OK(i.List(items...))
 }
 
 // cmdTemplateRender renders a template with data to the response.
@@ -497,13 +497,13 @@ func (s *HTTPServer) cmdTemplateErrors(i *feather.Interp) feather.Result {
 	s.templateMu.RLock()
 	defer s.templateMu.RUnlock()
 
-	dict := i.Dict()
+	errors := make(map[string]any)
 	for name, info := range s.templates {
 		if info.Error != nil {
-			feather.ObjDictSet(dict, name, i.String(info.Error.Error()))
+			errors[name] = info.Error.Error()
 		}
 	}
-	return feather.OK(dict)
+	return feather.OK(i.DictFrom(errors))
 }
 
 // tclToGoData converts a TCL object to Go data suitable for template execution.

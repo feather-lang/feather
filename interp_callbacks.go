@@ -642,12 +642,13 @@ func goListSetAt(interp C.FeatherInterp, list C.FeatherObj, index C.size_t, valu
 		return C.TCL_ERROR
 	}
 
-	// Mutate in place using ListSet helper
+	// Mutate in place
 	valueObj := i.getObject(FeatherObj(value))
 	if valueObj == nil {
 		return C.TCL_ERROR
 	}
-	ObjListSet(o, idx, valueObj)
+	listItems[idx] = valueObj
+	o.invalidate()
 
 	return C.TCL_OK
 }
@@ -839,18 +840,13 @@ func goDictGet(interp C.FeatherInterp, dict C.FeatherObj, key C.FeatherObj) C.Fe
 	if o == nil {
 		return 0
 	}
-	// Try direct dict access first
-	keyStr := i.getString(FeatherObj(key))
-	if val, ok := ObjDictGet(o, keyStr); ok {
-		return C.FeatherObj(i.registerObj(val))
-	}
-	// Try shimmering if needed
-	dictItems, _, err := i.getDict(FeatherObj(dict))
+	d, err := o.Dict()
 	if err != nil {
 		return 0
 	}
-	if val, ok := dictItems[keyStr]; ok {
-		return C.FeatherObj(val)
+	keyStr := i.getString(FeatherObj(key))
+	if val, ok := d.Items[keyStr]; ok {
+		return C.FeatherObj(i.registerObj(val))
 	}
 	return 0 // Key not found
 }
@@ -865,19 +861,21 @@ func goDictSet(interp C.FeatherInterp, dict C.FeatherObj, key C.FeatherObj, valu
 	if o == nil {
 		return 0
 	}
-	// Ensure it's a dict (shimmer if needed)
-	if _, ok := o.intrep.(*DictType); !ok {
-		_, _, err := i.getDict(FeatherObj(dict))
-		if err != nil {
-			return 0
-		}
+	d, err := o.Dict()
+	if err != nil {
+		return 0
 	}
 	keyStr := i.getString(FeatherObj(key))
 	valueObj := i.getObject(FeatherObj(value))
 	if valueObj == nil {
 		return 0
 	}
-	ObjDictSet(o, keyStr, valueObj)
+	// Add key to order if new
+	if _, exists := d.Items[keyStr]; !exists {
+		d.Order = append(d.Order, keyStr)
+	}
+	d.Items[keyStr] = valueObj
+	o.invalidate()
 	return dict
 }
 
@@ -1012,7 +1010,7 @@ func goDoubleCreate(interp C.FeatherInterp, val C.double) C.FeatherObj {
 	if i == nil {
 		return 0
 	}
-	return C.FeatherObj(i.registerObj(i.Float(float64(val))))
+	return C.FeatherObj(i.registerObj(i.Double(float64(val))))
 }
 
 //export goDoubleGet

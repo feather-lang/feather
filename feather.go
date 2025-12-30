@@ -193,12 +193,12 @@ func (i *Interp) Int(v int64) *Obj {
 	return &Obj{intrep: IntType(v), interp: i}
 }
 
-// Float creates a floating-point object.
+// Double creates a floating-point object.
 //
-//	f := interp.Float(3.14)
-//	f.Type()   // "double"
-//	f.String() // "3.14"
-func (i *Interp) Float(v float64) *Obj {
+//	d := interp.Double(3.14)
+//	d.Type()   // "double"
+//	d.String() // "3.14"
+func (i *Interp) Double(v float64) *Obj {
 	return &Obj{intrep: DoubleType(v), interp: i}
 }
 
@@ -262,7 +262,7 @@ func (i *Interp) ListFrom(slice any) *Obj {
 	case []float64:
 		items = make([]*Obj, len(s))
 		for j, v := range s {
-			items[j] = i.Float(v)
+			items[j] = i.Double(v)
 		}
 	case []any:
 		items = make([]*Obj, len(s))
@@ -275,11 +275,9 @@ func (i *Interp) ListFrom(slice any) *Obj {
 
 // Dict creates an empty dict object.
 //
-// Use dict helper functions to add key-value pairs, or use [Interp.DictKV] or
-// [Interp.DictFrom] to create a populated dict.
+// For populated dicts, use [Interp.DictKV] or [Interp.DictFrom]:
 //
-//	dict := interp.Dict()
-//	feather.ObjDictSet(dict, "key", interp.String("value"))
+//	dict := interp.DictKV("name", "Alice", "age", 30)
 func (i *Interp) Dict() *Obj {
 	return &Obj{intrep: &DictType{Items: make(map[string]*Obj)}, interp: i}
 }
@@ -309,15 +307,19 @@ func (i *Interp) Obj(intrep ObjType) *Obj {
 //	dict := interp.DictKV("name", "Alice", "age", 30, "active", true)
 //	dict.String() // "name Alice age 30 active 1"
 func (i *Interp) DictKV(kvs ...any) *Obj {
-	d := i.Dict()
+	items := make(map[string]*Obj)
+	order := make([]string, 0, len(kvs)/2)
 	for j := 0; j+1 < len(kvs); j += 2 {
 		key, ok := kvs[j].(string)
 		if !ok {
 			key = fmt.Sprintf("%v", kvs[j])
 		}
-		ObjDictSet(d, key, i.anyToObj(kvs[j+1]))
+		if _, exists := items[key]; !exists {
+			order = append(order, key)
+		}
+		items[key] = i.anyToObj(kvs[j+1])
 	}
-	return d
+	return &Obj{intrep: &DictType{Items: items, Order: order}, interp: i}
 }
 
 // DictFrom creates a dict object from a Go map.
@@ -330,11 +332,13 @@ func (i *Interp) DictKV(kvs ...any) *Obj {
 //	    "age":  30,
 //	})
 func (i *Interp) DictFrom(m map[string]any) *Obj {
-	d := i.Dict()
+	items := make(map[string]*Obj, len(m))
+	order := make([]string, 0, len(m))
 	for k, v := range m {
-		ObjDictSet(d, k, i.anyToObj(v))
+		order = append(order, k)
+		items[k] = i.anyToObj(v)
 	}
-	return d
+	return &Obj{intrep: &DictType{Items: items, Order: order}, interp: i}
 }
 
 // anyToObj converts any Go value to a *Obj.
@@ -348,7 +352,7 @@ func (i *Interp) anyToObj(v any) *Obj {
 	case int64:
 		return i.Int(val)
 	case float64:
-		return i.Float(val)
+		return i.Double(val)
 	case bool:
 		return i.Bool(val)
 	case *Obj:
