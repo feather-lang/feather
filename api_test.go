@@ -55,17 +55,17 @@ func TestConstructPrimitives(t *testing.T) {
 		if i.Type() != "int" {
 			t.Errorf("expected type 'int', got %q", i.Type())
 		}
-		n, err := feather.AsInt(i)
+		n, err := i.Int()
 		if err != nil || n != 42 {
-			t.Errorf("AsInt() = %d, %v; want 42, nil", n, err)
+			t.Errorf("Int() = %d, %v; want 42, nil", n, err)
 		}
 	})
 
 	t.Run("Double", func(t *testing.T) {
 		d := interp.Double(3.14)
-		f, err := feather.AsDouble(d)
+		f, err := d.Double()
 		if err != nil || f != 3.14 {
-			t.Errorf("AsDouble() = %f, %v; want 3.14, nil", f, err)
+			t.Errorf("Double() = %f, %v; want 3.14, nil", f, err)
 		}
 		if d.Type() != "double" {
 			t.Errorf("expected type 'double', got %q", d.Type())
@@ -73,17 +73,17 @@ func TestConstructPrimitives(t *testing.T) {
 	})
 
 	t.Run("Bool", func(t *testing.T) {
-		// For now, test AsBool() accessor on string
+		// Test Bool() accessor on string
 		s := interp.String("true")
-		b, err := feather.AsBool(s)
+		b, err := s.Bool()
 		if err != nil || !b {
-			t.Errorf("AsBool() = %v, %v; want true, nil", b, err)
+			t.Errorf("Bool() = %v, %v; want true, nil", b, err)
 		}
 
 		s = interp.String("0")
-		b, err = feather.AsBool(s)
+		b, err = s.Bool()
 		if err != nil || b {
-			t.Errorf("AsBool() = %v, %v; want false, nil", b, err)
+			t.Errorf("Bool() = %v, %v; want false, nil", b, err)
 		}
 	})
 }
@@ -101,7 +101,7 @@ func TestConstructLists(t *testing.T) {
 		if list.Type() != "list" {
 			t.Errorf("expected type 'list', got %q", list.Type())
 		}
-		items, err := feather.AsList(list)
+		items, err := list.List()
 		if err != nil {
 			t.Fatalf("AsList() failed: %v", err)
 		}
@@ -118,7 +118,7 @@ func TestConstructLists(t *testing.T) {
 
 	t.Run("ListFrom string slice", func(t *testing.T) {
 		list := interp.ListFrom([]string{"x", "y", "z"})
-		items, _ := feather.AsList(list)
+		items, _ := list.List()
 		if len(items) != 3 || items[0].String() != "x" {
 			t.Errorf("ListFrom([]string) failed")
 		}
@@ -126,19 +126,19 @@ func TestConstructLists(t *testing.T) {
 
 	t.Run("ListFrom int slice", func(t *testing.T) {
 		list := interp.ListFrom([]int{1, 2, 3})
-		items, _ := feather.AsList(list)
+		items, _ := list.List()
 		if len(items) != 3 {
 			t.Errorf("expected 3 items")
 		}
-		n, _ := feather.AsInt(items[0])
+		n, _ := items[0].Int()
 		if n != 1 {
-			t.Errorf("AsInt(items[0]) = %d; want 1", n)
+			t.Errorf("items[0].Int() = %d; want 1", n)
 		}
 	})
 
 	t.Run("ListFrom any slice", func(t *testing.T) {
 		list := interp.ListFrom([]any{"mixed", 42, 3.14})
-		items, _ := feather.AsList(list)
+		items, _ := list.List()
 		if len(items) != 3 {
 			t.Errorf("expected 3 items")
 		}
@@ -162,7 +162,7 @@ func TestConstructDicts(t *testing.T) {
 
 	t.Run("DictKV alternating key/value", func(t *testing.T) {
 		dict := interp.DictKV("name", "Alice", "age", 30, "active", true)
-		d, err := feather.AsDict(dict)
+		d, err := dict.Dict()
 		if err != nil {
 			t.Fatalf("AsDict() failed: %v", err)
 		}
@@ -176,7 +176,7 @@ func TestConstructDicts(t *testing.T) {
 
 	t.Run("DictFrom map", func(t *testing.T) {
 		dict := interp.DictFrom(map[string]any{"name": "Alice", "age": 30})
-		d, _ := feather.AsDict(dict)
+		d, _ := dict.Dict()
 		if d.Items["name"].String() != "Alice" {
 			t.Errorf("dict[name] = %q; want 'Alice'", d.Items["name"].String())
 		}
@@ -200,25 +200,25 @@ func TestReadingValues(t *testing.T) {
 
 	t.Run("Int parses and shimmers", func(t *testing.T) {
 		obj := interp.String("42")
-		n, err := feather.AsInt(obj)
+		n, err := obj.Int()
 		if err != nil {
-			t.Fatalf("AsInt() error: %v", err)
+			t.Fatalf("Int() error: %v", err)
 		}
 		if n != 42 {
-			t.Errorf("AsInt() = %d; want 42", n)
+			t.Errorf("Int() = %d; want 42", n)
 		}
 		// After shimmering, type should change to int
 		// (This depends on implementation - may still be "string")
 	})
 
-	t.Run("Float parses and shimmers", func(t *testing.T) {
+	t.Run("Double parses and shimmers", func(t *testing.T) {
 		obj := interp.String("3.14")
-		f, err := feather.AsDouble(obj)
+		f, err := obj.Double()
 		if err != nil {
-			t.Fatalf("AsDouble() error: %v", err)
+			t.Fatalf("Double() error: %v", err)
 		}
 		if f != 3.14 {
-			t.Errorf("AsDouble() = %f; want 3.14", f)
+			t.Errorf("Double() = %f; want 3.14", f)
 		}
 	})
 
@@ -226,32 +226,30 @@ func TestReadingValues(t *testing.T) {
 		truthy := []string{"1", "true", "yes", "on", "TRUE", "Yes", "ON"}
 		for _, s := range truthy {
 			obj := interp.String(s)
-			b, err := feather.AsBool(obj)
+			b, err := obj.Bool()
 			if err != nil || !b {
-				t.Errorf("AsBool(%q) = %v, %v; want true, nil", s, b, err)
+				t.Errorf("Bool(%q) = %v, %v; want true, nil", s, b, err)
 			}
 		}
 
 		falsy := []string{"0", "false", "no", "off", "FALSE", "No", "OFF"}
 		for _, s := range falsy {
 			obj := interp.String(s)
-			b, err := feather.AsBool(obj)
+			b, err := obj.Bool()
 			if err != nil || b {
-				t.Errorf("AsBool(%q) = %v, %v; want false, nil", s, b, err)
+				t.Errorf("Bool(%q) = %v, %v; want false, nil", s, b, err)
 			}
 		}
 	})
 
-	// Note: String-to-list parsing requires interpreter, so AsList won't work
-	// on pure string objects. These tests use pre-constructed lists.
 	t.Run("List from constructed list", func(t *testing.T) {
 		list := interp.List(interp.String("a"), interp.String("b"), interp.String("c"))
-		items, err := feather.AsList(list)
+		items, err := list.List()
 		if err != nil {
-			t.Fatalf("AsList() error: %v", err)
+			t.Fatalf("List() error: %v", err)
 		}
 		if len(items) != 3 {
-			t.Errorf("len(AsList()) = %d; want 3", len(items))
+			t.Errorf("len(List()) = %d; want 3", len(items))
 		}
 		if items[0].String() != "a" {
 			t.Errorf("items[0] = %q; want 'a'", items[0].String())
@@ -260,12 +258,12 @@ func TestReadingValues(t *testing.T) {
 
 	t.Run("Dict from constructed dict", func(t *testing.T) {
 		dict := interp.DictKV("a", 1, "b", 2)
-		d, err := feather.AsDict(dict)
+		d, err := dict.Dict()
 		if err != nil {
-			t.Fatalf("AsDict() error: %v", err)
+			t.Fatalf("Dict() error: %v", err)
 		}
 		if len(d.Items) != 2 {
-			t.Errorf("len(AsDict()) = %d; want 2", len(d.Items))
+			t.Errorf("len(Dict()) = %d; want 2", len(d.Items))
 		}
 		if d.Items["a"].String() != "1" {
 			t.Errorf("dict[a] = %q; want '1'", d.Items["a"].String())
@@ -295,9 +293,9 @@ func TestVariables(t *testing.T) {
 		if v.String() != "42" {
 			t.Errorf("Var(count) = %q; want '42'", v.String())
 		}
-		n, err := feather.AsInt(v)
+		n, err := v.Int()
 		if err != nil || n != 42 {
-			t.Errorf("Var(count).AsInt() = %d, %v; want 42, nil", n, err)
+			t.Errorf("Var(count).Int() = %d, %v; want 42, nil", n, err)
 		}
 	})
 
@@ -315,9 +313,9 @@ func TestVariables(t *testing.T) {
 	t.Run("GetVar and Int", func(t *testing.T) {
 		interp.SetVar("x", 100)
 		v := interp.Var("x")
-		n, _ := feather.AsInt(v)
+		n, _ := v.Int()
 		if n != 100 {
-			t.Errorf("x.AsInt() = %d; want 100", n)
+			t.Errorf("x.Int() = %d; want 100", n)
 		}
 	})
 
@@ -386,14 +384,14 @@ func TestCommandsRaw(t *testing.T) {
 			if len(args) != 1 {
 				return feather.Error("usage: mysum list")
 			}
-			// Use i.ParseList to parse the string argument into a list
-			items, err := i.ParseList(args[0].String())
+			// Use obj.List() to parse the string argument into a list
+			items, err := args[0].List()
 			if err != nil {
 				return feather.Error(err.Error())
 			}
 			var total int64
 			for _, item := range items {
-				n, err := feather.AsInt(item)
+				n, err := item.Int()
 				if err != nil {
 					return feather.Errorf("not an integer: %s", item.String())
 				}
@@ -416,8 +414,8 @@ func TestCommandsRaw(t *testing.T) {
 			if len(args) != 1 {
 				return feather.Error("usage: get-name dict")
 			}
-			// Use i.ParseDict to parse the string argument into a dict
-			d, err := i.ParseDict(args[0].String())
+			// Use obj.Dict() to parse the string argument into a dict
+			d, err := args[0].Dict()
 			if err != nil {
 				return feather.Error(err.Error())
 			}
@@ -446,9 +444,9 @@ func TestCommandsRaw(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Eval failed: %v", err)
 		}
-		d, err := feather.AsDict(result)
+		d, err := result.Dict()
 		if err != nil {
-			t.Fatalf("AsDict() error: %v", err)
+			t.Fatalf("Dict() error: %v", err)
 		}
 		if d.Items["name"].String() != "Alice" {
 			t.Errorf("name = %q; want 'Alice'", d.Items["name"].String())
@@ -600,7 +598,7 @@ func TestCallAPI(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Call failed: %v", err)
 		}
-		items, _ := feather.AsList(result)
+		items, _ := result.List()
 		if len(items) != 3 {
 			t.Errorf("list length = %d; want 3", len(items))
 		}
@@ -775,7 +773,7 @@ func TestErrorHandling(t *testing.T) {
 
 	t.Run("Int conversion error", func(t *testing.T) {
 		obj := interp.String("not a number")
-		_, err := feather.AsInt(obj)
+		_, err := obj.Int()
 		if err == nil {
 			t.Fatal("expected conversion error")
 		}

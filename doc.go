@@ -149,11 +149,12 @@
 //	f, err := result.Double()    // 4.0, nil
 //	b, err := result.Bool()      // true, nil
 //
-//	// For lists, first check if it's already a list or parse it
+//	// For lists, use List() which handles parsing automatically
 //	result, _ = interp.Eval("list a b c")
 //	items, err := result.List()  // []*Obj{"a", "b", "c"}
-//	// Or parse a string as a list:
-//	items, err = interp.ParseList("a b {c d}")
+//	// Even string objects parse automatically:
+//	s := interp.String("a b {c d}")
+//	items, _ = s.List()  // []*Obj{"a", "b", "c d"}
 //
 // The [Result] type is only used when implementing commands with [Interp.RegisterCommand].
 // Create results with [OK], [Error], or [Errorf].
@@ -183,19 +184,16 @@
 // when you request a value as an integer, it parses the string and caches
 // the int; when you later request the string, it's regenerated from the int.
 //
-// Use the As* functions to convert between types:
+// Use the Obj methods to convert between types:
 //
-//	n, err := feather.AsInt(obj)      // Get as int64
-//	f, err := feather.AsDouble(obj)   // Get as float64
-//	b, err := feather.AsBool(obj)     // Get as bool
-//	list, err := feather.AsList(obj)  // Get as []*Obj (requires list rep)
-//	dict, err := feather.AsDict(obj)  // Get as *DictType (requires dict rep)
+//	n, err := obj.Int()      // Get as int64
+//	f, err := obj.Double()   // Get as float64
+//	b, err := obj.Bool()     // Get as bool
+//	list, err := obj.List()  // Get as []*Obj (parses strings automatically)
+//	dict, err := obj.Dict()  // Get as *DictType (parses strings automatically)
 //
-// Note: AsList and AsDict only work on objects that already have list/dict
-// representations. To parse a string as a list or dict, use the interpreter:
-//
-//	list, err := interp.ParseList("a b {c d}")   // Parse string to list
-//	dict, err := interp.ParseDict("name Alice")  // Parse string to dict
+// The List() and Dict() methods automatically parse string objects when needed,
+// using the interpreter that created the object.
 //
 // # Custom Object Types
 //
@@ -241,7 +239,7 @@
 // # Conversion Interfaces
 //
 // Custom types can implement conversion interfaces to participate in
-// automatic type coercion. When [AsInt] is called on an Obj, it first
+// automatic type coercion. When obj.Int() is called, it first
 // checks if the internal representation implements [IntoInt]:
 //
 //	type IntoInt interface {
@@ -335,7 +333,7 @@
 //	    if len(args) < 1 {
 //	        return feather.Errorf("usage: %s value", cmd.String())
 //	    }
-//	    n, err := feather.AsInt(args[0])
+//	    n, err := args[0].Int()
 //	    if err != nil {
 //	        return feather.Error(err.Error())
 //	    }

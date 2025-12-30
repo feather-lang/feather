@@ -116,31 +116,31 @@ func (o *Obj) setBytes(s string) {
 
 // Int returns the integer value of this object, shimmering if needed.
 func (o *Obj) Int() (int64, error) {
-	return AsInt(o)
+	return asInt(o)
 }
 
 // Double returns the float64 value of this object, shimmering if needed.
 func (o *Obj) Double() (float64, error) {
-	return AsDouble(o)
+	return asDouble(o)
 }
 
 // Bool returns the boolean value of this object using TCL boolean rules.
 func (o *Obj) Bool() (bool, error) {
-	return AsBool(o)
+	return asBool(o)
 }
 
 // List returns the list elements of this object, shimmering if needed.
 // If the object is a pure string, it will be parsed as a TCL list.
 func (o *Obj) List() ([]*Obj, error) {
 	// Try existing list rep first
-	if list, err := AsList(o); err == nil {
+	if list, err := asList(o); err == nil {
 		return list, nil
 	}
 	// Shimmer via interpreter
 	if o == nil || o.interp == nil {
 		return nil, fmt.Errorf("cannot parse list without interpreter")
 	}
-	list, err := o.interp.ParseList(o.String())
+	list, err := o.interp.parseList(o.String())
 	if err != nil {
 		return nil, err
 	}
@@ -152,14 +152,14 @@ func (o *Obj) List() ([]*Obj, error) {
 // If the object is a pure string, it will be parsed as a TCL dict.
 func (o *Obj) Dict() (*DictType, error) {
 	// Try existing dict rep first
-	if d, err := AsDict(o); err == nil {
+	if d, err := asDict(o); err == nil {
 		return d, nil
 	}
 	// Shimmer via interpreter
 	if o == nil || o.interp == nil {
 		return nil, fmt.Errorf("cannot parse dict without interpreter")
 	}
-	d, err := o.interp.ParseDict(o.String())
+	d, err := o.interp.parseDict(o.String())
 	if err != nil {
 		return nil, err
 	}

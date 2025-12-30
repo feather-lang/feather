@@ -171,7 +171,7 @@ func Example_timestampType() {
 	fmt.Println("String:", result.String())
 
 	// But we can also get the Unix timestamp via IntoInt
-	n, _ := feather.AsInt(ts)
+	n, _ := ts.Int()
 	fmt.Println("Unix:", n)
 
 	// Output:

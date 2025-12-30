@@ -6,12 +6,8 @@ import (
 	"strings"
 )
 
-// NOTE: String-to-list and string-to-dict conversions require the interpreter's
-// parsing facilities (which delegate to the C core). The AsList and AsDict
-// functions only handle direct conversions via IntoList/IntoDict interfaces.
-
-// AsInt converts o to int64, shimmering if needed.
-func AsInt(o *Obj) (int64, error) {
+// asInt converts o to int64, shimmering if needed.
+func asInt(o *Obj) (int64, error) {
 	if o == nil {
 		return 0, nil
 	}
@@ -32,8 +28,8 @@ func AsInt(o *Obj) (int64, error) {
 	return v, nil
 }
 
-// AsDouble converts o to float64, shimmering if needed.
-func AsDouble(o *Obj) (float64, error) {
+// asDouble converts o to float64, shimmering if needed.
+func asDouble(o *Obj) (float64, error) {
 	if o == nil {
 		return 0, nil
 	}
@@ -53,9 +49,9 @@ func AsDouble(o *Obj) (float64, error) {
 	return v, nil
 }
 
-// AsList converts o to a list if it has a list-compatible internal representation.
-// For string-to-list conversion, use the interpreter's parsing facilities.
-func AsList(o *Obj) ([]*Obj, error) {
+// asList converts o to a list if it has a list-compatible internal representation.
+// For string-to-list conversion, use obj.List() which handles parsing.
+func asList(o *Obj) ([]*Obj, error) {
 	if o == nil {
 		return nil, nil
 	}
@@ -69,9 +65,9 @@ func AsList(o *Obj) ([]*Obj, error) {
 	return nil, fmt.Errorf("cannot convert %q to list without interpreter", o.String())
 }
 
-// AsDict converts o to a dictionary if it has a dict-compatible internal representation.
-// For string-to-dict conversion, use the interpreter's parsing facilities.
-func AsDict(o *Obj) (*DictType, error) {
+// asDict converts o to a dictionary if it has a dict-compatible internal representation.
+// For string-to-dict conversion, use obj.Dict() which handles parsing.
+func asDict(o *Obj) (*DictType, error) {
 	if o == nil {
 		return &DictType{Items: make(map[string]*Obj)}, nil
 	}
@@ -87,8 +83,8 @@ func AsDict(o *Obj) (*DictType, error) {
 	return nil, fmt.Errorf("cannot convert %q to dict without interpreter", o.String())
 }
 
-// AsBool converts o to a boolean, shimmering if needed.
-func AsBool(o *Obj) (bool, error) {
+// asBool converts o to a boolean, shimmering if needed.
+func asBool(o *Obj) (bool, error) {
 	if o == nil {
 		return false, nil
 	}
@@ -99,7 +95,7 @@ func AsBool(o *Obj) (bool, error) {
 		}
 	}
 	// Fallback: try as int, then check truthiness
-	if v, err := AsInt(o); err == nil {
+	if v, err := asInt(o); err == nil {
 		return v != 0, nil
 	}
 	// String truthiness

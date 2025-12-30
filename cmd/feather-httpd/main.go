@@ -261,7 +261,7 @@ func (s *HTTPServer) cmdStatus(i *feather.Interp, cmd *feather.Obj, args []*feat
 		return feather.Error("wrong # args: should be \"status code\"")
 	}
 
-	code, err := feather.AsInt(args[0])
+	code, err := args[0].Int()
 	if err != nil {
 		return feather.Errorf("status: invalid code: %v", err)
 	}
@@ -510,7 +510,7 @@ func (s *HTTPServer) cmdTemplateErrors(i *feather.Interp) feather.Result {
 func (s *HTTPServer) tclToGoData(obj *feather.Obj) any {
 	// Check native dict first (avoids infinite recursion from shimmering)
 	if obj.Type() == "dict" {
-		d, err := feather.AsDict(obj)
+		d, err := obj.Dict()
 		if err == nil {
 			result := make(map[string]any)
 			for _, key := range d.Order {
@@ -523,7 +523,7 @@ func (s *HTTPServer) tclToGoData(obj *feather.Obj) any {
 
 	// Check native list (avoids infinite recursion from shimmering)
 	if obj.Type() == "list" {
-		listItems, err := feather.AsList(obj)
+		listItems, err := obj.List()
 		if err == nil {
 			result := make([]any, len(listItems))
 			for idx, elem := range listItems {

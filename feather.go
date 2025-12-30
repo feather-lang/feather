@@ -431,8 +431,8 @@ func (i *Interp) Call(cmd string, args ...any) (*Obj, error) {
 //
 //	interp.SetVar("x", 42)
 //	v := interp.Var("x")
-//	feather.AsInt(v)  // 42, nil
-//	v.Type()          // "int" (if SetVar preserved type) or "string"
+//	v.Int()   // 42, nil
+//	v.Type()  // "int" (if SetVar preserved type) or "string"
 func (i *Interp) Var(name string) *Obj {
 	h := i.GetVarHandle(name)
 	if h == 0 {
@@ -507,11 +507,11 @@ type CommandFunc func(i *Interp, cmd *Obj, args []*Obj) Result
 //	    if len(args) < 2 {
 //	        return feather.Errorf("wrong # args: should be \"%s a b\"", cmd.String())
 //	    }
-//	    a, err := feather.AsInt(args[0])
+//	    a, err := args[0].Int()
 //	    if err != nil {
 //	        return feather.Error(err.Error())
 //	    }
-//	    b, err := feather.AsInt(args[1])
+//	    b, err := args[1].Int()
 //	    if err != nil {
 //	        return feather.Error(err.Error())
 //	    }
@@ -645,14 +645,9 @@ func (i *Interp) Parse(script string) ParseResult {
 // Parsing
 // -----------------------------------------------------------------------------
 
-// ParseList parses a string into a list.
-//
-// Use this when you have a string that needs to be parsed as a TCL list.
-// For objects that are already lists, use [AsList] instead.
-//
-//	items, err := interp.ParseList("{a b} c d")
-//	// items = []*Obj{"a b", "c", "d"}
-func (i *Interp) ParseList(s string) ([]*Obj, error) {
+// parseList parses a string into a list.
+// This is used internally by Obj.List() for shimmering.
+func (i *Interp) parseList(s string) ([]*Obj, error) {
 	strHandle := i.internString(s)
 	handles, err := i.getList(strHandle)
 	if err != nil {
@@ -665,14 +660,9 @@ func (i *Interp) ParseList(s string) ([]*Obj, error) {
 	return result, nil
 }
 
-// ParseDict parses a string into a dict.
-//
-// Use this when you have a string that needs to be parsed as a TCL dict.
-// For objects that are already dicts, use [AsDict] instead.
-//
-//	d, err := interp.ParseDict("name Alice age 30")
-//	// d.Items["name"].String() == "Alice"
-func (i *Interp) ParseDict(s string) (*DictType, error) {
+// parseDict parses a string into a dict.
+// This is used internally by Obj.Dict() for shimmering.
+func (i *Interp) parseDict(s string) (*DictType, error) {
 	strHandle := i.internString(s)
 	items, order, err := i.getDict(strHandle)
 	if err != nil {

@@ -42,7 +42,7 @@ func goBindUnknown(interp C.FeatherInterp, cmd C.FeatherObj, args C.FeatherObj, 
 	if args != 0 {
 		o := i.getObject(FeatherObj(args))
 		if o != nil {
-			if list, err := AsList(o); err == nil {
+			if list, err := asList(o); err == nil {
 				argSlice = make([]FeatherObj, len(list))
 				for idx, item := range list {
 					argSlice[idx] = i.registerObj(item)
@@ -453,13 +453,13 @@ func goListPush(interp C.FeatherInterp, list C.FeatherObj, item C.FeatherObj) C.
 		return list
 	}
 	// Ensure it's a list, shimmer if needed
-	listItems, err := AsList(o)
+	listItems, err := asList(o)
 	if err != nil {
 		// Try parsing from string
 		if _, err := i.getList(FeatherObj(list)); err != nil {
 			return list
 		}
-		listItems, _ = AsList(o)
+		listItems, _ = asList(o)
 	}
 	// Append and update intrep
 	o.intrep = ListType(append(listItems, itemObj))
@@ -478,12 +478,12 @@ func goListPop(interp C.FeatherInterp, list C.FeatherObj) C.FeatherObj {
 		return 0
 	}
 	// Ensure it's a list
-	listItems, err := AsList(o)
+	listItems, err := asList(o)
 	if err != nil {
 		if _, err := i.getList(FeatherObj(list)); err != nil {
 			return 0
 		}
-		listItems, _ = AsList(o)
+		listItems, _ = asList(o)
 	}
 	if len(listItems) == 0 {
 		return 0
@@ -509,12 +509,12 @@ func goListUnshift(interp C.FeatherInterp, list C.FeatherObj, item C.FeatherObj)
 		return list
 	}
 	// Ensure it's a list
-	listItems, err := AsList(o)
+	listItems, err := asList(o)
 	if err != nil {
 		if _, err := i.getList(FeatherObj(list)); err != nil {
 			return list
 		}
-		listItems, _ = AsList(o)
+		listItems, _ = asList(o)
 	}
 	// Prepend item to the list
 	o.intrep = ListType(append([]*Obj{itemObj}, listItems...))
@@ -533,12 +533,12 @@ func goListShift(interp C.FeatherInterp, list C.FeatherObj) C.FeatherObj {
 		return 0
 	}
 	// Ensure it's a list
-	listItems, err := AsList(o)
+	listItems, err := asList(o)
 	if err != nil {
 		if _, err := i.getList(FeatherObj(list)); err != nil {
 			return 0
 		}
-		listItems, _ = AsList(o)
+		listItems, _ = asList(o)
 	}
 	if len(listItems) == 0 {
 		return 0
@@ -628,13 +628,13 @@ func goListSetAt(interp C.FeatherInterp, list C.FeatherObj, index C.size_t, valu
 		return C.TCL_ERROR
 	}
 
-	// Use AsList for direct access, or GetList for shimmering (string → list)
-	listItems, err := AsList(o)
+	// Use asList for direct access, or GetList for shimmering (string → list)
+	listItems, err := asList(o)
 	if err != nil {
 		if _, err := i.getList(FeatherObj(list)); err != nil {
 			return C.TCL_ERROR
 		}
-		listItems, _ = AsList(o)
+		listItems, _ = asList(o)
 	}
 
 	idx := int(index)
@@ -666,12 +666,12 @@ func goListSplice(interp C.FeatherInterp, list C.FeatherObj, first C.size_t, del
 	}
 
 	// Get list items via shimmering
-	listItems, err := AsList(o)
+	listItems, err := asList(o)
 	if err != nil {
 		if _, err := i.getList(FeatherObj(list)); err != nil {
 			return 0
 		}
-		listItems, _ = AsList(o)
+		listItems, _ = asList(o)
 	}
 
 	f := int(first)
@@ -683,7 +683,7 @@ func goListSplice(interp C.FeatherInterp, list C.FeatherObj, first C.size_t, del
 	if insertions != 0 {
 		insObj := i.getObject(FeatherObj(insertions))
 		if insObj != nil {
-			insItems, err := AsList(insObj)
+			insItems, err := asList(insObj)
 			if err != nil {
 				if insHandles, err := i.getList(FeatherObj(insertions)); err == nil {
 					insertObjs = make([]*Obj, len(insHandles))
@@ -745,12 +745,12 @@ func goListSort(interp C.FeatherInterp, list C.FeatherObj, cmpFunc unsafe.Pointe
 	}
 
 	// Get list items via shimmering
-	listItems, err := AsList(o)
+	listItems, err := asList(o)
 	if err != nil {
 		if _, err := i.getList(FeatherObj(list)); err != nil {
 			return C.TCL_ERROR
 		}
-		listItems, _ = AsList(o)
+		listItems, _ = asList(o)
 	}
 
 	if len(listItems) <= 1 {

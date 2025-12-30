@@ -243,7 +243,7 @@ func (i *Interp) ParseInternal(script string) ParseResultInternal {
 		resultStr = i.objToString(i.result)
 		// For parse errors, extract the error message (4th element) directly from the list
 		if InternalParseStatus(status) == InternalParseError {
-			if listItems, err := AsList(i.result); err == nil && len(listItems) >= 4 {
+			if listItems, err := asList(i.result); err == nil && len(listItems) >= 4 {
 				if msgObj := listItems[3]; msgObj != nil {
 					errorMsg = msgObj.String()
 				}
@@ -265,7 +265,7 @@ func (i *Interp) objToString(obj *Obj) string {
 		return ""
 	}
 	// Try list first
-	if listItems, err := AsList(obj); err == nil {
+	if listItems, err := asList(obj); err == nil {
 		// Build TCL list representation: {elem1 elem2 ...}
 		var result string
 		for idx, itemObj := range listItems {
@@ -311,7 +311,7 @@ func (i *Interp) objToValue(obj *Obj) string {
 		return ""
 	}
 	// Try list first
-	if listItems, err := AsList(obj); err == nil {
+	if listItems, err := asList(obj); err == nil {
 		// Build TCL list value: elem1 elem2 ...
 		// Elements with spaces are braced, but the list itself is not wrapped
 		var result string
@@ -331,7 +331,7 @@ func (i *Interp) objToValue(obj *Obj) string {
 			case ListType:
 				// Nested lists need to be braced
 				nested := i.objToValue(itemObj)
-				nestedList, _ := AsList(itemObj)
+				nestedList, _ := asList(itemObj)
 				if len(nestedList) > 0 || strings.ContainsAny(nested, " \t\n") {
 					result += "{" + nested + "}"
 				} else {
@@ -384,11 +384,11 @@ func (i *Interp) eval(script string) (string, error) {
 		// Get return options and apply the code
 		var code C.FeatherResult = C.TCL_OK
 		if i.returnOptions != nil {
-			if items, err := AsList(i.returnOptions); err == nil {
+			if items, err := asList(i.returnOptions); err == nil {
 				for j := 0; j+1 < len(items); j += 2 {
 					key := items[j].String()
 					if key == "-code" {
-						if codeVal, err := AsInt(items[j+1]); err == nil {
+						if codeVal, err := asInt(items[j+1]); err == nil {
 							code = C.FeatherResult(codeVal)
 						}
 					}
@@ -592,7 +592,7 @@ func (i *Interp) getInt(h FeatherObj) (int64, error) {
 	if obj == nil {
 		return 0, fmt.Errorf("nil object")
 	}
-	return AsInt(obj)
+	return asInt(obj)
 }
 
 // GetDouble returns the floating-point representation of an object.
@@ -603,7 +603,7 @@ func (i *Interp) getDouble(h FeatherObj) (float64, error) {
 	if obj == nil {
 		return 0, fmt.Errorf("nil object")
 	}
-	return AsDouble(obj)
+	return asDouble(obj)
 }
 
 // GetList returns the list representation of an object as handles.
@@ -614,8 +614,8 @@ func (i *Interp) getList(h FeatherObj) ([]FeatherObj, error) {
 	if obj == nil {
 		return nil, fmt.Errorf("nil object")
 	}
-	// Try to get list via AsList (works for ListType)
-	if list, err := AsList(obj); err == nil {
+	// Try to get list via asList (works for ListType)
+	if list, err := asList(obj); err == nil {
 		// Convert []*Obj to []FeatherObj handles
 		handles := make([]FeatherObj, len(list))
 		for idx, item := range list {
@@ -641,7 +641,7 @@ func (i *Interp) getList(h FeatherObj) ([]FeatherObj, error) {
 	if listObj == nil {
 		return nil, fmt.Errorf("failed to parse list")
 	}
-	items, err := AsList(listObj)
+	items, err := asList(listObj)
 	if err != nil {
 		return nil, err
 	}
@@ -665,8 +665,8 @@ func (i *Interp) getDict(h FeatherObj) (map[string]FeatherObj, []string, error) 
 	if obj == nil {
 		return nil, nil, fmt.Errorf("nil object")
 	}
-	// Try to get dict via AsDict (works for DictType)
-	if d, err := AsDict(obj); err == nil {
+	// Try to get dict via asDict (works for DictType)
+	if d, err := asDict(obj); err == nil {
 		// Convert map[string]*Obj to map[string]FeatherObj handles
 		handles := make(map[string]FeatherObj, len(d.Items))
 		for k, v := range d.Items {
