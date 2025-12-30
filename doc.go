@@ -379,7 +379,4 @@
 //   - FeatherResult, InternalCommandType - C interop constants
 //
 // These types may change or be removed in any version.
-//
-// Note: [Register] (the package-level generic function) is deprecated.
-// Use [RegisterType] instead.
 package feather

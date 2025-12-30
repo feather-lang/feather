@@ -811,10 +811,3 @@ func RegisterType[T any](fi *Interp, name string, def TypeDef[T]) error {
 		Destroy:   def.Destroy,
 	})
 }
-
-// Register is deprecated; use [RegisterType] instead.
-//
-// Deprecated: This function was renamed for clarity.
-func Register[T any](fi *Interp, name string, def TypeDef[T]) error {
-	return RegisterType[T](fi, name, def)
-}
