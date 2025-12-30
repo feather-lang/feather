@@ -519,7 +519,7 @@ func (i *Interp) GetForeignStringRep(obj FeatherObj) string {
 
 // newListObj creates an empty list object.
 func (i *Interp) newListObj() FeatherObj {
-	return i.registerObj(NewListObj())
+	return i.registerObj(i.List())
 }
 
 // listAppendObj appends an item to a list and returns the list.
@@ -539,17 +539,17 @@ func (i *Interp) listAppendObj(list FeatherObj, item FeatherObj) FeatherObj {
 
 // newIntObj creates an integer object.
 func (i *Interp) newIntObj(val int64) FeatherObj {
-	return i.registerObj(NewIntObj(val))
+	return i.registerObj(i.Int(val))
 }
 
 // newDoubleObj creates a floating-point object.
 func (i *Interp) newDoubleObj(val float64) FeatherObj {
-	return i.registerObj(NewDoubleObj(val))
+	return i.registerObj(i.Float(val))
 }
 
 // newDictObj creates an empty dict object.
 func (i *Interp) newDictObj() FeatherObj {
-	return i.registerObj(NewDictObj())
+	return i.registerObj(i.Dict())
 }
 
 // dictSetObj sets a key-value pair in a dict and returns the dict.
@@ -593,7 +593,7 @@ func (i *Interp) Type(h FeatherObj) string {
 
 // newForeignObj creates a foreign object with the given type name and value.
 func (i *Interp) newForeignObj(typeName string, value any) FeatherObj {
-	obj := NewForeignObj(typeName, value)
+	obj := &Obj{intrep: &ForeignType{TypeName: typeName, Value: value}, interp: i}
 	return i.registerObj(obj)
 }
 

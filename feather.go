@@ -181,7 +181,7 @@ func (i *Interp) Close() {
 //	s.Type()   // "string"
 //	s.String() // "hello world"
 func (i *Interp) String(s string) *Obj {
-	return NewStringObj(s)
+	return &Obj{bytes: s, interp: i}
 }
 
 // Int creates an integer object.
@@ -190,7 +190,7 @@ func (i *Interp) String(s string) *Obj {
 //	n.Type()   // "int"
 //	n.String() // "42"
 func (i *Interp) Int(v int64) *Obj {
-	return NewIntObj(v)
+	return &Obj{intrep: IntType(v), interp: i}
 }
 
 // Float creates a floating-point object.
@@ -199,7 +199,7 @@ func (i *Interp) Int(v int64) *Obj {
 //	f.Type()   // "double"
 //	f.String() // "3.14"
 func (i *Interp) Float(v float64) *Obj {
-	return NewDoubleObj(v)
+	return &Obj{intrep: DoubleType(v), interp: i}
 }
 
 // Bool creates a boolean object, stored as int 1 (true) or 0 (false).
@@ -211,9 +211,9 @@ func (i *Interp) Float(v float64) *Obj {
 //	b.String() // "1"
 func (i *Interp) Bool(v bool) *Obj {
 	if v {
-		return NewIntObj(1)
+		return &Obj{intrep: IntType(1), interp: i}
 	}
-	return NewIntObj(0)
+	return &Obj{intrep: IntType(0), interp: i}
 }
 
 // List creates a list object from the given items.
@@ -222,7 +222,7 @@ func (i *Interp) Bool(v bool) *Obj {
 //	list.Type()   // "list"
 //	list.String() // "a 1 1"
 func (i *Interp) List(items ...*Obj) *Obj {
-	return NewListObj(items...)
+	return &Obj{intrep: ListType(items), interp: i}
 }
 
 // ListFrom creates a list object from a Go slice.
@@ -247,22 +247,22 @@ func (i *Interp) ListFrom(slice any) *Obj {
 	case []string:
 		items = make([]*Obj, len(s))
 		for j, v := range s {
-			items[j] = NewStringObj(v)
+			items[j] = i.String(v)
 		}
 	case []int:
 		items = make([]*Obj, len(s))
 		for j, v := range s {
-			items[j] = NewIntObj(int64(v))
+			items[j] = i.Int(int64(v))
 		}
 	case []int64:
 		items = make([]*Obj, len(s))
 		for j, v := range s {
-			items[j] = NewIntObj(v)
+			items[j] = i.Int(v)
 		}
 	case []float64:
 		items = make([]*Obj, len(s))
 		for j, v := range s {
-			items[j] = NewDoubleObj(v)
+			items[j] = i.Float(v)
 		}
 	case []any:
 		items = make([]*Obj, len(s))
@@ -270,7 +270,7 @@ func (i *Interp) ListFrom(slice any) *Obj {
 			items[j] = i.anyToObj(v)
 		}
 	}
-	return NewListObj(items...)
+	return i.List(items...)
 }
 
 // Dict creates an empty dict object.
@@ -281,7 +281,24 @@ func (i *Interp) ListFrom(slice any) *Obj {
 //	dict := interp.Dict()
 //	feather.ObjDictSet(dict, "key", interp.String("value"))
 func (i *Interp) Dict() *Obj {
-	return NewDictObj()
+	return &Obj{intrep: &DictType{Items: make(map[string]*Obj)}, interp: i}
+}
+
+// Obj creates an object with a custom ObjType internal representation.
+//
+// Use this when implementing custom shimmering types:
+//
+//	type RegexType struct {
+//	    pattern string
+//	    re      *regexp.Regexp
+//	}
+//	func (t *RegexType) Name() string         { return "regex" }
+//	func (t *RegexType) UpdateString() string { return t.pattern }
+//	func (t *RegexType) Dup() feather.ObjType { return t }
+//
+//	obj := interp.Obj(&RegexType{pattern: "^foo", re: re})
+func (i *Interp) Obj(intrep ObjType) *Obj {
+	return &Obj{intrep: intrep, interp: i}
 }
 
 // DictKV creates a dict object from alternating key-value pairs.
@@ -292,7 +309,7 @@ func (i *Interp) Dict() *Obj {
 //	dict := interp.DictKV("name", "Alice", "age", 30, "active", true)
 //	dict.String() // "name Alice age 30 active 1"
 func (i *Interp) DictKV(kvs ...any) *Obj {
-	d := NewDictObj()
+	d := i.Dict()
 	for j := 0; j+1 < len(kvs); j += 2 {
 		key, ok := kvs[j].(string)
 		if !ok {
@@ -313,7 +330,7 @@ func (i *Interp) DictKV(kvs ...any) *Obj {
 //	    "age":  30,
 //	})
 func (i *Interp) DictFrom(m map[string]any) *Obj {
-	d := NewDictObj()
+	d := i.Dict()
 	for k, v := range m {
 		ObjDictSet(d, k, i.anyToObj(v))
 	}
@@ -325,22 +342,22 @@ func (i *Interp) DictFrom(m map[string]any) *Obj {
 func (i *Interp) anyToObj(v any) *Obj {
 	switch val := v.(type) {
 	case string:
-		return NewStringObj(val)
+		return i.String(val)
 	case int:
-		return NewIntObj(int64(val))
+		return i.Int(int64(val))
 	case int64:
-		return NewIntObj(val)
+		return i.Int(val)
 	case float64:
-		return NewDoubleObj(val)
+		return i.Float(val)
 	case bool:
-		if val {
-			return NewIntObj(1)
-		}
-		return NewIntObj(0)
+		return i.Bool(val)
 	case *Obj:
+		if val.interp == nil {
+			val.interp = i
+		}
 		return val
 	default:
-		return NewStringObj(fmt.Sprintf("%v", v))
+		return i.String(fmt.Sprintf("%v", v))
 	}
 }
 
@@ -415,7 +432,7 @@ func (i *Interp) Call(cmd string, args ...any) (*Obj, error) {
 func (i *Interp) Var(name string) *Obj {
 	h := i.GetVarHandle(name)
 	if h == 0 {
-		return NewStringObj("")
+		return i.String("")
 	}
 	return i.objForHandle(h)
 }

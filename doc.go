@@ -222,12 +222,12 @@
 //	func (r *RegexType) UpdateString() string { return r.pattern }
 //	func (r *RegexType) Dup() feather.ObjType { return r } // Immutable, share it
 //
-//	func NewRegex(pattern string) (*feather.Obj, error) {
+//	func NewRegex(interp *feather.Interp, pattern string) (*feather.Obj, error) {
 //	    re, err := regexp.Compile(pattern)
 //	    if err != nil {
 //	        return nil, err
 //	    }
-//	    return feather.NewObj(&RegexType{pattern: pattern, re: re}), nil
+//	    return interp.Obj(&RegexType{pattern: pattern, re: re}), nil
 //	}
 //
 //	// Extract the compiled regex from any Obj

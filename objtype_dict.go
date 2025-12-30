@@ -55,8 +55,16 @@ func (t *DictType) IntoDict() (map[string]*Obj, []string, bool) {
 
 func (t *DictType) IntoList() ([]*Obj, bool) {
 	list := make([]*Obj, 0, len(t.Order)*2)
+	// Get interpreter from first value (if any) to set on key objects
+	var interp *Interp
+	for _, v := range t.Items {
+		if v != nil && v.interp != nil {
+			interp = v.interp
+			break
+		}
+	}
 	for _, k := range t.Order {
-		list = append(list, NewStringObj(k), t.Items[k])
+		list = append(list, &Obj{bytes: k, interp: interp}, t.Items[k])
 	}
 	return list, true
 }

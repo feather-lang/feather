@@ -153,7 +153,7 @@ func (i *Interp) resetScratch() {
 func (i *Interp) internStringScratch(s string) FeatherObj {
 	id := i.scratchNextID
 	i.scratchNextID++
-	i.scratch[id] = NewStringObj(s)
+	i.scratch[id] = i.String(s)
 	return id
 }
 
@@ -457,7 +457,7 @@ func (i *Interp) internString(s string) FeatherObj {
 func (i *Interp) internStringPermanent(s string) FeatherObj {
 	id := i.nextID
 	i.nextID++
-	i.objects[id] = NewStringObj(s)
+	i.objects[id] = i.String(s)
 	return id
 }
 
@@ -487,7 +487,7 @@ func (i *Interp) registerObjPermanent(obj *Obj) FeatherObj {
 func (i *Interp) NewForeignHandle(typeName string, value any) FeatherObj {
 	id := i.nextID
 	i.nextID++
-	obj := NewForeignObj(typeName, value)
+	obj := &Obj{intrep: &ForeignType{TypeName: typeName, Value: value}, interp: i}
 	// Override the string representation to include the handle ID
 	obj.bytes = fmt.Sprintf("<%s:%d>", typeName, id)
 	// Use permanent storage - foreign objects have explicit lifecycle management
@@ -801,12 +801,12 @@ func (i *Interp) SetResultObj(obj *Obj) {
 
 // SetResultString sets the interpreter's result to a string value.
 func (i *Interp) SetResultString(s string) {
-	i.result = NewStringObj(s)
+	i.result = i.String(s)
 }
 
 // SetErrorString sets the interpreter's result to an error message.
 func (i *Interp) SetErrorString(s string) {
-	i.result = NewStringObj(s)
+	i.result = i.String(s)
 }
 
 // SetError sets the interpreter's result to the given object handle (for error results).
@@ -818,7 +818,7 @@ func (i *Interp) SetError(obj FeatherObj) {
 // setVar sets a variable by name to a string value in the current frame (internal).
 func (i *Interp) setVar(name, value string) {
 	frame := i.frames[i.active]
-	frame.locals.vars[name] = NewStringObj(value)
+	frame.locals.vars[name] = i.String(value)
 }
 
 // GetVar returns the string value of a variable from the current frame, or empty string if not found.

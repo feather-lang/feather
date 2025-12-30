@@ -421,9 +421,9 @@ func (s *HTTPServer) cmdTemplateList(i *feather.Interp) feather.Result {
 	s.templateMu.RLock()
 	defer s.templateMu.RUnlock()
 
-	list := feather.NewListObj()
+	list := i.List()
 	for name := range s.templates {
-		feather.ObjListAppend(list, feather.NewStringObj(name))
+		feather.ObjListAppend(list, i.String(name))
 	}
 
 	return feather.OK(list)
@@ -497,10 +497,10 @@ func (s *HTTPServer) cmdTemplateErrors(i *feather.Interp) feather.Result {
 	s.templateMu.RLock()
 	defer s.templateMu.RUnlock()
 
-	dict := feather.NewDictObj()
+	dict := i.Dict()
 	for name, info := range s.templates {
 		if info.Error != nil {
-			feather.ObjDictSet(dict, name, feather.NewStringObj(info.Error.Error()))
+			feather.ObjDictSet(dict, name, i.String(info.Error.Error()))
 		}
 	}
 	return feather.OK(dict)

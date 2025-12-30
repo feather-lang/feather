@@ -111,7 +111,7 @@ func goStringRegexMatch(interp C.FeatherInterp, pattern C.FeatherObj, str C.Feat
 	re, err := regexp.Compile(patternStr)
 	if err != nil {
 		// Store error message as *Obj directly
-		i.result = NewStringObj("couldn't compile regular expression pattern: " + err.Error())
+		i.result = i.String("couldn't compile regular expression pattern: " + err.Error())
 		return C.TCL_ERROR
 	}
 
@@ -406,7 +406,7 @@ func goListCreate(interp C.FeatherInterp) C.FeatherObj {
 	if i == nil {
 		return 0
 	}
-	return C.FeatherObj(i.registerObj(NewListObj()))
+	return C.FeatherObj(i.registerObj(i.List()))
 }
 
 //export goListIsNil
@@ -427,7 +427,7 @@ func goListFrom(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 	items, err := i.getList(FeatherObj(obj))
 	if err != nil {
 		// Set error message as result *Obj directly
-		i.result = NewStringObj(err.Error())
+		i.result = i.String(err.Error())
 		return 0
 	}
 	// Create a new list with copied items as *Obj
@@ -435,7 +435,7 @@ func goListFrom(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 	for idx, h := range items {
 		copiedItems[idx] = i.getObject(h)
 	}
-	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(copiedItems)}))
+	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(copiedItems), interp: i}))
 }
 
 //export goListPush
@@ -605,7 +605,7 @@ func goListSlice(interp C.FeatherInterp, list C.FeatherObj, first C.size_t, last
 
 	// Empty result if invalid range
 	if f > l || length == 0 {
-		return C.FeatherObj(i.registerObj(NewListObj()))
+		return C.FeatherObj(i.registerObj(i.List()))
 	}
 
 	// Create new list with sliced items - convert FeatherObj handles to *Obj
@@ -613,7 +613,7 @@ func goListSlice(interp C.FeatherInterp, list C.FeatherObj, first C.size_t, last
 	for idx, h := range items[f : l+1] {
 		slicedObjs[idx] = i.getObject(h)
 	}
-	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(slicedObjs)}))
+	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(slicedObjs), interp: i}))
 }
 
 //export goListSetAt
@@ -718,7 +718,7 @@ func goListSplice(interp C.FeatherInterp, list C.FeatherObj, first C.size_t, del
 		newItems = append(newItems, listItems[f+dc:]...)
 	}
 
-	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(newItems)}))
+	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(newItems), interp: i}))
 }
 
 // ListSortContext holds context for list sorting
@@ -790,7 +790,7 @@ func goDictCreate(interp C.FeatherInterp) C.FeatherObj {
 	if i == nil {
 		return 0
 	}
-	return C.FeatherObj(i.registerObj(NewDictObj()))
+	return C.FeatherObj(i.registerObj(i.Dict()))
 }
 
 //export goDictIsDict
@@ -826,7 +826,7 @@ func goDictFrom(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 	}
 	newOrder := make([]string, len(dictOrder))
 	copy(newOrder, dictOrder)
-	return C.FeatherObj(i.registerObj(&Obj{intrep: &DictType{Items: newItems, Order: newOrder}}))
+	return C.FeatherObj(i.registerObj(&Obj{intrep: &DictType{Items: newItems, Order: newOrder}, interp: i}))
 }
 
 //export goDictGet
@@ -960,9 +960,9 @@ func goDictKeys(interp C.FeatherInterp, dict C.FeatherObj) C.FeatherObj {
 	// Create list of keys as *Obj
 	items := make([]*Obj, len(dictOrder))
 	for idx, key := range dictOrder {
-		items[idx] = NewStringObj(key)
+		items[idx] = i.String(key)
 	}
-	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(items)}))
+	return C.FeatherObj(i.registerObj(i.List(items...)))
 }
 
 //export goDictValues
@@ -980,7 +980,7 @@ func goDictValues(interp C.FeatherInterp, dict C.FeatherObj) C.FeatherObj {
 	for idx, key := range dictOrder {
 		items[idx] = i.getObject(dictItems[key])
 	}
-	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(items)}))
+	return C.FeatherObj(i.registerObj(i.List(items...)))
 }
 
 //export goIntCreate
@@ -989,7 +989,7 @@ func goIntCreate(interp C.FeatherInterp, val C.int64_t) C.FeatherObj {
 	if i == nil {
 		return 0
 	}
-	return C.FeatherObj(i.registerObj(NewIntObj(int64(val))))
+	return C.FeatherObj(i.registerObj(i.Int(int64(val))))
 }
 
 //export goIntGet
@@ -1012,7 +1012,7 @@ func goDoubleCreate(interp C.FeatherInterp, val C.double) C.FeatherObj {
 	if i == nil {
 		return 0
 	}
-	return C.FeatherObj(i.registerObj(NewDoubleObj(float64(val))))
+	return C.FeatherObj(i.registerObj(i.Float(float64(val))))
 }
 
 //export goDoubleGet
@@ -1144,7 +1144,7 @@ func goDoubleMath(interp C.FeatherInterp, op C.FeatherMathOp, a C.double, b C.do
 	case C.FEATHER_MATH_HYPOT:
 		result = math.Hypot(va, vb)
 	default:
-		i.result = NewStringObj("unknown math operation")
+		i.result = i.String("unknown math operation")
 		return C.TCL_ERROR
 	}
 
@@ -1168,7 +1168,7 @@ func goFramePush(interp C.FeatherInterp, cmd C.FeatherObj, args C.FeatherObj) C.
 	}
 	if newLevel >= limit {
 		// Set error message and return error
-		i.result = NewStringObj("too many nested evaluations (infinite loop?)")
+		i.result = i.String("too many nested evaluations (infinite loop?)")
 		return C.TCL_ERROR
 	}
 	// Inherit namespace from current frame
@@ -1606,7 +1606,7 @@ func goNsChildren(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherObj {
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
 		// Return empty list
-		return C.FeatherObj(i.registerObj(NewListObj()))
+		return C.FeatherObj(i.registerObj(i.List()))
 	}
 
 	// Collect and sort child names for consistent ordering
@@ -1620,9 +1620,9 @@ func goNsChildren(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherObj {
 	items := make([]*Obj, len(names))
 	for idx, name := range names {
 		child := ns.children[name]
-		items[idx] = NewStringObj(child.fullPath)
+		items[idx] = i.String(child.fullPath)
 	}
-	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(items)}))
+	return C.FeatherObj(i.registerObj(i.List(items...)))
 }
 
 //export goNsGetVar
@@ -1843,7 +1843,7 @@ func goNsListCommands(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherObj 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
 		// Return empty list
-		return C.FeatherObj(i.registerObj(NewListObj()))
+		return C.FeatherObj(i.registerObj(i.List()))
 	}
 
 	names := make([]string, 0, len(ns.commands))
@@ -1854,9 +1854,9 @@ func goNsListCommands(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherObj 
 
 	items := make([]*Obj, len(names))
 	for idx, name := range names {
-		items[idx] = NewStringObj(name)
+		items[idx] = i.String(name)
 	}
-	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(items)}))
+	return C.FeatherObj(i.registerObj(i.List(items...)))
 }
 
 //export goFrameSetNamespace
@@ -2028,9 +2028,9 @@ func goVarNames(interp C.FeatherInterp, ns C.FeatherObj) C.FeatherObj {
 	// Create list of names as *Obj
 	items := make([]*Obj, len(names))
 	for idx, name := range names {
-		items[idx] = NewStringObj(name)
+		items[idx] = i.String(name)
 	}
-	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(items)}))
+	return C.FeatherObj(i.registerObj(i.List(items...)))
 }
 
 //export goVarIsLink
@@ -2060,15 +2060,15 @@ func goNsGetExports(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherObj {
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
 		// Return empty list
-		return C.FeatherObj(i.registerObj(NewListObj()))
+		return C.FeatherObj(i.registerObj(i.List()))
 	}
 
 	// Return export patterns as a list of *Obj
 	items := make([]*Obj, len(ns.exportPatterns))
 	for idx, pattern := range ns.exportPatterns {
-		items[idx] = NewStringObj(pattern)
+		items[idx] = i.String(pattern)
 	}
-	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(items)}))
+	return C.FeatherObj(i.registerObj(i.List(items...)))
 }
 
 //export goNsSetExports
@@ -2282,9 +2282,9 @@ func goForeignMethods(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 	// Build a list of method names as *Obj
 	methodObjs := make([]*Obj, len(methods))
 	for j, m := range methods {
-		methodObjs[j] = NewStringObj(m)
+		methodObjs[j] = i.String(m)
 	}
-	return C.FeatherObj(i.registerObj(&Obj{intrep: ListType(methodObjs)}))
+	return C.FeatherObj(i.registerObj(i.List(methodObjs...)))
 }
 
 //export goForeignInvoke

@@ -21,12 +21,12 @@ func (r *RegexType) UpdateString() string { return r.pattern }
 func (r *RegexType) Dup() feather.ObjType { return r } // Immutable, safe to share
 
 // NewRegexObj compiles a pattern and wraps it in an Obj.
-func NewRegexObj(pattern string) (*feather.Obj, error) {
+func NewRegexObj(i *feather.Interp, pattern string) (*feather.Obj, error) {
 	re, err := regexp.Compile(pattern)
 	if err != nil {
 		return nil, err
 	}
-	return feather.NewObj(&RegexType{pattern: pattern, re: re}), nil
+	return i.Obj(&RegexType{pattern: pattern, re: re}), nil
 }
 
 // GetRegex extracts the compiled regex from an Obj.
@@ -47,7 +47,7 @@ func registerRegexCommands(interp *feather.Interp) {
 		if len(args) < 1 {
 			return feather.Errorf("wrong # args: should be \"regex pattern\"")
 		}
-		obj, err := NewRegexObj(args[0].String())
+		obj, err := NewRegexObj(i, args[0].String())
 		if err != nil {
 			// Return the Go error as a TCL error.
 			// Use err.Error() to get the string - passing error directly
@@ -142,8 +142,8 @@ func (ts *TimestampType) IntoDouble() (float64, bool) {
 }
 
 // NewTimestampObj creates a timestamp object from a time.Time.
-func NewTimestampObj(t time.Time) *feather.Obj {
-	return feather.NewObj(&TimestampType{t: t})
+func NewTimestampObj(i *feather.Interp, t time.Time) *feather.Obj {
+	return i.Obj(&TimestampType{t: t})
 }
 
 // GetTimestamp extracts the time.Time from an Obj.
@@ -161,7 +161,7 @@ func Example_timestampType() {
 	defer interp.Close()
 
 	// Create a timestamp for a fixed point in time
-	ts := NewTimestampObj(time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC))
+	ts := NewTimestampObj(interp, time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC))
 
 	// Store it in a variable
 	interp.SetVar("ts", ts.String())

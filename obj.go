@@ -1,11 +1,14 @@
 package feather
 
+import "fmt"
+
 // Obj is a Feather value.
 // It follows TCL semantics where values have both a string representation
 // and an optional internal representation that can be lazily computed.
 type Obj struct {
 	bytes  string  // string representation ("" = empty string if intrep == nil)
 	intrep ObjType // internal representation (nil = pure string)
+	interp *Interp // owning interpreter (for shimmering that requires parsing)
 }
 
 // ObjType defines the core behavior for an internal representation.
@@ -93,64 +96,15 @@ func (o *Obj) invalidate() {
 
 // Copy creates a shallow copy of the object.
 // If the object has an internal representation, it is duplicated via Dup().
+// The copy remains tied to the same interpreter as the original.
 func (o *Obj) Copy() *Obj {
 	if o == nil {
 		return nil
 	}
 	if o.intrep == nil {
-		return &Obj{bytes: o.bytes}
+		return &Obj{bytes: o.bytes, interp: o.interp}
 	}
-	return &Obj{bytes: o.bytes, intrep: o.intrep.Dup()}
-}
-
-// NewStringObj creates a new object with a string value.
-func NewStringObj(s string) *Obj {
-	return &Obj{bytes: s}
-}
-
-// NewIntObj creates a new object with an integer value.
-func NewIntObj(v int64) *Obj {
-	return &Obj{intrep: IntType(v)}
-}
-
-// NewDoubleObj creates a new object with a floating-point value.
-func NewDoubleObj(v float64) *Obj {
-	return &Obj{intrep: DoubleType(v)}
-}
-
-// NewListObj creates a new object with a list value.
-func NewListObj(items ...*Obj) *Obj {
-	return &Obj{intrep: ListType(items)}
-}
-
-// NewDictObj creates a new empty dict object.
-func NewDictObj() *Obj {
-	return &Obj{intrep: &DictType{Items: make(map[string]*Obj)}}
-}
-
-// NewForeignObj creates a new foreign object with the given type name and Go value.
-func NewForeignObj(typeName string, value any) *Obj {
-	return &Obj{intrep: &ForeignType{TypeName: typeName, Value: value}}
-}
-
-// NewObj creates a new object with a custom ObjType internal representation.
-// Use this when implementing custom shimmering types.
-//
-// Example:
-//
-//	type RegexType struct {
-//	    pattern string
-//	    re      *regexp.Regexp
-//	}
-//	func (t *RegexType) Name() string         { return "regex" }
-//	func (t *RegexType) UpdateString() string { return t.pattern }
-//	func (t *RegexType) Dup() feather.ObjType { return t }
-//
-//	func NewRegex(pattern string, re *regexp.Regexp) *feather.Obj {
-//	    return feather.NewObj(&RegexType{pattern: pattern, re: re})
-//	}
-func NewObj(intrep ObjType) *Obj {
-	return &Obj{intrep: intrep}
+	return &Obj{bytes: o.bytes, intrep: o.intrep.Dup(), interp: o.interp}
 }
 
 // setBytes sets the string representation directly (used by Interp for handle-based naming).
@@ -175,16 +129,40 @@ func (o *Obj) Bool() (bool, error) {
 	return AsBool(o)
 }
 
-// List returns the list elements of this object.
-// Note: This only works on objects that already have a list representation.
-// To parse a string as a list, use Interp.ParseList().
+// List returns the list elements of this object, shimmering if needed.
+// If the object is a pure string, it will be parsed as a TCL list.
 func (o *Obj) List() ([]*Obj, error) {
-	return AsList(o)
+	// Try existing list rep first
+	if list, err := AsList(o); err == nil {
+		return list, nil
+	}
+	// Shimmer via interpreter
+	if o == nil || o.interp == nil {
+		return nil, fmt.Errorf("cannot parse list without interpreter")
+	}
+	list, err := o.interp.ParseList(o.String())
+	if err != nil {
+		return nil, err
+	}
+	o.intrep = ListType(list)
+	return list, nil
 }
 
-// Dict returns the dict representation of this object.
-// Note: This only works on objects that already have a dict representation.
-// To parse a string as a dict, use Interp.ParseDict().
+// Dict returns the dict representation of this object, shimmering if needed.
+// If the object is a pure string, it will be parsed as a TCL dict.
 func (o *Obj) Dict() (*DictType, error) {
-	return AsDict(o)
+	// Try existing dict rep first
+	if d, err := AsDict(o); err == nil {
+		return d, nil
+	}
+	// Shimmer via interpreter
+	if o == nil || o.interp == nil {
+		return nil, fmt.Errorf("cannot parse dict without interpreter")
+	}
+	d, err := o.interp.ParseDict(o.String())
+	if err != nil {
+		return nil, err
+	}
+	o.intrep = d
+	return d, nil
 }
