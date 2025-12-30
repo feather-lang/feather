@@ -63,7 +63,9 @@ type FeatherObj Handle
 // # In case of an error, the command should set the interpreter's error information and return ResultError
 //
 // To return a value, the command should set the interpreter's result value and return ResultOK
-type InternalCommandFunc func(i *InternalInterp, cmd FeatherObj, args []FeatherObj) FeatherResult
+//
+// Low-level API. May change between versions.
+type InternalCommandFunc func(i *Interp, cmd FeatherObj, args []FeatherObj) FeatherResult
 
 // varLink represents a link to a variable in another frame (for upvar)
 // or a link to a namespace variable (for variable command)
@@ -127,88 +129,6 @@ type Command struct {
 // Handles without this bit belong to permanent storage (foreign objects, etc.).
 const scratchHandleBit FeatherObj = 1 << 63
 
-// InternalInterp represents a TCL interpreter instance (low-level)
-type InternalInterp struct {
-	handle         FeatherInterp
-	objects        map[FeatherObj]*Obj // permanent storage (foreign objects)
-	scratch        map[FeatherObj]*Obj // scratch arena (temporary objects, reset after eval)
-	scratchNextID  FeatherObj          // next ID for scratch arena (has high bit set)
-	globalNS       FeatherObj              // global namespace object (FeatherObj handle for "::")
-	namespaces     map[string]*Namespace // namespace path -> Namespace
-	globalNamespace *Namespace           // the global namespace "::"
-	nextID         FeatherObj            // next ID for permanent storage (no high bit)
-	result         *Obj                  // current result (persistent, not handle)
-	returnOptions  *Obj                  // options from the last return command (persistent)
-	frames         []*CallFrame // call stack (frame 0 is global)
-	active         int          // currently active frame index
-	recursionLimit int          // maximum call stack depth (0 means use default)
-	scriptPath     *Obj             // current script file being executed (nil = none)
-
-	// builders stores string builders for the byte-at-a-time string API.
-	// Used by goStringBuilderNew/AppendByte/AppendObj/Finish.
-	builders map[FeatherObj]*strings.Builder
-
-	// Commands holds registered Go command implementations.
-	// These are dispatched via the unknown handler when the C layer
-	// doesn't find a builtin or proc.
-	Commands map[string]InternalCommandFunc
-
-	// ForeignRegistry stores foreign type definitions for the high-level API.
-	// Set by DefineType when registering foreign types.
-	ForeignRegistry *ForeignRegistry
-
-	// unknownHandler is called when a command is not found in Commands.
-	// If nil, the default behavior is to return an error.
-	unknownHandler InternalCommandFunc
-}
-
-// NewInternalInterp creates a new interpreter
-func NewInternalInterp() *InternalInterp {
-	interp := &InternalInterp{
-		objects:       make(map[FeatherObj]*Obj),
-		scratch:       make(map[FeatherObj]*Obj),
-		scratchNextID: scratchHandleBit | 1, // Start scratch IDs with high bit set
-		namespaces:    make(map[string]*Namespace),
-		builders:      make(map[FeatherObj]*strings.Builder),
-		Commands:      make(map[string]InternalCommandFunc),
-		nextID:        1, // Permanent IDs start at 1 (no high bit)
-	}
-	// Create the global namespace
-	globalNS := &Namespace{
-		fullPath: "::",
-		parent:   nil,
-		children: make(map[string]*Namespace),
-		vars:     make(map[string]*Obj),
-		commands: make(map[string]*Command),
-	}
-	interp.globalNamespace = globalNS
-	interp.namespaces["::"] = globalNS
-	// Initialize the global frame (frame 0)
-	// The global frame's locals IS the global namespace - unified storage
-	globalFrame := &CallFrame{
-		locals: globalNS,
-		links:  make(map[string]varLink),
-		level:  0,
-		ns:     globalNS,
-	}
-	interp.frames = []*CallFrame{globalFrame}
-	interp.active = 0
-	// Use cgo.Handle to allow C callbacks to find this interpreter
-	interp.handle = FeatherInterp(cgo.NewHandle(interp))
-	// Create the global namespace object (FeatherObj handle for "::")
-	// Use permanent storage since this must persist across evals
-	interp.globalNS = interp.internStringPermanent("::")
-	// Initialize the C interpreter (registers builtins)
-	callCInterpInit(interp.handle)
-	return interp
-}
-
-// Close releases resources associated with the interpreter.
-// Must be called when the interpreter is no longer needed.
-func (i *InternalInterp) Close() {
-	cgo.Handle(i.handle).Delete()
-}
-
 // isScratchHandle returns true if the handle belongs to the scratch arena.
 func isScratchHandle(h FeatherObj) bool {
 	return h&scratchHandleBit != 0
@@ -216,14 +136,14 @@ func isScratchHandle(h FeatherObj) bool {
 
 // resetScratch clears the scratch arena, releasing all temporary objects.
 // Called after each top-level eval completes.
-func (i *InternalInterp) resetScratch() {
+func (i *Interp) resetScratch() {
 	i.scratch = make(map[FeatherObj]*Obj)
 	i.scratchNextID = scratchHandleBit | 1
 }
 
 // internStringScratch creates a string object in the scratch arena.
 // Use for temporary strings that don't need to persist after eval.
-func (i *InternalInterp) internStringScratch(s string) FeatherObj {
+func (i *Interp) internStringScratch(s string) FeatherObj {
 	id := i.scratchNextID
 	i.scratchNextID++
 	i.scratch[id] = NewStringObj(s)
@@ -232,7 +152,7 @@ func (i *InternalInterp) internStringScratch(s string) FeatherObj {
 
 // registerObjScratch stores an *Obj in the scratch arena and returns its handle.
 // Use when C code needs a handle to a Go object during eval.
-func (i *InternalInterp) registerObjScratch(obj *Obj) FeatherObj {
+func (i *Interp) registerObjScratch(obj *Obj) FeatherObj {
 	if obj == nil {
 		return 0
 	}
@@ -242,9 +162,9 @@ func (i *InternalInterp) registerObjScratch(obj *Obj) FeatherObj {
 	return id
 }
 
-// Register adds a Go command to the interpreter.
+// register adds a Go command to the interpreter (internal).
 // The command will be invoked when the C layer doesn't find a builtin or proc.
-func (i *InternalInterp) Register(name string, fn InternalCommandFunc) {
+func (i *Interp) register(name string, fn InternalCommandFunc) {
 	i.Commands[name] = fn
 	// Also register in interpreter's namespace storage for enumeration.
 	// These are Go commands dispatched via bind.unknown, not C builtins.
@@ -256,7 +176,7 @@ func (i *InternalInterp) Register(name string, fn InternalCommandFunc) {
 }
 
 // dispatch handles command lookup and execution for Go-registered commands.
-func (i *InternalInterp) dispatch(cmd FeatherObj, args []FeatherObj) FeatherResult {
+func (i *Interp) dispatch(cmd FeatherObj, args []FeatherObj) FeatherResult {
 	cmdStr := i.GetString(cmd)
 	if fn, ok := i.Commands[cmdStr]; ok {
 		return fn(i, cmd, args)
@@ -272,7 +192,7 @@ func (i *InternalInterp) dispatch(cmd FeatherObj, args []FeatherObj) FeatherResu
 // The handler receives the command name and arguments, and can implement
 // custom command resolution (e.g., auto-loading, dynamic dispatch).
 // Set to nil to restore default behavior (return error).
-func (i *InternalInterp) SetUnknownHandler(fn InternalCommandFunc) {
+func (i *Interp) setUnknownHandler(fn InternalCommandFunc) {
 	i.unknownHandler = fn
 }
 
@@ -281,7 +201,7 @@ const DefaultRecursionLimit = 1000
 
 // SetRecursionLimit sets the maximum call stack depth.
 // If limit is 0 or negative, the default limit (1000) is used.
-func (i *InternalInterp) SetRecursionLimit(limit int) {
+func (i *Interp) SetRecursionLimit(limit int) {
 	if limit <= 0 {
 		i.recursionLimit = DefaultRecursionLimit
 	} else {
@@ -290,7 +210,7 @@ func (i *InternalInterp) SetRecursionLimit(limit int) {
 }
 
 // getRecursionLimit returns the effective recursion limit.
-func (i *InternalInterp) getRecursionLimit() int {
+func (i *Interp) getRecursionLimit() int {
 	if i.recursionLimit <= 0 {
 		return DefaultRecursionLimit
 	}
@@ -298,18 +218,13 @@ func (i *InternalInterp) getRecursionLimit() int {
 }
 
 // Handle returns the interpreter's handle
-func (i *InternalInterp) Handle() FeatherInterp {
+func (i *Interp) Handle() FeatherInterp {
 	return i.handle
 }
 
-// Parse parses a script string and returns the parse status and result.
-// This is a convenience alias for ParseInternal.
-func (i *InternalInterp) Parse(script string) ParseResultInternal {
-	return i.ParseInternal(script)
-}
-
 // ParseInternal parses a script string and returns the parse status and result.
-func (i *InternalInterp) ParseInternal(script string) ParseResultInternal {
+// Low-level API. May change between versions.
+func (i *Interp) ParseInternal(script string) ParseResultInternal {
 	scriptHandle := i.internString(script)
 
 	// Call the C parser
@@ -338,7 +253,7 @@ func (i *InternalInterp) ParseInternal(script string) ParseResultInternal {
 
 // objToString converts an *Obj to its TCL string representation for display.
 // This includes outer braces for non-empty lists (used for parse result display).
-func (i *InternalInterp) objToString(obj *Obj) string {
+func (i *Interp) objToString(obj *Obj) string {
 	if obj == nil {
 		return ""
 	}
@@ -384,7 +299,7 @@ func (i *InternalInterp) objToString(obj *Obj) string {
 
 // objToValue converts an *Obj to its TCL value string representation.
 // This does NOT include outer braces (used when returning list as a value).
-func (i *InternalInterp) objToValue(obj *Obj) string {
+func (i *Interp) objToValue(obj *Obj) string {
 	if obj == nil {
 		return ""
 	}
@@ -435,56 +350,16 @@ func (i *InternalInterp) objToValue(obj *Obj) string {
 	return obj.String()
 }
 
-// dictObjToValue converts a dict *Obj to its TCL string representation.
-// Dicts are represented as lists: key1 value1 key2 value2 ...
-func (i *InternalInterp) dictObjToValue(obj *Obj) string {
-	if obj == nil {
-		return ""
-	}
-	d, ok := obj.intrep.(*DictType)
-	if !ok {
-		return ""
-	}
-	var result string
-	first := true
-	for _, key := range d.Order {
-		if !first {
-			result += " "
-		}
-		first = false
-		// Quote key if needed
-		if len(key) == 0 || strings.ContainsAny(key, " \t\n{}") {
-			result += "{" + key + "}"
-		} else {
-			result += key
-		}
-		result += " "
-		// Get value and convert to string
-		if val, ok := d.Items[key]; ok {
-			valStr := val.String()
-			// Quote value if needed
-			if len(valStr) == 0 || strings.ContainsAny(valStr, " \t\n{}") {
-				result += "{" + valStr + "}"
-			} else {
-				result += valStr
-			}
-		} else {
-			result += "{}"
-		}
-	}
-	return result
-}
-
 // resultString returns the result as a string, handling nil.
-func (i *InternalInterp) resultString() string {
+func (i *Interp) resultString() string {
 	if i.result == nil {
 		return ""
 	}
 	return i.result.String()
 }
 
-// Eval evaluates a script string using the C interpreter
-func (i *InternalInterp) Eval(script string) (string, error) {
+// eval evaluates a script string using the C interpreter (internal).
+func (i *Interp) eval(script string) (string, error) {
 	scriptHandle := i.internStringScratch(script)
 
 	// Reset scratch arena after eval completes
@@ -542,7 +417,7 @@ func (i *InternalInterp) Eval(script string) (string, error) {
 }
 
 // Result returns the current result string
-func (i *InternalInterp) Result() string {
+func (i *Interp) Result() string {
 	if i.result == nil {
 		return ""
 	}
@@ -551,7 +426,7 @@ func (i *InternalInterp) Result() string {
 
 // ResultHandle returns the current result object handle.
 // Creates a scratch handle for C code to use.
-func (i *InternalInterp) ResultHandle() FeatherObj {
+func (i *Interp) ResultHandle() FeatherObj {
 	return i.registerObjScratch(i.result)
 }
 
@@ -564,79 +439,15 @@ func (e *EvalError) Error() string {
 	return e.Message
 }
 
-// ResultInfo contains type information about a TCL value.
-type ResultInfo struct {
-	String      string
-	IsInt       bool
-	IntVal      int64
-	IsDouble    bool
-	DoubleVal   float64
-	IsList      bool
-	ListItems   []ResultInfo
-	IsDict      bool
-	DictKeys    []string
-	DictValues  map[string]ResultInfo
-	IsForeign   bool
-	ForeignType string
-}
-
-// EvalTyped evaluates a script and returns typed result info.
-func (i *InternalInterp) EvalTyped(script string) (ResultInfo, error) {
-	_, err := i.Eval(script)
-	if err != nil {
-		return ResultInfo{}, err
-	}
-	return i.objToResultInfo(i.result), nil
-}
-
-// objToResultInfo returns information about an *Obj for inspection.
-func (i *InternalInterp) objToResultInfo(obj *Obj) ResultInfo {
-	if obj == nil {
-		return ResultInfo{String: ""}
-	}
-
-	info := ResultInfo{
-		String: obj.String(),
-	}
-
-	// Check type based on intrep
-	switch t := obj.intrep.(type) {
-	case IntType:
-		info.IsInt = true
-		info.IntVal = int64(t)
-	case DoubleType:
-		info.IsDouble = true
-		info.DoubleVal = float64(t)
-	case ListType:
-		info.IsList = true
-		info.ListItems = make([]ResultInfo, len(t))
-		for idx, item := range t {
-			info.ListItems[idx] = i.objToResultInfo(item)
-		}
-	case *DictType:
-		info.IsDict = true
-		info.DictKeys = t.Order
-		info.DictValues = make(map[string]ResultInfo, len(t.Items))
-		for k, v := range t.Items {
-			info.DictValues[k] = i.objToResultInfo(v)
-		}
-	case *ForeignType:
-		info.IsForeign = true
-		info.ForeignType = t.TypeName
-	}
-
-	return info
-}
-
 // internString stores a string in the scratch arena and returns its handle.
 // Use internStringPermanent for strings that need to persist after eval.
-func (i *InternalInterp) internString(s string) FeatherObj {
+func (i *Interp) internString(s string) FeatherObj {
 	return i.internStringScratch(s)
 }
 
 // internStringPermanent stores a string in permanent storage.
 // Use for strings that must persist across evals (e.g., namespace paths).
-func (i *InternalInterp) internStringPermanent(s string) FeatherObj {
+func (i *Interp) internStringPermanent(s string) FeatherObj {
 	id := i.nextID
 	i.nextID++
 	i.objects[id] = NewStringObj(s)
@@ -644,19 +455,19 @@ func (i *InternalInterp) internStringPermanent(s string) FeatherObj {
 }
 
 // InternString stores a string and returns its handle.
-func (i *InternalInterp) InternString(s string) FeatherObj {
+func (i *Interp) InternString(s string) FeatherObj {
 	return i.internString(s)
 }
 
 // registerObj stores an *Obj in the scratch arena and returns its handle.
 // Used when we need to give C a handle to an existing *Obj.
-func (i *InternalInterp) registerObj(obj *Obj) FeatherObj {
+func (i *Interp) registerObj(obj *Obj) FeatherObj {
 	return i.registerObjScratch(obj)
 }
 
 // registerObjPermanent stores an *Obj in permanent storage.
 // Use for objects that must persist across evals (e.g., foreign objects).
-func (i *InternalInterp) registerObjPermanent(obj *Obj) FeatherObj {
+func (i *Interp) registerObjPermanent(obj *Obj) FeatherObj {
 	if obj == nil {
 		return 0
 	}
@@ -666,52 +477,11 @@ func (i *InternalInterp) registerObjPermanent(obj *Obj) FeatherObj {
 	return id
 }
 
-// createListFromHandles creates a new list from a slice of handles.
-// Used by callbacks that work with FeatherObj handles.
-func (i *InternalInterp) createListFromHandles(handles []FeatherObj) FeatherObj {
-	items := make([]*Obj, len(handles))
-	for idx, h := range handles {
-		items[idx] = i.getObject(h)
-	}
-	return i.registerObj(&Obj{intrep: ListType(items)})
-}
-
-// getListItems returns the list items as *Obj slice.
-// Performs shimmering if needed. Returns nil on error.
-func (i *InternalInterp) getListItems(h FeatherObj) []*Obj {
-	obj := i.getObject(h)
-	if obj == nil {
-		return nil
-	}
-	if items, err := AsList(obj); err == nil {
-		return items
-	}
-	// Try shimmering via GetList (which parses strings)
-	if handles, err := i.GetList(h); err == nil {
-		items := make([]*Obj, len(handles))
-		for idx, h := range handles {
-			items[idx] = i.getObject(h)
-		}
-		return items
-	}
-	return nil
-}
-
-// setListItems sets the list items directly.
-func (i *InternalInterp) setListItems(h FeatherObj, items []*Obj) {
-	obj := i.getObject(h)
-	if obj == nil {
-		return
-	}
-	obj.intrep = ListType(items)
-	obj.invalidate()
-}
-
 // NewForeignHandle creates a new foreign object with the given type name and Go value.
 // The string representation is generated as "<TypeName:id>".
 // Returns the handle to the new foreign object.
 // Foreign objects are stored in permanent storage (not scratch) for explicit lifecycle.
-func (i *InternalInterp) NewForeignHandle(typeName string, value any) FeatherObj {
+func (i *Interp) NewForeignHandle(typeName string, value any) FeatherObj {
 	id := i.nextID
 	i.nextID++
 	obj := NewForeignObj(typeName, value)
@@ -724,7 +494,7 @@ func (i *InternalInterp) NewForeignHandle(typeName string, value any) FeatherObj
 
 // IsForeignHandle returns true if the object is a foreign object.
 // Also checks if the string representation is a foreign handle name.
-func (i *InternalInterp) IsForeignHandle(h FeatherObj) bool {
+func (i *Interp) IsForeignHandle(h FeatherObj) bool {
 	if obj := i.getObject(h); obj != nil {
 		if _, ok := obj.intrep.(*ForeignType); ok {
 			return true
@@ -744,7 +514,7 @@ func (i *InternalInterp) IsForeignHandle(h FeatherObj) bool {
 
 // GetForeignType returns the type name of a foreign object, or empty string if not foreign.
 // Also checks if the string representation is a foreign handle name.
-func (i *InternalInterp) GetForeignType(h FeatherObj) string {
+func (i *Interp) GetForeignType(h FeatherObj) string {
 	if obj := i.getObject(h); obj != nil {
 		if ft, ok := obj.intrep.(*ForeignType); ok {
 			return ft.TypeName
@@ -763,7 +533,7 @@ func (i *InternalInterp) GetForeignType(h FeatherObj) string {
 }
 
 // GetForeignValue returns the Go value of a foreign object, or nil if not foreign.
-func (i *InternalInterp) GetForeignValue(h FeatherObj) any {
+func (i *Interp) GetForeignValue(h FeatherObj) any {
 	if obj := i.getObject(h); obj != nil {
 		if ft, ok := obj.intrep.(*ForeignType); ok {
 			return ft.Value
@@ -773,7 +543,7 @@ func (i *InternalInterp) GetForeignValue(h FeatherObj) any {
 }
 
 // getObject retrieves an object by handle from either arena.
-func (i *InternalInterp) getObject(h FeatherObj) *Obj {
+func (i *Interp) getObject(h FeatherObj) *Obj {
 	if h == 0 {
 		return nil
 	}
@@ -785,7 +555,7 @@ func (i *InternalInterp) getObject(h FeatherObj) *Obj {
 
 // handleForObj returns a FeatherObj handle for a *Obj, registering it if needed.
 // Used when bridging from public *Obj API to internal handle-based operations.
-func (i *InternalInterp) handleForObj(o *Obj) FeatherObj {
+func (i *Interp) handleForObj(o *Obj) FeatherObj {
 	if o == nil {
 		return 0
 	}
@@ -794,7 +564,7 @@ func (i *InternalInterp) handleForObj(o *Obj) FeatherObj {
 
 // objForHandle returns the *Obj for a FeatherObj handle.
 // Used when bridging from internal handle-based operations to public *Obj API.
-func (i *InternalInterp) objForHandle(h FeatherObj) *Obj {
+func (i *Interp) objForHandle(h FeatherObj) *Obj {
 	if h == 0 {
 		return nil
 	}
@@ -803,7 +573,7 @@ func (i *InternalInterp) objForHandle(h FeatherObj) *Obj {
 
 // GetString returns the string representation of an object.
 // Performs shimmering: converts int/double/list/dict representations to string as needed.
-func (i *InternalInterp) GetString(h FeatherObj) string {
+func (i *Interp) GetString(h FeatherObj) string {
 	if obj := i.getObject(h); obj != nil {
 		return obj.String()
 	}
@@ -814,7 +584,7 @@ func (i *InternalInterp) GetString(h FeatherObj) string {
 // GetInt returns the integer representation of an object.
 // Performs shimmering: parses string representation as integer if needed.
 // Returns an error if the value cannot be converted to an integer.
-func (i *InternalInterp) GetInt(h FeatherObj) (int64, error) {
+func (i *Interp) GetInt(h FeatherObj) (int64, error) {
 	obj := i.getObject(h)
 	if obj == nil {
 		return 0, fmt.Errorf("nil object")
@@ -825,7 +595,7 @@ func (i *InternalInterp) GetInt(h FeatherObj) (int64, error) {
 // GetDouble returns the floating-point representation of an object.
 // Performs shimmering: parses string representation as double if needed.
 // Returns an error if the value cannot be converted to a double.
-func (i *InternalInterp) GetDouble(h FeatherObj) (float64, error) {
+func (i *Interp) GetDouble(h FeatherObj) (float64, error) {
 	obj := i.getObject(h)
 	if obj == nil {
 		return 0, fmt.Errorf("nil object")
@@ -836,7 +606,7 @@ func (i *InternalInterp) GetDouble(h FeatherObj) (float64, error) {
 // GetList returns the list representation of an object as handles.
 // Performs shimmering: parses string representation as list if needed.
 // Returns an error if the value cannot be converted to a list.
-func (i *InternalInterp) GetList(h FeatherObj) ([]FeatherObj, error) {
+func (i *Interp) GetList(h FeatherObj) ([]FeatherObj, error) {
 	obj := i.getObject(h)
 	if obj == nil {
 		return nil, fmt.Errorf("nil object")
@@ -887,7 +657,7 @@ func (i *InternalInterp) GetList(h FeatherObj) ([]FeatherObj, error) {
 // GetDict returns the dict representation of an object as handles.
 // Performs shimmering: parses string/list representation as dict if needed.
 // Returns an error if the value cannot be converted to a dict (odd number of elements).
-func (i *InternalInterp) GetDict(h FeatherObj) (map[string]FeatherObj, []string, error) {
+func (i *Interp) GetDict(h FeatherObj) (map[string]FeatherObj, []string, error) {
 	obj := i.getObject(h)
 	if obj == nil {
 		return nil, nil, fmt.Errorf("nil object")
@@ -940,7 +710,7 @@ func (i *InternalInterp) GetDict(h FeatherObj) (map[string]FeatherObj, []string,
 //
 // Note: For dicts, this returns the number of key-value pairs times 2
 // (the list representation length).
-func (i *InternalInterp) ListLen(h FeatherObj) int {
+func (i *Interp) ListLen(h FeatherObj) int {
 	items, err := i.GetList(h)
 	if err != nil {
 		return 0
@@ -955,7 +725,7 @@ func (i *InternalInterp) ListLen(h FeatherObj) int {
 //   - The index is negative or out of bounds
 //   - The object cannot be converted to a list
 //   - The object handle is invalid
-func (i *InternalInterp) ListIndex(h FeatherObj, idx int) FeatherObj {
+func (i *Interp) ListIndex(h FeatherObj, idx int) FeatherObj {
 	items, err := i.GetList(h)
 	if err != nil || idx < 0 || idx >= len(items) {
 		return 0
@@ -970,7 +740,7 @@ func (i *InternalInterp) ListIndex(h FeatherObj, idx int) FeatherObj {
 //
 // Returns (handle, true) if the key exists, (0, false) otherwise.
 // Also returns (0, false) if the object cannot be converted to a dict.
-func (i *InternalInterp) DictGet(h FeatherObj, key string) (FeatherObj, bool) {
+func (i *Interp) DictGet(h FeatherObj, key string) (FeatherObj, bool) {
 	items, _, err := i.GetDict(h)
 	if err != nil {
 		return 0, false
@@ -985,7 +755,7 @@ func (i *InternalInterp) DictGet(h FeatherObj, key string) (FeatherObj, bool) {
 // representation.
 //
 // Returns nil if the object cannot be converted to a dict.
-func (i *InternalInterp) DictKeys(h FeatherObj) []string {
+func (i *Interp) DictKeys(h FeatherObj) []string {
 	_, order, err := i.GetDict(h)
 	if err != nil {
 		return nil
@@ -995,7 +765,7 @@ func (i *InternalInterp) DictKeys(h FeatherObj) []string {
 
 // IsNativeDict returns true if the object has a native dict representation
 // (not just convertible to dict via shimmering).
-func (i *InternalInterp) IsNativeDict(h FeatherObj) bool {
+func (i *Interp) IsNativeDict(h FeatherObj) bool {
 	obj := i.getObject(h)
 	if obj == nil {
 		return false
@@ -1006,7 +776,7 @@ func (i *InternalInterp) IsNativeDict(h FeatherObj) bool {
 
 // IsNativeList returns true if the object has a native list representation
 // (not just convertible to list via shimmering).
-func (i *InternalInterp) IsNativeList(h FeatherObj) bool {
+func (i *Interp) IsNativeList(h FeatherObj) bool {
 	obj := i.getObject(h)
 	if obj == nil {
 		return false
@@ -1015,43 +785,41 @@ func (i *InternalInterp) IsNativeList(h FeatherObj) bool {
 	return ok
 }
 
-
-
 // SetResult sets the interpreter's result to the given object handle.
 // The object is retrieved from the arena and stored directly.
-func (i *InternalInterp) SetResult(obj FeatherObj) {
+func (i *Interp) SetResult(obj FeatherObj) {
 	i.result = i.getObject(obj)
 }
 
 // SetResultObj sets the interpreter's result to the given *Obj directly.
-func (i *InternalInterp) SetResultObj(obj *Obj) {
+func (i *Interp) SetResultObj(obj *Obj) {
 	i.result = obj
 }
 
 // SetResultString sets the interpreter's result to a string value.
-func (i *InternalInterp) SetResultString(s string) {
+func (i *Interp) SetResultString(s string) {
 	i.result = NewStringObj(s)
 }
 
 // SetErrorString sets the interpreter's result to an error message.
-func (i *InternalInterp) SetErrorString(s string) {
+func (i *Interp) SetErrorString(s string) {
 	i.result = NewStringObj(s)
 }
 
 // SetError sets the interpreter's result to the given object handle (for error results).
 // This is symmetric with SetResult but semantically indicates an error value.
-func (i *InternalInterp) SetError(obj FeatherObj) {
+func (i *Interp) SetError(obj FeatherObj) {
 	i.result = i.getObject(obj)
 }
 
-// SetVar sets a variable by name to a string value in the current frame.
-func (i *InternalInterp) SetVar(name, value string) {
+// setVar sets a variable by name to a string value in the current frame (internal).
+func (i *Interp) setVar(name, value string) {
 	frame := i.frames[i.active]
 	frame.locals.vars[name] = NewStringObj(value)
 }
 
 // GetVar returns the string value of a variable from the current frame, or empty string if not found.
-func (i *InternalInterp) GetVar(name string) string {
+func (i *Interp) GetVar(name string) string {
 	frame := i.frames[i.active]
 	if val, ok := frame.locals.vars[name]; ok && val != nil {
 		return val.String()
@@ -1061,7 +829,7 @@ func (i *InternalInterp) GetVar(name string) string {
 
 // GetVarHandle returns the object handle for a variable, preserving its type.
 // Returns 0 if the variable is not found.
-func (i *InternalInterp) GetVarHandle(name string) FeatherObj {
+func (i *Interp) GetVarHandle(name string) FeatherObj {
 	frame := i.frames[i.active]
 	if val, ok := frame.locals.vars[name]; ok && val != nil {
 		return i.registerObjScratch(val)
@@ -1069,12 +837,12 @@ func (i *InternalInterp) GetVarHandle(name string) FeatherObj {
 	return 0
 }
 
-func getInternalInterp(h C.FeatherInterp) *InternalInterp {
-	return cgo.Handle(h).Value().(*InternalInterp)
+func getInterp(h C.FeatherInterp) *Interp {
+	return cgo.Handle(h).Value().(*Interp)
 }
 
 // storeBuilder stores a string builder and returns a handle for it.
-func (i *InternalInterp) storeBuilder(b *strings.Builder) FeatherObj {
+func (i *Interp) storeBuilder(b *strings.Builder) FeatherObj {
 	id := i.nextID
 	i.nextID++
 	i.builders[id] = b
@@ -1082,12 +850,12 @@ func (i *InternalInterp) storeBuilder(b *strings.Builder) FeatherObj {
 }
 
 // getBuilder retrieves a string builder by handle.
-func (i *InternalInterp) getBuilder(h FeatherObj) *strings.Builder {
+func (i *Interp) getBuilder(h FeatherObj) *strings.Builder {
 	return i.builders[h]
 }
 
 // releaseBuilder removes a builder from storage.
-func (i *InternalInterp) releaseBuilder(h FeatherObj) {
+func (i *Interp) releaseBuilder(h FeatherObj) {
 	delete(i.builders, h)
 }
 

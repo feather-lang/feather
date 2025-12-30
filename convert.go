@@ -88,7 +88,7 @@ func wrapFunc(i *Interp, fn any) InternalCommandFunc {
 		panic(fmt.Sprintf("Register: expected function, got %T", fn))
 	}
 
-	return func(ip *InternalInterp, cmd FeatherObj, args []FeatherObj) FeatherResult {
+	return func(ip *Interp, cmd FeatherObj, args []FeatherObj) FeatherResult {
 		numIn := fnType.NumIn()
 		isVariadic := fnType.IsVariadic()
 
@@ -132,7 +132,7 @@ func wrapFunc(i *Interp, fn any) InternalCommandFunc {
 }
 
 // convertArgInternal converts a TCL value to a Go value of the specified type.
-func convertArgInternal(i *InternalInterp, arg FeatherObj, targetType reflect.Type) (reflect.Value, error) {
+func convertArgInternal(i *Interp, arg FeatherObj, targetType reflect.Type) (reflect.Value, error) {
 	switch targetType.Kind() {
 	case reflect.String:
 		return reflect.ValueOf(i.GetString(arg)), nil
@@ -210,7 +210,7 @@ func convertArgInternal(i *InternalInterp, arg FeatherObj, targetType reflect.Ty
 }
 
 // processResultsInternal handles the return values from a function call.
-func processResultsInternal(i *InternalInterp, results []reflect.Value, fnType reflect.Type) FeatherResult {
+func processResultsInternal(i *Interp, results []reflect.Value, fnType reflect.Type) FeatherResult {
 	if len(results) == 0 {
 		i.SetResultString("")
 		return ResultOK
@@ -238,7 +238,7 @@ func processResultsInternal(i *InternalInterp, results []reflect.Value, fnType r
 }
 
 // convertResultInternal converts a Go value to a TCL result.
-func convertResultInternal(i *InternalInterp, result reflect.Value) FeatherResult {
+func convertResultInternal(i *Interp, result reflect.Value) FeatherResult {
 	if !result.IsValid() {
 		i.SetResultString("")
 		return ResultOK
@@ -249,24 +249,24 @@ func convertResultInternal(i *InternalInterp, result reflect.Value) FeatherResul
 		i.SetResult(i.InternString(result.String()))
 
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		i.SetResult(i.NewInt(result.Int()))
+		i.SetResult(i.NewIntObj(result.Int()))
 
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		i.SetResult(i.NewInt(int64(result.Uint())))
+		i.SetResult(i.NewIntObj(int64(result.Uint())))
 
 	case reflect.Float32, reflect.Float64:
-		i.SetResult(i.NewDouble(result.Float()))
+		i.SetResult(i.NewDoubleObj(result.Float()))
 
 	case reflect.Bool:
 		if result.Bool() {
-			i.SetResult(i.NewInt(1))
+			i.SetResult(i.NewIntObj(1))
 		} else {
-			i.SetResult(i.NewInt(0))
+			i.SetResult(i.NewIntObj(0))
 		}
 
 	case reflect.Slice:
 		// Convert slice to list
-		list := i.NewList()
+		list := i.NewListObj()
 		for j := 0; j < result.Len(); j++ {
 			elem := result.Index(j)
 			var elemHandle FeatherObj
@@ -274,17 +274,17 @@ func convertResultInternal(i *InternalInterp, result reflect.Value) FeatherResul
 			case reflect.String:
 				elemHandle = i.InternString(elem.String())
 			case reflect.Int, reflect.Int64:
-				elemHandle = i.NewInt(elem.Int())
+				elemHandle = i.NewIntObj(elem.Int())
 			default:
 				elemHandle = i.InternString(fmt.Sprintf("%v", elem.Interface()))
 			}
-			list = i.ListAppend(list, elemHandle)
+			list = i.ListAppendObj(list, elemHandle)
 		}
 		i.SetResult(list)
 
 	case reflect.Map:
 		// Convert map to dict
-		dict := i.NewDict()
+		dict := i.NewDictObj()
 		iter := result.MapRange()
 		for iter.Next() {
 			key := fmt.Sprintf("%v", iter.Key().Interface())
@@ -294,11 +294,11 @@ func convertResultInternal(i *InternalInterp, result reflect.Value) FeatherResul
 			case reflect.String:
 				valHandle = i.InternString(val.String())
 			case reflect.Int, reflect.Int64:
-				valHandle = i.NewInt(val.Int())
+				valHandle = i.NewIntObj(val.Int())
 			default:
 				valHandle = i.InternString(fmt.Sprintf("%v", val.Interface()))
 			}
-			dict = i.DictSet(dict, key, valHandle)
+			dict = i.DictSetObj(dict, key, valHandle)
 		}
 		i.SetResult(dict)
 

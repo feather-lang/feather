@@ -140,20 +140,20 @@ func main() {
 }
 
 func (s *HTTPServer) registerCommands() {
-	host := s.interp.Internal()
-	host.Register("route", s.cmdRoute)
-	host.Register("listen", s.cmdListen)
-	host.Register("stop", s.cmdStop)
-	host.Register("response", s.cmdResponse)
-	host.Register("status", s.cmdStatus)
-	host.Register("header", s.cmdHeader)
-	host.Register("request", s.cmdRequest)
-	host.Register("template", s.cmdTemplate)
+	// Register commands directly in the Commands map
+	s.interp.Commands["route"] = s.cmdRoute
+	s.interp.Commands["listen"] = s.cmdListen
+	s.interp.Commands["stop"] = s.cmdStop
+	s.interp.Commands["response"] = s.cmdResponse
+	s.interp.Commands["status"] = s.cmdStatus
+	s.interp.Commands["header"] = s.cmdHeader
+	s.interp.Commands["request"] = s.cmdRequest
+	s.interp.Commands["template"] = s.cmdTemplate
 }
 
 // cmdRoute registers a route handler.
 // Usage: route METHOD /path {script}
-func (s *HTTPServer) cmdRoute(i *feather.InternalInterp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
+func (s *HTTPServer) cmdRoute(i *feather.Interp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
 	if len(args) < 3 {
 		i.SetErrorString("wrong # args: should be \"route method path script\"")
 		return feather.ResultError
@@ -174,7 +174,7 @@ func (s *HTTPServer) cmdRoute(i *feather.InternalInterp, cmd feather.FeatherObj,
 
 // cmdListen starts the HTTP server.
 // Usage: listen port
-func (s *HTTPServer) cmdListen(i *feather.InternalInterp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
+func (s *HTTPServer) cmdListen(i *feather.Interp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
 	if len(args) < 1 {
 		i.SetErrorString("wrong # args: should be \"listen port\"")
 		return feather.ResultError
@@ -215,7 +215,7 @@ func (s *HTTPServer) cmdListen(i *feather.InternalInterp, cmd feather.FeatherObj
 
 // cmdStop stops the HTTP server.
 // Usage: stop
-func (s *HTTPServer) cmdStop(i *feather.InternalInterp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
+func (s *HTTPServer) cmdStop(i *feather.Interp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
 	s.mu.Lock()
 	if !s.running || s.server == nil {
 		s.mu.Unlock()
@@ -237,7 +237,7 @@ func (s *HTTPServer) cmdStop(i *feather.InternalInterp, cmd feather.FeatherObj, 
 
 // cmdResponse sets the response body.
 // Usage: response body
-func (s *HTTPServer) cmdResponse(i *feather.InternalInterp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
+func (s *HTTPServer) cmdResponse(i *feather.Interp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
 	requestMu.Lock()
 	ctx := currentRequest
 	requestMu.Unlock()
@@ -259,7 +259,7 @@ func (s *HTTPServer) cmdResponse(i *feather.InternalInterp, cmd feather.FeatherO
 
 // cmdStatus sets the HTTP status code.
 // Usage: status code
-func (s *HTTPServer) cmdStatus(i *feather.InternalInterp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
+func (s *HTTPServer) cmdStatus(i *feather.Interp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
 	requestMu.Lock()
 	ctx := currentRequest
 	requestMu.Unlock()
@@ -287,7 +287,7 @@ func (s *HTTPServer) cmdStatus(i *feather.InternalInterp, cmd feather.FeatherObj
 
 // cmdHeader sets a response header.
 // Usage: header name value
-func (s *HTTPServer) cmdHeader(i *feather.InternalInterp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
+func (s *HTTPServer) cmdHeader(i *feather.Interp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
 	requestMu.Lock()
 	ctx := currentRequest
 	requestMu.Unlock()
@@ -312,7 +312,7 @@ func (s *HTTPServer) cmdHeader(i *feather.InternalInterp, cmd feather.FeatherObj
 
 // cmdRequest gets request information.
 // Usage: request method | path | header name | query name | body
-func (s *HTTPServer) cmdRequest(i *feather.InternalInterp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
+func (s *HTTPServer) cmdRequest(i *feather.Interp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
 	requestMu.Lock()
 	ctx := currentRequest
 	requestMu.Unlock()
@@ -420,7 +420,7 @@ func (s *HTTPServer) refreshTemplates() {
 
 // cmdTemplate handles template subcommands.
 // Usage: template list | template render name data | template errors
-func (s *HTTPServer) cmdTemplate(i *feather.InternalInterp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
+func (s *HTTPServer) cmdTemplate(i *feather.Interp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
 	if len(args) < 1 {
 		i.SetErrorString("wrong # args: should be \"template subcommand ?args?\"")
 		return feather.ResultError
@@ -443,15 +443,15 @@ func (s *HTTPServer) cmdTemplate(i *feather.InternalInterp, cmd feather.FeatherO
 }
 
 // cmdTemplateList lists available templates.
-func (s *HTTPServer) cmdTemplateList(i *feather.InternalInterp) feather.FeatherResult {
+func (s *HTTPServer) cmdTemplateList(i *feather.Interp) feather.FeatherResult {
 	s.refreshTemplates()
 
 	s.templateMu.RLock()
 	defer s.templateMu.RUnlock()
 
-	list := i.NewList()
+	list := i.NewListObj()
 	for name := range s.templates {
-		i.ListAppend(list, i.InternString(name))
+		i.ListAppendObj(list, i.InternString(name))
 	}
 
 	i.SetResult(list)
@@ -459,7 +459,7 @@ func (s *HTTPServer) cmdTemplateList(i *feather.InternalInterp) feather.FeatherR
 }
 
 // cmdTemplateRender renders a template with data to the response.
-func (s *HTTPServer) cmdTemplateRender(i *feather.InternalInterp, args []feather.FeatherObj) feather.FeatherResult {
+func (s *HTTPServer) cmdTemplateRender(i *feather.Interp, args []feather.FeatherObj) feather.FeatherResult {
 	requestMu.Lock()
 	ctx := currentRequest
 	requestMu.Unlock()
@@ -509,7 +509,7 @@ func (s *HTTPServer) cmdTemplateRender(i *feather.InternalInterp, args []feather
 }
 
 // cmdTemplateShow returns the source of a template.
-func (s *HTTPServer) cmdTemplateShow(i *feather.InternalInterp, args []feather.FeatherObj) feather.FeatherResult {
+func (s *HTTPServer) cmdTemplateShow(i *feather.Interp, args []feather.FeatherObj) feather.FeatherResult {
 	if len(args) < 1 {
 		i.SetErrorString("wrong # args: should be \"template show name\"")
 		return feather.ResultError
@@ -529,16 +529,16 @@ func (s *HTTPServer) cmdTemplateShow(i *feather.InternalInterp, args []feather.F
 }
 
 // cmdTemplateErrors returns a dict of templates and their parsing errors.
-func (s *HTTPServer) cmdTemplateErrors(i *feather.InternalInterp) feather.FeatherResult {
+func (s *HTTPServer) cmdTemplateErrors(i *feather.Interp) feather.FeatherResult {
 	s.refreshTemplates()
 
 	s.templateMu.RLock()
 	defer s.templateMu.RUnlock()
 
-	dict := i.NewDict()
+	dict := i.NewDictObj()
 	for name, info := range s.templates {
 		if info.Error != nil {
-			i.DictSet(dict, name, i.InternString(info.Error.Error()))
+			i.DictSetObj(dict, name, i.InternString(info.Error.Error()))
 		}
 	}
 	i.SetResult(dict)
@@ -546,7 +546,7 @@ func (s *HTTPServer) cmdTemplateErrors(i *feather.InternalInterp) feather.Feathe
 }
 
 // tclToGoData converts a TCL object to Go data suitable for template execution.
-func (s *HTTPServer) tclToGoData(i *feather.InternalInterp, obj feather.FeatherObj) any {
+func (s *HTTPServer) tclToGoData(i *feather.Interp, obj feather.FeatherObj) any {
 	// Check native dict first (avoids infinite recursion from shimmering)
 	if i.IsNativeDict(obj) {
 		dictItems, dictOrder, err := i.GetDict(obj)

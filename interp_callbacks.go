@@ -32,7 +32,7 @@ import (
 
 //export goBindUnknown
 func goBindUnknown(interp C.FeatherInterp, cmd C.FeatherObj, args C.FeatherObj, value *C.FeatherObj) C.FeatherResult {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
@@ -60,7 +60,7 @@ func goBindUnknown(interp C.FeatherInterp, cmd C.FeatherObj, args C.FeatherObj, 
 
 //export goStringIntern
 func goStringIntern(interp C.FeatherInterp, s *C.char, length C.size_t) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -70,7 +70,7 @@ func goStringIntern(interp C.FeatherInterp, s *C.char, length C.size_t) C.Feathe
 
 //export goStringConcat
 func goStringConcat(interp C.FeatherInterp, a C.FeatherObj, b C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -82,7 +82,7 @@ func goStringConcat(interp C.FeatherInterp, a C.FeatherObj, b C.FeatherObj) C.Fe
 
 //export goStringCompare
 func goStringCompare(interp C.FeatherInterp, a C.FeatherObj, b C.FeatherObj) C.int {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -101,7 +101,7 @@ func goStringCompare(interp C.FeatherInterp, a C.FeatherObj, b C.FeatherObj) C.i
 
 //export goStringRegexMatch
 func goStringRegexMatch(interp C.FeatherInterp, pattern C.FeatherObj, str C.FeatherObj, result *C.int) C.FeatherResult {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
@@ -127,7 +127,7 @@ func goStringRegexMatch(interp C.FeatherInterp, pattern C.FeatherObj, str C.Feat
 
 //export goStringByteAt
 func goStringByteAt(interp C.FeatherInterp, obj C.FeatherObj, index C.size_t) C.int {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return -1
 	}
@@ -140,7 +140,7 @@ func goStringByteAt(interp C.FeatherInterp, obj C.FeatherObj, index C.size_t) C.
 
 //export goStringByteLength
 func goStringByteLength(interp C.FeatherInterp, obj C.FeatherObj) C.size_t {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -150,7 +150,7 @@ func goStringByteLength(interp C.FeatherInterp, obj C.FeatherObj) C.size_t {
 
 //export goStringSlice
 func goStringSlice(interp C.FeatherInterp, obj C.FeatherObj, start C.size_t, end C.size_t) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -170,7 +170,7 @@ func goStringSlice(interp C.FeatherInterp, obj C.FeatherObj, start C.size_t, end
 
 //export goStringEqual
 func goStringEqual(interp C.FeatherInterp, a C.FeatherObj, b C.FeatherObj) C.int {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -184,7 +184,7 @@ func goStringEqual(interp C.FeatherInterp, a C.FeatherObj, b C.FeatherObj) C.int
 
 //export goStringMatch
 func goStringMatch(interp C.FeatherInterp, pattern C.FeatherObj, str C.FeatherObj, nocase C.int) C.int {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -202,7 +202,7 @@ func goStringMatch(interp C.FeatherInterp, pattern C.FeatherObj, str C.FeatherOb
 
 //export goStringBuilderNew
 func goStringBuilderNew(interp C.FeatherInterp, capacity C.size_t) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -213,7 +213,7 @@ func goStringBuilderNew(interp C.FeatherInterp, capacity C.size_t) C.FeatherObj 
 
 //export goStringBuilderAppendByte
 func goStringBuilderAppendByte(interp C.FeatherInterp, builder C.FeatherObj, b C.int) {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return
 	}
@@ -225,7 +225,7 @@ func goStringBuilderAppendByte(interp C.FeatherInterp, builder C.FeatherObj, b C
 
 //export goStringBuilderAppendObj
 func goStringBuilderAppendObj(interp C.FeatherInterp, builder C.FeatherObj, str C.FeatherObj) {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return
 	}
@@ -237,7 +237,7 @@ func goStringBuilderAppendObj(interp C.FeatherInterp, builder C.FeatherObj, str 
 
 //export goStringBuilderFinish
 func goStringBuilderFinish(interp C.FeatherInterp, builder C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -254,7 +254,7 @@ func goStringBuilderFinish(interp C.FeatherInterp, builder C.FeatherObj) C.Feath
 
 //export goRuneLength
 func goRuneLength(interp C.FeatherInterp, str C.FeatherObj) C.size_t {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -264,7 +264,7 @@ func goRuneLength(interp C.FeatherInterp, str C.FeatherObj) C.size_t {
 
 //export goRuneAt
 func goRuneAt(interp C.FeatherInterp, str C.FeatherObj, index C.size_t) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -279,7 +279,7 @@ func goRuneAt(interp C.FeatherInterp, str C.FeatherObj, index C.size_t) C.Feathe
 
 //export goRuneRange
 func goRuneRange(interp C.FeatherInterp, str C.FeatherObj, first C.int64_t, last C.int64_t) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -305,7 +305,7 @@ func goRuneRange(interp C.FeatherInterp, str C.FeatherObj, first C.int64_t, last
 
 //export goRuneToUpper
 func goRuneToUpper(interp C.FeatherInterp, str C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -315,7 +315,7 @@ func goRuneToUpper(interp C.FeatherInterp, str C.FeatherObj) C.FeatherObj {
 
 //export goRuneToLower
 func goRuneToLower(interp C.FeatherInterp, str C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -325,7 +325,7 @@ func goRuneToLower(interp C.FeatherInterp, str C.FeatherObj) C.FeatherObj {
 
 //export goRuneFold
 func goRuneFold(interp C.FeatherInterp, str C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -349,7 +349,7 @@ func goRuneFold(interp C.FeatherInterp, str C.FeatherObj) C.FeatherObj {
 
 //export goInterpSetResult
 func goInterpSetResult(interp C.FeatherInterp, result C.FeatherObj) C.FeatherResult {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
@@ -360,7 +360,7 @@ func goInterpSetResult(interp C.FeatherInterp, result C.FeatherObj) C.FeatherRes
 
 //export goInterpGetResult
 func goInterpGetResult(interp C.FeatherInterp) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -370,7 +370,7 @@ func goInterpGetResult(interp C.FeatherInterp) C.FeatherObj {
 
 //export goInterpResetResult
 func goInterpResetResult(interp C.FeatherInterp, result C.FeatherObj) C.FeatherResult {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
@@ -381,7 +381,7 @@ func goInterpResetResult(interp C.FeatherInterp, result C.FeatherObj) C.FeatherR
 
 //export goInterpSetReturnOptions
 func goInterpSetReturnOptions(interp C.FeatherInterp, options C.FeatherObj) C.FeatherResult {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
@@ -392,7 +392,7 @@ func goInterpSetReturnOptions(interp C.FeatherInterp, options C.FeatherObj) C.Fe
 
 //export goInterpGetReturnOptions
 func goInterpGetReturnOptions(interp C.FeatherInterp, code C.FeatherResult) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -402,7 +402,7 @@ func goInterpGetReturnOptions(interp C.FeatherInterp, code C.FeatherResult) C.Fe
 
 //export goListCreate
 func goListCreate(interp C.FeatherInterp) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -419,7 +419,7 @@ func goListIsNil(interp C.FeatherInterp, obj C.FeatherObj) C.int {
 
 //export goListFrom
 func goListFrom(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -440,7 +440,7 @@ func goListFrom(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 
 //export goListPush
 func goListPush(interp C.FeatherInterp, list C.FeatherObj, item C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return list
 	}
@@ -469,7 +469,7 @@ func goListPush(interp C.FeatherInterp, list C.FeatherObj, item C.FeatherObj) C.
 
 //export goListPop
 func goListPop(interp C.FeatherInterp, list C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -496,7 +496,7 @@ func goListPop(interp C.FeatherInterp, list C.FeatherObj) C.FeatherObj {
 
 //export goListUnshift
 func goListUnshift(interp C.FeatherInterp, list C.FeatherObj, item C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return list
 	}
@@ -524,7 +524,7 @@ func goListUnshift(interp C.FeatherInterp, list C.FeatherObj, item C.FeatherObj)
 
 //export goListShift
 func goListShift(interp C.FeatherInterp, list C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -551,7 +551,7 @@ func goListShift(interp C.FeatherInterp, list C.FeatherObj) C.FeatherObj {
 
 //export goListLength
 func goListLength(interp C.FeatherInterp, list C.FeatherObj) C.size_t {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -565,7 +565,7 @@ func goListLength(interp C.FeatherInterp, list C.FeatherObj) C.size_t {
 
 //export goListAt
 func goListAt(interp C.FeatherInterp, list C.FeatherObj, index C.size_t) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -582,7 +582,7 @@ func goListAt(interp C.FeatherInterp, list C.FeatherObj, index C.size_t) C.Feath
 
 //export goListSlice
 func goListSlice(interp C.FeatherInterp, list C.FeatherObj, first C.size_t, last C.size_t) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -618,7 +618,7 @@ func goListSlice(interp C.FeatherInterp, list C.FeatherObj, first C.size_t, last
 
 //export goListSetAt
 func goListSetAt(interp C.FeatherInterp, list C.FeatherObj, index C.size_t, value C.FeatherObj) C.FeatherResult {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
@@ -654,7 +654,7 @@ func goListSetAt(interp C.FeatherInterp, list C.FeatherObj, index C.size_t, valu
 
 //export goListSplice
 func goListSplice(interp C.FeatherInterp, list C.FeatherObj, first C.size_t, deleteCount C.size_t, insertions C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -733,7 +733,7 @@ var currentSortCtx *ListSortContext
 
 //export goListSort
 func goListSort(interp C.FeatherInterp, list C.FeatherObj, cmpFunc unsafe.Pointer, ctx unsafe.Pointer) C.FeatherResult {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
@@ -786,7 +786,7 @@ func goListSort(interp C.FeatherInterp, list C.FeatherObj, cmpFunc unsafe.Pointe
 
 //export goDictCreate
 func goDictCreate(interp C.FeatherInterp) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -795,7 +795,7 @@ func goDictCreate(interp C.FeatherInterp) C.FeatherObj {
 
 //export goDictIsDict
 func goDictIsDict(interp C.FeatherInterp, obj C.FeatherObj) C.int {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -810,7 +810,7 @@ func goDictIsDict(interp C.FeatherInterp, obj C.FeatherObj) C.int {
 
 //export goDictFrom
 func goDictFrom(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -831,7 +831,7 @@ func goDictFrom(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 
 //export goDictGet
 func goDictGet(interp C.FeatherInterp, dict C.FeatherObj, key C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -857,7 +857,7 @@ func goDictGet(interp C.FeatherInterp, dict C.FeatherObj, key C.FeatherObj) C.Fe
 
 //export goDictSet
 func goDictSet(interp C.FeatherInterp, dict C.FeatherObj, key C.FeatherObj, value C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -883,7 +883,7 @@ func goDictSet(interp C.FeatherInterp, dict C.FeatherObj, key C.FeatherObj, valu
 
 //export goDictExists
 func goDictExists(interp C.FeatherInterp, dict C.FeatherObj, key C.FeatherObj) C.int {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -900,7 +900,7 @@ func goDictExists(interp C.FeatherInterp, dict C.FeatherObj, key C.FeatherObj) C
 
 //export goDictRemove
 func goDictRemove(interp C.FeatherInterp, dict C.FeatherObj, key C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -936,7 +936,7 @@ func goDictRemove(interp C.FeatherInterp, dict C.FeatherObj, key C.FeatherObj) C
 
 //export goDictSize
 func goDictSize(interp C.FeatherInterp, dict C.FeatherObj) C.size_t {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -949,7 +949,7 @@ func goDictSize(interp C.FeatherInterp, dict C.FeatherObj) C.size_t {
 
 //export goDictKeys
 func goDictKeys(interp C.FeatherInterp, dict C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -967,7 +967,7 @@ func goDictKeys(interp C.FeatherInterp, dict C.FeatherObj) C.FeatherObj {
 
 //export goDictValues
 func goDictValues(interp C.FeatherInterp, dict C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -985,7 +985,7 @@ func goDictValues(interp C.FeatherInterp, dict C.FeatherObj) C.FeatherObj {
 
 //export goIntCreate
 func goIntCreate(interp C.FeatherInterp, val C.int64_t) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -994,7 +994,7 @@ func goIntCreate(interp C.FeatherInterp, val C.int64_t) C.FeatherObj {
 
 //export goIntGet
 func goIntGet(interp C.FeatherInterp, obj C.FeatherObj, out *C.int64_t) C.FeatherResult {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
@@ -1008,7 +1008,7 @@ func goIntGet(interp C.FeatherInterp, obj C.FeatherObj, out *C.int64_t) C.Feathe
 
 //export goDoubleCreate
 func goDoubleCreate(interp C.FeatherInterp, val C.double) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -1017,7 +1017,7 @@ func goDoubleCreate(interp C.FeatherInterp, val C.double) C.FeatherObj {
 
 //export goDoubleGet
 func goDoubleGet(interp C.FeatherInterp, obj C.FeatherObj, out *C.double) C.FeatherResult {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
@@ -1049,7 +1049,7 @@ func goDoubleClassify(val C.double) C.FeatherDoubleClass {
 
 //export goDoubleFormat
 func goDoubleFormat(interp C.FeatherInterp, val C.double, specifier C.char, precision C.int) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -1092,7 +1092,7 @@ func goDoubleFormat(interp C.FeatherInterp, val C.double, specifier C.char, prec
 
 //export goDoubleMath
 func goDoubleMath(interp C.FeatherInterp, op C.FeatherMathOp, a C.double, b C.double, out *C.double) C.FeatherResult {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
@@ -1156,7 +1156,7 @@ func goDoubleMath(interp C.FeatherInterp, op C.FeatherMathOp, a C.double, b C.do
 
 //export goFramePush
 func goFramePush(interp C.FeatherInterp, cmd C.FeatherObj, args C.FeatherObj) C.FeatherResult {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
@@ -1195,7 +1195,7 @@ func goFramePush(interp C.FeatherInterp, cmd C.FeatherObj, args C.FeatherObj) C.
 
 //export goFramePop
 func goFramePop(interp C.FeatherInterp) C.FeatherResult {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
@@ -1210,7 +1210,7 @@ func goFramePop(interp C.FeatherInterp) C.FeatherResult {
 
 //export goFrameLevel
 func goFrameLevel(interp C.FeatherInterp) C.size_t {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -1219,7 +1219,7 @@ func goFrameLevel(interp C.FeatherInterp) C.size_t {
 
 //export goFrameSetActive
 func goFrameSetActive(interp C.FeatherInterp, level C.size_t) C.FeatherResult {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
@@ -1233,7 +1233,7 @@ func goFrameSetActive(interp C.FeatherInterp, level C.size_t) C.FeatherResult {
 
 //export goFrameSize
 func goFrameSize(interp C.FeatherInterp) C.size_t {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -1242,7 +1242,7 @@ func goFrameSize(interp C.FeatherInterp) C.size_t {
 
 //export goFrameInfo
 func goFrameInfo(interp C.FeatherInterp, level C.size_t, cmd *C.FeatherObj, args *C.FeatherObj, ns *C.FeatherObj) C.FeatherResult {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
@@ -1265,7 +1265,7 @@ func goFrameInfo(interp C.FeatherInterp, level C.size_t, cmd *C.FeatherObj, args
 
 //export goVarGet
 func goVarGet(interp C.FeatherInterp, name C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -1306,7 +1306,7 @@ func goVarGet(interp C.FeatherInterp, name C.FeatherObj) C.FeatherObj {
 
 //export goVarSet
 func goVarSet(interp C.FeatherInterp, name C.FeatherObj, value C.FeatherObj) {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return
 	}
@@ -1342,7 +1342,7 @@ func goVarSet(interp C.FeatherInterp, name C.FeatherObj, value C.FeatherObj) {
 
 //export goVarUnset
 func goVarUnset(interp C.FeatherInterp, name C.FeatherObj) {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return
 	}
@@ -1376,7 +1376,7 @@ func goVarUnset(interp C.FeatherInterp, name C.FeatherObj) {
 
 //export goVarExists
 func goVarExists(interp C.FeatherInterp, name C.FeatherObj) C.FeatherResult {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
@@ -1415,7 +1415,7 @@ func goVarExists(interp C.FeatherInterp, name C.FeatherObj) C.FeatherResult {
 
 //export goVarLink
 func goVarLink(interp C.FeatherInterp, local C.FeatherObj, target_level C.size_t, target C.FeatherObj) {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return
 	}
@@ -1456,7 +1456,7 @@ func callCInterpInit(interpHandle FeatherInterp) {
 }
 
 // Helper to create or get a namespace by path
-func (i *InternalInterp) ensureNamespace(path string) *Namespace {
+func (i *Interp) ensureNamespace(path string) *Namespace {
 	if ns, ok := i.namespaces[path]; ok {
 		return ns
 	}
@@ -1497,7 +1497,7 @@ func (i *InternalInterp) ensureNamespace(path string) *Namespace {
 
 //export goNsCreate
 func goNsCreate(interp C.FeatherInterp, path C.FeatherObj) C.FeatherResult {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
@@ -1508,7 +1508,7 @@ func goNsCreate(interp C.FeatherInterp, path C.FeatherObj) C.FeatherResult {
 
 //export goNsDelete
 func goNsDelete(interp C.FeatherInterp, path C.FeatherObj) C.FeatherResult {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
@@ -1549,7 +1549,7 @@ func goNsDelete(interp C.FeatherInterp, path C.FeatherObj) C.FeatherResult {
 
 //export goNsExists
 func goNsExists(interp C.FeatherInterp, path C.FeatherObj) C.int {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -1562,7 +1562,7 @@ func goNsExists(interp C.FeatherInterp, path C.FeatherObj) C.int {
 
 //export goNsCurrent
 func goNsCurrent(interp C.FeatherInterp) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -1575,7 +1575,7 @@ func goNsCurrent(interp C.FeatherInterp) C.FeatherObj {
 
 //export goNsParent
 func goNsParent(interp C.FeatherInterp, nsPath C.FeatherObj, result *C.FeatherObj) C.FeatherResult {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
@@ -1597,7 +1597,7 @@ func goNsParent(interp C.FeatherInterp, nsPath C.FeatherObj, result *C.FeatherOb
 
 //export goNsChildren
 func goNsChildren(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -1627,7 +1627,7 @@ func goNsChildren(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherObj {
 
 //export goNsGetVar
 func goNsGetVar(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -1646,7 +1646,7 @@ func goNsGetVar(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj) 
 
 //export goNsSetVar
 func goNsSetVar(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj, value C.FeatherObj) {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return
 	}
@@ -1660,7 +1660,7 @@ func goNsSetVar(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj, 
 
 //export goNsVarExists
 func goNsVarExists(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj) C.int {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -1679,7 +1679,7 @@ func goNsVarExists(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherOb
 
 //export goNsUnsetVar
 func goNsUnsetVar(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj) {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return
 	}
@@ -1696,7 +1696,7 @@ func goNsUnsetVar(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj
 //export goNsGetCommand
 func goNsGetCommand(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj,
 	fn *C.FeatherBuiltinCmd, params *C.FeatherObj, body *C.FeatherObj) C.FeatherCommandType {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		if fn != nil {
 			*fn = nil
@@ -1785,7 +1785,7 @@ func goNsGetCommand(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherO
 func goNsSetCommand(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj,
 	kind C.FeatherCommandType, fn C.FeatherBuiltinCmd,
 	params C.FeatherObj, body C.FeatherObj) {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return
 	}
@@ -1812,7 +1812,7 @@ func goNsSetCommand(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherO
 
 //export goNsDeleteCommand
 func goNsDeleteCommand(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj) C.FeatherResult {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
@@ -1834,7 +1834,7 @@ func goNsDeleteCommand(interp C.FeatherInterp, nsPath C.FeatherObj, name C.Feath
 
 //export goNsListCommands
 func goNsListCommands(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -1861,7 +1861,7 @@ func goNsListCommands(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherObj 
 
 //export goFrameSetNamespace
 func goFrameSetNamespace(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherResult {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
@@ -1875,7 +1875,7 @@ func goFrameSetNamespace(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherR
 
 //export goFrameGetNamespace
 func goFrameGetNamespace(interp C.FeatherInterp) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -1888,7 +1888,7 @@ func goFrameGetNamespace(interp C.FeatherInterp) C.FeatherObj {
 
 //export goFrameSetLine
 func goFrameSetLine(interp C.FeatherInterp, line C.size_t) C.FeatherResult {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
@@ -1901,7 +1901,7 @@ func goFrameSetLine(interp C.FeatherInterp, line C.size_t) C.FeatherResult {
 
 //export goFrameGetLine
 func goFrameGetLine(interp C.FeatherInterp, level C.size_t) C.size_t {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -1914,7 +1914,7 @@ func goFrameGetLine(interp C.FeatherInterp, level C.size_t) C.size_t {
 
 //export goFrameSetLambda
 func goFrameSetLambda(interp C.FeatherInterp, lambda C.FeatherObj) C.FeatherResult {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
@@ -1927,7 +1927,7 @@ func goFrameSetLambda(interp C.FeatherInterp, lambda C.FeatherObj) C.FeatherResu
 
 //export goFrameGetLambda
 func goFrameGetLambda(interp C.FeatherInterp, level C.size_t) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -1943,7 +1943,7 @@ func goFrameGetLambda(interp C.FeatherInterp, level C.size_t) C.FeatherObj {
 
 //export goVarLinkNs
 func goVarLinkNs(interp C.FeatherInterp, local C.FeatherObj, nsPath C.FeatherObj, name C.FeatherObj) {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return
 	}
@@ -1961,7 +1961,7 @@ func goVarLinkNs(interp C.FeatherInterp, local C.FeatherObj, nsPath C.FeatherObj
 
 //export goInterpGetScript
 func goInterpGetScript(interp C.FeatherInterp) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -1975,7 +1975,7 @@ func goInterpGetScript(interp C.FeatherInterp) C.FeatherObj {
 
 //export goInterpSetScript
 func goInterpSetScript(interp C.FeatherInterp, path C.FeatherObj) {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return
 	}
@@ -1985,7 +1985,7 @@ func goInterpSetScript(interp C.FeatherInterp, path C.FeatherObj) {
 
 //export goVarNames
 func goVarNames(interp C.FeatherInterp, ns C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -2035,7 +2035,7 @@ func goVarNames(interp C.FeatherInterp, ns C.FeatherObj) C.FeatherObj {
 
 //export goVarIsLink
 func goVarIsLink(interp C.FeatherInterp, name C.FeatherObj) C.int {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -2051,7 +2051,7 @@ func goVarIsLink(interp C.FeatherInterp, name C.FeatherObj) C.int {
 
 //export goNsGetExports
 func goNsGetExports(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -2073,7 +2073,7 @@ func goNsGetExports(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherObj {
 
 //export goNsSetExports
 func goNsSetExports(interp C.FeatherInterp, nsPath C.FeatherObj, patterns C.FeatherObj, clear C.int) {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return
 	}
@@ -2102,7 +2102,7 @@ func goNsSetExports(interp C.FeatherInterp, nsPath C.FeatherObj, patterns C.Feat
 
 //export goNsIsExported
 func goNsIsExported(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj) C.int {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -2162,7 +2162,7 @@ func globMatchHelper(pattern, str string, pi, si int) bool {
 //export goNsCopyCommand
 func goNsCopyCommand(interp C.FeatherInterp, srcNs C.FeatherObj, srcName C.FeatherObj,
 	dstNs C.FeatherObj, dstName C.FeatherObj) C.FeatherResult {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
@@ -2198,7 +2198,7 @@ func goNsCopyCommand(interp C.FeatherInterp, srcNs C.FeatherObj, srcName C.Feath
 
 //export goForeignIsForeign
 func goForeignIsForeign(interp C.FeatherInterp, obj C.FeatherObj) C.int {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -2210,7 +2210,7 @@ func goForeignIsForeign(interp C.FeatherInterp, obj C.FeatherObj) C.int {
 
 //export goForeignTypeName
 func goForeignTypeName(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -2223,7 +2223,7 @@ func goForeignTypeName(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 
 //export goForeignStringRep
 func goForeignStringRep(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -2241,7 +2241,7 @@ func goForeignStringRep(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 
 //export goForeignMethods
 func goForeignMethods(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return 0
 	}
@@ -2289,7 +2289,7 @@ func goForeignMethods(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 
 //export goForeignInvoke
 func goForeignInvoke(interp C.FeatherInterp, obj C.FeatherObj, method C.FeatherObj, args C.FeatherObj) C.FeatherResult {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
@@ -2311,7 +2311,7 @@ func goForeignInvoke(interp C.FeatherInterp, obj C.FeatherObj, method C.FeatherO
 
 //export goForeignDestroy
 func goForeignDestroy(interp C.FeatherInterp, obj C.FeatherObj) {
-	i := getInternalInterp(interp)
+	i := getInterp(interp)
 	if i == nil {
 		return
 	}

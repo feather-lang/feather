@@ -83,7 +83,7 @@ func newForeignRegistry() *ForeignRegistry {
 //	        "handle": func(m *http.ServeMux, pattern string, handler string) { ... },
 //	    },
 //	})
-func DefineType[T any](i *InternalInterp, typeName string, def ForeignTypeDef[T]) error {
+func DefineType[T any](i *Interp, typeName string, def ForeignTypeDef[T]) error {
 	if i.ForeignRegistry == nil {
 		i.ForeignRegistry = newForeignRegistry()
 	}
@@ -122,7 +122,7 @@ func DefineType[T any](i *InternalInterp, typeName string, def ForeignTypeDef[T]
 	i.ForeignRegistry.counters[typeName] = 1
 
 	// Register the constructor command (e.g., "Mux")
-	i.Register(typeName, func(interp *InternalInterp, cmd FeatherObj, args []FeatherObj) FeatherResult {
+	i.register(typeName, func(interp *Interp, cmd FeatherObj, args []FeatherObj) FeatherResult {
 		return interp.foreignConstructor(typeName, cmd, args)
 	})
 
@@ -130,7 +130,7 @@ func DefineType[T any](i *InternalInterp, typeName string, def ForeignTypeDef[T]
 }
 
 // foreignConstructor handles "TypeName new" and "TypeName subcommand" calls.
-func (i *InternalInterp) foreignConstructor(typeName string, cmd FeatherObj, args []FeatherObj) FeatherResult {
+func (i *Interp) foreignConstructor(typeName string, cmd FeatherObj, args []FeatherObj) FeatherResult {
 	if len(args) == 0 {
 		i.SetErrorString(fmt.Sprintf("wrong # args: should be \"%s subcommand ?arg ...?\"", typeName))
 		return ResultError
@@ -187,7 +187,7 @@ func (i *InternalInterp) foreignConstructor(typeName string, cmd FeatherObj, arg
 	i.ForeignRegistry.mu.Unlock()
 
 	// Register the handle as a command (object-as-command pattern)
-	i.Register(handleName, func(interp *InternalInterp, cmd FeatherObj, args []FeatherObj) FeatherResult {
+	i.register(handleName, func(interp *Interp, cmd FeatherObj, args []FeatherObj) FeatherResult {
 		return interp.foreignMethodDispatch(handleName, cmd, args)
 	})
 
@@ -198,7 +198,7 @@ func (i *InternalInterp) foreignConstructor(typeName string, cmd FeatherObj, arg
 
 // foreignMethodDispatch handles method calls on foreign objects.
 // Called when "$handle method args..." is evaluated.
-func (i *InternalInterp) foreignMethodDispatch(handleName string, cmd FeatherObj, args []FeatherObj) FeatherResult {
+func (i *Interp) foreignMethodDispatch(handleName string, cmd FeatherObj, args []FeatherObj) FeatherResult {
 	if len(args) == 0 {
 		i.SetErrorString(fmt.Sprintf("wrong # args: should be \"%s method ?arg ...?\"", handleName))
 		return ResultError
@@ -248,7 +248,7 @@ func (i *InternalInterp) foreignMethodDispatch(handleName string, cmd FeatherObj
 }
 
 // callForeignMethod calls a method with automatic argument conversion.
-func (i *InternalInterp) callForeignMethod(receiver any, methodFunc reflect.Value, args []FeatherObj) FeatherResult {
+func (i *Interp) callForeignMethod(receiver any, methodFunc reflect.Value, args []FeatherObj) FeatherResult {
 	methodType := methodFunc.Type()
 	numParams := methodType.NumIn()
 
@@ -288,7 +288,7 @@ func (i *InternalInterp) callForeignMethod(receiver any, methodFunc reflect.Valu
 }
 
 // convertArg converts a FeatherObj to a Go value of the specified type.
-func (i *InternalInterp) convertArg(arg FeatherObj, targetType reflect.Type) (reflect.Value, error) {
+func (i *Interp) convertArg(arg FeatherObj, targetType reflect.Type) (reflect.Value, error) {
 	switch targetType.Kind() {
 	case reflect.String:
 		return reflect.ValueOf(i.GetString(arg)), nil
@@ -406,7 +406,7 @@ func (i *InternalInterp) convertArg(arg FeatherObj, targetType reflect.Type) (re
 }
 
 // processResults handles the return values from a method call.
-func (i *InternalInterp) processResults(results []reflect.Value, methodType reflect.Type) FeatherResult {
+func (i *Interp) processResults(results []reflect.Value, methodType reflect.Type) FeatherResult {
 	if len(results) == 0 {
 		i.SetResultString("")
 		return ResultOK
@@ -434,7 +434,7 @@ func (i *InternalInterp) processResults(results []reflect.Value, methodType refl
 }
 
 // convertResult converts a Go value back to a FeatherObj result.
-func (i *InternalInterp) convertResult(result reflect.Value) FeatherResult {
+func (i *Interp) convertResult(result reflect.Value) FeatherResult {
 	if !result.IsValid() {
 		i.SetResultString("")
 		return ResultOK
@@ -516,7 +516,7 @@ func (i *InternalInterp) convertResult(result reflect.Value) FeatherResult {
 }
 
 // foreignDestroy handles the "destroy" method on foreign objects.
-func (i *InternalInterp) foreignDestroy(handleName string) FeatherResult {
+func (i *Interp) foreignDestroy(handleName string) FeatherResult {
 	i.ForeignRegistry.mu.Lock()
 	instance, ok := i.ForeignRegistry.instances[handleName]
 	if !ok {
@@ -553,7 +553,7 @@ func (i *InternalInterp) foreignDestroy(handleName string) FeatherResult {
 
 // GetForeignMethods returns the method names for a foreign type.
 // Used by the goForeignMethods callback.
-func (i *InternalInterp) GetForeignMethods(typeName string) []string {
+func (i *Interp) GetForeignMethods(typeName string) []string {
 	if i.ForeignRegistry == nil {
 		return nil
 	}
@@ -575,7 +575,7 @@ func (i *InternalInterp) GetForeignMethods(typeName string) []string {
 
 // GetForeignStringRep returns a custom string representation for a foreign object.
 // Used by the goForeignStringRep callback.
-func (i *InternalInterp) GetForeignStringRep(obj FeatherObj) string {
+func (i *Interp) GetForeignStringRep(obj FeatherObj) string {
 	if i.ForeignRegistry == nil {
 		return ""
 	}
@@ -603,13 +603,13 @@ func (i *InternalInterp) GetForeignStringRep(obj FeatherObj) string {
 // Helper methods for creating TCL values
 
 // NewListObj creates an empty list object.
-func (i *InternalInterp) NewListObj() FeatherObj {
+func (i *Interp) NewListObj() FeatherObj {
 	return i.registerObj(NewListObj())
 }
 
 // ListAppendObj appends an item to a list and returns the list.
 // If the object is not a list, returns it unchanged.
-func (i *InternalInterp) ListAppendObj(list FeatherObj, item FeatherObj) FeatherObj {
+func (i *Interp) ListAppendObj(list FeatherObj, item FeatherObj) FeatherObj {
 	obj := i.getObject(list)
 	if obj == nil {
 		return list
@@ -623,23 +623,23 @@ func (i *InternalInterp) ListAppendObj(list FeatherObj, item FeatherObj) Feather
 }
 
 // NewIntObj creates an integer object.
-func (i *InternalInterp) NewIntObj(val int64) FeatherObj {
+func (i *Interp) NewIntObj(val int64) FeatherObj {
 	return i.registerObj(NewIntObj(val))
 }
 
 // NewDoubleObj creates a floating-point object.
-func (i *InternalInterp) NewDoubleObj(val float64) FeatherObj {
+func (i *Interp) NewDoubleObj(val float64) FeatherObj {
 	return i.registerObj(NewDoubleObj(val))
 }
 
 // NewDictObj creates an empty dict object.
-func (i *InternalInterp) NewDictObj() FeatherObj {
+func (i *Interp) NewDictObj() FeatherObj {
 	return i.registerObj(NewDictObj())
 }
 
 // DictSetObj sets a key-value pair in a dict and returns the dict.
 // If the object is not a dict, returns it unchanged.
-func (i *InternalInterp) DictSetObj(dict FeatherObj, key string, val FeatherObj) FeatherObj {
+func (i *Interp) DictSetObj(dict FeatherObj, key string, val FeatherObj) FeatherObj {
 	obj := i.getObject(dict)
 	if obj == nil {
 		return dict
@@ -654,7 +654,7 @@ func (i *InternalInterp) DictSetObj(dict FeatherObj, key string, val FeatherObj)
 
 // DictGetObj retrieves a value from a dict by key.
 // Returns the handle and true if found, or 0 and false if not found.
-func (i *InternalInterp) DictGetObj(dict FeatherObj, key string) (FeatherObj, bool) {
+func (i *Interp) DictGetObj(dict FeatherObj, key string) (FeatherObj, bool) {
 	obj := i.getObject(dict)
 	if obj == nil {
 		return 0, false
@@ -668,7 +668,7 @@ func (i *InternalInterp) DictGetObj(dict FeatherObj, key string) (FeatherObj, bo
 }
 
 // Type returns the native type of an object.
-func (i *InternalInterp) Type(h FeatherObj) string {
+func (i *Interp) Type(h FeatherObj) string {
 	obj := i.getObject(h)
 	if obj == nil {
 		return "string"
@@ -677,39 +677,8 @@ func (i *InternalInterp) Type(h FeatherObj) string {
 }
 
 // NewForeignObj creates a foreign object with the given type name and value.
-func (i *InternalInterp) NewForeignObj(typeName string, value any) FeatherObj {
+func (i *Interp) NewForeignObj(typeName string, value any) FeatherObj {
 	obj := NewForeignObj(typeName, value)
 	return i.registerObj(obj)
 }
 
-// Alias methods for compatibility with the public API
-
-// NewList creates an empty list object (alias for NewListObj).
-func (i *InternalInterp) NewList() FeatherObj {
-	return i.NewListObj()
-}
-
-// ListAppend appends an item to a list (alias for ListAppendObj).
-func (i *InternalInterp) ListAppend(list FeatherObj, item FeatherObj) FeatherObj {
-	return i.ListAppendObj(list, item)
-}
-
-// NewInt creates an integer object (alias for NewIntObj).
-func (i *InternalInterp) NewInt(val int64) FeatherObj {
-	return i.NewIntObj(val)
-}
-
-// NewDouble creates a floating-point object (alias for NewDoubleObj).
-func (i *InternalInterp) NewDouble(val float64) FeatherObj {
-	return i.NewDoubleObj(val)
-}
-
-// NewDict creates an empty dict object (alias for NewDictObj).
-func (i *InternalInterp) NewDict() FeatherObj {
-	return i.NewDictObj()
-}
-
-// DictSet sets a key-value pair in a dict (alias for DictSetObj).
-func (i *InternalInterp) DictSet(dict FeatherObj, key string, val FeatherObj) FeatherObj {
-	return i.DictSetObj(dict, key, val)
-}

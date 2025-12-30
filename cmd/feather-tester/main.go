@@ -34,20 +34,18 @@ func main() {
 }
 
 func registerTestCommands(i *feather.Interp) {
-	fi := i.Internal()
-
 	// Set milestone variables
-	fi.SetVar("milestone", "m1")
-	fi.SetVar("current-step", "m1")
+	i.SetVar("milestone", "m1")
+	i.SetVar("current-step", "m1")
 
-	// Test commands
-	fi.Register("say-hello", cmdSayHello)
-	fi.Register("echo", cmdEcho)
-	fi.Register("count", cmdCount)
-	fi.Register("list", cmdList)
+	// Test commands - use the low-level Commands map directly
+	i.Commands["say-hello"] = cmdSayHello
+	i.Commands["echo"] = cmdEcho
+	i.Commands["count"] = cmdCount
+	i.Commands["list"] = cmdList
 
 	// Register the Counter foreign type
-	feather.DefineType[*Counter](fi, "Counter", feather.ForeignTypeDef[*Counter]{
+	feather.DefineType[*Counter](i, "Counter", feather.ForeignTypeDef[*Counter]{
 		New: func() *Counter {
 			return &Counter{value: 0}
 		},
@@ -70,13 +68,13 @@ func registerTestCommands(i *feather.Interp) {
 	})
 }
 
-func cmdSayHello(i *feather.InternalInterp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
+func cmdSayHello(i *feather.Interp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
 	fmt.Println("hello")
 	i.SetResultString("")
 	return feather.ResultOK
 }
 
-func cmdEcho(i *feather.InternalInterp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
+func cmdEcho(i *feather.Interp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
 	for idx, arg := range args {
 		if idx > 0 {
 			fmt.Print(" ")
@@ -88,12 +86,12 @@ func cmdEcho(i *feather.InternalInterp, cmd feather.FeatherObj, args []feather.F
 	return feather.ResultOK
 }
 
-func cmdCount(i *feather.InternalInterp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
+func cmdCount(i *feather.Interp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
 	i.SetResultString(fmt.Sprintf("%d", len(args)))
 	return feather.ResultOK
 }
 
-func cmdList(i *feather.InternalInterp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
+func cmdList(i *feather.Interp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
 	var parts []string
 	for _, arg := range args {
 		s := i.GetString(arg)
@@ -180,12 +178,12 @@ func runScript(i *feather.Interp) {
 
 	parseResult := i.Parse(string(script))
 	if parseResult.Status == feather.ParseIncomplete {
-		hostParseResult := i.Internal().Parse(string(script))
+		hostParseResult := i.ParseInternal(string(script))
 		writeHarnessResult("TCL_OK", hostParseResult.Result, "")
 		os.Exit(2)
 	}
 	if parseResult.Status == feather.ParseError {
-		hostParseResult := i.Internal().Parse(string(script))
+		hostParseResult := i.ParseInternal(string(script))
 		writeHarnessResult("TCL_ERROR", hostParseResult.Result, parseResult.Message)
 		os.Exit(3)
 	}

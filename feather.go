@@ -2,6 +2,8 @@ package feather
 
 import (
 	"fmt"
+	"runtime/cgo"
+	"strings"
 )
 
 // Interp is a TCL interpreter instance.
@@ -13,7 +15,30 @@ import (
 //	defer interp.Close()
 //	result, err := interp.Eval("expr 2 + 2")
 type Interp struct {
-	i *InternalInterp
+	handle          FeatherInterp
+	objects         map[FeatherObj]*Obj // permanent storage (foreign objects)
+	scratch         map[FeatherObj]*Obj // scratch arena (temporary objects, reset after eval)
+	scratchNextID   FeatherObj          // next ID for scratch arena (has high bit set)
+	globalNS        FeatherObj          // global namespace object (FeatherObj handle for "::")
+	namespaces      map[string]*Namespace
+	globalNamespace *Namespace
+	nextID          FeatherObj // next ID for permanent storage (no high bit)
+	result          *Obj       // current result (persistent, not handle)
+	returnOptions   *Obj       // options from the last return command (persistent)
+	frames          []*CallFrame
+	active          int  // currently active frame index
+	recursionLimit  int  // maximum call stack depth (0 means use default)
+	scriptPath      *Obj // current script file being executed (nil = none)
+	builders        map[FeatherObj]*strings.Builder
+
+	// Commands holds registered Go command implementations.
+	// Low-level API. May change between versions.
+	Commands map[string]InternalCommandFunc
+
+	// ForeignRegistry stores foreign type definitions for the high-level API.
+	ForeignRegistry *ForeignRegistry
+
+	unknownHandler InternalCommandFunc
 }
 
 // New creates a new TCL interpreter with all standard commands registered.
@@ -24,9 +49,41 @@ type Interp struct {
 //	interp := feather.New()
 //	defer interp.Close()
 func New() *Interp {
-	return &Interp{
-		i: NewInternalInterp(),
+	interp := &Interp{
+		objects:       make(map[FeatherObj]*Obj),
+		scratch:       make(map[FeatherObj]*Obj),
+		scratchNextID: scratchHandleBit | 1, // Start scratch IDs with high bit set
+		namespaces:    make(map[string]*Namespace),
+		builders:      make(map[FeatherObj]*strings.Builder),
+		Commands:      make(map[string]InternalCommandFunc),
+		nextID:        1, // Permanent IDs start at 1 (no high bit)
 	}
+	// Create the global namespace
+	globalNS := &Namespace{
+		fullPath: "::",
+		parent:   nil,
+		children: make(map[string]*Namespace),
+		vars:     make(map[string]*Obj),
+		commands: make(map[string]*Command),
+	}
+	interp.globalNamespace = globalNS
+	interp.namespaces["::"] = globalNS
+	// Initialize the global frame (frame 0)
+	globalFrame := &CallFrame{
+		locals: globalNS,
+		links:  make(map[string]varLink),
+		level:  0,
+		ns:     globalNS,
+	}
+	interp.frames = []*CallFrame{globalFrame}
+	interp.active = 0
+	// Use cgo.Handle to allow C callbacks to find this interpreter
+	interp.handle = FeatherInterp(cgo.NewHandle(interp))
+	// Create the global namespace object (FeatherObj handle for "::")
+	interp.globalNS = interp.internStringPermanent("::")
+	// Initialize the C interpreter
+	callCInterpInit(interp.handle)
+	return interp
 }
 
 // Close releases resources associated with the interpreter.
@@ -34,7 +91,7 @@ func New() *Interp {
 // After Close is called, the interpreter and all *Obj values created from it
 // become invalid. Always use defer to ensure Close is called.
 func (i *Interp) Close() {
-	i.i.Close()
+	cgo.Handle(i.handle).Delete()
 }
 
 // -----------------------------------------------------------------------------
@@ -213,7 +270,7 @@ func (i *Interp) anyToObj(v any) *Obj {
 // anyToHandle converts any Go value to an internal object handle.
 // Used internally for auto-conversion in SetVar, etc.
 func (i *Interp) anyToHandle(v any) FeatherObj {
-	return i.i.handleForObj(i.anyToObj(v))
+	return i.handleForObj(i.anyToObj(v))
 }
 
 // -----------------------------------------------------------------------------
@@ -231,11 +288,22 @@ func (i *Interp) anyToHandle(v any) FeatherObj {
 //	}
 //	fmt.Println(result.String()) // "20"
 func (i *Interp) Eval(script string) (*Obj, error) {
-	_, err := i.i.Eval(script)
+	_, err := i.eval(script)
 	if err != nil {
 		return nil, err
 	}
-	return i.i.objForHandle(i.i.ResultHandle()), nil
+	return i.objForHandle(i.ResultHandle()), nil
+}
+
+// EvalObj evaluates a TCL script contained in an object.
+//
+// This is equivalent to calling [Interp.Eval] with obj.String(), but may be
+// more convenient when working with objects that already contain TCL code.
+//
+//	script := interp.String("expr 2 + 2")
+//	result, err := interp.EvalObj(script)
+func (i *Interp) EvalObj(obj *Obj) (*Obj, error) {
+	return i.Eval(obj.String())
 }
 
 // Call invokes a single TCL command with the given arguments.
@@ -268,11 +336,11 @@ func (i *Interp) Call(cmd string, args ...any) (*Obj, error) {
 //	feather.AsInt(v)  // 42, nil
 //	v.Type()          // "int" (if SetVar preserved type) or "string"
 func (i *Interp) Var(name string) *Obj {
-	h := i.i.GetVarHandle(name)
+	h := i.GetVarHandle(name)
 	if h == 0 {
 		return NewStringObj("")
 	}
-	return i.i.objForHandle(h)
+	return i.objForHandle(h)
 }
 
 // SetVar sets a variable to a value.
@@ -286,7 +354,7 @@ func (i *Interp) Var(name string) *Obj {
 //	interp.SetVar("count", 42)
 //	interp.SetVar("items", []string{"a", "b", "c"})
 func (i *Interp) SetVar(name string, val any) {
-	i.i.SetVar(name, toTclString(val))
+	i.setVar(name, toTclString(val))
 }
 
 // SetVars sets multiple variables at once from a map.
@@ -300,7 +368,7 @@ func (i *Interp) SetVar(name string, val any) {
 //	})
 func (i *Interp) SetVars(vars map[string]any) {
 	for name, val := range vars {
-		i.i.SetVar(name, toTclString(val))
+		i.setVar(name, toTclString(val))
 	}
 }
 
@@ -352,7 +420,7 @@ type CommandFunc func(i *Interp, cmd *Obj, args []*Obj) Result
 //	    return feather.OK(a + b)
 //	})
 func (i *Interp) RegisterCommand(name string, fn CommandFunc) {
-	i.i.Register(name, func(ii *InternalInterp, cmd FeatherObj, args []FeatherObj) FeatherResult {
+	i.register(name, func(ii *Interp, cmd FeatherObj, args []FeatherObj) FeatherResult {
 		objArgs := make([]*Obj, len(args))
 		for j, h := range args {
 			objArgs[j] = ii.objForHandle(h)
@@ -411,7 +479,7 @@ func (i *Interp) RegisterCommand(name string, fn CommandFunc) {
 //	})
 func (i *Interp) Register(name string, fn any) {
 	wrapper := wrapFunc(i, fn)
-	i.i.Register(name, wrapper)
+	i.register(name, wrapper)
 }
 
 // SetUnknownHandler sets a handler called when a command is not found.
@@ -431,7 +499,7 @@ func (i *Interp) Register(name string, fn any) {
 //	    return feather.Errorf("unknown command: %s", cmd.String())
 //	})
 func (i *Interp) SetUnknownHandler(fn CommandFunc) {
-	i.i.SetUnknownHandler(func(ii *InternalInterp, cmd FeatherObj, args []FeatherObj) FeatherResult {
+	i.setUnknownHandler(func(ii *Interp, cmd FeatherObj, args []FeatherObj) FeatherResult {
 		objArgs := make([]*Obj, len(args))
 		for j, h := range args {
 			objArgs[j] = ii.objForHandle(h)
@@ -468,19 +536,11 @@ func (i *Interp) SetUnknownHandler(fn CommandFunc) {
 //	    // Prompt for more input
 //	}
 func (i *Interp) Parse(script string) ParseResult {
-	pr := i.i.Parse(script)
+	pr := i.ParseInternal(script)
 	return ParseResult{
 		Status:  ParseStatus(pr.Status),
 		Message: pr.ErrorMessage,
 	}
-}
-
-// Internal returns the underlying InternalInterp for advanced usage.
-//
-// This is an escape hatch for accessing features not yet exposed in the
-// public API. Use with caution; the internal API may change.
-func (i *Interp) Internal() *InternalInterp {
-	return i.i
 }
 
 // -----------------------------------------------------------------------------
@@ -495,14 +555,14 @@ func (i *Interp) Internal() *InternalInterp {
 //	items, err := interp.ParseList("{a b} c d")
 //	// items = []*Obj{"a b", "c", "d"}
 func (i *Interp) ParseList(s string) ([]*Obj, error) {
-	strHandle := i.i.InternString(s)
-	handles, err := i.i.GetList(strHandle)
+	strHandle := i.InternString(s)
+	handles, err := i.GetList(strHandle)
 	if err != nil {
 		return nil, err
 	}
 	result := make([]*Obj, len(handles))
 	for j, h := range handles {
-		result[j] = i.i.objForHandle(h)
+		result[j] = i.objForHandle(h)
 	}
 	return result, nil
 }
@@ -515,8 +575,8 @@ func (i *Interp) ParseList(s string) ([]*Obj, error) {
 //	d, err := interp.ParseDict("name Alice age 30")
 //	// d.Items["name"].String() == "Alice"
 func (i *Interp) ParseDict(s string) (*DictType, error) {
-	strHandle := i.i.InternString(s)
-	items, order, err := i.i.GetDict(strHandle)
+	strHandle := i.InternString(s)
+	items, order, err := i.GetDict(strHandle)
 	if err != nil {
 		return nil, err
 	}
@@ -525,7 +585,7 @@ func (i *Interp) ParseDict(s string) (*DictType, error) {
 		Order: order,
 	}
 	for k, h := range items {
-		result.Items[k] = i.i.objForHandle(h)
+		result.Items[k] = i.objForHandle(h)
 	}
 	return result, nil
 }
@@ -662,7 +722,7 @@ type TypeDef[T any] struct {
 //	// $c set 10
 //	// $c incr  ;# returns 11
 func RegisterType[T any](fi *Interp, name string, def TypeDef[T]) error {
-	return DefineType[T](fi.i, name, ForeignTypeDef[T]{
+	return DefineType[T](fi, name, ForeignTypeDef[T]{
 		New:       def.New,
 		Methods:   Methods(def.Methods),
 		StringRep: def.String,
