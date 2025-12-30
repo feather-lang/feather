@@ -246,45 +246,45 @@ func convertResultInternal(i *Interp, result reflect.Value) FeatherResult {
 
 	switch result.Kind() {
 	case reflect.String:
-		i.SetResult(i.InternString(result.String()))
+		i.SetResult(i.internString(result.String()))
 
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		i.SetResult(i.NewIntObj(result.Int()))
+		i.SetResult(i.newIntObj(result.Int()))
 
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		i.SetResult(i.NewIntObj(int64(result.Uint())))
+		i.SetResult(i.newIntObj(int64(result.Uint())))
 
 	case reflect.Float32, reflect.Float64:
-		i.SetResult(i.NewDoubleObj(result.Float()))
+		i.SetResult(i.newDoubleObj(result.Float()))
 
 	case reflect.Bool:
 		if result.Bool() {
-			i.SetResult(i.NewIntObj(1))
+			i.SetResult(i.newIntObj(1))
 		} else {
-			i.SetResult(i.NewIntObj(0))
+			i.SetResult(i.newIntObj(0))
 		}
 
 	case reflect.Slice:
 		// Convert slice to list
-		list := i.NewListObj()
+		list := i.newListObj()
 		for j := 0; j < result.Len(); j++ {
 			elem := result.Index(j)
 			var elemHandle FeatherObj
 			switch elem.Kind() {
 			case reflect.String:
-				elemHandle = i.InternString(elem.String())
+				elemHandle = i.internString(elem.String())
 			case reflect.Int, reflect.Int64:
-				elemHandle = i.NewIntObj(elem.Int())
+				elemHandle = i.newIntObj(elem.Int())
 			default:
-				elemHandle = i.InternString(fmt.Sprintf("%v", elem.Interface()))
+				elemHandle = i.internString(fmt.Sprintf("%v", elem.Interface()))
 			}
-			list = i.ListAppendObj(list, elemHandle)
+			list = i.listAppendObj(list, elemHandle)
 		}
 		i.SetResult(list)
 
 	case reflect.Map:
 		// Convert map to dict
-		dict := i.NewDictObj()
+		dict := i.newDictObj()
 		iter := result.MapRange()
 		for iter.Next() {
 			key := fmt.Sprintf("%v", iter.Key().Interface())
@@ -292,13 +292,13 @@ func convertResultInternal(i *Interp, result reflect.Value) FeatherResult {
 			var valHandle FeatherObj
 			switch val.Kind() {
 			case reflect.String:
-				valHandle = i.InternString(val.String())
+				valHandle = i.internString(val.String())
 			case reflect.Int, reflect.Int64:
-				valHandle = i.NewIntObj(val.Int())
+				valHandle = i.newIntObj(val.Int())
 			default:
-				valHandle = i.InternString(fmt.Sprintf("%v", val.Interface()))
+				valHandle = i.internString(fmt.Sprintf("%v", val.Interface()))
 			}
-			dict = i.DictSetObj(dict, key, valHandle)
+			dict = i.dictSetObj(dict, key, valHandle)
 		}
 		i.SetResult(dict)
 

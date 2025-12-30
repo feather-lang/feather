@@ -43,84 +43,78 @@ type Interp struct {
 }
 
 // -----------------------------------------------------------------------------
-// ObjHandle - Low-Level Handle Wrapper
+// objHandle - Low-Level Handle Wrapper (internal)
 // -----------------------------------------------------------------------------
 
-// ObjHandle wraps a FeatherObj handle with its interpreter for method access.
+// objHandle wraps a FeatherObj handle with its interpreter for method access.
 // This type exists only in Go and never crosses the CGo boundary.
-//
-// Use [Interp.Handle] to create an ObjHandle from a FeatherObj.
-//
-// Low-level API. May change between versions.
-type ObjHandle struct {
+type objHandle struct {
 	h FeatherObj
 	i *Interp
 }
 
-// Wrap creates an ObjHandle for method-based access to handle data.
-//
-// Low-level API. May change between versions.
-func (i *Interp) Wrap(h FeatherObj) ObjHandle {
-	return ObjHandle{h: h, i: i}
+// wrap creates an objHandle for method-based access to handle data.
+func (i *Interp) wrap(h FeatherObj) objHandle {
+	return objHandle{h: h, i: i}
 }
 
-// Raw returns the underlying FeatherObj handle.
-func (o ObjHandle) Raw() FeatherObj { return o.h }
+// raw returns the underlying FeatherObj handle.
+func (o objHandle) raw() FeatherObj { return o.h }
 
-// String returns the string representation of the handle.
-func (o ObjHandle) String() string {
+// string returns the string representation of the handle.
+func (o objHandle) str() string {
 	return o.i.getString(o.h)
 }
 
-// Int returns the integer value, or error if not convertible.
-func (o ObjHandle) Int() (int64, error) {
+// intVal returns the integer value, or error if not convertible.
+func (o objHandle) intVal() (int64, error) {
 	return o.i.getInt(o.h)
 }
 
-// Double returns the float64 value, or error if not convertible.
-func (o ObjHandle) Double() (float64, error) {
+// doubleVal returns the float64 value, or error if not convertible.
+func (o objHandle) doubleVal() (float64, error) {
 	return o.i.getDouble(o.h)
 }
 
-// List returns list elements as ObjHandles, or error if not a list.
-func (o ObjHandle) List() ([]ObjHandle, error) {
+// listVal returns list elements as objHandles, or error if not a list.
+func (o objHandle) listVal() ([]objHandle, error) {
 	handles, err := o.i.getList(o.h)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]ObjHandle, len(handles))
+	result := make([]objHandle, len(handles))
 	for idx, h := range handles {
-		result[idx] = ObjHandle{h: h, i: o.i}
+		result[idx] = objHandle{h: h, i: o.i}
 	}
 	return result, nil
 }
 
-// Dict returns dict as map with ObjHandle values, or error if not a dict.
+// dictVal returns dict as map with objHandle values, or error if not a dict.
 // Returns the items map, key order slice, and any error.
-func (o ObjHandle) Dict() (map[string]ObjHandle, []string, error) {
+func (o objHandle) dictVal() (map[string]objHandle, []string, error) {
 	items, order, err := o.i.getDict(o.h)
 	if err != nil {
 		return nil, nil, err
 	}
-	result := make(map[string]ObjHandle, len(items))
+	result := make(map[string]objHandle, len(items))
 	for k, h := range items {
-		result[k] = ObjHandle{h: h, i: o.i}
+		result[k] = objHandle{h: h, i: o.i}
 	}
 	return result, order, nil
 }
 
-// IsForeign returns true if this is a foreign object.
-func (o ObjHandle) IsForeign() bool {
+// isForeign returns true if this is a foreign object.
+func (o objHandle) isForeign() bool {
 	return o.i.getForeignType(o.h) != ""
 }
 
-// ForeignType returns the type name if foreign, empty string otherwise.
-func (o ObjHandle) ForeignType() string {
+// foreignType returns the type name if foreign, empty string otherwise.
+func (o objHandle) foreignType() string {
 	return o.i.getForeignType(o.h)
 }
 
-// ForeignValue returns the Go value if foreign, nil otherwise.
-func (o ObjHandle) ForeignValue() any {
+// foreignValue returns the Go value if foreign, nil otherwise.
+func (o objHandle) foreignValue() any {
 	return o.i.getForeignValue(o.h)
 }
 
@@ -638,7 +632,7 @@ func (i *Interp) Parse(script string) ParseResult {
 //	items, err := interp.ParseList("{a b} c d")
 //	// items = []*Obj{"a b", "c", "d"}
 func (i *Interp) ParseList(s string) ([]*Obj, error) {
-	strHandle := i.InternString(s)
+	strHandle := i.internString(s)
 	handles, err := i.getList(strHandle)
 	if err != nil {
 		return nil, err
@@ -658,7 +652,7 @@ func (i *Interp) ParseList(s string) ([]*Obj, error) {
 //	d, err := interp.ParseDict("name Alice age 30")
 //	// d.Items["name"].String() == "Alice"
 func (i *Interp) ParseDict(s string) (*DictType, error) {
-	strHandle := i.InternString(s)
+	strHandle := i.internString(s)
 	items, order, err := i.getDict(strHandle)
 	if err != nil {
 		return nil, err
@@ -700,7 +694,24 @@ func OK(v any) Result {
 	if o, ok := v.(*Obj); ok {
 		return Result{code: ResultOK, obj: o, hasObj: true}
 	}
-	return Result{code: ResultOK, val: toTclString(v)}
+	// For simple types, don't quote - just convert to string
+	switch val := v.(type) {
+	case string:
+		return Result{code: ResultOK, val: val}
+	case int:
+		return Result{code: ResultOK, val: fmt.Sprintf("%d", val)}
+	case int64:
+		return Result{code: ResultOK, val: fmt.Sprintf("%d", val)}
+	case float64:
+		return Result{code: ResultOK, val: fmt.Sprintf("%g", val)}
+	case bool:
+		if val {
+			return Result{code: ResultOK, val: "1"}
+		}
+		return Result{code: ResultOK, val: "0"}
+	default:
+		return Result{code: ResultOK, val: fmt.Sprintf("%v", v)}
+	}
 }
 
 // Error returns an error result with a message or *Obj.

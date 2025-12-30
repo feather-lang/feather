@@ -5,7 +5,7 @@
 // feather has a layered architecture:
 //
 //   - C core: The parsing and evaluation engine written in C
-//   - Handle layer: Internal numeric handles (FeatherObj, ObjHandle) for C interop
+//   - Handle layer: Internal numeric handles (FeatherObj) for C interop
 //   - Obj layer: The public Go API using [*Obj] values
 //
 // As a user of this package, you work exclusively with [*Obj] values.
@@ -370,7 +370,6 @@
 // in application code:
 //
 //   - Handle, FeatherInterp, FeatherObj - Raw numeric handles
-//   - ObjHandle - Handle wrapper with interpreter reference
 //   - InternalCommandFunc - Low-level command signature
 //   - InternalParseStatus, ParseResultInternal - Internal parsing types
 //   - CallFrame, Namespace, Procedure, Command - Interpreter internals

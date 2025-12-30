@@ -461,10 +461,6 @@ func (i *Interp) internStringPermanent(s string) FeatherObj {
 	return id
 }
 
-// InternString stores a string and returns its handle.
-func (i *Interp) InternString(s string) FeatherObj {
-	return i.internString(s)
-}
 
 // registerObj stores an *Obj in the scratch arena and returns its handle.
 // Used when we need to give C a handle to an existing *Obj.

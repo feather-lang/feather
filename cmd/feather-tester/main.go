@@ -38,11 +38,11 @@ func registerTestCommands(i *feather.Interp) {
 	i.SetVar("milestone", "m1")
 	i.SetVar("current-step", "m1")
 
-	// Test commands - use the low-level Commands map directly
-	i.Commands["say-hello"] = cmdSayHello
-	i.Commands["echo"] = cmdEcho
-	i.Commands["count"] = cmdCount
-	i.Commands["list"] = cmdList
+	// Test commands - use the public RegisterCommand API
+	i.RegisterCommand("say-hello", cmdSayHello)
+	i.RegisterCommand("echo", cmdEcho)
+	i.RegisterCommand("count", cmdCount)
+	i.RegisterCommand("list", cmdList)
 
 	// Register the Counter foreign type
 	feather.RegisterType[*Counter](i, "Counter", feather.TypeDef[*Counter]{
@@ -68,33 +68,30 @@ func registerTestCommands(i *feather.Interp) {
 	})
 }
 
-func cmdSayHello(i *feather.Interp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
+func cmdSayHello(i *feather.Interp, cmd *feather.Obj, args []*feather.Obj) feather.Result {
 	fmt.Println("hello")
-	i.SetResultString("")
-	return feather.ResultOK
+	return feather.OK("")
 }
 
-func cmdEcho(i *feather.Interp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
+func cmdEcho(i *feather.Interp, cmd *feather.Obj, args []*feather.Obj) feather.Result {
 	for idx, arg := range args {
 		if idx > 0 {
 			fmt.Print(" ")
 		}
-		fmt.Print(i.Wrap(arg).String())
+		fmt.Print(arg.String())
 	}
 	fmt.Println()
-	i.SetResultString("")
-	return feather.ResultOK
+	return feather.OK("")
 }
 
-func cmdCount(i *feather.Interp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
-	i.SetResultString(fmt.Sprintf("%d", len(args)))
-	return feather.ResultOK
+func cmdCount(i *feather.Interp, cmd *feather.Obj, args []*feather.Obj) feather.Result {
+	return feather.OK(fmt.Sprintf("%d", len(args)))
 }
 
-func cmdList(i *feather.Interp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
+func cmdList(i *feather.Interp, cmd *feather.Obj, args []*feather.Obj) feather.Result {
 	var parts []string
 	for _, arg := range args {
-		s := i.Wrap(arg).String()
+		s := arg.String()
 		needsBraces := false
 		for _, c := range s {
 			if c == ' ' || c == '\t' || c == '\n' || c == '{' || c == '}' {
@@ -117,8 +114,7 @@ func cmdList(i *feather.Interp, cmd feather.FeatherObj, args []feather.FeatherOb
 		}
 		result += part
 	}
-	i.SetResultString(result)
-	return feather.ResultOK
+	return feather.OK(result)
 }
 
 func runREPL(i *feather.Interp) {
