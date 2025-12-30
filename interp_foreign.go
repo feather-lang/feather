@@ -7,34 +7,6 @@ import (
 	"sync"
 )
 
-// Methods is a map of method name to method implementation.
-// Method functions should have the signature:
-//
-//	func(receiver T, args...) [result] [error]
-//
-// Where T is the foreign type being wrapped.
-type Methods map[string]any
-
-// ForeignTypeDef defines a foreign type that can be exposed to TCL.
-// Use DefineType to register a type with the host.
-type ForeignTypeDef[T any] struct {
-	// New is the constructor function. Called when "TypeName new" is evaluated.
-	// Should return a new instance of T.
-	New func() T
-
-	// Methods maps method names to implementations.
-	// Each method should be a function where the first argument is the receiver (T).
-	Methods Methods
-
-	// StringRep optionally provides a custom string representation.
-	// If nil, a default "<TypeName:id>" format is used.
-	StringRep func(T) string
-
-	// Destroy is called when the object is destroyed (command deleted).
-	// Use for cleanup (close connections, release resources).
-	Destroy func(T)
-}
-
 // foreignTypeInfo stores runtime information about a registered foreign type.
 type foreignTypeInfo struct {
 	name       string
@@ -70,63 +42,6 @@ func newForeignRegistry() *ForeignRegistry {
 		counters:     make(map[string]int),
 		handleToType: make(map[FeatherObj]*foreignInstance),
 	}
-}
-
-// DefineType registers a foreign type with the interpreter.
-// After registration, the type name becomes a command that supports "new" to create instances.
-//
-// Example:
-//
-//	DefineType[*http.ServeMux](interp, "Mux", ForeignTypeDef[*http.ServeMux]{
-//	    New: func() *http.ServeMux { return http.NewServeMux() },
-//	    Methods: Methods{
-//	        "handle": func(m *http.ServeMux, pattern string, handler string) { ... },
-//	    },
-//	})
-func DefineType[T any](i *Interp, typeName string, def ForeignTypeDef[T]) error {
-	if i.ForeignRegistry == nil {
-		i.ForeignRegistry = newForeignRegistry()
-	}
-
-	i.ForeignRegistry.mu.Lock()
-	defer i.ForeignRegistry.mu.Unlock()
-
-	// Validate that New is provided
-	if def.New == nil {
-		return fmt.Errorf("DefineType: New function is required for type %s", typeName)
-	}
-
-	// Build the type info
-	info := &foreignTypeInfo{
-		name:       typeName,
-		newFunc:    reflect.ValueOf(def.New),
-		methods:    make(map[string]reflect.Value),
-		receiverType: reflect.TypeOf((*T)(nil)).Elem(),
-	}
-
-	// Register methods
-	for name, fn := range def.Methods {
-		info.methods[name] = reflect.ValueOf(fn)
-	}
-
-	// Register optional callbacks
-	if def.StringRep != nil {
-		info.stringRep = reflect.ValueOf(def.StringRep)
-	}
-	if def.Destroy != nil {
-		info.destroy = reflect.ValueOf(def.Destroy)
-	}
-
-	// Store the type info
-	i.ForeignRegistry.types[typeName] = info
-	i.ForeignRegistry.counters[typeName] = 1
-
-	// Register the constructor command (e.g., "Mux")
-	i.register(typeName, func(interp *Interp, cmd FeatherObj, args []FeatherObj) FeatherResult {
-		return interp.foreignConstructor(typeName, cmd, args)
-	})
-
-	return nil
 }
 
 // foreignConstructor handles "TypeName new" and "TypeName subcommand" calls.

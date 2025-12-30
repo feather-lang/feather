@@ -45,11 +45,11 @@ func registerTestCommands(i *feather.Interp) {
 	i.Commands["list"] = cmdList
 
 	// Register the Counter foreign type
-	feather.DefineType[*Counter](i, "Counter", feather.ForeignTypeDef[*Counter]{
+	feather.RegisterType[*Counter](i, "Counter", feather.TypeDef[*Counter]{
 		New: func() *Counter {
 			return &Counter{value: 0}
 		},
-		Methods: feather.Methods{
+		Methods: map[string]any{
 			"get": func(c *Counter) int {
 				return c.value
 			},

@@ -2,6 +2,7 @@ package feather
 
 import (
 	"fmt"
+	"reflect"
 	"runtime/cgo"
 	"strings"
 )
@@ -803,11 +804,42 @@ type TypeDef[T any] struct {
 //	// set c [Counter new]
 //	// $c set 10
 //	// $c incr  ;# returns 11
-func RegisterType[T any](fi *Interp, name string, def TypeDef[T]) error {
-	return DefineType[T](fi, name, ForeignTypeDef[T]{
-		New:       def.New,
-		Methods:   Methods(def.Methods),
-		StringRep: def.String,
-		Destroy:   def.Destroy,
+func RegisterType[T any](i *Interp, typeName string, def TypeDef[T]) error {
+	if i.ForeignRegistry == nil {
+		i.ForeignRegistry = newForeignRegistry()
+	}
+
+	i.ForeignRegistry.mu.Lock()
+	defer i.ForeignRegistry.mu.Unlock()
+
+	if def.New == nil {
+		return fmt.Errorf("RegisterType: New function is required for type %s", typeName)
+	}
+
+	info := &foreignTypeInfo{
+		name:         typeName,
+		newFunc:      reflect.ValueOf(def.New),
+		methods:      make(map[string]reflect.Value),
+		receiverType: reflect.TypeOf((*T)(nil)).Elem(),
+	}
+
+	for name, fn := range def.Methods {
+		info.methods[name] = reflect.ValueOf(fn)
+	}
+
+	if def.String != nil {
+		info.stringRep = reflect.ValueOf(def.String)
+	}
+	if def.Destroy != nil {
+		info.destroy = reflect.ValueOf(def.Destroy)
+	}
+
+	i.ForeignRegistry.types[typeName] = info
+	i.ForeignRegistry.counters[typeName] = 1
+
+	i.register(typeName, func(interp *Interp, cmd FeatherObj, args []FeatherObj) FeatherResult {
+		return interp.foreignConstructor(typeName, cmd, args)
 	})
+
+	return nil
 }

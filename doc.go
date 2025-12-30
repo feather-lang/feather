@@ -374,7 +374,7 @@
 //   - InternalCommandFunc - Low-level command signature
 //   - InternalParseStatus, ParseResultInternal - Internal parsing types
 //   - CallFrame, Namespace, Procedure, Command - Interpreter internals
-//   - ForeignRegistry, ForeignType, ForeignTypeDef - Use [TypeDef] instead
+//   - ForeignRegistry, ForeignType - Interpreter internals
 //   - ListSortContext - Internal sorting state
 //   - FeatherResult, InternalCommandType - C interop constants
 //
