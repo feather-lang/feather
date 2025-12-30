@@ -57,10 +57,10 @@ func New() *Interp {
     interp.namespaces["::tcl::errors"] = errorsNS
 
     // Initialize error tracking variables
-    errorsNS.vars["active"] = NewStringObj("0")
-    errorsNS.vars["info"] = NewStringObj("")
-    errorsNS.vars["stack"] = NewListObj()
-    errorsNS.vars["line"] = NewIntObj(0)
+    errorsNS.vars["active"] = interp.String("0")
+    errorsNS.vars["info"] = interp.String("")
+    errorsNS.vars["stack"] = interp.List()
+    errorsNS.vars["line"] = interp.Int(0)
 
     return interp
 }
@@ -82,34 +82,34 @@ func (i *Interp) isErrorActive() bool {
 
 func (i *Interp) setErrorActive(active bool) {
     if active {
-        i.errorNS().vars["active"] = NewStringObj("1")
+        i.errorNS().vars["active"] = i.String("1")
     } else {
-        i.errorNS().vars["active"] = NewStringObj("0")
+        i.errorNS().vars["active"] = i.String("0")
     }
 }
 
 func (i *Interp) appendErrorInfo(text string) {
     ns := i.errorNS()
     current := ns.vars["info"].String()
-    ns.vars["info"] = NewStringObj(current + text)
+    ns.vars["info"] = i.String(current + text)
 }
 
 func (i *Interp) appendErrorStack(entries ...*Obj) {
     ns := i.errorNS()
     current, _ := AsList(ns.vars["stack"])
-    ns.vars["stack"] = NewListObj(append(current, entries...)...)
+    ns.vars["stack"] = i.List(append(current, entries...)...)
 }
 
 func (i *Interp) setErrorLine(line int) {
-    i.errorNS().vars["line"] = NewIntObj(int64(line))
+    i.errorNS().vars["line"] = i.Int(int64(line))
 }
 
 func (i *Interp) clearErrorState() {
     ns := i.errorNS()
-    ns.vars["active"] = NewStringObj("0")
-    ns.vars["info"] = NewStringObj("")
-    ns.vars["stack"] = NewListObj()
-    ns.vars["line"] = NewIntObj(0)
+    ns.vars["active"] = i.String("0")
+    ns.vars["info"] = i.String("")
+    ns.vars["stack"] = i.List()
+    ns.vars["line"] = i.Int(0)
 }
 ```
 
@@ -137,7 +137,7 @@ func (i *Interp) initErrorState(opts *Obj) {
 
     // Get initial errorinfo
     if info := ObjDictGet(opts, "-errorinfo"); info != nil {
-        i.errorNS().vars["info"] = NewStringObj(info.String())
+        i.errorNS().vars["info"] = i.String(info.String())
     } else {
         // Build initial errorinfo from result + current frame
         msg := i.result.String()
@@ -145,16 +145,16 @@ func (i *Interp) initErrorState(opts *Obj) {
             frame := i.frames[i.active]
             msg += "\n    while executing\n\"" + i.formatCommand(frame.cmd, frame.args) + "\""
         }
-        i.errorNS().vars["info"] = NewStringObj(msg)
+        i.errorNS().vars["info"] = i.String(msg)
     }
 
     // Initialize errorstack with INNER marker
     if len(i.frames) > 0 && i.frames[i.active].cmd != nil {
         frame := i.frames[i.active]
         cmdList := i.buildCallEntry(frame.cmd, frame.args)
-        i.errorNS().vars["stack"] = NewListObj(NewStringObj("INNER"), cmdList)
+        i.errorNS().vars["stack"] = i.List(i.String("INNER"), cmdList)
     } else {
-        i.errorNS().vars["stack"] = NewListObj()
+        i.errorNS().vars["stack"] = i.List()
     }
 
     // Save errorline from current frame
@@ -186,7 +186,7 @@ func goFramePop(interp C.FeatherInterp) C.FeatherResult {
 
             // Append CALL to ::tcl::errors::stack
             callEntry := i.buildCallEntry(frame.cmd, frame.args)
-            i.appendErrorStack(NewStringObj("CALL"), callEntry)
+            i.appendErrorStack(i.String("CALL"), callEntry)
         }
     }
 
@@ -216,7 +216,7 @@ func (i *Interp) finalizeError() {
     ns := i.errorNS()
 
     if i.returnOptions == nil {
-        i.returnOptions = NewDictObj()
+        i.returnOptions = i.Dict()
     }
 
     // Copy from ::tcl::errors::* to return options
@@ -229,7 +229,7 @@ func (i *Interp) finalizeError() {
     if errorCode := ObjDictGet(i.returnOptions, "-errorcode"); errorCode != nil {
         i.globalNamespace.vars["errorCode"] = errorCode
     } else {
-        i.globalNamespace.vars["errorCode"] = NewStringObj("NONE")
+        i.globalNamespace.vars["errorCode"] = i.String("NONE")
     }
 
     // Clear error state
@@ -260,7 +260,7 @@ func (i *Interp) buildCallEntry(cmd, args *Obj) *Obj {
     if list, _ := AsList(args); list != nil {
         items = append(items, list...)
     }
-    return NewListObj(items...)
+    return i.List(items...)
 }
 
 func getCodeFromOptions(opts *Obj) int {
