@@ -75,8 +75,8 @@ func goStringConcat(interp C.FeatherInterp, a C.FeatherObj, b C.FeatherObj) C.Fe
 		return 0
 	}
 	// Use GetString for shimmering (int/list → string)
-	strA := i.GetString(FeatherObj(a))
-	strB := i.GetString(FeatherObj(b))
+	strA := i.getString(FeatherObj(a))
+	strB := i.getString(FeatherObj(b))
 	return C.FeatherObj(i.internString(strA + strB))
 }
 
@@ -87,8 +87,8 @@ func goStringCompare(interp C.FeatherInterp, a C.FeatherObj, b C.FeatherObj) C.i
 		return 0
 	}
 	// Use GetString for shimmering (int/list → string)
-	strA := i.GetString(FeatherObj(a))
-	strB := i.GetString(FeatherObj(b))
+	strA := i.getString(FeatherObj(a))
+	strB := i.getString(FeatherObj(b))
 	// Go's string comparison is already Unicode-aware (UTF-8)
 	if strA < strB {
 		return -1
@@ -105,8 +105,8 @@ func goStringRegexMatch(interp C.FeatherInterp, pattern C.FeatherObj, str C.Feat
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	patternStr := i.GetString(FeatherObj(pattern))
-	strStr := i.GetString(FeatherObj(str))
+	patternStr := i.getString(FeatherObj(pattern))
+	strStr := i.getString(FeatherObj(str))
 
 	re, err := regexp.Compile(patternStr)
 	if err != nil {
@@ -131,7 +131,7 @@ func goStringByteAt(interp C.FeatherInterp, obj C.FeatherObj, index C.size_t) C.
 	if i == nil {
 		return -1
 	}
-	str := i.GetString(FeatherObj(obj))
+	str := i.getString(FeatherObj(obj))
 	if int(index) >= len(str) {
 		return -1
 	}
@@ -144,7 +144,7 @@ func goStringByteLength(interp C.FeatherInterp, obj C.FeatherObj) C.size_t {
 	if i == nil {
 		return 0
 	}
-	str := i.GetString(FeatherObj(obj))
+	str := i.getString(FeatherObj(obj))
 	return C.size_t(len(str))
 }
 
@@ -154,7 +154,7 @@ func goStringSlice(interp C.FeatherInterp, obj C.FeatherObj, start C.size_t, end
 	if i == nil {
 		return 0
 	}
-	str := i.GetString(FeatherObj(obj))
+	str := i.getString(FeatherObj(obj))
 	s, e := int(start), int(end)
 	if s >= len(str) {
 		s = len(str)
@@ -174,8 +174,8 @@ func goStringEqual(interp C.FeatherInterp, a C.FeatherObj, b C.FeatherObj) C.int
 	if i == nil {
 		return 0
 	}
-	strA := i.GetString(FeatherObj(a))
-	strB := i.GetString(FeatherObj(b))
+	strA := i.getString(FeatherObj(a))
+	strB := i.getString(FeatherObj(b))
 	if strA == strB {
 		return 1
 	}
@@ -188,8 +188,8 @@ func goStringMatch(interp C.FeatherInterp, pattern C.FeatherObj, str C.FeatherOb
 	if i == nil {
 		return 0
 	}
-	patternStr := i.GetString(FeatherObj(pattern))
-	strStr := i.GetString(FeatherObj(str))
+	patternStr := i.getString(FeatherObj(pattern))
+	strStr := i.getString(FeatherObj(str))
 	if nocase != 0 {
 		patternStr = strings.ToLower(patternStr)
 		strStr = strings.ToLower(strStr)
@@ -231,7 +231,7 @@ func goStringBuilderAppendObj(interp C.FeatherInterp, builder C.FeatherObj, str 
 	}
 	bldr := i.getBuilder(FeatherObj(builder))
 	if bldr != nil {
-		bldr.WriteString(i.GetString(FeatherObj(str)))
+		bldr.WriteString(i.getString(FeatherObj(str)))
 	}
 }
 
@@ -258,7 +258,7 @@ func goRuneLength(interp C.FeatherInterp, str C.FeatherObj) C.size_t {
 	if i == nil {
 		return 0
 	}
-	s := i.GetString(FeatherObj(str))
+	s := i.getString(FeatherObj(str))
 	return C.size_t(utf8.RuneCountInString(s))
 }
 
@@ -268,7 +268,7 @@ func goRuneAt(interp C.FeatherInterp, str C.FeatherObj, index C.size_t) C.Feathe
 	if i == nil {
 		return 0
 	}
-	s := i.GetString(FeatherObj(str))
+	s := i.getString(FeatherObj(str))
 	runes := []rune(s)
 	idx := int(index)
 	if idx < 0 || idx >= len(runes) {
@@ -283,7 +283,7 @@ func goRuneRange(interp C.FeatherInterp, str C.FeatherObj, first C.int64_t, last
 	if i == nil {
 		return 0
 	}
-	s := i.GetString(FeatherObj(str))
+	s := i.getString(FeatherObj(str))
 	runes := []rune(s)
 	length := len(runes)
 
@@ -309,7 +309,7 @@ func goRuneToUpper(interp C.FeatherInterp, str C.FeatherObj) C.FeatherObj {
 	if i == nil {
 		return 0
 	}
-	s := i.GetString(FeatherObj(str))
+	s := i.getString(FeatherObj(str))
 	return C.FeatherObj(i.internString(strings.ToUpper(s)))
 }
 
@@ -319,7 +319,7 @@ func goRuneToLower(interp C.FeatherInterp, str C.FeatherObj) C.FeatherObj {
 	if i == nil {
 		return 0
 	}
-	s := i.GetString(FeatherObj(str))
+	s := i.getString(FeatherObj(str))
 	return C.FeatherObj(i.internString(strings.ToLower(s)))
 }
 
@@ -329,7 +329,7 @@ func goRuneFold(interp C.FeatherInterp, str C.FeatherObj) C.FeatherObj {
 	if i == nil {
 		return 0
 	}
-	s := i.GetString(FeatherObj(str))
+	s := i.getString(FeatherObj(str))
 	// Case folding: convert each rune to its folded form
 	// This handles cases like ß -> ss properly for comparison
 	var result strings.Builder
@@ -424,7 +424,7 @@ func goListFrom(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 		return 0
 	}
 	// Get the list items (with shimmering)
-	items, err := i.GetList(FeatherObj(obj))
+	items, err := i.getList(FeatherObj(obj))
 	if err != nil {
 		// Set error message as result *Obj directly
 		i.result = NewStringObj(err.Error())
@@ -456,7 +456,7 @@ func goListPush(interp C.FeatherInterp, list C.FeatherObj, item C.FeatherObj) C.
 	listItems, err := AsList(o)
 	if err != nil {
 		// Try parsing from string
-		if _, err := i.GetList(FeatherObj(list)); err != nil {
+		if _, err := i.getList(FeatherObj(list)); err != nil {
 			return list
 		}
 		listItems, _ = AsList(o)
@@ -480,7 +480,7 @@ func goListPop(interp C.FeatherInterp, list C.FeatherObj) C.FeatherObj {
 	// Ensure it's a list
 	listItems, err := AsList(o)
 	if err != nil {
-		if _, err := i.GetList(FeatherObj(list)); err != nil {
+		if _, err := i.getList(FeatherObj(list)); err != nil {
 			return 0
 		}
 		listItems, _ = AsList(o)
@@ -511,7 +511,7 @@ func goListUnshift(interp C.FeatherInterp, list C.FeatherObj, item C.FeatherObj)
 	// Ensure it's a list
 	listItems, err := AsList(o)
 	if err != nil {
-		if _, err := i.GetList(FeatherObj(list)); err != nil {
+		if _, err := i.getList(FeatherObj(list)); err != nil {
 			return list
 		}
 		listItems, _ = AsList(o)
@@ -535,7 +535,7 @@ func goListShift(interp C.FeatherInterp, list C.FeatherObj) C.FeatherObj {
 	// Ensure it's a list
 	listItems, err := AsList(o)
 	if err != nil {
-		if _, err := i.GetList(FeatherObj(list)); err != nil {
+		if _, err := i.getList(FeatherObj(list)); err != nil {
 			return 0
 		}
 		listItems, _ = AsList(o)
@@ -556,7 +556,7 @@ func goListLength(interp C.FeatherInterp, list C.FeatherObj) C.size_t {
 		return 0
 	}
 	// Use GetList for shimmering (string → list)
-	items, err := i.GetList(FeatherObj(list))
+	items, err := i.getList(FeatherObj(list))
 	if err != nil {
 		return 0
 	}
@@ -569,7 +569,7 @@ func goListAt(interp C.FeatherInterp, list C.FeatherObj, index C.size_t) C.Feath
 	if i == nil {
 		return 0
 	}
-	items, err := i.GetList(FeatherObj(list))
+	items, err := i.getList(FeatherObj(list))
 	if err != nil {
 		return 0
 	}
@@ -586,7 +586,7 @@ func goListSlice(interp C.FeatherInterp, list C.FeatherObj, first C.size_t, last
 	if i == nil {
 		return 0
 	}
-	items, err := i.GetList(FeatherObj(list))
+	items, err := i.getList(FeatherObj(list))
 	if err != nil {
 		return 0
 	}
@@ -631,7 +631,7 @@ func goListSetAt(interp C.FeatherInterp, list C.FeatherObj, index C.size_t, valu
 	// Use AsList for direct access, or GetList for shimmering (string → list)
 	listItems, err := AsList(o)
 	if err != nil {
-		if _, err := i.GetList(FeatherObj(list)); err != nil {
+		if _, err := i.getList(FeatherObj(list)); err != nil {
 			return C.TCL_ERROR
 		}
 		listItems, _ = AsList(o)
@@ -667,7 +667,7 @@ func goListSplice(interp C.FeatherInterp, list C.FeatherObj, first C.size_t, del
 	// Get list items via shimmering
 	listItems, err := AsList(o)
 	if err != nil {
-		if _, err := i.GetList(FeatherObj(list)); err != nil {
+		if _, err := i.getList(FeatherObj(list)); err != nil {
 			return 0
 		}
 		listItems, _ = AsList(o)
@@ -684,7 +684,7 @@ func goListSplice(interp C.FeatherInterp, list C.FeatherObj, first C.size_t, del
 		if insObj != nil {
 			insItems, err := AsList(insObj)
 			if err != nil {
-				if insHandles, err := i.GetList(FeatherObj(insertions)); err == nil {
+				if insHandles, err := i.getList(FeatherObj(insertions)); err == nil {
 					insertObjs = make([]*Obj, len(insHandles))
 					for idx, h := range insHandles {
 						insertObjs[idx] = i.getObject(h)
@@ -746,7 +746,7 @@ func goListSort(interp C.FeatherInterp, list C.FeatherObj, cmpFunc unsafe.Pointe
 	// Get list items via shimmering
 	listItems, err := AsList(o)
 	if err != nil {
-		if _, err := i.GetList(FeatherObj(list)); err != nil {
+		if _, err := i.getList(FeatherObj(list)); err != nil {
 			return C.TCL_ERROR
 		}
 		listItems, _ = AsList(o)
@@ -815,7 +815,7 @@ func goDictFrom(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 		return 0
 	}
 	// Try to convert to dict
-	dictItems, dictOrder, err := i.GetDict(FeatherObj(obj))
+	dictItems, dictOrder, err := i.getDict(FeatherObj(obj))
 	if err != nil {
 		return 0 // Return nil on error
 	}
@@ -840,12 +840,12 @@ func goDictGet(interp C.FeatherInterp, dict C.FeatherObj, key C.FeatherObj) C.Fe
 		return 0
 	}
 	// Try direct dict access first
-	keyStr := i.GetString(FeatherObj(key))
+	keyStr := i.getString(FeatherObj(key))
 	if val, ok := ObjDictGet(o, keyStr); ok {
 		return C.FeatherObj(i.registerObj(val))
 	}
 	// Try shimmering if needed
-	dictItems, _, err := i.GetDict(FeatherObj(dict))
+	dictItems, _, err := i.getDict(FeatherObj(dict))
 	if err != nil {
 		return 0
 	}
@@ -867,12 +867,12 @@ func goDictSet(interp C.FeatherInterp, dict C.FeatherObj, key C.FeatherObj, valu
 	}
 	// Ensure it's a dict (shimmer if needed)
 	if _, ok := o.intrep.(*DictType); !ok {
-		_, _, err := i.GetDict(FeatherObj(dict))
+		_, _, err := i.getDict(FeatherObj(dict))
 		if err != nil {
 			return 0
 		}
 	}
-	keyStr := i.GetString(FeatherObj(key))
+	keyStr := i.getString(FeatherObj(key))
 	valueObj := i.getObject(FeatherObj(value))
 	if valueObj == nil {
 		return 0
@@ -887,11 +887,11 @@ func goDictExists(interp C.FeatherInterp, dict C.FeatherObj, key C.FeatherObj) C
 	if i == nil {
 		return 0
 	}
-	dictItems, _, err := i.GetDict(FeatherObj(dict))
+	dictItems, _, err := i.getDict(FeatherObj(dict))
 	if err != nil {
 		return 0
 	}
-	keyStr := i.GetString(FeatherObj(key))
+	keyStr := i.getString(FeatherObj(key))
 	if _, ok := dictItems[keyStr]; ok {
 		return 1
 	}
@@ -911,7 +911,7 @@ func goDictRemove(interp C.FeatherInterp, dict C.FeatherObj, key C.FeatherObj) C
 	// Ensure it's a dict
 	d, ok := o.intrep.(*DictType)
 	if !ok {
-		_, _, err := i.GetDict(FeatherObj(dict))
+		_, _, err := i.getDict(FeatherObj(dict))
 		if err != nil {
 			return 0
 		}
@@ -920,7 +920,7 @@ func goDictRemove(interp C.FeatherInterp, dict C.FeatherObj, key C.FeatherObj) C
 	if d == nil {
 		return 0
 	}
-	keyStr := i.GetString(FeatherObj(key))
+	keyStr := i.getString(FeatherObj(key))
 	// Remove from map
 	delete(d.Items, keyStr)
 	// Remove from order
@@ -940,7 +940,7 @@ func goDictSize(interp C.FeatherInterp, dict C.FeatherObj) C.size_t {
 	if i == nil {
 		return 0
 	}
-	dictItems, _, err := i.GetDict(FeatherObj(dict))
+	dictItems, _, err := i.getDict(FeatherObj(dict))
 	if err != nil {
 		return 0
 	}
@@ -953,7 +953,7 @@ func goDictKeys(interp C.FeatherInterp, dict C.FeatherObj) C.FeatherObj {
 	if i == nil {
 		return 0
 	}
-	_, dictOrder, err := i.GetDict(FeatherObj(dict))
+	_, dictOrder, err := i.getDict(FeatherObj(dict))
 	if err != nil {
 		return 0
 	}
@@ -971,7 +971,7 @@ func goDictValues(interp C.FeatherInterp, dict C.FeatherObj) C.FeatherObj {
 	if i == nil {
 		return 0
 	}
-	dictItems, dictOrder, err := i.GetDict(FeatherObj(dict))
+	dictItems, dictOrder, err := i.getDict(FeatherObj(dict))
 	if err != nil {
 		return 0
 	}
@@ -998,7 +998,7 @@ func goIntGet(interp C.FeatherInterp, obj C.FeatherObj, out *C.int64_t) C.Feathe
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	val, err := i.GetInt(FeatherObj(obj))
+	val, err := i.getInt(FeatherObj(obj))
 	if err != nil {
 		return C.TCL_ERROR
 	}
@@ -1021,7 +1021,7 @@ func goDoubleGet(interp C.FeatherInterp, obj C.FeatherObj, out *C.double) C.Feat
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	val, err := i.GetDouble(FeatherObj(obj))
+	val, err := i.getDouble(FeatherObj(obj))
 	if err != nil {
 		return C.TCL_ERROR
 	}
@@ -1501,7 +1501,7 @@ func goNsCreate(interp C.FeatherInterp, path C.FeatherObj) C.FeatherResult {
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	pathStr := i.GetString(FeatherObj(path))
+	pathStr := i.getString(FeatherObj(path))
 	i.ensureNamespace(pathStr)
 	return C.TCL_OK
 }
@@ -1512,7 +1512,7 @@ func goNsDelete(interp C.FeatherInterp, path C.FeatherObj) C.FeatherResult {
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	pathStr := i.GetString(FeatherObj(path))
+	pathStr := i.getString(FeatherObj(path))
 
 	// Cannot delete global namespace
 	if pathStr == "::" {
@@ -1553,7 +1553,7 @@ func goNsExists(interp C.FeatherInterp, path C.FeatherObj) C.int {
 	if i == nil {
 		return 0
 	}
-	pathStr := i.GetString(FeatherObj(path))
+	pathStr := i.getString(FeatherObj(path))
 	if _, ok := i.namespaces[pathStr]; ok {
 		return 1
 	}
@@ -1579,7 +1579,7 @@ func goNsParent(interp C.FeatherInterp, nsPath C.FeatherObj, result *C.FeatherOb
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	pathStr := i.GetString(FeatherObj(nsPath))
+	pathStr := i.getString(FeatherObj(nsPath))
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
@@ -1601,7 +1601,7 @@ func goNsChildren(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherObj {
 	if i == nil {
 		return 0
 	}
-	pathStr := i.GetString(FeatherObj(nsPath))
+	pathStr := i.getString(FeatherObj(nsPath))
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
@@ -1631,8 +1631,8 @@ func goNsGetVar(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj) 
 	if i == nil {
 		return 0
 	}
-	pathStr := i.GetString(FeatherObj(nsPath))
-	nameStr := i.GetString(FeatherObj(name))
+	pathStr := i.getString(FeatherObj(nsPath))
+	nameStr := i.getString(FeatherObj(name))
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
@@ -1650,8 +1650,8 @@ func goNsSetVar(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj, 
 	if i == nil {
 		return
 	}
-	pathStr := i.GetString(FeatherObj(nsPath))
-	nameStr := i.GetString(FeatherObj(name))
+	pathStr := i.getString(FeatherObj(nsPath))
+	nameStr := i.getString(FeatherObj(name))
 
 	// Create namespace if needed
 	ns := i.ensureNamespace(pathStr)
@@ -1664,8 +1664,8 @@ func goNsVarExists(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherOb
 	if i == nil {
 		return 0
 	}
-	pathStr := i.GetString(FeatherObj(nsPath))
-	nameStr := i.GetString(FeatherObj(name))
+	pathStr := i.getString(FeatherObj(nsPath))
+	nameStr := i.getString(FeatherObj(name))
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
@@ -1683,8 +1683,8 @@ func goNsUnsetVar(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherObj
 	if i == nil {
 		return
 	}
-	pathStr := i.GetString(FeatherObj(nsPath))
-	nameStr := i.GetString(FeatherObj(name))
+	pathStr := i.getString(FeatherObj(nsPath))
+	nameStr := i.getString(FeatherObj(name))
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
@@ -1709,8 +1709,8 @@ func goNsGetCommand(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherO
 		}
 		return C.TCL_CMD_NONE
 	}
-	pathStr := i.GetString(FeatherObj(nsPath))
-	nameStr := i.GetString(FeatherObj(name))
+	pathStr := i.getString(FeatherObj(nsPath))
+	nameStr := i.getString(FeatherObj(name))
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
@@ -1789,8 +1789,8 @@ func goNsSetCommand(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherO
 	if i == nil {
 		return
 	}
-	pathStr := i.GetString(FeatherObj(nsPath))
-	nameStr := i.GetString(FeatherObj(name))
+	pathStr := i.getString(FeatherObj(nsPath))
+	nameStr := i.getString(FeatherObj(name))
 
 	// Ensure namespace exists
 	ns := i.ensureNamespace(pathStr)
@@ -1816,8 +1816,8 @@ func goNsDeleteCommand(interp C.FeatherInterp, nsPath C.FeatherObj, name C.Feath
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	pathStr := i.GetString(FeatherObj(nsPath))
-	nameStr := i.GetString(FeatherObj(name))
+	pathStr := i.getString(FeatherObj(nsPath))
+	nameStr := i.getString(FeatherObj(name))
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
@@ -1838,7 +1838,7 @@ func goNsListCommands(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherObj 
 	if i == nil {
 		return 0
 	}
-	pathStr := i.GetString(FeatherObj(nsPath))
+	pathStr := i.getString(FeatherObj(nsPath))
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
@@ -1865,7 +1865,7 @@ func goFrameSetNamespace(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherR
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	pathStr := i.GetString(FeatherObj(nsPath))
+	pathStr := i.getString(FeatherObj(nsPath))
 
 	// Create namespace if needed
 	ns := i.ensureNamespace(pathStr)
@@ -1947,9 +1947,9 @@ func goVarLinkNs(interp C.FeatherInterp, local C.FeatherObj, nsPath C.FeatherObj
 	if i == nil {
 		return
 	}
-	localStr := i.GetString(FeatherObj(local))
-	pathStr := i.GetString(FeatherObj(nsPath))
-	nameStr := i.GetString(FeatherObj(name))
+	localStr := i.getString(FeatherObj(local))
+	pathStr := i.getString(FeatherObj(nsPath))
+	nameStr := i.getString(FeatherObj(name))
 
 	frame := i.frames[i.active]
 	frame.links[localStr] = varLink{
@@ -2014,7 +2014,7 @@ func goVarNames(interp C.FeatherInterp, ns C.FeatherObj) C.FeatherObj {
 		}
 	} else {
 		// Return variables in the specified namespace
-		pathStr := i.GetString(FeatherObj(ns))
+		pathStr := i.getString(FeatherObj(ns))
 		if nsObj, ok := i.namespaces[pathStr]; ok {
 			for name := range nsObj.vars {
 				names = append(names, name)
@@ -2039,7 +2039,7 @@ func goVarIsLink(interp C.FeatherInterp, name C.FeatherObj) C.int {
 	if i == nil {
 		return 0
 	}
-	nameStr := i.GetString(FeatherObj(name))
+	nameStr := i.getString(FeatherObj(name))
 	frame := i.frames[i.active]
 
 	// Check if the variable is in the links map
@@ -2055,7 +2055,7 @@ func goNsGetExports(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherObj {
 	if i == nil {
 		return 0
 	}
-	pathStr := i.GetString(FeatherObj(nsPath))
+	pathStr := i.getString(FeatherObj(nsPath))
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
@@ -2077,18 +2077,18 @@ func goNsSetExports(interp C.FeatherInterp, nsPath C.FeatherObj, patterns C.Feat
 	if i == nil {
 		return
 	}
-	pathStr := i.GetString(FeatherObj(nsPath))
+	pathStr := i.getString(FeatherObj(nsPath))
 
 	ns := i.ensureNamespace(pathStr)
 
 	// Get patterns from list
-	patternList, err := i.GetList(FeatherObj(patterns))
+	patternList, err := i.getList(FeatherObj(patterns))
 	if err != nil {
 		return
 	}
 	newPatterns := make([]string, len(patternList))
 	for idx, p := range patternList {
-		newPatterns[idx] = i.GetString(p)
+		newPatterns[idx] = i.getString(p)
 	}
 
 	if clear != 0 {
@@ -2106,8 +2106,8 @@ func goNsIsExported(interp C.FeatherInterp, nsPath C.FeatherObj, name C.FeatherO
 	if i == nil {
 		return 0
 	}
-	pathStr := i.GetString(FeatherObj(nsPath))
-	nameStr := i.GetString(FeatherObj(name))
+	pathStr := i.getString(FeatherObj(nsPath))
+	nameStr := i.getString(FeatherObj(name))
 
 	ns, ok := i.namespaces[pathStr]
 	if !ok {
@@ -2166,10 +2166,10 @@ func goNsCopyCommand(interp C.FeatherInterp, srcNs C.FeatherObj, srcName C.Feath
 	if i == nil {
 		return C.TCL_ERROR
 	}
-	srcNsStr := i.GetString(FeatherObj(srcNs))
-	srcNameStr := i.GetString(FeatherObj(srcName))
-	dstNsStr := i.GetString(FeatherObj(dstNs))
-	dstNameStr := i.GetString(FeatherObj(dstName))
+	srcNsStr := i.getString(FeatherObj(srcNs))
+	srcNameStr := i.getString(FeatherObj(srcName))
+	dstNsStr := i.getString(FeatherObj(dstNs))
+	dstNameStr := i.getString(FeatherObj(dstName))
 
 	// Find source namespace
 	srcNsObj, ok := i.namespaces[srcNsStr]
@@ -2214,7 +2214,7 @@ func goForeignTypeName(interp C.FeatherInterp, obj C.FeatherObj) C.FeatherObj {
 	if i == nil {
 		return 0
 	}
-	typeName := i.GetForeignType(FeatherObj(obj))
+	typeName := i.getForeignType(FeatherObj(obj))
 	if typeName == "" {
 		return 0
 	}
@@ -2304,7 +2304,7 @@ func goForeignInvoke(interp C.FeatherInterp, obj C.FeatherObj, method C.FeatherO
 	}
 	// For now, method invocation is not implemented at the low level.
 	// The high-level library will handle method dispatch via the type registry.
-	methodStr := i.GetString(FeatherObj(method))
+	methodStr := i.getString(FeatherObj(method))
 	i.SetResult(i.internString("method invocation not implemented: " + methodStr))
 	return C.TCL_ERROR
 }

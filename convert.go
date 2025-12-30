@@ -135,31 +135,31 @@ func wrapFunc(i *Interp, fn any) InternalCommandFunc {
 func convertArgInternal(i *Interp, arg FeatherObj, targetType reflect.Type) (reflect.Value, error) {
 	switch targetType.Kind() {
 	case reflect.String:
-		return reflect.ValueOf(i.GetString(arg)), nil
+		return reflect.ValueOf(i.getString(arg)), nil
 
 	case reflect.Int:
-		v, err := i.GetInt(arg)
+		v, err := i.getInt(arg)
 		if err != nil {
 			return reflect.Value{}, err
 		}
 		return reflect.ValueOf(int(v)), nil
 
 	case reflect.Int64:
-		v, err := i.GetInt(arg)
+		v, err := i.getInt(arg)
 		if err != nil {
 			return reflect.Value{}, err
 		}
 		return reflect.ValueOf(v), nil
 
 	case reflect.Float64:
-		v, err := i.GetDouble(arg)
+		v, err := i.getDouble(arg)
 		if err != nil {
 			return reflect.Value{}, err
 		}
 		return reflect.ValueOf(v), nil
 
 	case reflect.Bool:
-		s := i.GetString(arg)
+		s := i.getString(arg)
 		switch strings.ToLower(s) {
 		case "1", "true", "yes", "on":
 			return reflect.ValueOf(true), nil
@@ -172,18 +172,18 @@ func convertArgInternal(i *Interp, arg FeatherObj, targetType reflect.Type) (ref
 	case reflect.Slice:
 		if targetType.Elem().Kind() == reflect.String {
 			// Special case: []string
-			items, err := i.GetList(arg)
+			items, err := i.getList(arg)
 			if err != nil {
 				return reflect.Value{}, err
 			}
 			slice := make([]string, len(items))
 			for j, item := range items {
-				slice[j] = i.GetString(item)
+				slice[j] = i.getString(item)
 			}
 			return reflect.ValueOf(slice), nil
 		}
 		// Generic slice handling
-		items, err := i.GetList(arg)
+		items, err := i.getList(arg)
 		if err != nil {
 			return reflect.Value{}, err
 		}
@@ -200,7 +200,7 @@ func convertArgInternal(i *Interp, arg FeatherObj, targetType reflect.Type) (ref
 	case reflect.Interface:
 		// For any/interface{}, return the string value
 		if targetType.NumMethod() == 0 {
-			return reflect.ValueOf(i.GetString(arg)), nil
+			return reflect.ValueOf(i.getString(arg)), nil
 		}
 		return reflect.Value{}, fmt.Errorf("cannot convert to interface %v", targetType)
 

@@ -79,7 +79,7 @@ func cmdEcho(i *feather.Interp, cmd feather.FeatherObj, args []feather.FeatherOb
 		if idx > 0 {
 			fmt.Print(" ")
 		}
-		fmt.Print(i.GetString(arg))
+		fmt.Print(i.Wrap(arg).String())
 	}
 	fmt.Println()
 	i.SetResultString("")
@@ -94,7 +94,7 @@ func cmdCount(i *feather.Interp, cmd feather.FeatherObj, args []feather.FeatherO
 func cmdList(i *feather.Interp, cmd feather.FeatherObj, args []feather.FeatherObj) feather.FeatherResult {
 	var parts []string
 	for _, arg := range args {
-		s := i.GetString(arg)
+		s := i.Wrap(arg).String()
 		needsBraces := false
 		for _, c := range s {
 			if c == ' ' || c == '\t' || c == '\n' || c == '{' || c == '}' {

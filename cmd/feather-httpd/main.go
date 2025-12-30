@@ -159,9 +159,9 @@ func (s *HTTPServer) cmdRoute(i *feather.Interp, cmd feather.FeatherObj, args []
 		return feather.ResultError
 	}
 
-	method := strings.ToUpper(i.GetString(args[0]))
-	path := i.GetString(args[1])
-	script := i.GetString(args[2])
+	method := strings.ToUpper(i.Wrap(args[0]).String())
+	path := i.Wrap(args[1]).String()
+	script := i.Wrap(args[2]).String()
 
 	key := method + " " + path
 	s.mu.Lock()
@@ -180,7 +180,7 @@ func (s *HTTPServer) cmdListen(i *feather.Interp, cmd feather.FeatherObj, args [
 		return feather.ResultError
 	}
 
-	port := i.GetString(args[0])
+	port := i.Wrap(args[0]).String()
 	addr := ":" + port
 
 	s.mu.Lock()
@@ -252,7 +252,7 @@ func (s *HTTPServer) cmdResponse(i *feather.Interp, cmd feather.FeatherObj, args
 		return feather.ResultError
 	}
 
-	ctx.ResponseBody = i.GetString(args[0])
+	ctx.ResponseBody = i.Wrap(args[0]).String()
 	i.SetResultString("")
 	return feather.ResultOK
 }
@@ -274,7 +274,7 @@ func (s *HTTPServer) cmdStatus(i *feather.Interp, cmd feather.FeatherObj, args [
 		return feather.ResultError
 	}
 
-	code, err := i.GetInt(args[0])
+	code, err := i.Wrap(args[0]).Int()
 	if err != nil {
 		i.SetErrorString(fmt.Sprintf("status: invalid code: %v", err))
 		return feather.ResultError
@@ -302,8 +302,8 @@ func (s *HTTPServer) cmdHeader(i *feather.Interp, cmd feather.FeatherObj, args [
 		return feather.ResultError
 	}
 
-	name := i.GetString(args[0])
-	value := i.GetString(args[1])
+	name := i.Wrap(args[0]).String()
+	value := i.Wrap(args[1]).String()
 	ctx.Headers[name] = value
 
 	i.SetResultString("")
@@ -327,7 +327,7 @@ func (s *HTTPServer) cmdRequest(i *feather.Interp, cmd feather.FeatherObj, args 
 		return feather.ResultError
 	}
 
-	subcmd := i.GetString(args[0])
+	subcmd := i.Wrap(args[0]).String()
 	switch subcmd {
 	case "method":
 		i.SetResultString(ctx.Request.Method)
@@ -338,14 +338,14 @@ func (s *HTTPServer) cmdRequest(i *feather.Interp, cmd feather.FeatherObj, args 
 			i.SetErrorString("wrong # args: should be \"request header name\"")
 			return feather.ResultError
 		}
-		name := i.GetString(args[1])
+		name := i.Wrap(args[1]).String()
 		i.SetResultString(ctx.Request.Header.Get(name))
 	case "query":
 		if len(args) < 2 {
 			i.SetErrorString("wrong # args: should be \"request query name\"")
 			return feather.ResultError
 		}
-		name := i.GetString(args[1])
+		name := i.Wrap(args[1]).String()
 		i.SetResultString(ctx.Request.URL.Query().Get(name))
 	case "body":
 		body, err := io.ReadAll(ctx.Request.Body)
@@ -426,7 +426,7 @@ func (s *HTTPServer) cmdTemplate(i *feather.Interp, cmd feather.FeatherObj, args
 		return feather.ResultError
 	}
 
-	subcmd := i.GetString(args[0])
+	subcmd := i.Wrap(args[0]).String()
 	switch subcmd {
 	case "list":
 		return s.cmdTemplateList(i)
@@ -474,7 +474,7 @@ func (s *HTTPServer) cmdTemplateRender(i *feather.Interp, args []feather.Feather
 		return feather.ResultError
 	}
 
-	name := i.GetString(args[0])
+	name := i.Wrap(args[0]).String()
 	dataObj := args[1]
 
 	s.refreshTemplates()
@@ -515,7 +515,7 @@ func (s *HTTPServer) cmdTemplateShow(i *feather.Interp, args []feather.FeatherOb
 		return feather.ResultError
 	}
 
-	name := i.GetString(args[0])
+	name := i.Wrap(args[0]).String()
 	path := filepath.Join(s.templateDir, name)
 
 	content, err := os.ReadFile(path)
@@ -549,12 +549,12 @@ func (s *HTTPServer) cmdTemplateErrors(i *feather.Interp) feather.FeatherResult 
 func (s *HTTPServer) tclToGoData(i *feather.Interp, obj feather.FeatherObj) any {
 	// Check native dict first (avoids infinite recursion from shimmering)
 	if i.IsNativeDict(obj) {
-		dictItems, dictOrder, err := i.GetDict(obj)
+		dictItems, dictOrder, err := i.Wrap(obj).Dict()
 		if err == nil {
 			result := make(map[string]any)
 			for _, key := range dictOrder {
 				val := dictItems[key]
-				result[key] = s.tclToGoData(i, val)
+				result[key] = s.tclToGoData(i, val.Raw())
 			}
 			return result
 		}
@@ -562,18 +562,18 @@ func (s *HTTPServer) tclToGoData(i *feather.Interp, obj feather.FeatherObj) any 
 
 	// Check native list (avoids infinite recursion from shimmering)
 	if i.IsNativeList(obj) {
-		listItems, err := i.GetList(obj)
+		listItems, err := i.Wrap(obj).List()
 		if err == nil {
 			result := make([]any, len(listItems))
 			for idx, elem := range listItems {
-				result[idx] = s.tclToGoData(i, elem)
+				result[idx] = s.tclToGoData(i, elem.Raw())
 			}
 			return result
 		}
 	}
 
 	// Default to string
-	return i.GetString(obj)
+	return i.Wrap(obj).String()
 }
 
 // tclList formats strings as a proper TCL list.

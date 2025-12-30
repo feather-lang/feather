@@ -136,7 +136,7 @@ func (i *Interp) foreignConstructor(typeName string, cmd FeatherObj, args []Feat
 		return ResultError
 	}
 
-	subCmd := i.GetString(args[0])
+	subCmd := i.getString(args[0])
 	if subCmd != "new" {
 		i.SetErrorString(fmt.Sprintf("unknown subcommand \"%s\": must be new", subCmd))
 		return ResultError
@@ -204,7 +204,7 @@ func (i *Interp) foreignMethodDispatch(handleName string, cmd FeatherObj, args [
 		return ResultError
 	}
 
-	methodName := i.GetString(args[0])
+	methodName := i.getString(args[0])
 	methodArgs := args[1:]
 
 	// Get the instance
@@ -291,31 +291,31 @@ func (i *Interp) callForeignMethod(receiver any, methodFunc reflect.Value, args 
 func (i *Interp) convertArg(arg FeatherObj, targetType reflect.Type) (reflect.Value, error) {
 	switch targetType.Kind() {
 	case reflect.String:
-		return reflect.ValueOf(i.GetString(arg)), nil
+		return reflect.ValueOf(i.getString(arg)), nil
 
 	case reflect.Int:
-		v, err := i.GetInt(arg)
+		v, err := i.getInt(arg)
 		if err != nil {
 			return reflect.Value{}, err
 		}
 		return reflect.ValueOf(int(v)), nil
 
 	case reflect.Int64:
-		v, err := i.GetInt(arg)
+		v, err := i.getInt(arg)
 		if err != nil {
 			return reflect.Value{}, err
 		}
 		return reflect.ValueOf(v), nil
 
 	case reflect.Float64:
-		v, err := i.GetDouble(arg)
+		v, err := i.getDouble(arg)
 		if err != nil {
 			return reflect.Value{}, err
 		}
 		return reflect.ValueOf(v), nil
 
 	case reflect.Bool:
-		s := i.GetString(arg)
+		s := i.getString(arg)
 		switch strings.ToLower(s) {
 		case "1", "true", "yes", "on":
 			return reflect.ValueOf(true), nil
@@ -327,7 +327,7 @@ func (i *Interp) convertArg(arg FeatherObj, targetType reflect.Type) (reflect.Va
 
 	case reflect.Slice:
 		// Convert list to slice
-		items, err := i.GetList(arg)
+		items, err := i.getList(arg)
 		if err != nil {
 			return reflect.Value{}, err
 		}
@@ -347,7 +347,7 @@ func (i *Interp) convertArg(arg FeatherObj, targetType reflect.Type) (reflect.Va
 		if targetType.Key().Kind() != reflect.String {
 			return reflect.Value{}, fmt.Errorf("map key must be string")
 		}
-		dictItems, dictOrder, err := i.GetDict(arg)
+		dictItems, dictOrder, err := i.getDict(arg)
 		if err != nil {
 			return reflect.Value{}, err
 		}
@@ -385,7 +385,7 @@ func (i *Interp) convertArg(arg FeatherObj, targetType reflect.Type) (reflect.Va
 
 	case reflect.Ptr:
 		// Check if it's a foreign object
-		handleName := i.GetString(arg)
+		handleName := i.getString(arg)
 		if i.ForeignRegistry != nil {
 			i.ForeignRegistry.mu.RLock()
 			instance, ok := i.ForeignRegistry.instances[handleName]

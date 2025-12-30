@@ -177,7 +177,7 @@ func (i *Interp) register(name string, fn InternalCommandFunc) {
 
 // dispatch handles command lookup and execution for Go-registered commands.
 func (i *Interp) dispatch(cmd FeatherObj, args []FeatherObj) FeatherResult {
-	cmdStr := i.GetString(cmd)
+	cmdStr := i.getString(cmd)
 	if fn, ok := i.Commands[cmdStr]; ok {
 		return fn(i, cmd, args)
 	}
@@ -514,7 +514,7 @@ func (i *Interp) IsForeignHandle(h FeatherObj) bool {
 
 // GetForeignType returns the type name of a foreign object, or empty string if not foreign.
 // Also checks if the string representation is a foreign handle name.
-func (i *Interp) GetForeignType(h FeatherObj) string {
+func (i *Interp) getForeignType(h FeatherObj) string {
 	if obj := i.getObject(h); obj != nil {
 		if ft, ok := obj.intrep.(*ForeignType); ok {
 			return ft.TypeName
@@ -533,7 +533,7 @@ func (i *Interp) GetForeignType(h FeatherObj) string {
 }
 
 // GetForeignValue returns the Go value of a foreign object, or nil if not foreign.
-func (i *Interp) GetForeignValue(h FeatherObj) any {
+func (i *Interp) getForeignValue(h FeatherObj) any {
 	if obj := i.getObject(h); obj != nil {
 		if ft, ok := obj.intrep.(*ForeignType); ok {
 			return ft.Value
@@ -573,7 +573,7 @@ func (i *Interp) objForHandle(h FeatherObj) *Obj {
 
 // GetString returns the string representation of an object.
 // Performs shimmering: converts int/double/list/dict representations to string as needed.
-func (i *Interp) GetString(h FeatherObj) string {
+func (i *Interp) getString(h FeatherObj) string {
 	if obj := i.getObject(h); obj != nil {
 		return obj.String()
 	}
@@ -584,7 +584,7 @@ func (i *Interp) GetString(h FeatherObj) string {
 // GetInt returns the integer representation of an object.
 // Performs shimmering: parses string representation as integer if needed.
 // Returns an error if the value cannot be converted to an integer.
-func (i *Interp) GetInt(h FeatherObj) (int64, error) {
+func (i *Interp) getInt(h FeatherObj) (int64, error) {
 	obj := i.getObject(h)
 	if obj == nil {
 		return 0, fmt.Errorf("nil object")
@@ -595,7 +595,7 @@ func (i *Interp) GetInt(h FeatherObj) (int64, error) {
 // GetDouble returns the floating-point representation of an object.
 // Performs shimmering: parses string representation as double if needed.
 // Returns an error if the value cannot be converted to a double.
-func (i *Interp) GetDouble(h FeatherObj) (float64, error) {
+func (i *Interp) getDouble(h FeatherObj) (float64, error) {
 	obj := i.getObject(h)
 	if obj == nil {
 		return 0, fmt.Errorf("nil object")
@@ -606,7 +606,7 @@ func (i *Interp) GetDouble(h FeatherObj) (float64, error) {
 // GetList returns the list representation of an object as handles.
 // Performs shimmering: parses string representation as list if needed.
 // Returns an error if the value cannot be converted to a list.
-func (i *Interp) GetList(h FeatherObj) ([]FeatherObj, error) {
+func (i *Interp) getList(h FeatherObj) ([]FeatherObj, error) {
 	obj := i.getObject(h)
 	if obj == nil {
 		return nil, fmt.Errorf("nil object")
@@ -657,7 +657,7 @@ func (i *Interp) GetList(h FeatherObj) ([]FeatherObj, error) {
 // GetDict returns the dict representation of an object as handles.
 // Performs shimmering: parses string/list representation as dict if needed.
 // Returns an error if the value cannot be converted to a dict (odd number of elements).
-func (i *Interp) GetDict(h FeatherObj) (map[string]FeatherObj, []string, error) {
+func (i *Interp) getDict(h FeatherObj) (map[string]FeatherObj, []string, error) {
 	obj := i.getObject(h)
 	if obj == nil {
 		return nil, nil, fmt.Errorf("nil object")
@@ -673,7 +673,7 @@ func (i *Interp) GetDict(h FeatherObj) (map[string]FeatherObj, []string, error) 
 	}
 	// Shimmer: string/list → dict
 	// First get as list (which handles parsing if needed)
-	items, err := i.GetList(h)
+	items, err := i.getList(h)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -685,7 +685,7 @@ func (i *Interp) GetDict(h FeatherObj) (map[string]FeatherObj, []string, error) 
 	dictItems := make(map[string]*Obj)
 	var dictOrder []string
 	for j := 0; j < len(items); j += 2 {
-		key := i.GetString(items[j])
+		key := i.getString(items[j])
 		val := i.getObject(items[j+1])
 		// If key already exists, update value but keep order position
 		if _, exists := dictItems[key]; !exists {
@@ -711,7 +711,7 @@ func (i *Interp) GetDict(h FeatherObj) (map[string]FeatherObj, []string, error) 
 // Note: For dicts, this returns the number of key-value pairs times 2
 // (the list representation length).
 func (i *Interp) ListLen(h FeatherObj) int {
-	items, err := i.GetList(h)
+	items, err := i.getList(h)
 	if err != nil {
 		return 0
 	}
@@ -726,7 +726,7 @@ func (i *Interp) ListLen(h FeatherObj) int {
 //   - The object cannot be converted to a list
 //   - The object handle is invalid
 func (i *Interp) ListIndex(h FeatherObj, idx int) FeatherObj {
-	items, err := i.GetList(h)
+	items, err := i.getList(h)
 	if err != nil || idx < 0 || idx >= len(items) {
 		return 0
 	}
@@ -741,7 +741,7 @@ func (i *Interp) ListIndex(h FeatherObj, idx int) FeatherObj {
 // Returns (handle, true) if the key exists, (0, false) otherwise.
 // Also returns (0, false) if the object cannot be converted to a dict.
 func (i *Interp) DictGet(h FeatherObj, key string) (FeatherObj, bool) {
-	items, _, err := i.GetDict(h)
+	items, _, err := i.getDict(h)
 	if err != nil {
 		return 0, false
 	}
@@ -756,7 +756,7 @@ func (i *Interp) DictGet(h FeatherObj, key string) (FeatherObj, bool) {
 //
 // Returns nil if the object cannot be converted to a dict.
 func (i *Interp) DictKeys(h FeatherObj) []string {
-	_, order, err := i.GetDict(h)
+	_, order, err := i.getDict(h)
 	if err != nil {
 		return nil
 	}
