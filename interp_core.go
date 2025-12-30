@@ -26,9 +26,16 @@ const (
 	ResultContinue FeatherResult = C.TCL_CONTINUE
 )
 
-// EvalFlags matching FeatherEvalFlags enum
+// Eval flags control variable resolution scope during script evaluation.
 const (
-	EvalLocal  = C.TCL_EVAL_LOCAL
+	// EvalLocal evaluates the script in the current call frame.
+	// Variables are resolved in the local scope first, then in enclosing scopes.
+	// This is the default behavior for most TCL commands.
+	EvalLocal = C.TCL_EVAL_LOCAL
+
+	// EvalGlobal evaluates the script in the global (top-level) scope.
+	// Variables are resolved only in the global namespace, ignoring local frames.
+	// Use this when a script should not see or modify local variables.
 	EvalGlobal = C.TCL_EVAL_GLOBAL
 )
 
