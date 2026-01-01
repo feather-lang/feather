@@ -92,10 +92,18 @@ vardefault R O     ;# returns: R O {}
 vardefault R O A B ;# returns: R O {A B}
 ```
 
-## TCL Features We Do NOT Support
-
 ### Replacing Existing Commands
-TCL's `proc` replaces any existing command or procedure with the same name. While our implementation does register the new procedure, we should verify the replacement behavior is complete (including replacing built-in commands).
+```tcl
+proc foo {} { return "original" }
+foo                ;# returns: original
+proc foo {} { return "replaced" }
+foo                ;# returns: replaced
+
+# Can also replace builtins
+proc concat {args} { return "hijacked" }
+concat a b c       ;# returns: hijacked
+```
+Defining a proc with the same name as an existing command (user-defined or builtin) replaces it.
 
 ## Notes on Implementation Differences
 

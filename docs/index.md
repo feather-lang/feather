@@ -2,7 +2,7 @@
 
 This document summarizes the comparison between Feather's TCL builtin implementations and official TCL 8.6+/9.0.
 
-## Feature-Complete Builtins (17)
+## Feature-Complete Builtins (22)
 
 These builtins match TCL's documented behavior:
 
@@ -27,6 +27,7 @@ These builtins match TCL's documented behavior:
 - `rename` - Command renaming
 - `global` - Global variable access
 - `eval` - Script evaluation
+- `proc` - Procedure definition (with default parameters)
 
 ## Builtins with Missing Features
 
