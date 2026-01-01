@@ -26,30 +26,43 @@ static const char *get_kind_string(const FeatherHostOps *ops, FeatherInterp inte
 static FeatherResult trace_add(const FeatherHostOps *ops, FeatherInterp interp,
                            FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
-  if (argc != 4) {
+
+  // Need at least the type argument
+  if (argc == 0) {
     ops->interp.set_result(
         interp,
         ops->string.intern(interp,
-                           "wrong # args: should be \"trace add type name ops command\"",
-                           57));
+                           "wrong # args: should be \"trace add type name opList command\"",
+                           60));
     return TCL_ERROR;
   }
 
   FeatherObj kind = ops->list.at(interp, args, 0);
-  FeatherObj name = ops->list.at(interp, args, 1);
-  FeatherObj opsArg = ops->list.at(interp, args, 2);
-  FeatherObj script = ops->list.at(interp, args, 3);
 
-  // Validate kind
+  // Validate kind first
   const char *kindStr = get_kind_string(ops, interp, kind);
   if (kindStr == NULL) {
-    FeatherObj msg = ops->string.intern(interp, "bad type \"", 10);
+    FeatherObj msg = ops->string.intern(interp, "bad option \"", 12);
     msg = ops->string.concat(interp, msg, kind);
     msg = ops->string.concat(interp, msg,
-                              ops->string.intern(interp, "\": must be command, execution, or variable", 42));
+                              ops->string.intern(interp, "\": must be execution, command, or variable", 42));
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
+
+  // Check argument count with type-specific message
+  if (argc != 4) {
+    FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"trace add ", 35);
+    msg = ops->string.concat(interp, msg, kind);
+    msg = ops->string.concat(interp, msg,
+                              ops->string.intern(interp, " name opList command\"", 21));
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  FeatherObj name = ops->list.at(interp, args, 1);
+  FeatherObj opsArg = ops->list.at(interp, args, 2);
+  FeatherObj script = ops->list.at(interp, args, 3);
 
   // Validate ops - it should be a list of valid operations
   FeatherObj opsList = ops->list.from(interp, opsArg);
@@ -130,10 +143,10 @@ static FeatherResult trace_remove(const FeatherHostOps *ops, FeatherInterp inter
   // Validate kind
   const char *kindStr = get_kind_string(ops, interp, kind);
   if (kindStr == NULL) {
-    FeatherObj msg = ops->string.intern(interp, "bad type \"", 10);
+    FeatherObj msg = ops->string.intern(interp, "bad option \"", 12);
     msg = ops->string.concat(interp, msg, kind);
     msg = ops->string.concat(interp, msg,
-                              ops->string.intern(interp, "\": must be command, execution, or variable", 42));
+                              ops->string.intern(interp, "\": must be execution, command, or variable", 42));
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
@@ -221,10 +234,10 @@ static FeatherResult trace_info(const FeatherHostOps *ops, FeatherInterp interp,
   // Validate kind
   const char *kindStr = get_kind_string(ops, interp, kind);
   if (kindStr == NULL) {
-    FeatherObj msg = ops->string.intern(interp, "bad type \"", 10);
+    FeatherObj msg = ops->string.intern(interp, "bad option \"", 12);
     msg = ops->string.concat(interp, msg, kind);
     msg = ops->string.concat(interp, msg,
-                              ops->string.intern(interp, "\": must be command, execution, or variable", 42));
+                              ops->string.intern(interp, "\": must be execution, command, or variable", 42));
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
@@ -282,8 +295,8 @@ FeatherResult feather_builtin_trace(const FeatherHostOps *ops, FeatherInterp int
     ops->interp.set_result(
         interp,
         ops->string.intern(interp,
-                           "wrong # args: should be \"trace subcommand ?arg ...?\"",
-                           52));
+                           "wrong # args: should be \"trace option ?arg ...?\"",
+                           48));
     return TCL_ERROR;
   }
 
@@ -300,10 +313,10 @@ FeatherResult feather_builtin_trace(const FeatherHostOps *ops, FeatherInterp int
     return trace_info(ops, interp, args);
   }
 
-  // Unknown subcommand
+  // Unknown option
   FeatherObj msg = ops->string.intern(
       interp,
-      "unknown or ambiguous subcommand \"", 33);
+      "bad option \"", 12);
   msg = ops->string.concat(interp, msg, subcmd);
   msg = ops->string.concat(
       interp, msg,

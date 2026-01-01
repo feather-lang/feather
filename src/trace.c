@@ -44,9 +44,9 @@ void feather_fire_var_traces(const FeatherHostOps *ops, FeatherInterp interp,
     FeatherObj opObj = ops->string.intern(interp, op, feather_strlen(op));
     FeatherObj emptyObj = ops->string.intern(interp, "", 0);
 
-    // Fire in FIFO order
-    for (size_t i = 0; i < count; i++) {
-      FeatherObj entry = ops->list.at(interp, traces, i);
+    // Fire in LIFO order (most recently added first)
+    for (size_t i = count; i > 0; i--) {
+      FeatherObj entry = ops->list.at(interp, traces, i - 1);
       FeatherObj entryOps = ops->list.at(interp, entry, 0);
       FeatherObj script = ops->list.at(interp, entry, 1);
 
@@ -91,48 +91,6 @@ void feather_fire_cmd_traces(const FeatherHostOps *ops, FeatherInterp interp,
     size_t count = ops->list.length(interp, traces);
     FeatherObj opObj = ops->string.intern(interp, op, feather_strlen(op));
 
-    // For display, strip :: prefix from global names
-    FeatherObj displayOld = oldName;
-    FeatherObj displayNew = newName;
-
-    // Check if oldName starts with :: and has no other ::
-    size_t oldLen = ops->string.byte_length(interp, oldName);
-    if (oldLen >= 2 &&
-        ops->string.byte_at(interp, oldName, 0) == ':' &&
-        ops->string.byte_at(interp, oldName, 1) == ':') {
-      // Check if there's another :: after the first
-      int hasOther = 0;
-      for (size_t i = 2; i + 1 < oldLen; i++) {
-        if (ops->string.byte_at(interp, oldName, i) == ':' &&
-            ops->string.byte_at(interp, oldName, i + 1) == ':') {
-          hasOther = 1;
-          break;
-        }
-      }
-      if (!hasOther) {
-        // Strip leading ::
-        displayOld = ops->string.slice(interp, oldName, 2, oldLen);
-      }
-    }
-
-    // Similarly for newName
-    size_t newLen = ops->string.byte_length(interp, newName);
-    if (newLen >= 2 &&
-        ops->string.byte_at(interp, newName, 0) == ':' &&
-        ops->string.byte_at(interp, newName, 1) == ':') {
-      int hasOther = 0;
-      for (size_t i = 2; i + 1 < newLen; i++) {
-        if (ops->string.byte_at(interp, newName, i) == ':' &&
-            ops->string.byte_at(interp, newName, i + 1) == ':') {
-          hasOther = 1;
-          break;
-        }
-      }
-      if (!hasOther) {
-        displayNew = ops->string.slice(interp, newName, 2, newLen);
-      }
-    }
-
     // Fire in FIFO order
     for (size_t i = 0; i < count; i++) {
       FeatherObj entry = ops->list.at(interp, traces, i);
@@ -145,9 +103,10 @@ void feather_fire_cmd_traces(const FeatherHostOps *ops, FeatherInterp interp,
       }
 
       // Build command as list: {script oldName newName op}
+      // TCL passes fully qualified names including :: prefix
       FeatherObj cmd = ops->list.from(interp, script);
-      cmd = ops->list.push(interp, cmd, displayOld);
-      cmd = ops->list.push(interp, cmd, displayNew);
+      cmd = ops->list.push(interp, cmd, oldName);
+      cmd = ops->list.push(interp, cmd, newName);
       cmd = ops->list.push(interp, cmd, opObj);
 
       // Execute the trace command
