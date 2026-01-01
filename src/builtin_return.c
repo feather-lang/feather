@@ -108,14 +108,60 @@ FeatherResult feather_builtin_return(const FeatherHostOps *ops, FeatherInterp in
         }
         level = (int)levelVal;
       } else if (feather_obj_eq_literal(ops, interp, arg, "-options")) {
-        // -options takes a dictionary - skip for now, just consume value
+        // -options takes a dictionary, extract -code and -level from it
         if (argc == 0) {
           FeatherObj msg = ops->string.intern(interp, "-options requires a value", 25);
           ops->interp.set_result(interp, msg);
           return TCL_ERROR;
         }
-        ops->list.shift(interp, argsCopy);
+        FeatherObj optionsArg = ops->list.shift(interp, argsCopy);
         argc--;
+
+        // Try to parse as a dictionary
+        FeatherObj optDict = ops->dict.from(interp, optionsArg);
+        if (ops->list.is_nil(interp, optDict)) {
+          // Not a valid dict - that's an error
+          FeatherObj msg1 = ops->string.intern(interp, "bad -options value \"", 20);
+          FeatherObj msg3 = ops->string.intern(interp, "\": must be a dict", 17);
+          FeatherObj msg = ops->string.concat(interp, msg1, optionsArg);
+          msg = ops->string.concat(interp, msg, msg3);
+          ops->interp.set_result(interp, msg);
+          return TCL_ERROR;
+        }
+
+        // Extract -code if present
+        FeatherObj codeKey = ops->string.intern(interp, "-code", 5);
+        if (ops->dict.exists(interp, optDict, codeKey)) {
+          FeatherObj codeVal = ops->dict.get(interp, optDict, codeKey);
+          if (return_parse_code(ops, interp, codeVal, &code) != TCL_OK) {
+            return TCL_ERROR;
+          }
+        }
+
+        // Extract -level if present
+        FeatherObj levelKey = ops->string.intern(interp, "-level", 6);
+        if (ops->dict.exists(interp, optDict, levelKey)) {
+          FeatherObj levelVal = ops->dict.get(interp, optDict, levelKey);
+          int64_t levelInt;
+          if (ops->integer.get(interp, levelVal, &levelInt) != TCL_OK) {
+            FeatherObj msg1 = ops->string.intern(interp, "expected integer but got \"", 26);
+            FeatherObj msg3 = ops->string.intern(interp, "\"", 1);
+            FeatherObj msg = ops->string.concat(interp, msg1, levelVal);
+            msg = ops->string.concat(interp, msg, msg3);
+            ops->interp.set_result(interp, msg);
+            return TCL_ERROR;
+          }
+          if (levelInt < 0) {
+            FeatherObj msg1 = ops->string.intern(interp,
+              "bad -level value: expected non-negative integer but got \"", 57);
+            FeatherObj msg3 = ops->string.intern(interp, "\"", 1);
+            FeatherObj msg = ops->string.concat(interp, msg1, levelVal);
+            msg = ops->string.concat(interp, msg, msg3);
+            ops->interp.set_result(interp, msg);
+            return TCL_ERROR;
+          }
+          level = (int)levelInt;
+        }
       } else {
         // Unknown option - build error with original object
         FeatherObj msg1 = ops->string.intern(interp, "bad option \"", 12);
