@@ -57,30 +57,42 @@ Each procedure invocation creates a new call frame with its own local variables.
 ### Namespace Context
 When a procedure is invoked, the current namespace is set to the namespace where the procedure was defined (the namespace part of its qualified name).
 
-## TCL Features We Do NOT Support
-
 ### Default Parameter Values
-TCL supports default values for parameters:
 ```tcl
 proc mult {varName {multiplier 2}} {
     upvar 1 $varName var
     set var [expr {$var * $multiplier}]
 }
+mult x      ;# uses multiplier=2
+mult x 3    ;# uses multiplier=3
 ```
-In this example, `multiplier` defaults to `2` if not provided.
-
-**Our implementation does not support default parameter values.** All parameters (except `args`) are required.
+Parameters with `{name default}` syntax are optional and use the default value if not provided.
 
 ### Mixed Required and Optional Arguments
-TCL allows mixing required and optional (defaulted) arguments:
 ```tcl
 proc example {required1 required2 {optional1 default1} {optional2 default2}} {
     # ...
 }
 ```
-Arguments with defaults followed by non-defaulted arguments become required in TCL.
+When optional parameters are followed by required ones, the optional parameters become effectively required:
+```tcl
+proc test {{a 1} {b}} { list $a $b }
+# Requires 2 arguments because 'b' is required
+test x y    ;# works
+test x      ;# error: wrong # args: should be "test ?a? b"
+```
 
-**We do not support this feature** since we don't support default values at all.
+### Optional Parameters with args
+```tcl
+proc vardefault {required {opt "default"} args} {
+    list $required $opt $args
+}
+vardefault R       ;# returns: R default {}
+vardefault R O     ;# returns: R O {}
+vardefault R O A B ;# returns: R O {A B}
+```
+
+## TCL Features We Do NOT Support
 
 ### Replacing Existing Commands
 TCL's `proc` replaces any existing command or procedure with the same name. While our implementation does register the new procedure, we should verify the replacement behavior is complete (including replacing built-in commands).

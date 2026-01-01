@@ -42,7 +42,6 @@ These builtins match TCL's documented behavior:
 | `lset` | multiple/nested indices support |
 | `mathfunc` | 11 functions (bool, entier, isqrt, max, min, rand, srand, isfinite, isnormal, issubnormal, isunordered) |
 | `expr` | Same 11 math functions, 0d prefix |
-| `proc` | Default parameter values |
 | `apply` | Required-after-optional argument handling |
 | `return` | -errorcode, -errorinfo, -errorstack, proper -options processing |
 | `catch` | -errorinfo, -errorcode, -errorline, -errorstack population |
