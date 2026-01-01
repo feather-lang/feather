@@ -308,7 +308,9 @@ set ::traceLog</script>
 
   <!-- Execution traces -->
   <test-case name="trace add execution with enter">
-    <script>trace add execution puts {enter} myTrace; trace info execution puts</script>
+    <script>proc myCmd {} {}
+trace add execution myCmd {enter} myTrace
+trace info execution myCmd</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>{enter myTrace}</stdout>
@@ -317,7 +319,9 @@ set ::traceLog</script>
   </test-case>
 
   <test-case name="trace add execution with multiple ops">
-    <script>trace add execution puts {enter leave} myTrace; trace info execution puts</script>
+    <script>proc myCmd {} {}
+trace add execution myCmd {enter leave} myTrace
+trace info execution myCmd</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>{{enter leave} myTrace}</stdout>
@@ -326,7 +330,10 @@ set ::traceLog</script>
   </test-case>
 
   <test-case name="trace remove execution">
-    <script>trace add execution puts {enter} myTrace; trace remove execution puts {enter} myTrace; trace info execution puts</script>
+    <script>proc myCmd {} {}
+trace add execution myCmd {enter} myTrace
+trace remove execution myCmd {enter} myTrace
+trace info execution myCmd</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout></stdout>

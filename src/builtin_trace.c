@@ -1,5 +1,6 @@
 #include "internal.h"
 #include "feather.h"
+#include "namespace_util.h"
 
 /**
  * Helper: get kind as a C string for feather_trace_get_dict.
@@ -16,6 +17,64 @@ static const char *get_kind_string(const FeatherHostOps *ops, FeatherInterp inte
     return "execution";
   }
   return NULL;
+}
+
+/**
+ * Helper: validate a single operation for variable traces.
+ * Valid ops: array, read, unset, write
+ * Returns 1 if valid, 0 if invalid.
+ */
+static int is_valid_variable_op(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj op) {
+  return feather_obj_eq_literal(ops, interp, op, "array") ||
+         feather_obj_eq_literal(ops, interp, op, "read") ||
+         feather_obj_eq_literal(ops, interp, op, "unset") ||
+         feather_obj_eq_literal(ops, interp, op, "write");
+}
+
+/**
+ * Helper: validate a single operation for command traces.
+ * Valid ops: delete, rename
+ * Returns 1 if valid, 0 if invalid.
+ */
+static int is_valid_command_op(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj op) {
+  return feather_obj_eq_literal(ops, interp, op, "delete") ||
+         feather_obj_eq_literal(ops, interp, op, "rename");
+}
+
+/**
+ * Helper: validate a single operation for execution traces.
+ * Valid ops: enter, leave, enterstep, leavestep
+ * Returns 1 if valid, 0 if invalid.
+ */
+static int is_valid_execution_op(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj op) {
+  return feather_obj_eq_literal(ops, interp, op, "enter") ||
+         feather_obj_eq_literal(ops, interp, op, "leave") ||
+         feather_obj_eq_literal(ops, interp, op, "enterstep") ||
+         feather_obj_eq_literal(ops, interp, op, "leavestep");
+}
+
+/**
+ * Helper: validate all operations in the list for a given trace type.
+ * Returns the first invalid operation, or 0 (nil) if all are valid.
+ */
+static FeatherObj validate_ops(const FeatherHostOps *ops, FeatherInterp interp,
+                               FeatherObj opsList, const char *kind) {
+  size_t count = ops->list.length(interp, opsList);
+  for (size_t i = 0; i < count; i++) {
+    FeatherObj op = ops->list.at(interp, opsList, i);
+    int valid = 0;
+    if (feather_str_eq(kind, feather_strlen(kind), "variable")) {
+      valid = is_valid_variable_op(ops, interp, op);
+    } else if (feather_str_eq(kind, feather_strlen(kind), "command")) {
+      valid = is_valid_command_op(ops, interp, op);
+    } else if (feather_str_eq(kind, feather_strlen(kind), "execution")) {
+      valid = is_valid_execution_op(ops, interp, op);
+    }
+    if (!valid) {
+      return op;
+    }
+  }
+  return 0;  // 0 = nil = all valid
 }
 
 /**
@@ -74,6 +133,26 @@ static FeatherResult trace_add(const FeatherHostOps *ops, FeatherInterp interp,
     return TCL_ERROR;
   }
 
+  // Validate each operation
+  FeatherObj invalidOp = validate_ops(ops, interp, opsList, kindStr);
+  if (invalidOp != 0) {
+    // Build error message based on trace type
+    FeatherObj msg = ops->string.intern(interp, "bad operation \"", 15);
+    msg = ops->string.concat(interp, msg, invalidOp);
+    if (feather_str_eq(kindStr, feather_strlen(kindStr), "variable")) {
+      msg = ops->string.concat(interp, msg,
+                                ops->string.intern(interp, "\": must be array, read, unset, or write", 39));
+    } else if (feather_str_eq(kindStr, feather_strlen(kindStr), "command")) {
+      msg = ops->string.concat(interp, msg,
+                                ops->string.intern(interp, "\": must be delete or rename", 27));
+    } else {
+      msg = ops->string.concat(interp, msg,
+                                ops->string.intern(interp, "\": must be enter, leave, enterstep, or leavestep", 48));
+    }
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
   // Build space-separated ops string for storage
   FeatherObj opsString = ops->list.at(interp, opsList, 0);
   for (size_t i = 1; i < opsCount; i++) {
@@ -88,6 +167,14 @@ static FeatherResult trace_add(const FeatherHostOps *ops, FeatherInterp interp,
     if (!feather_obj_is_qualified(ops, interp, name)) {
       traceName = ops->string.intern(interp, "::", 2);
       traceName = ops->string.concat(interp, traceName, name);
+    }
+    // Check that the command exists
+    if (feather_lookup_command(ops, interp, traceName, NULL, NULL, NULL) == TCL_CMD_NONE) {
+      FeatherObj msg = ops->string.intern(interp, "unknown command \"", 17);
+      msg = ops->string.concat(interp, msg, name);
+      msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\"", 1));
+      ops->interp.set_result(interp, msg);
+      return TCL_ERROR;
     }
   }
 
@@ -170,6 +257,14 @@ static FeatherResult trace_remove(const FeatherHostOps *ops, FeatherInterp inter
       traceName = ops->string.intern(interp, "::", 2);
       traceName = ops->string.concat(interp, traceName, name);
     }
+    // Check that the command exists
+    if (feather_lookup_command(ops, interp, traceName, NULL, NULL, NULL) == TCL_CMD_NONE) {
+      FeatherObj msg = ops->string.intern(interp, "unknown command \"", 17);
+      msg = ops->string.concat(interp, msg, name);
+      msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\"", 1));
+      ops->interp.set_result(interp, msg);
+      return TCL_ERROR;
+    }
   }
 
   // Get the trace dict for this kind
@@ -248,6 +343,14 @@ static FeatherResult trace_info(const FeatherHostOps *ops, FeatherInterp interp,
     if (!feather_obj_is_qualified(ops, interp, name)) {
       traceName = ops->string.intern(interp, "::", 2);
       traceName = ops->string.concat(interp, traceName, name);
+    }
+    // Check that the command exists
+    if (feather_lookup_command(ops, interp, traceName, NULL, NULL, NULL) == TCL_CMD_NONE) {
+      FeatherObj msg = ops->string.intern(interp, "unknown command \"", 17);
+      msg = ops->string.concat(interp, msg, name);
+      msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\"", 1));
+      ops->interp.set_result(interp, msg);
+      return TCL_ERROR;
     }
   }
 
