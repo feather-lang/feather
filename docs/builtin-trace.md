@@ -44,30 +44,30 @@ Traces are stored internally in dictionaries keyed by name, with each entry cont
 - **Multiple traces**: Multiple traces can be registered on the same target
 - **Operations list**: Operations are stored as space-separated strings and returned as lists
 
-## TCL Features We Do NOT Support
+## TCL Feature Support Details
 
 ### Variable Trace Operations
 
 | Operation | TCL Behavior | Feather Status |
 |-----------|-------------|----------------|
-| `read` | Invoke callback when variable is read | Not implemented (registration only) |
-| `write` | Invoke callback when variable is written | Not implemented (registration only) |
-| `unset` | Invoke callback when variable is unset | Not implemented (registration only) |
-| `array` | Invoke callback when variable accessed via `array` command | Not implemented |
+| `read` | Invoke callback when variable is read | **Implemented** |
+| `write` | Invoke callback when variable is written | **Implemented** |
+| `unset` | Invoke callback when variable is unset | **Implemented** |
+| `array` | Invoke callback when variable accessed via `array` command | Not supported (no arrays) |
 
 ### Command Trace Operations
 
 | Operation | TCL Behavior | Feather Status |
 |-----------|-------------|----------------|
-| `rename` | Invoke callback when command is renamed | Not implemented (registration only) |
-| `delete` | Invoke callback when command is deleted | Not implemented (registration only) |
+| `rename` | Invoke callback when command is renamed | **Implemented** |
+| `delete` | Invoke callback when command is deleted | **Implemented** |
 
 ### Execution Trace Operations
 
 | Operation | TCL Behavior | Feather Status |
 |-----------|-------------|----------------|
-| `enter` | Invoke callback before command executes | Not implemented (registration only) |
-| `leave` | Invoke callback after command executes | Not implemented (registration only) |
+| `enter` | Invoke callback before command executes | **Implemented** |
+| `leave` | Invoke callback after command executes | **Implemented** |
 | `enterstep` | Invoke callback before each command in a procedure | Not implemented |
 | `leavestep` | Invoke callback after each command in a procedure | Not implemented |
 
@@ -107,52 +107,52 @@ commandPrefix command-string code result op
 - `result`: Result string
 - `op`: Operation (`leave`, `leavestep`)
 
-**Feather status:** None of these callback invocation mechanisms are implemented. Traces can be registered but are never actually fired.
+**Feather status:** Variable, command, and execution trace callbacks are implemented and fired with the correct arguments. The `array`, `enterstep`, and `leavestep` operations are not implemented.
 
 ### Advanced Features
 
 | Feature | TCL Behavior | Feather Status |
 |---------|-------------|----------------|
-| Command existence check | `trace add command/execution` throws error if command does not exist | Not implemented |
+| Command existence check | `trace add command/execution` throws error if command does not exist | **Implemented** |
+| Operation validation | Operations are validated for each trace type | **Implemented** |
 | Variable creation | `trace add variable` creates variable if it does not exist (undefined but visible) | Not implemented |
-| Trace disabling during callback | Traces on target are temporarily disabled while callback runs | Not implemented |
+| Trace disabling during callback | Traces on target are temporarily disabled while callback runs | **Implemented** (via `trace_firing` flag) |
 | Error propagation | Errors in trace callbacks propagate to traced operation | Not implemented |
 | Variable modification in callbacks | Read/write trace callbacks can modify variable value | Not implemented |
-| Multiple trace ordering | Variable traces: most-recent first; execution traces: enter/enterstep reverse order, leave/leavestep original order | Not implemented |
-| Array element traces | Traces on individual array elements | Not implemented |
-| Array-wide traces | Traces on entire arrays that fire for any element access | Not implemented |
+| Multiple trace ordering | Variable traces: most-recent first; execution traces: enter/enterstep reverse order, leave/leavestep original order | **Implemented** |
+| Array element traces | Traces on individual array elements | Not supported (no arrays) |
+| Array-wide traces | Traces on entire arrays that fire for any element access | Not supported (no arrays) |
 | Trace removal on unset | Variable traces removed when variable is unset | Not implemented |
 | upvar interaction | Traces fire with actual variable name, may differ from traced name | Not implemented |
 
 ## Notes on Implementation Differences
 
-### Registration-Only Implementation
+### Trace Firing
 
-The current Feather implementation is a **registration-only** implementation. This means:
+Feather implements trace firing for:
+- **Variable traces**: `read`, `write`, `unset` operations fire the registered callbacks
+- **Command traces**: `rename`, `delete` operations fire the registered callbacks
+- **Execution traces**: `enter`, `leave` operations fire the registered callbacks
 
-1. Traces can be added, removed, and queried
-2. Trace information is stored correctly in internal dictionaries
-3. **Traces are never actually fired** - the interpreter does not invoke the registered callbacks when the traced operations occur
-
-This is a significant difference from TCL, where trace callbacks are actively invoked during variable access, command modification, and command execution.
+Callbacks are invoked in the correct order:
+- Variable traces fire in LIFO order (most recently added first)
+- Execution traces fire in LIFO order for enter, LIFO for leave
 
 ### Operation Validation
 
-The current implementation does not validate that the operations in `ops` are valid for the given trace type. For example:
-- Variable traces should only accept `read`, `write`, `unset`, `array`
-- Command traces should only accept `rename`, `delete`
-- Execution traces should only accept `enter`, `leave`, `enterstep`, `leavestep`
+Feather validates that operations are valid for the given trace type:
+- Variable traces: `array`, `read`, `unset`, `write`
+- Command traces: `delete`, `rename`
+- Execution traces: `enter`, `leave`, `enterstep`, `leavestep`
 
-Feather currently accepts any operation list without validation.
+Invalid operations produce an error: `bad operation "X": must be ...`
 
-### Error Handling
+### Command Existence Checks
 
-TCL throws errors in certain cases that Feather does not:
-- `trace add command/execution` on a non-existent command
-- `trace remove command/execution` on a non-existent command
-- `trace info command/execution` on a non-existent command
-
-Feather silently accepts these operations without error.
+For command and execution traces, Feather verifies the command exists:
+- `trace add command/execution` on a non-existent command throws "unknown command"
+- `trace remove command/execution` on a non-existent command throws "unknown command"
+- `trace info command/execution` on a non-existent command throws "unknown command"
 
 ### Namespace Resolution
 
