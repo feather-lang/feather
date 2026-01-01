@@ -21,6 +21,22 @@ FeatherResult feather_builtin_proc(const FeatherHostOps *ops, FeatherInterp inte
   FeatherObj params = ops->list.shift(interp, args);
   FeatherObj body = ops->list.shift(interp, args);
 
+  // Validate parameter specs - each must be 1 or 2 elements
+  size_t paramc = ops->list.length(interp, params);
+  FeatherObj paramsCopy = ops->list.from(interp, params);
+  for (size_t i = 0; i < paramc; i++) {
+    FeatherObj paramSpec = ops->list.shift(interp, paramsCopy);
+    size_t specLen = ops->list.length(interp, paramSpec);
+    if (specLen > 2) {
+      // Error: too many fields in argument specifier
+      FeatherObj msg = ops->string.intern(interp, "too many fields in argument specifier \"", 39);
+      msg = ops->string.concat(interp, msg, paramSpec);
+      msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\"", 1));
+      ops->interp.set_result(interp, msg);
+      return TCL_ERROR;
+    }
+  }
+
   // Determine the fully qualified proc name
   FeatherObj qualifiedName;
   if (feather_obj_is_qualified(ops, interp, name)) {
@@ -67,6 +83,25 @@ FeatherResult feather_builtin_proc(const FeatherHostOps *ops, FeatherInterp inte
 }
 
 
+// Helper to get parameter name from a param spec (handles {name} or {name default})
+static FeatherObj get_param_name(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj paramSpec) {
+  size_t specLen = ops->list.length(interp, paramSpec);
+  if (specLen >= 1) {
+    return ops->list.at(interp, paramSpec, 0);
+  }
+  return paramSpec;  // Already just a name
+}
+
+// Helper to check if a param spec has a default value
+static int has_default(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj paramSpec) {
+  return ops->list.length(interp, paramSpec) == 2;
+}
+
+// Helper to get the default value from a param spec
+static FeatherObj get_default(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj paramSpec) {
+  return ops->list.at(interp, paramSpec, 1);
+}
+
 FeatherResult feather_invoke_proc(const FeatherHostOps *ops, FeatherInterp interp,
                           FeatherObj name, FeatherObj args) {
   // Get the procedure's parameter list and body
@@ -81,51 +116,67 @@ FeatherResult feather_invoke_proc(const FeatherHostOps *ops, FeatherInterp inter
   size_t argc = ops->list.length(interp, args);
   size_t paramc = ops->list.length(interp, params);
 
-  // Check if this is a variadic proc (last param is "args")
+  // Check if this is a variadic proc (last param name is "args")
   int is_variadic = 0;
+  size_t bindable_params = paramc;  // Number of params that get individual bindings
   if (paramc > 0) {
-    // Get the last parameter to check if it's "args"
-    FeatherObj lastParam = ops->list.at(interp, params, paramc - 1);
-    if (lastParam != 0) {
-      is_variadic = feather_obj_is_args_param(ops, interp, lastParam);
+    FeatherObj lastParamSpec = ops->list.at(interp, params, paramc - 1);
+    FeatherObj lastParamName = get_param_name(ops, interp, lastParamSpec);
+    if (lastParamName != 0) {
+      is_variadic = feather_obj_is_args_param(ops, interp, lastParamName);
+      if (is_variadic) {
+        bindable_params = paramc - 1;  // args collects the rest
+      }
     }
   }
 
-  // Calculate required parameter count (excludes "args" if variadic)
-  size_t required_params = is_variadic ? paramc - 1 : paramc;
-
-  // Check argument count
-  int args_ok = 0;
-  if (is_variadic) {
-    // Variadic: need at least required_params arguments
-    args_ok = (argc >= required_params);
-  } else {
-    // Non-variadic: need exactly paramc arguments
-    args_ok = (argc == paramc);
+  // Calculate minimum required arguments
+  // Find the rightmost parameter without a default (before args) - everything up to it is required
+  size_t min_args = 0;
+  for (size_t i = 0; i < bindable_params; i++) {
+    FeatherObj paramSpec = ops->list.at(interp, params, i);
+    if (!has_default(ops, interp, paramSpec)) {
+      // This param is required, so all params up to and including it are needed
+      min_args = i + 1;
+    }
   }
 
+  // Calculate maximum arguments
+  size_t max_args = is_variadic ? (size_t)-1 : bindable_params;
+
+  // Check argument count
+  int args_ok = (argc >= min_args) && (argc <= max_args);
+
   if (!args_ok) {
-    // Build error message: wrong # args: should be "name param1 param2 ..."
-    // Use display name to strip :: for global namespace commands
+    // Build error message: wrong # args: should be "name param1 ?param2? ..."
     FeatherObj displayName = feather_get_display_name(ops, interp, name);
 
     FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"", 25);
     msg = ops->string.concat(interp, msg, displayName);
 
     // Add parameters to error message
-    FeatherObj paramsCopy = ops->list.from(interp, params);
     for (size_t i = 0; i < paramc; i++) {
       FeatherObj space = ops->string.intern(interp, " ", 1);
       msg = ops->string.concat(interp, msg, space);
-      FeatherObj param = ops->list.shift(interp, paramsCopy);
+      FeatherObj paramSpec = ops->list.at(interp, params, i);
+      FeatherObj paramName = get_param_name(ops, interp, paramSpec);
 
       // For variadic, show "?arg ...?" instead of "args"
       if (is_variadic && i == paramc - 1) {
         FeatherObj argsHint = ops->string.intern(interp, "?arg ...?", 9);
         msg = ops->string.concat(interp, msg, argsHint);
       } else {
-        // Append the param object directly (no need for string.get)
-        msg = ops->string.concat(interp, msg, param);
+        // Show ?param? for any param with a default value
+        // (TCL shows them as optional in error messages even when effectively required)
+        int has_def = has_default(ops, interp, paramSpec);
+        if (has_def) {
+          FeatherObj question = ops->string.intern(interp, "?", 1);
+          msg = ops->string.concat(interp, msg, question);
+          msg = ops->string.concat(interp, msg, paramName);
+          msg = ops->string.concat(interp, msg, question);
+        } else {
+          msg = ops->string.concat(interp, msg, paramName);
+        }
       }
     }
 
@@ -167,39 +218,47 @@ FeatherResult feather_invoke_proc(const FeatherHostOps *ops, FeatherInterp inter
   }
   // For unqualified names, leave namespace as default (global)
 
-  // Create copies of params and args for binding (since shift mutates)
-  FeatherObj paramsList = ops->list.from(interp, params);
+  // Create copy of args for binding (since shift mutates)
   FeatherObj argsList = ops->list.from(interp, args);
 
   // Bind arguments to parameters
-  if (is_variadic) {
-    // Bind required parameters first
-    for (size_t i = 0; i < required_params; i++) {
-      FeatherObj param = ops->list.shift(interp, paramsList);
-      FeatherObj arg = ops->list.shift(interp, argsList);
-      ops->var.set(interp, param, arg);
-    }
+  // Number of args to bind directly (not to args collector)
+  size_t args_to_bind = argc;
+  if (is_variadic && argc > bindable_params) {
+    args_to_bind = bindable_params;
+  }
 
-    // Get the "args" parameter name
-    FeatherObj argsParam = ops->list.shift(interp, paramsList);
+  // Bind the regular parameters
+  for (size_t i = 0; i < bindable_params; i++) {
+    FeatherObj paramSpec = ops->list.at(interp, params, i);
+    FeatherObj paramName = get_param_name(ops, interp, paramSpec);
+
+    if (i < args_to_bind) {
+      // Argument provided
+      FeatherObj arg = ops->list.shift(interp, argsList);
+      ops->var.set(interp, paramName, arg);
+    } else {
+      // Use default value
+      FeatherObj defaultVal = get_default(ops, interp, paramSpec);
+      ops->var.set(interp, paramName, defaultVal);
+    }
+  }
+
+  // Handle args if variadic
+  if (is_variadic) {
+    FeatherObj argsParamSpec = ops->list.at(interp, params, paramc - 1);
+    FeatherObj argsParamName = get_param_name(ops, interp, argsParamSpec);
 
     // Collect remaining arguments into a list
     FeatherObj collectedArgs = ops->list.create(interp);
-    size_t remaining = argc - required_params;
+    size_t remaining = argc > bindable_params ? argc - bindable_params : 0;
     for (size_t i = 0; i < remaining; i++) {
       FeatherObj arg = ops->list.shift(interp, argsList);
       collectedArgs = ops->list.push(interp, collectedArgs, arg);
     }
 
     // Bind the list to "args"
-    ops->var.set(interp, argsParam, collectedArgs);
-  } else {
-    // Non-variadic: bind all params normally
-    for (size_t i = 0; i < paramc; i++) {
-      FeatherObj param = ops->list.shift(interp, paramsList);
-      FeatherObj arg = ops->list.shift(interp, argsList);
-      ops->var.set(interp, param, arg);
-    }
+    ops->var.set(interp, argsParamName, collectedArgs);
   }
 
   // Check if this proc has step traces or if we're in a stepped context
