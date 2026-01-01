@@ -1,0 +1,296 @@
+<test-suite>
+  <!-- proc with default parameter values tests -->
+
+  <!-- Basic default parameter -->
+
+  <test-case name="proc: single optional param with default">
+    <script>
+proc greet {{name "World"}} {
+    return "Hello, $name!"
+}
+greet
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>Hello, World!</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc: optional param overridden">
+    <script>
+proc greet {{name "World"}} {
+    return "Hello, $name!"
+}
+greet "Alice"
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>Hello, Alice!</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Empty default value -->
+
+  <test-case name="proc: empty default value">
+    <script>
+proc test1 {{a ""}} {
+    return "a=($a)"
+}
+test1
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a=()</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Default value with spaces -->
+
+  <test-case name="proc: default value with spaces">
+    <script>
+proc test2 {{msg "hello world"}} {
+    return "msg=($msg)"
+}
+test2
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>msg=(hello world)</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Default value is a list -->
+
+  <test-case name="proc: default value is a list">
+    <script>
+proc test3 {{lst {a b c}}} {
+    return "lst=($lst)"
+}
+test3
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>lst=(a b c)</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Mixed required and optional parameters -->
+
+  <test-case name="proc: required and optional params">
+    <script>
+proc add {a {b 0} {c 0}} {
+    expr {$a + $b + $c}
+}
+add 1
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc: required and one optional provided">
+    <script>
+proc add {a {b 0} {c 0}} {
+    expr {$a + $b + $c}
+}
+add 1 2
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc: required and all optionals provided">
+    <script>
+proc add {a {b 0} {c 0}} {
+    expr {$a + $b + $c}
+}
+add 1 2 3
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>6</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- All optional parameters -->
+
+  <test-case name="proc: all optional params, none provided">
+    <script>
+proc test4 {{a 1} {b 2} {c 3}} {
+    list $a $b $c
+}
+test4
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1 2 3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc: all optional params, one provided">
+    <script>
+proc test4 {{a 1} {b 2} {c 3}} {
+    list $a $b $c
+}
+test4 10
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10 2 3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc: all optional params, two provided">
+    <script>
+proc test4 {{a 1} {b 2} {c 3}} {
+    list $a $b $c
+}
+test4 10 20
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10 20 3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Optional with args -->
+
+  <test-case name="proc: optional and args, min args">
+    <script>
+proc vardefault {required {opt "default"} args} {
+    list $required $opt $args
+}
+vardefault R
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>R default {}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc: optional and args, opt provided">
+    <script>
+proc vardefault {required {opt "default"} args} {
+    list $required $opt $args
+}
+vardefault R O
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>R O {}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc: optional and args, all provided">
+    <script>
+proc vardefault {required {opt "default"} args} {
+    list $required $opt $args
+}
+vardefault R O A B C
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>R O {A B C}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Single-element list is required param -->
+
+  <test-case name="proc: single-element list is required">
+    <script>
+proc test {{a 1} {b}} {
+    list $a $b
+}
+test hello world
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="proc: optional before required needs both">
+    <script>
+proc test {{a 1} {b}} {
+    list $a $b
+}
+test hello
+    </script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "test ?a? b"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- Error cases -->
+
+  <test-case name="proc: too few args with defaults">
+    <script>
+proc test {a {b 1}} {
+    list $a $b
+}
+test
+    </script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "test a ?b?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="proc: too many args with defaults">
+    <script>
+proc test {a {b 1}} {
+    list $a $b
+}
+test 1 2 3
+    </script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "test a ?b?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="proc: error message with optional and args">
+    <script>
+proc test2 {a {b 1} args} {
+    list $a $b $args
+}
+test2
+    </script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "test2 a ?b? ?arg ...?"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="proc: too many fields in param spec">
+    <script>
+proc test {{a 1 2}} {
+    return $a
+}
+    </script>
+    <return>TCL_ERROR</return>
+    <error>too many fields in argument specifier "a 1 2"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>
