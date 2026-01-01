@@ -25,6 +25,7 @@ static FeatherHostOps default_ops = {
         .link_ns = feather_host_var_link_ns,
         .names = feather_host_var_names,
         .is_link = feather_host_var_is_link,
+        .resolve_link = feather_host_var_resolve_link,
     },
     .ns = {
         .create = feather_host_ns_create,

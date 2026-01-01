@@ -51,6 +51,7 @@ extern void feather_host_var_link_ns(FeatherInterp interp, FeatherObj local, Fea
                                      FeatherObj name);
 extern FeatherObj feather_host_var_names(FeatherInterp interp, FeatherObj ns);
 extern int feather_host_var_is_link(FeatherInterp interp, FeatherObj name);
+extern FeatherObj feather_host_var_resolve_link(FeatherInterp interp, FeatherObj name);
 
 /* ============================================================================
  * Namespace Operations (18 functions)

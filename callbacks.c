@@ -356,6 +356,10 @@ int feather_host_var_is_link(FeatherInterp interp, FeatherObj name) {
     return goVarIsLink(interp, name);
 }
 
+FeatherObj feather_host_var_resolve_link(FeatherInterp interp, FeatherObj name) {
+    return goVarResolveLink(interp, name);
+}
+
 // ============================================================================
 // Namespace Operations
 // ============================================================================

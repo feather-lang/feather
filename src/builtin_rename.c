@@ -97,6 +97,8 @@ FeatherResult feather_builtin_rename(const FeatherHostOps *ops, FeatherInterp in
 
   // Fire command traces if rename succeeded
   if (result == TCL_OK) {
+    // Set empty result for successful rename
+    ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
     const char *op = (newLen == 0) ? "delete" : "rename";
     feather_fire_cmd_traces(ops, interp, qualifiedOld, qualifiedNew, op);
   }

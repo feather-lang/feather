@@ -28,16 +28,30 @@ static int ops_contains(const FeatherHostOps *ops, FeatherInterp interp,
  * varName: the variable name (may be qualified or unqualified)
  * op: "read", "write", or "unset"
  *
- * Traces fire in FIFO order (first added, first fired).
+ * Traces fire in LIFO order (most recently added first).
  * The trace callback receives: script varName {} op
+ *
+ * For linked variables (via upvar), the trace is looked up by the target
+ * variable name, but the callback receives the local (link) name.
+ *
+ * For read/write, returns TCL_ERROR if a trace callback errors.
+ * The error is wrapped as "can't set/read \"varname\": <error>".
+ * For unset, errors are ignored and TCL_OK is always returned.
  */
-void feather_fire_var_traces(const FeatherHostOps *ops, FeatherInterp interp,
-                             FeatherObj varName, const char *op) {
-  if (trace_firing) return;
+FeatherResult feather_fire_var_traces(const FeatherHostOps *ops, FeatherInterp interp,
+                                      FeatherObj varName, const char *op) {
+  if (trace_firing) return TCL_OK;
   trace_firing = 1;
 
+  FeatherResult result = TCL_OK;
+  int is_unset = feather_str_eq(op, feather_strlen(op), "unset");
+
+  // Resolve link to find the target variable for trace lookup
+  // The trace is registered on the target, but callback receives local name
+  FeatherObj targetName = ops->var.resolve_link(interp, varName);
+
   FeatherObj traceDict = feather_trace_get_dict(ops, interp, "variable");
-  FeatherObj traces = ops->dict.get(interp, traceDict, varName);
+  FeatherObj traces = ops->dict.get(interp, traceDict, targetName);
 
   if (!ops->list.is_nil(interp, traces)) {
     size_t count = ops->list.length(interp, traces);
@@ -62,11 +76,37 @@ void feather_fire_var_traces(const FeatherHostOps *ops, FeatherInterp interp,
       cmd = ops->list.push(interp, cmd, opObj);
 
       // Execute the trace command
-      feather_script_eval_obj(ops, interp, cmd, 0);
+      FeatherResult traceResult = feather_script_eval_obj(ops, interp, cmd, 0);
+
+      // For read/write traces, propagate errors (unset errors are ignored)
+      if (traceResult == TCL_ERROR && !is_unset) {
+        // Wrap error as "can't set/read \"varname\": <error>"
+        FeatherObj origError = ops->interp.get_result(interp);
+
+        // Build error message
+        FeatherObj builder = ops->string.builder_new(interp, 64);
+        if (feather_str_eq(op, feather_strlen(op), "read")) {
+          ops->string.builder_append_obj(interp, builder,
+            ops->string.intern(interp, "can't read \"", 12));
+        } else {
+          ops->string.builder_append_obj(interp, builder,
+            ops->string.intern(interp, "can't set \"", 11));
+        }
+        ops->string.builder_append_obj(interp, builder, varName);
+        ops->string.builder_append_obj(interp, builder,
+          ops->string.intern(interp, "\": ", 3));
+        ops->string.builder_append_obj(interp, builder, origError);
+        FeatherObj errMsg = ops->string.builder_finish(interp, builder);
+
+        ops->interp.set_result(interp, errMsg);
+        result = TCL_ERROR;
+        break;  // Stop after first error
+      }
     }
   }
 
   trace_firing = 0;
+  return result;
 }
 
 /**
@@ -78,11 +118,18 @@ void feather_fire_var_traces(const FeatherHostOps *ops, FeatherInterp interp,
  *
  * Traces fire in FIFO order (first added, first fired).
  * The trace callback receives: script oldName newName op
+ *
+ * IMPORTANT: Command trace errors do NOT propagate. Any errors from
+ * trace callbacks are silently ignored and the interpreter's result
+ * is restored to its state before the traces were fired.
  */
 void feather_fire_cmd_traces(const FeatherHostOps *ops, FeatherInterp interp,
                              FeatherObj oldName, FeatherObj newName, const char *op) {
   if (trace_firing) return;
   trace_firing = 1;
+
+  // Save the current result so we can restore it if traces error
+  FeatherObj savedResult = ops->interp.get_result(interp);
 
   FeatherObj traceDict = feather_trace_get_dict(ops, interp, "command");
   FeatherObj traces = ops->dict.get(interp, traceDict, oldName);
@@ -109,10 +156,13 @@ void feather_fire_cmd_traces(const FeatherHostOps *ops, FeatherInterp interp,
       cmd = ops->list.push(interp, cmd, newName);
       cmd = ops->list.push(interp, cmd, opObj);
 
-      // Execute the trace command
+      // Execute the trace command (errors are ignored for command traces)
       feather_script_eval_obj(ops, interp, cmd, 0);
     }
   }
+
+  // Restore the original result (command trace errors don't propagate)
+  ops->interp.set_result(interp, savedResult);
 
   trace_firing = 0;
 }
@@ -129,12 +179,17 @@ void feather_fire_cmd_traces(const FeatherHostOps *ops, FeatherInterp interp,
  * Traces fire in LIFO order (last added, first fired).
  * For enter: script receives {cmdList} enter
  * For leave: script receives {cmdList} code result leave
+ *
+ * Returns TCL_ERROR if a trace callback errors.
+ * The error propagates directly without wrapping.
  */
-void feather_fire_exec_traces(const FeatherHostOps *ops, FeatherInterp interp,
-                              FeatherObj cmdName, FeatherObj cmdList,
-                              const char *op, int code, FeatherObj result) {
-  if (trace_firing) return;
+FeatherResult feather_fire_exec_traces(const FeatherHostOps *ops, FeatherInterp interp,
+                                       FeatherObj cmdName, FeatherObj cmdList,
+                                       const char *op, int code, FeatherObj result) {
+  if (trace_firing) return TCL_OK;
   trace_firing = 1;
+
+  FeatherResult returnResult = TCL_OK;
 
   FeatherObj traceDict = feather_trace_get_dict(ops, interp, "execution");
   FeatherObj traces = ops->dict.get(interp, traceDict, cmdName);
@@ -189,9 +244,16 @@ void feather_fire_exec_traces(const FeatherHostOps *ops, FeatherInterp interp,
       cmd = ops->list.push(interp, cmd, opObj);
 
       // Execute the trace command
-      feather_script_eval_obj(ops, interp, cmd, 0);
+      FeatherResult traceResult = feather_script_eval_obj(ops, interp, cmd, 0);
+
+      // Propagate errors directly
+      if (traceResult == TCL_ERROR) {
+        returnResult = TCL_ERROR;
+        break;
+      }
     }
   }
 
   trace_firing = 0;
+  return returnResult;
 }

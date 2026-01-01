@@ -920,11 +920,15 @@ void feather_trace_set_dict(const FeatherHostOps *ops, FeatherInterp interp,
  * varName: the variable name
  * op: "read", "write", or "unset"
  *
- * Traces fire in FIFO order (first added, first fired).
+ * Traces fire in LIFO order (most recently added first).
  * The trace callback receives: script varName {} op
+ *
+ * Returns TCL_ERROR if a trace callback returns an error (for read/write).
+ * For unset traces, errors are ignored and TCL_OK is always returned.
+ * The error message is wrapped as "can't set/read \"varname\": <error>".
  */
-void feather_fire_var_traces(const FeatherHostOps *ops, FeatherInterp interp,
-                             FeatherObj varName, const char *op);
+FeatherResult feather_fire_var_traces(const FeatherHostOps *ops, FeatherInterp interp,
+                                      FeatherObj varName, const char *op);
 
 /**
  * feather_fire_cmd_traces fires command traces for the given operation.
@@ -948,10 +952,13 @@ void feather_fire_cmd_traces(const FeatherHostOps *ops, FeatherInterp interp,
  * result: command result (only for leave, 0 for enter)
  *
  * Traces fire in LIFO order (last added, first fired).
+ *
+ * Returns TCL_ERROR if a trace callback returns an error.
+ * The error propagates directly without wrapping.
  */
-void feather_fire_exec_traces(const FeatherHostOps *ops, FeatherInterp interp,
-                              FeatherObj cmdName, FeatherObj cmdList,
-                              const char *op, int code, FeatherObj result);
+FeatherResult feather_fire_exec_traces(const FeatherHostOps *ops, FeatherInterp interp,
+                                       FeatherObj cmdName, FeatherObj cmdList,
+                                       const char *op, int code, FeatherObj result);
 
 // ============================================================================
 // Variable access wrappers (with trace support)
@@ -962,18 +969,24 @@ void feather_fire_exec_traces(const FeatherHostOps *ops, FeatherInterp interp,
  *
  * Handles both qualified names (::foo::bar) and unqualified names (x).
  * All builtins should use this instead of ops->var.get() directly.
+ *
+ * On success, returns TCL_OK and stores the value in *out.
+ * On read trace error, returns TCL_ERROR with wrapped message.
  */
-FeatherObj feather_get_var(const FeatherHostOps *ops, FeatherInterp interp,
-                           FeatherObj name);
+FeatherResult feather_get_var(const FeatherHostOps *ops, FeatherInterp interp,
+                              FeatherObj name, FeatherObj *out);
 
 /**
  * feather_set_var sets a variable and fires write traces.
  *
  * Handles both qualified names (::foo::bar) and unqualified names (x).
  * All builtins should use this instead of ops->var.set() directly.
+ *
+ * On write trace error, returns TCL_ERROR with wrapped message.
+ * The variable IS set before the trace fires.
  */
-void feather_set_var(const FeatherHostOps *ops, FeatherInterp interp,
-                     FeatherObj name, FeatherObj value);
+FeatherResult feather_set_var(const FeatherHostOps *ops, FeatherInterp interp,
+                              FeatherObj name, FeatherObj value);
 
 /**
  * feather_unset_var unsets a variable and fires unset traces.

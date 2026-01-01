@@ -17,7 +17,11 @@ FeatherResult feather_builtin_lappend(const FeatherHostOps *ops, FeatherInterp i
 
   // Get current value or create empty list
   // feather_get_var handles qualified names and fires read traces
-  FeatherObj current = feather_get_var(ops, interp, varName);
+  FeatherObj current;
+  FeatherResult res = feather_get_var(ops, interp, varName, &current);
+  if (res != TCL_OK) {
+    return res;  // Read trace error already set
+  }
 
   FeatherObj list;
   if (ops->list.is_nil(interp, current)) {
@@ -35,7 +39,10 @@ FeatherResult feather_builtin_lappend(const FeatherHostOps *ops, FeatherInterp i
 
   // Store back in variable
   // feather_set_var handles qualified names and fires write traces
-  feather_set_var(ops, interp, varName, list);
+  res = feather_set_var(ops, interp, varName, list);
+  if (res != TCL_OK) {
+    return res;  // Write trace error already set
+  }
 
   ops->interp.set_result(interp, list);
   return TCL_OK;

@@ -17,7 +17,11 @@ FeatherResult feather_builtin_set(const FeatherHostOps *ops, FeatherInterp inter
   if (argc == 1) {
     // One argument: get variable value
     // feather_get_var handles qualified names and fires traces
-    FeatherObj value = feather_get_var(ops, interp, varName);
+    FeatherObj value;
+    FeatherResult res = feather_get_var(ops, interp, varName, &value);
+    if (res != TCL_OK) {
+      return res;  // Read trace error already set
+    }
 
     if (ops->list.is_nil(interp, value)) {
       FeatherObj part1 = ops->string.intern(interp, "can't read \"", 12);
@@ -40,7 +44,10 @@ FeatherResult feather_builtin_set(const FeatherHostOps *ops, FeatherInterp inter
   // Two arguments: set variable value
   // feather_set_var handles qualified names and fires traces
   FeatherObj value = ops->list.shift(interp, args);
-  feather_set_var(ops, interp, varName, value);
+  FeatherResult res = feather_set_var(ops, interp, varName, value);
+  if (res != TCL_OK) {
+    return res;  // Write trace error already set
+  }
 
   ops->interp.set_result(interp, value);
   return TCL_OK;

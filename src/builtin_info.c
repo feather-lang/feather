@@ -665,14 +665,17 @@ static FeatherResult info_default(const FeatherHostOps *ops, FeatherInterp inter
 
     if (ops->string.equal(interp, argName, paramName)) {
       // Found the parameter
+      FeatherResult res;
       if (paramLen >= 2) {
         // Has default value
         FeatherObj defaultVal = ops->list.at(interp, paramList, 1);
-        feather_set_var(ops, interp, varName, defaultVal);
+        res = feather_set_var(ops, interp, varName, defaultVal);
+        if (res != TCL_OK) return res;
         ops->interp.set_result(interp, ops->integer.create(interp, 1));
       } else {
         // No default
-        feather_set_var(ops, interp, varName, ops->string.intern(interp, "", 0));
+        res = feather_set_var(ops, interp, varName, ops->string.intern(interp, "", 0));
+        if (res != TCL_OK) return res;
         ops->interp.set_result(interp, ops->integer.create(interp, 0));
       }
       return TCL_OK;

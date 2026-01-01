@@ -8,11 +8,22 @@
  * Handles both qualified names (::foo::bar) and unqualified names (x).
  * For qualified names, looks up in namespace storage.
  * For unqualified names, uses frame-local lookup.
- * Fires read traces on the original name in all cases.
+ * Fires read traces on the original name BEFORE reading the value,
+ * so traces can modify the variable and the new value is returned.
+ *
+ * On success, returns TCL_OK and stores the value in *out.
+ * On read trace error, returns TCL_ERROR with wrapped message.
  */
-FeatherObj feather_get_var(const FeatherHostOps *ops, FeatherInterp interp,
-                           FeatherObj name) {
+FeatherResult feather_get_var(const FeatherHostOps *ops, FeatherInterp interp,
+                              FeatherObj name, FeatherObj *out) {
   ops = feather_get_ops(ops);
+
+  // Fire traces on original name FIRST (before reading)
+  // This allows read traces to modify the variable
+  FeatherResult traceResult = feather_fire_var_traces(ops, interp, name, "read");
+  if (traceResult != TCL_OK) {
+    return traceResult;
+  }
 
   // Resolve qualified name
   FeatherObj ns, localName;
@@ -27,9 +38,8 @@ FeatherObj feather_get_var(const FeatherHostOps *ops, FeatherInterp interp,
     value = ops->ns.get_var(interp, ns, localName);
   }
 
-  // Fire traces on original name
-  feather_fire_var_traces(ops, interp, name, "read");
-  return value;
+  *out = value;
+  return TCL_OK;
 }
 
 /**
@@ -39,9 +49,12 @@ FeatherObj feather_get_var(const FeatherHostOps *ops, FeatherInterp interp,
  * For qualified names, stores in namespace storage.
  * For unqualified names, uses frame-local storage.
  * Fires write traces on the original name in all cases.
+ *
+ * On write trace error, returns TCL_ERROR with wrapped message.
+ * The variable IS set before the trace fires.
  */
-void feather_set_var(const FeatherHostOps *ops, FeatherInterp interp,
-                     FeatherObj name, FeatherObj value) {
+FeatherResult feather_set_var(const FeatherHostOps *ops, FeatherInterp interp,
+                              FeatherObj name, FeatherObj value) {
   ops = feather_get_ops(ops);
 
   // Resolve qualified name
@@ -57,7 +70,7 @@ void feather_set_var(const FeatherHostOps *ops, FeatherInterp interp,
   }
 
   // Fire traces on original name
-  feather_fire_var_traces(ops, interp, name, "write");
+  return feather_fire_var_traces(ops, interp, name, "write");
 }
 
 /**
@@ -65,12 +78,14 @@ void feather_set_var(const FeatherHostOps *ops, FeatherInterp interp,
  *
  * Handles both qualified names (::foo::bar) and unqualified names (x).
  * Fires unset traces on the original name BEFORE the variable is unset.
+ * Removes all traces on the variable after the unset completes.
  */
 void feather_unset_var(const FeatherHostOps *ops, FeatherInterp interp,
                        FeatherObj name) {
   ops = feather_get_ops(ops);
 
   // Fire traces BEFORE unset (standard TCL behavior)
+  // Note: unset trace errors are ignored
   feather_fire_var_traces(ops, interp, name, "unset");
 
   // Resolve qualified name
@@ -84,6 +99,11 @@ void feather_unset_var(const FeatherHostOps *ops, FeatherInterp interp,
     // Qualified - namespace storage
     ops->ns.unset_var(interp, ns, localName);
   }
+
+  // Remove all traces on this variable (TCL behavior)
+  FeatherObj traceDict = feather_trace_get_dict(ops, interp, "variable");
+  traceDict = ops->dict.remove(interp, traceDict, name);
+  feather_trace_set_dict(ops, interp, "variable", traceDict);
 }
 
 /**

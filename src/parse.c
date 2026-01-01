@@ -344,7 +344,11 @@ static FeatherResult substitute_variable_obj(const FeatherHostOps *ops, FeatherI
     FeatherObj varName = ops->string.slice(interp, script, name_start, p);
 
     // feather_get_var handles qualified names and fires traces
-    FeatherObj value = feather_get_var(ops, interp, varName);
+    FeatherObj value;
+    FeatherResult res = feather_get_var(ops, interp, varName, &value);
+    if (res != TCL_OK) {
+      return res;  // Read trace error already set
+    }
 
     if (ops->list.is_nil(interp, value)) {
       FeatherObj msg1 = ops->string.intern(interp, "can't read \"", 12);
@@ -379,7 +383,11 @@ static FeatherResult substitute_variable_obj(const FeatherHostOps *ops, FeatherI
     FeatherObj varName = ops->string.slice(interp, script, name_start, p);
 
     // feather_get_var handles qualified names and fires traces
-    FeatherObj value = feather_get_var(ops, interp, varName);
+    FeatherObj value;
+    FeatherResult res = feather_get_var(ops, interp, varName, &value);
+    if (res != TCL_OK) {
+      return res;  // Read trace error already set
+    }
 
     if (ops->list.is_nil(interp, value)) {
       FeatherObj msg1 = ops->string.intern(interp, "can't read \"", 12);

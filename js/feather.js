@@ -535,6 +535,26 @@ async function createFeather(wasmSource) {
       // A variable is a link if it has 'link' (upvar) or 'nsLink' (global/variable)
       return (entry && (entry.link || entry.nsLink)) ? 1 : 0;
     },
+    feather_host_var_resolve_link: (interpId, name) => {
+      const interp = interpreters.get(interpId);
+      let varName = interp.getString(name);
+      let frame = interp.currentFrame();
+      // Follow links to find the target variable name
+      while (true) {
+        const entry = frame.vars.get(varName);
+        if (entry?.link) {
+          frame = interp.frames[entry.link.level];
+          varName = entry.link.name;
+        } else if (entry?.nsLink) {
+          // Namespace link - return the namespace variable name
+          return interp.store({ type: 'string', value: entry.nsLink.name });
+        } else {
+          break;
+        }
+      }
+      // Return the resolved variable name
+      return interp.store({ type: 'string', value: varName });
+    },
 
     // Namespace operations
     feather_host_ns_create: (interpId, path) => {

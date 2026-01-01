@@ -2325,3 +2325,37 @@ func goForeignDestroy(interp C.FeatherInterp, obj C.FeatherObj) {
 	ft.Value = nil
 	o.intrep = nil
 }
+
+//export goVarResolveLink
+func goVarResolveLink(interp C.FeatherInterp, name C.FeatherObj) C.FeatherObj {
+	i := getInterp(interp)
+	if i == nil {
+		return name // Return original if error
+	}
+	nameObj := i.getObject(FeatherObj(name))
+	if nameObj == nil {
+		return name
+	}
+	frame := i.frames[i.active]
+	varName := nameObj.String()
+
+	// Follow links to find the target variable name (for trace lookup)
+	// We return the FINAL variable name after all links are resolved
+	for {
+		if link, ok := frame.links[varName]; ok {
+			if link.targetLevel == -1 {
+				// Namespace variable link - return the namespace variable name
+				return C.FeatherObj(i.internString(link.nsName))
+			} else if link.targetLevel >= 0 && link.targetLevel < len(i.frames) {
+				frame = i.frames[link.targetLevel]
+				varName = link.targetName
+			} else {
+				break
+			}
+		} else {
+			break
+		}
+	}
+	// Return the resolved variable name (or original if not a link)
+	return C.FeatherObj(i.internString(varName))
+}

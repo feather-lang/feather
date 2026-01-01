@@ -850,6 +850,19 @@ typedef struct FeatherVarOps {
    * always returns 0.
    */
   int (*is_link)(FeatherInterp interp, FeatherObj name);
+
+  /**
+   * resolve_link follows variable links to find the target variable name.
+   *
+   * If the variable is a link (via upvar, global, or variable commands),
+   * returns the name of the target variable that traces should be looked up on.
+   * If the variable is not a link, returns the original name.
+   *
+   * This is needed for trace support: traces are registered on the actual
+   * variable, but when accessed via a link, the trace should be called with
+   * the local (link) name while being looked up by the target name.
+   */
+  FeatherObj (*resolve_link)(FeatherInterp interp, FeatherObj name);
 } FeatherVarOps;
 
 /**

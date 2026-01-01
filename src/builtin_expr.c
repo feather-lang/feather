@@ -359,7 +359,14 @@ static ExprValue parse_variable(ExprParser *p) {
   FeatherObj name_obj = p->ops->string.slice(p->interp, p->expr_obj, name_start, name_start + name_len);
 
   // feather_get_var handles qualified names and fires traces
-  FeatherObj value = feather_get_var(p->ops, p->interp, name_obj);
+  FeatherObj value;
+  FeatherResult res = feather_get_var(p->ops, p->interp, name_obj, &value);
+  if (res != TCL_OK) {
+    // Read trace error - get error message from interpreter result
+    p->has_error = 1;
+    p->error_msg = p->ops->interp.get_result(p->interp);
+    return make_error();
+  }
 
   if (p->ops->list.is_nil(p->interp, value)) {
     FeatherObj part1 = p->ops->string.intern(p->interp, "can't read \"", 12);

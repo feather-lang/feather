@@ -53,7 +53,10 @@ FeatherResult feather_builtin_variable(const FeatherHostOps *ops, FeatherInterp 
         qualifiedName = ops->string.concat(interp, qualifiedName, name);
       }
       // feather_set_var handles qualified names and fires traces
-      feather_set_var(ops, interp, qualifiedName, value);
+      FeatherResult res = feather_set_var(ops, interp, qualifiedName, value);
+      if (res != TCL_OK) {
+        return res;  // Write trace error already set
+      }
     }
 
     // Create link from local variable to namespace variable

@@ -17,7 +17,12 @@ FeatherResult feather_builtin_append(const FeatherHostOps *ops, FeatherInterp in
 
   // Get current value or empty string
   // feather_get_var handles qualified names and fires read traces
-  FeatherObj current = feather_get_var(ops, interp, varName);
+  // Note: for append, variable may not exist, so nil is ok (we create it)
+  FeatherObj current;
+  FeatherResult res = feather_get_var(ops, interp, varName, &current);
+  if (res != TCL_OK) {
+    return res;  // Read trace error already set
+  }
 
   FeatherObj result;
   if (ops->list.is_nil(interp, current)) {
@@ -35,7 +40,10 @@ FeatherResult feather_builtin_append(const FeatherHostOps *ops, FeatherInterp in
 
   // Store back in variable
   // feather_set_var handles qualified names and fires write traces
-  feather_set_var(ops, interp, varName, result);
+  res = feather_set_var(ops, interp, varName, result);
+  if (res != TCL_OK) {
+    return res;  // Write trace error already set
+  }
 
   ops->interp.set_result(interp, result);
   return TCL_OK;
