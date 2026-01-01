@@ -1,0 +1,197 @@
+<test-suite name="trace-validation">
+  <!--
+    Trace Validation Tests
+
+    Tests for trace operation validation and command existence checks.
+  -->
+
+  <!-- ============================================= -->
+  <!-- Variable trace operation validation           -->
+  <!-- ============================================= -->
+
+  <test-case name="variable trace rejects invalid operation">
+    <script>trace add variable x {invalid} myTrace</script>
+    <return>TCL_ERROR</return>
+    <error>bad operation "invalid": must be array, read, unset, or write</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="variable trace accepts read operation">
+    <script>proc myTrace args {}
+trace add variable x read myTrace
+trace info variable x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{read myTrace}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="variable trace accepts write operation">
+    <script>proc myTrace args {}
+trace add variable x write myTrace
+trace info variable x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{write myTrace}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="variable trace accepts unset operation">
+    <script>proc myTrace args {}
+trace add variable x unset myTrace
+trace info variable x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{unset myTrace}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Command trace operation validation            -->
+  <!-- ============================================= -->
+
+  <test-case name="command trace rejects invalid operation">
+    <script>proc myCmd {} {}
+trace add command myCmd invalid myTrace</script>
+    <return>TCL_ERROR</return>
+    <error>bad operation "invalid": must be delete or rename</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="command trace accepts rename operation">
+    <script>proc myTrace args {}
+proc myCmd {} {}
+trace add command myCmd rename myTrace
+trace info command myCmd</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{rename myTrace}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="command trace accepts delete operation">
+    <script>proc myTrace args {}
+proc myCmd {} {}
+trace add command myCmd delete myTrace
+trace info command myCmd</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{delete myTrace}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Execution trace operation validation          -->
+  <!-- ============================================= -->
+
+  <test-case name="execution trace rejects invalid operation">
+    <script>proc myCmd {} {}
+trace add execution myCmd invalid myTrace</script>
+    <return>TCL_ERROR</return>
+    <error>bad operation "invalid": must be enter, leave, enterstep, or leavestep</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="execution trace accepts enter operation">
+    <script>proc myTrace args {}
+proc myCmd {} {}
+trace add execution myCmd enter myTrace
+trace info execution myCmd</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{enter myTrace}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="execution trace accepts leave operation">
+    <script>proc myTrace args {}
+proc myCmd {} {}
+trace add execution myCmd leave myTrace
+trace info execution myCmd</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{leave myTrace}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Command existence checks                      -->
+  <!-- ============================================= -->
+
+  <test-case name="trace add command errors on non-existent command">
+    <script>trace add command nonexistent rename myTrace</script>
+    <return>TCL_ERROR</return>
+    <error>unknown command "nonexistent"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="trace add execution errors on non-existent command">
+    <script>trace add execution nonexistent enter myTrace</script>
+    <return>TCL_ERROR</return>
+    <error>unknown command "nonexistent"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="trace info command errors on non-existent command">
+    <script>trace info command nonexistent</script>
+    <return>TCL_ERROR</return>
+    <error>unknown command "nonexistent"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="trace info execution errors on non-existent command">
+    <script>trace info execution nonexistent</script>
+    <return>TCL_ERROR</return>
+    <error>unknown command "nonexistent"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="trace remove command errors on non-existent command">
+    <script>trace remove command nonexistent rename myTrace</script>
+    <return>TCL_ERROR</return>
+    <error>unknown command "nonexistent"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="trace remove execution errors on non-existent command">
+    <script>trace remove execution nonexistent enter myTrace</script>
+    <return>TCL_ERROR</return>
+    <error>unknown command "nonexistent"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Multiple trace fires                          -->
+  <!-- ============================================= -->
+
+  <test-case name="write trace fires on each variable set">
+    <script>set log {}
+proc myTrace {name1 name2 op} { global log; lappend log "$name1/$op" }
+trace add variable x write myTrace
+set x 1
+set x 2
+set log</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>x/write x/write</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>
