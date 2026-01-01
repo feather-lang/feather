@@ -51,7 +51,7 @@ These builtins match TCL's documented behavior:
 | `format` | Size modifier truncation, some # flag behaviors |
 | `scan` | Integer truncation, Unicode %c, unsigned conversion |
 | `subst` | Unicode escapes (\uNNNN) |
-| `trace` | Registration only (traces never fire) |
+| `trace` | Variable creation on trace add, array operation |
 | `incr` | Auto-initialization of unset variables |
 | `set` | Array element syntax |
 | `append` | Array default values |
