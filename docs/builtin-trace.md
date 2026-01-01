@@ -31,9 +31,9 @@ Traces are stored internally in dictionaries keyed by name, with each entry cont
 
 | Type | Status |
 |------|--------|
-| `variable` | Supported (registration only) |
-| `command` | Supported (registration only) |
-| `execution` | Supported (registration only) |
+| `variable` | **Fully supported** |
+| `command` | **Fully supported** |
+| `execution` | **Fully supported** |
 
 ### Basic Functionality
 
@@ -117,13 +117,13 @@ commandPrefix command-string code result op
 | Operation validation | Operations are validated for each trace type | **Implemented** |
 | Variable creation | `trace add variable` creates variable if it does not exist (undefined but visible) | Not implemented |
 | Trace disabling during callback | Traces on target are temporarily disabled while callback runs | **Implemented** (via `trace_firing` flag) |
-| Error propagation | Errors in trace callbacks propagate to traced operation | Not implemented |
-| Variable modification in callbacks | Read/write trace callbacks can modify variable value | Not implemented |
+| Error propagation | Errors in trace callbacks propagate to traced operation | **Implemented** (see details below) |
+| Variable modification in callbacks | Read/write trace callbacks can modify variable value | **Implemented** (read traces fire before reading) |
 | Multiple trace ordering | Variable traces: most-recent first; execution traces: enter/enterstep reverse order, leave/leavestep original order | **Implemented** |
 | Array element traces | Traces on individual array elements | Not supported (no arrays) |
 | Array-wide traces | Traces on entire arrays that fire for any element access | Not supported (no arrays) |
-| Trace removal on unset | Variable traces removed when variable is unset | Not implemented |
-| upvar interaction | Traces fire with actual variable name, may differ from traced name | Not implemented |
+| Trace removal on unset | Variable traces removed when variable is unset | **Implemented** |
+| upvar interaction | Traces fire with actual variable name, may differ from traced name | **Implemented** (see details below) |
 
 ## Notes on Implementation Differences
 
@@ -157,3 +157,25 @@ For command and execution traces, Feather verifies the command exists:
 ### Namespace Resolution
 
 Feather automatically prepends `::` to unqualified command and execution trace names. TCL uses "the usual namespace resolution rules" which may be more sophisticated in edge cases.
+
+### Error Propagation
+
+Trace callback errors are handled differently by trace type:
+
+- **Variable read/write traces**: Errors propagate as `can't read "varname": <error>` or `can't set "varname": <error>`
+- **Variable unset traces**: Errors are silently ignored (TCL behavior)
+- **Command traces**: Errors are silently ignored; the interpreter result is restored after trace execution
+- **Execution traces**: Errors propagate directly without wrapping
+
+### upvar Interaction
+
+When a variable is accessed via `upvar`, traces work correctly:
+
+- Traces are looked up by the **target** variable name (the variable being linked to)
+- The trace callback receives the **local** variable name (the upvar alias)
+
+This is implemented via the `resolve_link` function in `FeatherVarOps` which follows variable links to find the target name for trace lookup.
+
+### Trace Removal on Unset
+
+When a variable is unset (via `unset` command or procedure exit), all traces registered on that variable are automatically removed. This matches TCL behavior.
