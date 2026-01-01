@@ -68,8 +68,8 @@ Traces are stored internally in dictionaries keyed by name, with each entry cont
 |-----------|-------------|----------------|
 | `enter` | Invoke callback before command executes | **Implemented** |
 | `leave` | Invoke callback after command executes | **Implemented** |
-| `enterstep` | Invoke callback before each command in a procedure | Not implemented |
-| `leavestep` | Invoke callback after each command in a procedure | Not implemented |
+| `enterstep` | Invoke callback before each command in a procedure | **Implemented** |
+| `leavestep` | Invoke callback after each command in a procedure | **Implemented** |
 
 ### Callback Invocation
 
@@ -107,7 +107,7 @@ commandPrefix command-string code result op
 - `result`: Result string
 - `op`: Operation (`leave`, `leavestep`)
 
-**Feather status:** Variable, command, and execution trace callbacks are implemented and fired with the correct arguments. The `array`, `enterstep`, and `leavestep` operations are not implemented.
+**Feather status:** Variable, command, and execution trace callbacks are fully implemented and fired with the correct arguments. All operations are supported except `array` (Feather doesn't support arrays).
 
 ### Advanced Features
 
@@ -179,3 +179,13 @@ This is implemented via the `resolve_link` function in `FeatherVarOps` which fol
 ### Trace Removal on Unset
 
 When a variable is unset (via `unset` command or procedure exit), all traces registered on that variable are automatically removed. This matches TCL behavior.
+
+### Step Trace Propagation
+
+The `enterstep` and `leavestep` traces propagate through nested procedure calls:
+
+- When a procedure with step traces calls another procedure, the step traces fire for commands inside the nested procedure as well
+- This applies to the entire call tree below the traced procedure
+- Each command in the tree fires the step traces registered on the original traced procedure
+
+For example, if `outer` has an `enterstep` trace and calls `inner`, the trace fires for all commands in both `outer` and `inner`.
