@@ -1,6 +1,7 @@
 ---
 name: work-toward-parity
 description: |
+  Use this skill to make a the behavior of our builtins match that of TCL.
 ---
 
 # Work Toward TCL Parity Skill
@@ -52,6 +53,7 @@ echo '<tcl code>' | bin/oracle
 ```
 
 Key areas to explore:
+
 - Basic functionality
 - Edge cases
 - Error conditions and messages
@@ -65,7 +67,9 @@ Use the correct test case structure:
 
 ```html
 <test-case name="descriptive name">
-  <script>tcl code here</script>
+  <script>
+    tcl code here
+  </script>
   <return>TCL_OK</return>
   <error></error>
   <stdout>expected output</stdout>
@@ -75,6 +79,7 @@ Use the correct test case structure:
 ```
 
 For error cases:
+
 - Set `<return>TCL_ERROR</return>`
 - Set `<error>expected error message</error>`
 - Set `<exit-code>1</exit-code>`
@@ -106,13 +111,21 @@ Now implement to make the tests pass. Common patterns:
 #### Modifying Function Signatures
 
 When adding return values or parameters:
+
 1. Update `src/internal.h` declarations
 2. Update implementation in `src/<file>.c`
 3. Update all call sites
 
 #### Adding Host Interface Functions
 
-If new host operations are needed:
+If new host operations are needed: you first MUST STOP and ASK THE USER whether the extension is appropriate.
+
+Extending the host interface is a measure of last resort: we want to keep as much logic in the C core as possible.
+
+First think again whether you could implement the feature _without_ extending the host interface.
+
+If you have been granted permission to extend the host interface, follow these steps:
+
 1. Add to `src/feather.h` in appropriate ops struct
 2. Add declaration to `src/host.h`
 3. Add C wrapper in `callbacks.c`
@@ -137,6 +150,7 @@ mise test:js
 ```
 
 Fix failures one at a time. Common issues:
+
 - Wrong argument counts in trace callbacks
 - Missing cases in switch statements
 - Error message format differences
@@ -156,6 +170,7 @@ All N tests pass in both Go and JS/WASM hosts."
 ### 10. Update Documentation
 
 Update `docs/builtin-<feature>.md`:
+
 - Change "Not implemented" to "**Implemented**"
 - Add implementation notes sections if needed
 - Document any remaining limitations
@@ -171,23 +186,24 @@ git commit -m "Update <feature> documentation to reflect implementation"
 
 ## Key Files
 
-| File | Purpose |
-|------|---------|
-| `docs/builtin-*.md` | Feature documentation with implementation status |
-| `docs/index.md` | Summary of all builtins and missing features |
-| `testcases/*.html` | Test definitions |
-| `src/internal.h` | Internal C declarations |
-| `src/*.c` | C implementations |
-| `src/feather.h` | Host interface definitions |
-| `callbacks.c` | C-to-Go callback wrappers |
-| `interp_callbacks.go` | Go host implementations |
-| `js/feather.js` | JS/WASM host implementations |
+| File                  | Purpose                                          |
+| --------------------- | ------------------------------------------------ |
+| `docs/builtin-*.md`   | Feature documentation with implementation status |
+| `docs/index.md`       | Summary of all builtins and missing features     |
+| `testcases/*.html`    | Test definitions                                 |
+| `src/internal.h`      | Internal C declarations                          |
+| `src/*.c`             | C implementations                                |
+| `src/feather.h`       | Host interface definitions                       |
+| `callbacks.c`         | C-to-Go callback wrappers                        |
+| `interp_callbacks.go` | Go host implementations                          |
+| `js/feather.js`       | JS/WASM host implementations                     |
 
 ## Common Patterns
 
 ### Error Propagation
 
 Different trace types handle errors differently:
+
 - Variable read/write: wrap as `can't read/set "varname": <error>`
 - Variable unset: ignore errors
 - Command traces: ignore errors, restore result
@@ -196,13 +212,15 @@ Different trace types handle errors differently:
 ### Nested Propagation
 
 When behavior must propagate through nested calls:
-1. Use a global to track state (like `trace_firing` or `current_step_target`)
+
+1. Create a variable in the interpreter in the `::tcl` namespace
 2. Save/restore the previous value when entering/exiting
 3. Check the global in inner functions to continue the behavior
 
 ### Working Around Feather Limitations
 
 If tests use TCL features Feather doesn't support (e.g., `lindex $list end`):
+
 1. Verify the test passes against oracle first
 2. Rewrite using supported constructs (e.g., `lindex $list [expr {$len - 1}]`)
 3. Re-verify against oracle
