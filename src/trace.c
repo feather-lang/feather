@@ -213,8 +213,9 @@ FeatherResult feather_fire_exec_traces(const FeatherHostOps *ops, FeatherInterp 
       FeatherObj cmd = ops->list.from(interp, script);
       cmd = ops->list.push(interp, cmd, cmdList);
 
-      if (feather_str_eq(op, feather_strlen(op), "leave")) {
-        // For leave: add code and result
+      if (feather_str_eq(op, feather_strlen(op), "leave") ||
+          feather_str_eq(op, feather_strlen(op), "leavestep")) {
+        // For leave/leavestep: add code and result
         // Convert code to string
         char codeBuf[16];
         int codeLen = 0;
@@ -256,4 +257,33 @@ FeatherResult feather_fire_exec_traces(const FeatherHostOps *ops, FeatherInterp 
 
   trace_firing = 0;
   return returnResult;
+}
+
+/**
+ * feather_has_step_traces checks if a command has enterstep or leavestep traces.
+ *
+ * cmdName: the command name (fully qualified)
+ *
+ * Returns 1 if the command has any step traces, 0 otherwise.
+ */
+int feather_has_step_traces(const FeatherHostOps *ops, FeatherInterp interp,
+                            FeatherObj cmdName) {
+  FeatherObj traceDict = feather_trace_get_dict(ops, interp, "execution");
+  FeatherObj traces = ops->dict.get(interp, traceDict, cmdName);
+
+  if (ops->list.is_nil(interp, traces)) {
+    return 0;
+  }
+
+  size_t count = ops->list.length(interp, traces);
+  for (size_t i = 0; i < count; i++) {
+    FeatherObj entry = ops->list.at(interp, traces, i);
+    FeatherObj entryOps = ops->list.at(interp, entry, 0);
+
+    if (ops_contains(ops, interp, entryOps, "enterstep") ||
+        ops_contains(ops, interp, entryOps, "leavestep")) {
+      return 1;
+    }
+  }
+  return 0;
 }

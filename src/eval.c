@@ -2,6 +2,17 @@
 #include "host.h"
 #include "internal.h"
 
+// Global to track the current step trace target for propagation through nested calls
+static FeatherObj current_step_target = 0;
+
+FeatherObj feather_get_step_target(void) {
+  return current_step_target;
+}
+
+void feather_set_step_target(FeatherObj target) {
+  current_step_target = target;
+}
+
 FeatherResult feather_command_exec(const FeatherHostOps *ops, FeatherInterp interp,
                            FeatherObj command, FeatherEvalFlags flags) {
   ops = feather_get_ops(ops);
@@ -196,6 +207,63 @@ FeatherResult feather_script_eval_obj(const FeatherHostOps *ops, FeatherInterp i
       // overwriting the outer command's line.
 
       result = feather_command_exec(ops, interp, parsed, flags);
+      if (result != TCL_OK) {
+        return result;
+      }
+    }
+  }
+
+  return (status == TCL_PARSE_DONE) ? result : TCL_ERROR;
+}
+
+FeatherResult feather_command_exec_stepped(const FeatherHostOps *ops, FeatherInterp interp,
+                                           FeatherObj command, FeatherObj stepTarget,
+                                           FeatherEvalFlags flags) {
+  ops = feather_get_ops(ops);
+
+  // Check if the list is empty
+  if (ops->list.length(interp, command) == 0) {
+    return TCL_OK;
+  }
+
+  // Save the original command list for step traces
+  FeatherObj originalCmd = ops->list.from(interp, command);
+
+  // Fire enterstep trace before command executes
+  FeatherResult stepResult = feather_fire_exec_traces(ops, interp, stepTarget, originalCmd, "enterstep", 0, 0);
+  if (stepResult != TCL_OK) {
+    return stepResult;
+  }
+
+  // Execute the command (this will handle enter/leave traces internally)
+  // We need to pass stepTarget through for nested calls
+  FeatherResult code = feather_command_exec(ops, interp, command, flags);
+
+  // Fire leavestep trace after command completes
+  stepResult = feather_fire_exec_traces(ops, interp, stepTarget, originalCmd, "leavestep", code, ops->interp.get_result(interp));
+  if (stepResult != TCL_OK) {
+    return stepResult;
+  }
+
+  return code;
+}
+
+FeatherResult feather_script_eval_obj_stepped(const FeatherHostOps *ops, FeatherInterp interp,
+                                              FeatherObj script, FeatherObj stepTarget,
+                                              FeatherEvalFlags flags) {
+  ops = feather_get_ops(ops);
+  size_t len = ops->string.byte_length(interp, script);
+  FeatherResult result = TCL_OK;
+  FeatherParseContextObj ctx;
+  feather_parse_init_obj(&ctx, script, len);
+
+  FeatherParseStatus status;
+  while ((status = feather_parse_command_obj(ops, interp, &ctx)) == TCL_PARSE_OK) {
+    FeatherObj parsed = ops->interp.get_result(interp);
+
+    // Only execute non-empty commands
+    if (ops->list.length(interp, parsed) > 0) {
+      result = feather_command_exec_stepped(ops, interp, parsed, stepTarget, flags);
       if (result != TCL_OK) {
         return result;
       }

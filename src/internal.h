@@ -960,6 +960,55 @@ FeatherResult feather_fire_exec_traces(const FeatherHostOps *ops, FeatherInterp 
                                        FeatherObj cmdName, FeatherObj cmdList,
                                        const char *op, int code, FeatherObj result);
 
+/**
+ * feather_has_step_traces checks if a command has enterstep or leavestep traces.
+ *
+ * cmdName: the command name (fully qualified)
+ *
+ * Returns 1 if the command has any step traces, 0 otherwise.
+ */
+int feather_has_step_traces(const FeatherHostOps *ops, FeatherInterp interp,
+                            FeatherObj cmdName);
+
+/**
+ * feather_script_eval_obj_stepped evaluates a script with step tracing.
+ *
+ * Like feather_script_eval_obj, but fires enterstep/leavestep traces
+ * for each command executed, looking up traces on stepTarget.
+ *
+ * stepTarget: the command name to look up step traces on (fully qualified)
+ */
+FeatherResult feather_script_eval_obj_stepped(const FeatherHostOps *ops, FeatherInterp interp,
+                                              FeatherObj script, FeatherObj stepTarget,
+                                              FeatherEvalFlags flags);
+
+/**
+ * feather_command_exec_stepped executes a command with step tracing.
+ *
+ * Like feather_command_exec, but fires enterstep before and leavestep after
+ * execution, looking up traces on stepTarget.
+ *
+ * stepTarget: the command name to look up step traces on (fully qualified)
+ */
+FeatherResult feather_command_exec_stepped(const FeatherHostOps *ops, FeatherInterp interp,
+                                           FeatherObj command, FeatherObj stepTarget,
+                                           FeatherEvalFlags flags);
+
+/**
+ * feather_get_step_target returns the current step trace target.
+ *
+ * Returns 0 if no step tracing is active.
+ * This is used to propagate step traces through nested procedure calls.
+ */
+FeatherObj feather_get_step_target(void);
+
+/**
+ * feather_set_step_target sets the current step trace target.
+ *
+ * Pass 0 to disable step tracing.
+ */
+void feather_set_step_target(FeatherObj target);
+
 // ============================================================================
 // Variable access wrappers (with trace support)
 // ============================================================================

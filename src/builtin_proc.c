@@ -202,8 +202,25 @@ FeatherResult feather_invoke_proc(const FeatherHostOps *ops, FeatherInterp inter
     }
   }
 
+  // Check if this proc has step traces or if we're in a stepped context
+  FeatherObj stepTarget = feather_get_step_target();
+  int own_step_traces = feather_has_step_traces(ops, interp, name);
+
   // Evaluate the body as a script
-  FeatherResult result = feather_script_eval_obj(ops, interp, body, TCL_EVAL_LOCAL);
+  FeatherResult result;
+  if (own_step_traces) {
+    // This proc has its own step traces - set it as the step target
+    FeatherObj savedTarget = stepTarget;
+    feather_set_step_target(name);
+    result = feather_script_eval_obj_stepped(ops, interp, body, name, TCL_EVAL_LOCAL);
+    feather_set_step_target(savedTarget);
+  } else if (stepTarget != 0) {
+    // We're in a stepped context from a parent call - continue stepping
+    result = feather_script_eval_obj_stepped(ops, interp, body, stepTarget, TCL_EVAL_LOCAL);
+  } else {
+    // No step tracing needed
+    result = feather_script_eval_obj(ops, interp, body, TCL_EVAL_LOCAL);
+  }
 
   // Append stack frame if error in progress
   if (result == TCL_ERROR && feather_error_is_active(ops, interp)) {

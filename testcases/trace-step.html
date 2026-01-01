@@ -62,7 +62,8 @@ set log</script>
     <script>set log {}
 proc myTrace {cmd args} {
     global log
-    set op [lindex $args end]
+    set argc [llength $args]
+    set op [lindex $args [expr {$argc - 1}]]
     lappend log "$op:$cmd"
 }
 proc testProc {} {
@@ -87,7 +88,8 @@ set log</script>
     <script>set log {}
 proc myTrace {cmd args} {
     global log
-    set op [lindex $args end]
+    set argc [llength $args]
+    set op [lindex $args [expr {$argc - 1}]]
     lappend log "$op"
 }
 proc testProc {} {
@@ -107,7 +109,8 @@ set log</script>
     <script>set log {}
 proc myTrace {cmd args} {
     global log
-    set op [lindex $args end]
+    set argc [llength $args]
+    set op [lindex $args [expr {$argc - 1}]]
     lappend log "$op"
 }
 proc testProc {} {
