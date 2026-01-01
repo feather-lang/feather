@@ -9,7 +9,7 @@ Our implementation in `src/builtin_return.c` provides basic `return` functionali
 - Returning a result value (or empty string if not provided)
 - The `-code` option with named codes (`ok`, `error`, `return`, `break`, `continue`) and integer values
 - The `-level` option to control which stack level the return code applies to
-- The `-options` option (parsed but currently ignored/consumed without processing)
+- The `-options` option for extracting `-code` and `-level` from a dictionary
 - Proper level-based return code handling (level 0 returns code directly, level > 0 returns TCL_RETURN)
 - Building a return options dictionary with `-code` and `-level` entries
 
@@ -36,6 +36,16 @@ Our implementation in `src/builtin_return.c` provides basic `return` functionali
    - We build and store a dictionary with `-code` and `-level` entries
    - Uses `interp.set_return_options()` to store the options
 
+5. **The `-options` option**
+   - Parses the value as a dictionary
+   - Extracts `-code` and `-level` values from the dictionary
+   - Order matters: later options override earlier ones
+   - Enables the standard error re-raising pattern:
+     ```tcl
+     catch {command} result opts
+     return -options $opts $result
+     ```
+
 ## TCL Features We Do NOT Support
 
 ### 1. The `-errorcode` Option
@@ -60,20 +70,7 @@ return -code error -errorinfo "Error in myProc\n    at line 5" "Something failed
 
 TCL supports `-errorstack list` which records actual argument values passed to each proc level during errors. Our implementation does not support this option.
 
-### 4. Proper `-options` Dictionary Processing
-
-While our implementation accepts the `-options` flag and consumes its value, it does not actually process the dictionary entries. In TCL, `-options dictionary` should merge all entries from the dictionary as additional option-value pairs.
-
-**TCL behavior:**
-```tcl
-# Re-raise a caught error with its original options
-catch { ... } result opts
-return -options $opts $result
-```
-
-**Our behavior:** The `-options` value is consumed but ignored.
-
-### 5. Arbitrary Return Options
+### 4. Arbitrary Return Options
 
 TCL allows any option-value pairs in the return options dictionary, not just the recognized ones. These become available through `catch`. Our implementation only accepts `-code`, `-level`, and `-options`.
 
@@ -84,7 +81,7 @@ return -myoption myvalue "result"  ;# Allowed in TCL
 
 **Our behavior:** Returns error "bad option \"-myoption\""
 
-### 6. Multiple Result Arguments
+### 5. Multiple Result Arguments
 
 TCL concatenates multiple trailing arguments with spaces. Our implementation does support this, but the behavior should be verified for edge cases.
 
@@ -112,8 +109,15 @@ TCL documentation recommends applications use values 5-1073741823 (0x3fffffff) f
 
 ## Recommendations for Future Work
 
-1. **High Priority:** Implement `-options` dictionary processing for proper error re-raising support
-2. **Medium Priority:** Add `-errorcode` support for machine-readable error codes
-3. **Medium Priority:** Add `-errorinfo` support for custom stack traces
-4. **Low Priority:** Allow arbitrary option-value pairs in return options
-5. **Low Priority:** Add `-errorstack` support (TCL 8.6+ feature)
+1. **Medium Priority:** Add `-errorcode` support for machine-readable error codes
+2. **Medium Priority:** Add `-errorinfo` support for custom stack traces
+3. **Low Priority:** Allow arbitrary option-value pairs in return options
+4. **Low Priority:** Add `-errorstack` support (TCL 8.6+ feature)
+
+## Implementation Notes
+
+### `-options` Processing
+
+The `-options` option was implemented to extract `-code` and `-level` values from a dictionary. Other options in the dictionary (like `-errorcode`, `-errorinfo`, `-errorstack`) are currently ignored but will be passed through when those features are implemented.
+
+The order of option processing matters: options appearing later in the command line override earlier values. This is important for the error re-raising pattern where `return -options $opts $result` should preserve the original error's code and level.
