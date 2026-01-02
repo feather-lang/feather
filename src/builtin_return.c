@@ -52,6 +52,7 @@ FeatherResult feather_builtin_return(const FeatherHostOps *ops, FeatherInterp in
   FeatherObj errorcode = 0;  // Default: not set (will use NONE)
   FeatherObj errorinfo = 0;  // Default: not set
   FeatherObj resultValue = ops->string.intern(interp, "", 0);
+  FeatherObj customOptions = ops->list.create(interp);  // Collect arbitrary options
 
   // Make a copy of args since we'll be shifting
   FeatherObj argsCopy = ops->list.from(interp, args);
@@ -194,15 +195,38 @@ FeatherResult feather_builtin_return(const FeatherHostOps *ops, FeatherInterp in
         if (ops->dict.exists(interp, optDict, errorinfoKey)) {
           errorinfo = ops->dict.get(interp, optDict, errorinfoKey);
         }
+
+        // Copy any other (custom) options from the dictionary
+        // Iterate through the dict and copy any keys we don't recognize
+        FeatherObj dictList = ops->list.from(interp, optDict);
+        size_t dictLen = ops->list.length(interp, dictList);
+        for (size_t i = 0; i + 1 < dictLen; i += 2) {
+          FeatherObj key = ops->list.at(interp, dictList, i);
+          // Skip known options
+          if (feather_obj_eq_literal(ops, interp, key, "-code") ||
+              feather_obj_eq_literal(ops, interp, key, "-level") ||
+              feather_obj_eq_literal(ops, interp, key, "-errorcode") ||
+              feather_obj_eq_literal(ops, interp, key, "-errorinfo") ||
+              feather_obj_eq_literal(ops, interp, key, "-errorstack")) {
+            continue;
+          }
+          // Copy custom option
+          customOptions = ops->list.push(interp, customOptions, key);
+          customOptions = ops->list.push(interp, customOptions, ops->list.at(interp, dictList, i + 1));
+        }
       } else {
-        // Unknown option - build error with original object
-        FeatherObj msg1 = ops->string.intern(interp, "bad option \"", 12);
-        FeatherObj msg3 = ops->string.intern(interp,
-          "\": must be -code, -level, -errorcode, -errorinfo, or -options", 61);
-        FeatherObj msg = ops->string.concat(interp, msg1, arg);
-        msg = ops->string.concat(interp, msg, msg3);
-        ops->interp.set_result(interp, msg);
-        return TCL_ERROR;
+        // Unknown option - store it for the return options dictionary
+        // Need value - if no value, this becomes the result
+        if (argc == 0) {
+          // No value, treat the option as the result
+          resultValue = arg;
+          break;
+        }
+        FeatherObj optValue = ops->list.shift(interp, argsCopy);
+        argc--;
+        // Store option key and value for later
+        customOptions = ops->list.push(interp, customOptions, arg);
+        customOptions = ops->list.push(interp, customOptions, optValue);
       }
     } else {
       // Not an option, must be the result value
@@ -212,8 +236,17 @@ FeatherResult feather_builtin_return(const FeatherHostOps *ops, FeatherInterp in
     }
   }
 
-  // Build return options dictionary as a list: {-code X -level Y ...}
+  // Build return options dictionary as a list: {custom... -code X -level Y ...}
+  // Custom options come first, then standard options
   FeatherObj options = ops->list.create(interp);
+
+  // Add custom options first (they were collected in order)
+  size_t customLen = ops->list.length(interp, customOptions);
+  for (size_t i = 0; i < customLen; i++) {
+    options = ops->list.push(interp, options, ops->list.at(interp, customOptions, i));
+  }
+
+  // Then add standard options
   options = ops->list.push(interp, options, ops->string.intern(interp, "-code", 5));
   options = ops->list.push(interp, options, ops->integer.create(interp, code));
   options = ops->list.push(interp, options, ops->string.intern(interp, "-level", 6));
