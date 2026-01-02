@@ -31,6 +31,15 @@ Feather implements the following `string` subcommands in `src/builtin_string.c`:
 | `string trimleft string ?chars?` | Supported | Default whitespace or custom character set |
 | `string trimright string ?chars?` | Supported | Default whitespace or custom character set |
 | `string map ?-nocase? mapping string` | Supported | Key-value pair substitution |
+| `string cat ?string1? ?string2...?` | Supported | Concatenates strings |
+| `string compare ?-nocase? ?-length len? string1 string2` | Supported | Lexicographic comparison returning -1, 0, or 1 |
+| `string equal ?-nocase? ?-length len? string1 string2` | Supported | Equality test returning 0 or 1 |
+| `string first needleString haystackString ?startIndex?` | Supported | Find first occurrence of substring |
+| `string last needleString haystackString ?lastIndex?` | Supported | Find last occurrence of substring |
+| `string repeat string count` | Supported | Repeat string N times |
+| `string reverse string` | Supported | Reverse character order |
+| `string insert string index insertString` | Supported | Insert substring at index |
+| `string replace string first last ?newstring?` | Supported | Replace range with optional new string |
 
 ## TCL Features We Do NOT Support
 
@@ -38,16 +47,7 @@ Feather implements the following `string` subcommands in `src/builtin_string.c`:
 
 | Subcommand | Description |
 |------------|-------------|
-| `string cat ?string1? ?string2...?` | Concatenates strings (alternative to juxtaposition) |
-| `string compare ?-nocase? ?-length len? string1 string2` | Lexicographic comparison returning -1, 0, or 1 |
-| `string equal ?-nocase? ?-length len? string1 string2` | Equality test returning 0 or 1 |
-| `string first needleString haystackString ?startIndex?` | Find first occurrence of substring |
-| `string last needleString haystackString ?lastIndex?` | Find last occurrence of substring |
-| `string insert string index insertString` | Insert substring at index |
 | `string is class ?-strict? ?-failindex varname? string` | Character class testing (alnum, alpha, ascii, boolean, control, dict, digit, double, false, graph, integer, list, lower, print, punct, space, true, upper, wideinteger, wordchar, xdigit) |
-| `string repeat string count` | Repeat string N times |
-| `string replace string first last ?newstring?` | Replace range with optional new string |
-| `string reverse string` | Reverse character order |
 | `string totitle string ?first? ?last?` | Title case conversion |
 | `string wordend string charIndex` | Find end of word (obsolete) |
 | `string wordstart string charIndex` | Find start of word (obsolete) |

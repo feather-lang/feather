@@ -346,6 +346,387 @@ static FeatherResult string_map(const FeatherHostOps *ops, FeatherInterp interp,
   return TCL_OK;
 }
 
+// string cat ?string1? ?string2? ...
+static FeatherResult string_cat(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
+  FeatherObj result = ops->string.intern(interp, "", 0);
+  while (ops->list.length(interp, args) > 0) {
+    FeatherObj str = ops->list.shift(interp, args);
+    result = ops->string.concat(interp, result, str);
+  }
+  ops->interp.set_result(interp, result);
+  return TCL_OK;
+}
+
+// string compare ?-nocase? ?-length len? string1 string2
+static FeatherResult string_compare(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
+  int nocase = 0;
+  int64_t length = -1;
+
+  // Parse options
+  while (ops->list.length(interp, args) > 2) {
+    FeatherObj opt = ops->list.at(interp, args, 0);
+    if (feather_obj_eq_literal(ops, interp, opt, "-nocase")) {
+      nocase = 1;
+      ops->list.shift(interp, args);
+    } else if (feather_obj_eq_literal(ops, interp, opt, "-length")) {
+      ops->list.shift(interp, args);
+      if (ops->list.length(interp, args) < 3) {
+        FeatherObj msg = ops->string.intern(interp,
+          "wrong # args: should be \"string compare ?-nocase? ?-length int? string1 string2\"", 79);
+        ops->interp.set_result(interp, msg);
+        return TCL_ERROR;
+      }
+      FeatherObj lenObj = ops->list.shift(interp, args);
+      if (ops->integer.get(interp, lenObj, &length) != TCL_OK) {
+        FeatherObj msg = ops->string.intern(interp, "expected integer but got \"", 26);
+        msg = ops->string.concat(interp, msg, lenObj);
+        FeatherObj suffix = ops->string.intern(interp, "\"", 1);
+        msg = ops->string.concat(interp, msg, suffix);
+        ops->interp.set_result(interp, msg);
+        return TCL_ERROR;
+      }
+    } else {
+      break;
+    }
+  }
+
+  if (ops->list.length(interp, args) != 2) {
+    FeatherObj msg = ops->string.intern(interp,
+      "wrong # args: should be \"string compare ?-nocase? ?-length int? string1 string2\"", 79);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  FeatherObj str1 = ops->list.shift(interp, args);
+  FeatherObj str2 = ops->list.shift(interp, args);
+
+  // Apply length limit if specified
+  if (length >= 0) {
+    str1 = ops->rune.range(interp, str1, 0, length - 1);
+    str2 = ops->rune.range(interp, str2, 0, length - 1);
+  }
+
+  // Apply case folding if -nocase
+  if (nocase) {
+    str1 = ops->rune.fold(interp, str1);
+    str2 = ops->rune.fold(interp, str2);
+  }
+
+  int cmp = ops->string.compare(interp, str1, str2);
+  // Normalize to -1, 0, 1
+  if (cmp < 0) cmp = -1;
+  else if (cmp > 0) cmp = 1;
+
+  ops->interp.set_result(interp, ops->integer.create(interp, cmp));
+  return TCL_OK;
+}
+
+// string equal ?-nocase? ?-length len? string1 string2
+static FeatherResult string_equal(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
+  int nocase = 0;
+  int64_t length = -1;
+
+  // Parse options
+  while (ops->list.length(interp, args) > 2) {
+    FeatherObj opt = ops->list.at(interp, args, 0);
+    if (feather_obj_eq_literal(ops, interp, opt, "-nocase")) {
+      nocase = 1;
+      ops->list.shift(interp, args);
+    } else if (feather_obj_eq_literal(ops, interp, opt, "-length")) {
+      ops->list.shift(interp, args);
+      if (ops->list.length(interp, args) < 3) {
+        FeatherObj msg = ops->string.intern(interp,
+          "wrong # args: should be \"string equal ?-nocase? ?-length int? string1 string2\"", 77);
+        ops->interp.set_result(interp, msg);
+        return TCL_ERROR;
+      }
+      FeatherObj lenObj = ops->list.shift(interp, args);
+      if (ops->integer.get(interp, lenObj, &length) != TCL_OK) {
+        FeatherObj msg = ops->string.intern(interp, "expected integer but got \"", 26);
+        msg = ops->string.concat(interp, msg, lenObj);
+        FeatherObj suffix = ops->string.intern(interp, "\"", 1);
+        msg = ops->string.concat(interp, msg, suffix);
+        ops->interp.set_result(interp, msg);
+        return TCL_ERROR;
+      }
+    } else {
+      break;
+    }
+  }
+
+  if (ops->list.length(interp, args) != 2) {
+    FeatherObj msg = ops->string.intern(interp,
+      "wrong # args: should be \"string equal ?-nocase? ?-length int? string1 string2\"", 77);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  FeatherObj str1 = ops->list.shift(interp, args);
+  FeatherObj str2 = ops->list.shift(interp, args);
+
+  // Apply length limit if specified
+  if (length >= 0) {
+    str1 = ops->rune.range(interp, str1, 0, length - 1);
+    str2 = ops->rune.range(interp, str2, 0, length - 1);
+  }
+
+  // Apply case folding if -nocase
+  if (nocase) {
+    str1 = ops->rune.fold(interp, str1);
+    str2 = ops->rune.fold(interp, str2);
+  }
+
+  int eq = ops->string.equal(interp, str1, str2);
+  ops->interp.set_result(interp, ops->integer.create(interp, eq ? 1 : 0));
+  return TCL_OK;
+}
+
+// string first needleString haystackString ?startIndex?
+static FeatherResult string_first(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
+  size_t argc = ops->list.length(interp, args);
+  if (argc < 2 || argc > 3) {
+    FeatherObj msg = ops->string.intern(interp,
+      "wrong # args: should be \"string first needleString haystackString ?startIndex?\"", 79);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  FeatherObj needle = ops->list.shift(interp, args);
+  FeatherObj haystack = ops->list.shift(interp, args);
+
+  size_t haystackLen = ops->rune.length(interp, haystack);
+  size_t needleLen = ops->rune.length(interp, needle);
+
+  int64_t startIndex = 0;
+  if (argc == 3) {
+    FeatherObj startObj = ops->list.shift(interp, args);
+    if (feather_parse_index(ops, interp, startObj, haystackLen, &startIndex) != TCL_OK) {
+      return TCL_ERROR;
+    }
+    if (startIndex < 0) startIndex = 0;
+  }
+
+  // Empty needle never matches
+  if (needleLen == 0) {
+    ops->interp.set_result(interp, ops->integer.create(interp, -1));
+    return TCL_OK;
+  }
+
+  // Search for needle starting at startIndex
+  for (size_t i = (size_t)startIndex; i + needleLen <= haystackLen; i++) {
+    FeatherObj sub = ops->rune.range(interp, haystack, i, i + needleLen - 1);
+    if (ops->string.equal(interp, sub, needle)) {
+      ops->interp.set_result(interp, ops->integer.create(interp, (int64_t)i));
+      return TCL_OK;
+    }
+  }
+
+  ops->interp.set_result(interp, ops->integer.create(interp, -1));
+  return TCL_OK;
+}
+
+// string last needleString haystackString ?lastIndex?
+static FeatherResult string_last(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
+  size_t argc = ops->list.length(interp, args);
+  if (argc < 2 || argc > 3) {
+    FeatherObj msg = ops->string.intern(interp,
+      "wrong # args: should be \"string last needleString haystackString ?lastIndex?\"", 77);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  FeatherObj needle = ops->list.shift(interp, args);
+  FeatherObj haystack = ops->list.shift(interp, args);
+
+  size_t haystackLen = ops->rune.length(interp, haystack);
+  size_t needleLen = ops->rune.length(interp, needle);
+
+  int64_t lastIndex = (int64_t)haystackLen - 1;
+  if (argc == 3) {
+    FeatherObj lastObj = ops->list.shift(interp, args);
+    if (feather_parse_index(ops, interp, lastObj, haystackLen, &lastIndex) != TCL_OK) {
+      return TCL_ERROR;
+    }
+  }
+
+  // Empty needle never matches
+  if (needleLen == 0) {
+    ops->interp.set_result(interp, ops->integer.create(interp, -1));
+    return TCL_OK;
+  }
+
+  // Search backwards for needle, starting position must allow full needle to fit
+  int64_t maxStart = lastIndex;
+  if (maxStart + (int64_t)needleLen > (int64_t)haystackLen) {
+    maxStart = (int64_t)haystackLen - (int64_t)needleLen;
+  }
+
+  for (int64_t i = maxStart; i >= 0; i--) {
+    FeatherObj sub = ops->rune.range(interp, haystack, i, i + needleLen - 1);
+    if (ops->string.equal(interp, sub, needle)) {
+      ops->interp.set_result(interp, ops->integer.create(interp, i));
+      return TCL_OK;
+    }
+  }
+
+  ops->interp.set_result(interp, ops->integer.create(interp, -1));
+  return TCL_OK;
+}
+
+// string repeat string count
+static FeatherResult string_repeat(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
+  if (ops->list.length(interp, args) != 2) {
+    FeatherObj msg = ops->string.intern(interp,
+      "wrong # args: should be \"string repeat string count\"", 52);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  FeatherObj str = ops->list.shift(interp, args);
+  FeatherObj countObj = ops->list.shift(interp, args);
+
+  int64_t count;
+  if (ops->integer.get(interp, countObj, &count) != TCL_OK) {
+    FeatherObj msg = ops->string.intern(interp, "expected integer but got \"", 26);
+    msg = ops->string.concat(interp, msg, countObj);
+    FeatherObj suffix = ops->string.intern(interp, "\"", 1);
+    msg = ops->string.concat(interp, msg, suffix);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  if (count < 0) {
+    FeatherObj msg = ops->string.intern(interp, "bad count \"", 11);
+    msg = ops->string.concat(interp, msg, countObj);
+    FeatherObj suffix = ops->string.intern(interp, "\": must be integer >= 0", 23);
+    msg = ops->string.concat(interp, msg, suffix);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  FeatherObj result = ops->string.intern(interp, "", 0);
+  for (int64_t i = 0; i < count; i++) {
+    result = ops->string.concat(interp, result, str);
+  }
+
+  ops->interp.set_result(interp, result);
+  return TCL_OK;
+}
+
+// string reverse string
+static FeatherResult string_reverse(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
+  if (ops->list.length(interp, args) != 1) {
+    FeatherObj msg = ops->string.intern(interp,
+      "wrong # args: should be \"string reverse string\"", 47);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  FeatherObj str = ops->list.shift(interp, args);
+  size_t len = ops->rune.length(interp, str);
+
+  if (len == 0) {
+    ops->interp.set_result(interp, str);
+    return TCL_OK;
+  }
+
+  // Build reversed string using builder
+  FeatherObj builder = ops->string.builder_new(interp, ops->string.byte_length(interp, str));
+  for (size_t i = len; i > 0; i--) {
+    FeatherObj ch = ops->rune.at(interp, str, i - 1);
+    ops->string.builder_append_obj(interp, builder, ch);
+  }
+
+  ops->interp.set_result(interp, ops->string.builder_finish(interp, builder));
+  return TCL_OK;
+}
+
+// string insert string index insertString
+static FeatherResult string_insert(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
+  if (ops->list.length(interp, args) != 3) {
+    FeatherObj msg = ops->string.intern(interp,
+      "wrong # args: should be \"string insert string index insertString\"", 65);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  FeatherObj str = ops->list.shift(interp, args);
+  FeatherObj indexObj = ops->list.shift(interp, args);
+  FeatherObj insertStr = ops->list.shift(interp, args);
+
+  size_t len = ops->rune.length(interp, str);
+
+  int64_t index;
+  // For insert, "end" means "after all chars" = position len, so use len+1 as reference
+  if (feather_parse_index(ops, interp, indexObj, len + 1, &index) != TCL_OK) {
+    return TCL_ERROR;
+  }
+
+  // Clamp index
+  if (index < 0) index = 0;
+  if ((size_t)index > len) index = (int64_t)len;
+
+  // Build result: str[0..index-1] + insertStr + str[index..end]
+  FeatherObj prefix = (index > 0) ? ops->rune.range(interp, str, 0, index - 1) : ops->string.intern(interp, "", 0);
+  FeatherObj suffix = ((size_t)index < len) ? ops->rune.range(interp, str, index, len - 1) : ops->string.intern(interp, "", 0);
+
+  FeatherObj result = ops->string.concat(interp, prefix, insertStr);
+  result = ops->string.concat(interp, result, suffix);
+
+  ops->interp.set_result(interp, result);
+  return TCL_OK;
+}
+
+// string replace string first last ?newString?
+static FeatherResult string_replace(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
+  size_t argc = ops->list.length(interp, args);
+  if (argc < 3 || argc > 4) {
+    FeatherObj msg = ops->string.intern(interp,
+      "wrong # args: should be \"string replace string first last ?newString?\"", 70);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  FeatherObj str = ops->list.shift(interp, args);
+  FeatherObj firstObj = ops->list.shift(interp, args);
+  FeatherObj lastObj = ops->list.shift(interp, args);
+
+  FeatherObj newStr = ops->string.intern(interp, "", 0);
+  if (argc == 4) {
+    newStr = ops->list.shift(interp, args);
+  }
+
+  size_t len = ops->rune.length(interp, str);
+
+  int64_t first, last;
+  if (feather_parse_index(ops, interp, firstObj, len, &first) != TCL_OK) {
+    return TCL_ERROR;
+  }
+  if (feather_parse_index(ops, interp, lastObj, len, &last) != TCL_OK) {
+    return TCL_ERROR;
+  }
+
+  // Handle out of bounds - if first > last or first >= len, return original
+  if (first > last || first >= (int64_t)len) {
+    ops->interp.set_result(interp, str);
+    return TCL_OK;
+  }
+
+  // Clamp
+  if (first < 0) first = 0;
+  if (last >= (int64_t)len) last = (int64_t)len - 1;
+
+  // Build result: str[0..first-1] + newStr + str[last+1..end]
+  FeatherObj prefix = (first > 0) ? ops->rune.range(interp, str, 0, first - 1) : ops->string.intern(interp, "", 0);
+  FeatherObj suffix = (last + 1 < (int64_t)len) ? ops->rune.range(interp, str, last + 1, len - 1) : ops->string.intern(interp, "", 0);
+
+  FeatherObj result = ops->string.concat(interp, prefix, newStr);
+  result = ops->string.concat(interp, result, suffix);
+
+  ops->interp.set_result(interp, result);
+  return TCL_OK;
+}
+
 FeatherResult feather_builtin_string(const FeatherHostOps *ops, FeatherInterp interp,
                               FeatherObj cmd, FeatherObj args) {
   (void)cmd;
@@ -380,11 +761,29 @@ FeatherResult feather_builtin_string(const FeatherHostOps *ops, FeatherInterp in
     return string_trimright(ops, interp, args);
   } else if (feather_obj_eq_literal(ops, interp, subcmd, "map")) {
     return string_map(ops, interp, args);
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "cat")) {
+    return string_cat(ops, interp, args);
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "compare")) {
+    return string_compare(ops, interp, args);
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "equal")) {
+    return string_equal(ops, interp, args);
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "first")) {
+    return string_first(ops, interp, args);
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "last")) {
+    return string_last(ops, interp, args);
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "repeat")) {
+    return string_repeat(ops, interp, args);
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "reverse")) {
+    return string_reverse(ops, interp, args);
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "insert")) {
+    return string_insert(ops, interp, args);
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "replace")) {
+    return string_replace(ops, interp, args);
   } else {
     FeatherObj msg = ops->string.intern(interp, "unknown or ambiguous subcommand \"", 33);
     msg = ops->string.concat(interp, msg, subcmd);
     FeatherObj suffix = ops->string.intern(interp,
-      "\": must be index, length, map, match, range, tolower, toupper, trim, trimleft, or trimright", 91);
+      "\": must be cat, compare, equal, first, index, insert, last, length, map, match, range, repeat, replace, reverse, tolower, toupper, trim, trimleft, or trimright", 159);
     msg = ops->string.concat(interp, msg, suffix);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
