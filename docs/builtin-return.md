@@ -9,8 +9,9 @@ Our implementation in `src/builtin_return.c` provides basic `return` functionali
 - Returning a result value (or empty string if not provided)
 - The `-code` option with named codes (`ok`, `error`, `return`, `break`, `continue`) and integer values
 - The `-level` option to control which stack level the return code applies to
-- The `-options` option for extracting `-code`, `-level`, and `-errorcode` from a dictionary
+- The `-options` option for extracting `-code`, `-level`, `-errorcode`, and `-errorinfo` from a dictionary
 - The `-errorcode` option for machine-readable error codes
+- The `-errorinfo` option for custom stack traces
 - Proper level-based return code handling (level 0 returns code directly, level > 0 returns TCL_RETURN)
 - Building a return options dictionary with `-code` and `-level` entries
 
@@ -39,7 +40,7 @@ Our implementation in `src/builtin_return.c` provides basic `return` functionali
 
 5. **The `-options` option**
    - Parses the value as a dictionary
-   - Extracts `-code`, `-level`, and `-errorcode` values from the dictionary
+   - Extracts `-code`, `-level`, `-errorcode`, and `-errorinfo` values from the dictionary
    - Order matters: later options override earlier ones
    - Enables the standard error re-raising pattern:
      ```tcl
@@ -58,24 +59,25 @@ Our implementation in `src/builtin_return.c` provides basic `return` functionali
      return -code error -errorcode {POSIX ENOENT} "File not found"
      ```
 
+7. **The `-errorinfo` option**
+   - Sets custom stack trace information when `-code error` is used
+   - Value is stored in return options dictionary as `-errorinfo`
+   - Also sets the global `::errorInfo` variable
+   - Preserved through error re-raising via `-options`
+   - Example:
+     ```tcl
+     return -code error -errorinfo "Custom trace\n    at line 5" "Something failed"
+     ```
+
 ## TCL Features We Do NOT Support
 
-### 1. The `-errorinfo` Option
-
-TCL supports `-errorinfo info` which provides stack trace information when `-code error` is used. This is stored in the global variable `errorInfo`. Our implementation does not support this option.
-
-**TCL behavior:**
-```tcl
-return -code error -errorinfo "Error in myProc\n    at line 5" "Something failed"
-```
-
-### 2. The `-errorstack` Option (TCL 8.6+)
+### 1. The `-errorstack` Option (TCL 8.6+)
 
 TCL supports `-errorstack list` which records actual argument values passed to each proc level during errors. Our implementation does not support this option.
 
-### 3. Arbitrary Return Options
+### 2. Arbitrary Return Options
 
-TCL allows any option-value pairs in the return options dictionary, not just the recognized ones. These become available through `catch`. Our implementation only accepts `-code`, `-level`, `-errorcode`, and `-options`.
+TCL allows any option-value pairs in the return options dictionary, not just the recognized ones. These become available through `catch`. Our implementation only accepts `-code`, `-level`, `-errorcode`, `-errorinfo`, and `-options`.
 
 **TCL behavior:**
 ```tcl
@@ -84,7 +86,7 @@ return -myoption myvalue "result"  ;# Allowed in TCL
 
 **Our behavior:** Returns error "bad option \"-myoption\""
 
-### 4. Multiple Result Arguments
+### 3. Multiple Result Arguments
 
 TCL concatenates multiple trailing arguments with spaces. Our implementation does support this, but the behavior should be verified for edge cases.
 
@@ -94,11 +96,11 @@ TCL concatenates multiple trailing arguments with spaces. Our implementation doe
 
 Our error messages closely match TCL's format:
 - `bad completion code "xyz": must be ok, error, return, break, continue, or an integer`
-- `bad option "-xyz": must be -code, -level, -errorcode, or -options`
+- `bad option "-xyz": must be -code, -level, -errorcode, -errorinfo, or -options`
 
 ### Return Options Storage
 
-We store return options as a list `{-code X -level Y -errorcode Z ...}` using `ops->interp.set_return_options()`. TCL stores these as a proper dictionary with additional entries like `-errorinfo` when applicable.
+We store return options as a list `{-code X -level Y -errorcode Z -errorinfo W ...}` using `ops->interp.set_return_options()`. TCL stores these as a proper dictionary with additional entries like `-errorstack` when applicable.
 
 ### Level Processing
 
@@ -112,9 +114,8 @@ TCL documentation recommends applications use values 5-1073741823 (0x3fffffff) f
 
 ## Recommendations for Future Work
 
-1. **Medium Priority:** Add `-errorinfo` support for custom stack traces
-2. **Low Priority:** Allow arbitrary option-value pairs in return options
-3. **Low Priority:** Add `-errorstack` support (TCL 8.6+ feature)
+1. **Low Priority:** Allow arbitrary option-value pairs in return options
+2. **Low Priority:** Add `-errorstack` support (TCL 8.6+ feature)
 
 ## Implementation Notes
 
