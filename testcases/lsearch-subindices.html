@@ -1,0 +1,108 @@
+<test-suite name="lsearch -subindices option">
+
+<!-- Basic -subindices -->
+<test-case name="lsearch -subindices basic index 0">
+  <script>
+    lsearch -index 0 -subindices {{a 1} {b 2} {c 3}} b
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1 0</stdout>
+</test-case>
+
+<test-case name="lsearch -subindices basic index 1">
+  <script>
+    lsearch -index 1 -subindices {{a 1} {b 2} {c 3}} 2
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1 1</stdout>
+</test-case>
+
+<test-case name="lsearch -subindices first element">
+  <script>
+    lsearch -index 0 -subindices {{a 1} {b 2} {c 3}} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>0 0</stdout>
+</test-case>
+
+<test-case name="lsearch -subindices last element">
+  <script>
+    lsearch -index 0 -subindices {{a 1} {b 2} {c 3}} c
+  </script>
+  <return>TCL_OK</return>
+  <stdout>2 0</stdout>
+</test-case>
+
+<!-- -subindices not found -->
+<test-case name="lsearch -subindices not found">
+  <script>
+    lsearch -index 0 -subindices {{a 1} {b 2}} z
+  </script>
+  <return>TCL_OK</return>
+  <stdout>-1 0</stdout>
+</test-case>
+
+<!-- -subindices with -all -->
+<test-case name="lsearch -subindices -all">
+  <script>
+    lsearch -index 0 -subindices -all {{a 1} {b 2} {a 3}} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>{0 0} {2 0}</stdout>
+</test-case>
+
+<test-case name="lsearch -subindices -all no matches">
+  <script>
+    lsearch -index 0 -subindices -all {{a 1} {b 2}} z
+  </script>
+  <return>TCL_OK</return>
+  <stdout></stdout>
+</test-case>
+
+<!-- -subindices with -not -->
+<test-case name="lsearch -subindices -not">
+  <script>
+    lsearch -index 0 -subindices -not {{a 1} {b 2} {c 3}} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1 0</stdout>
+</test-case>
+
+<!-- -subindices with -inline (returns value, not indices) -->
+<test-case name="lsearch -subindices -inline">
+  <script>
+    lsearch -index 0 -subindices -inline {{a 1} {b 2} {c 3}} b
+  </script>
+  <return>TCL_OK</return>
+  <stdout>b</stdout>
+</test-case>
+
+<!-- -subindices with -sorted -->
+<test-case name="lsearch -subindices -sorted">
+  <script>
+    lsearch -sorted -index 0 -subindices {{a 1} {b 2} {c 3}} b
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1 0</stdout>
+</test-case>
+
+<!-- -subindices requires -index -->
+<test-case name="lsearch -subindices without -index">
+  <script>
+    lsearch -subindices {a b c} b
+  </script>
+  <return>TCL_ERROR</return>
+  <error>-subindices cannot be used without -index option</error>
+  <exit-code>1</exit-code>
+</test-case>
+
+<!-- -subindices with different index -->
+<test-case name="lsearch -subindices index 2">
+  <script>
+    lsearch -index 2 -subindices {{a b x} {c d y} {e f z}} z
+  </script>
+  <return>TCL_OK</return>
+  <stdout>2 2</stdout>
+</test-case>
+
+</test-suite>
