@@ -751,21 +751,25 @@ async function createFeather(wasmSource) {
       return TCL_ERROR;
     },
 
-    // String operations
+    // String operations - work with UTF-8 bytes, not JS characters
     feather_host_string_byte_at: (interpId, obj, index) => {
       const interp = interpreters.get(interpId);
       const str = interp.getString(obj);
-      if (index >= str.length) return -1;
-      return str.charCodeAt(index);
+      const bytes = new TextEncoder().encode(str);
+      if (index >= bytes.length) return -1;
+      return bytes[index];
     },
     feather_host_string_byte_length: (interpId, obj) => {
       const interp = interpreters.get(interpId);
-      return interp.getString(obj).length;
+      const str = interp.getString(obj);
+      return new TextEncoder().encode(str).length;
     },
     feather_host_string_slice: (interpId, obj, start, end) => {
       const interp = interpreters.get(interpId);
       const str = interp.getString(obj);
-      const sliced = str.slice(start, end);
+      // Slice works on UTF-8 bytes, not JS characters
+      const bytes = new TextEncoder().encode(str);
+      const sliced = new TextDecoder().decode(bytes.slice(start, end));
       return interp.store({ type: 'string', value: sliced });
     },
     feather_host_string_concat: (interpId, a, b) => {
@@ -925,8 +929,8 @@ async function createFeather(wasmSource) {
     feather_host_string_get: (interpId, obj, lenPtr) => {
       const interp = interpreters.get(interpId);
       const str = interp.getString(obj);
-      writeI32(lenPtr, str.length);
-      const [ptr] = writeString(str);
+      const [ptr, byteLen] = writeString(str);
+      writeI32(lenPtr, byteLen);  // Write UTF-8 byte length, not JS string length
       return ptr;
     },
 

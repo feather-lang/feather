@@ -63,7 +63,14 @@
     <exit-code>0</exit-code>
   </test-case>
 
-  <!-- NOTE: Unicode alpha test skipped - JS/WASM host has Unicode input parsing issue -->
+  <test-case name="string is alpha unicode">
+    <script>string is alpha α</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
 
   <!-- ============================================= -->
   <!-- ascii class                                   -->
@@ -78,7 +85,14 @@
     <exit-code>0</exit-code>
   </test-case>
 
-  <!-- NOTE: Unicode ascii test skipped - JS/WASM host has Unicode input parsing issue -->
+  <test-case name="string is ascii unicode false">
+    <script>string is ascii α</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
 
   <!-- ============================================= -->
   <!-- control class                                 -->
@@ -124,7 +138,14 @@
     <exit-code>0</exit-code>
   </test-case>
 
-  <!-- NOTE: Unicode digit test skipped - JS/WASM host has Unicode input parsing issue -->
+  <test-case name="string is digit unicode">
+    <script>string is digit ٧</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
 
   <!-- ============================================= -->
   <!-- graph class                                   -->
@@ -170,7 +191,14 @@
     <exit-code>0</exit-code>
   </test-case>
 
-  <!-- NOTE: Unicode lower test skipped - JS/WASM host has Unicode input parsing issue -->
+  <test-case name="string is lower unicode">
+    <script>string is lower β</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
 
   <!-- ============================================= -->
   <!-- print class                                   -->
@@ -260,7 +288,14 @@
     <exit-code>0</exit-code>
   </test-case>
 
-  <!-- NOTE: Unicode upper test skipped - JS/WASM host has Unicode input parsing issue -->
+  <test-case name="string is upper unicode">
+    <script>string is upper Γ</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
 
   <!-- ============================================= -->
   <!-- wordchar class                                -->
