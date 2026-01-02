@@ -1,0 +1,188 @@
+<test-suite name="switch -nocase option">
+
+<!-- -nocase with -exact (default mode) -->
+
+<test-case name="switch -nocase exact match uppercase input">
+  <script>
+switch -nocase "HELLO" {
+    hello { set x matched }
+    default { set x "no match" }
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>matched</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="switch -nocase exact match mixed case input">
+  <script>
+switch -nocase "HeLLo" {
+    hello { set x matched }
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>matched</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="switch -nocase exact match mixed case pattern">
+  <script>
+switch -nocase "hello" {
+    HELLO { set x matched }
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>matched</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="switch -nocase -exact explicit">
+  <script>
+switch -nocase -exact "WORLD" {
+    world { set x matched }
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>matched</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- -nocase with -glob -->
+
+<test-case name="switch -nocase -glob wildcard">
+  <script>
+switch -nocase -glob "HELLO_WORLD" {
+    hello* { set x matched }
+    default { set x "no match" }
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>matched</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="switch -nocase -glob question mark">
+  <script>
+switch -nocase -glob "TEST" {
+    t?st { set x matched }
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>matched</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="switch -nocase -glob character class">
+  <script>
+switch -nocase -glob "HELLO" {
+    {[hH]ello} { set x matched }
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>matched</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- -nocase with -regexp -->
+
+<test-case name="switch -nocase -regexp simple">
+  <script>
+switch -nocase -regexp "HELLO" {
+    {^hello$} { set x matched }
+    default { set x "no match" }
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>matched</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="switch -nocase -regexp with groups">
+  <script>
+switch -nocase -regexp "HELLO_WORLD" {
+    {^([a-z]+)_([a-z]+)$} { set x matched }
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>matched</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- Option ordering -->
+
+<test-case name="switch -nocase before -glob">
+  <script>
+switch -nocase -glob "ABC" {
+    a* { set x matched }
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>matched</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="switch -glob before -nocase">
+  <script>
+switch -glob -nocase "ABC" {
+    a* { set x matched }
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>matched</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- No match cases -->
+
+<test-case name="switch -nocase no match returns empty">
+  <script>
+switch -nocase "xyz" {
+    abc { set x "matched abc" }
+    def { set x "matched def" }
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout></stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- With -- option -->
+
+<test-case name="switch -nocase with -- separator">
+  <script>
+switch -nocase -- "-test" {
+    -test { set x matched }
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>matched</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+</test-suite>

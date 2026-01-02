@@ -1,0 +1,220 @@
+<test-suite name="switch -matchvar and -indexvar options">
+
+<!-- -matchvar basic tests -->
+
+<test-case name="switch -regexp -matchvar captures full match">
+  <script>
+switch -regexp -matchvar m "hello" {
+    {hello} { lindex $m 0 }
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>hello</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="switch -regexp -matchvar captures groups">
+  <script>
+switch -regexp -matchvar m "hello123world" {
+    {([a-z]+)([0-9]+)([a-z]+)} {
+        set result [list [lindex $m 0] [lindex $m 1] [lindex $m 2] [lindex $m 3]]
+    }
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>hello123world hello 123 world</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="switch -regexp -matchvar group count">
+  <script>
+switch -regexp -matchvar m "ab12" {
+    {([a-z]+)([0-9]+)} { llength $m }
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>3</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="switch -regexp -matchvar optional group unmatched">
+  <script>
+switch -regexp -matchvar m "hel" {
+    {(hel)(lo)?} {
+        set result [list [lindex $m 0] [lindex $m 1] [lindex $m 2]]
+    }
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>hel hel {}</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="switch -regexp -matchvar default clears variable">
+  <script>
+set m "initial"
+switch -regexp -matchvar m "xyz" {
+    {abc} { set x matched }
+    default { set result $m }
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout></stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- -indexvar basic tests -->
+
+<test-case name="switch -regexp -indexvar captures indices">
+  <script>
+switch -regexp -indexvar i "hello" {
+    {hello} { lindex $i 0 }
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>0 4</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="switch -regexp -indexvar captures group indices">
+  <script>
+switch -regexp -indexvar i "hello123world" {
+    {([a-z]+)([0-9]+)([a-z]+)} {
+        set result [list [lindex $i 0] [lindex $i 1] [lindex $i 2] [lindex $i 3]]
+    }
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>{0 12} {0 4} {5 7} {8 12}</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- -matchvar and -indexvar together -->
+
+<test-case name="switch -regexp -matchvar -indexvar both">
+  <script>
+switch -regexp -matchvar m -indexvar i "test42" {
+    {([a-z]+)([0-9]+)} {
+        list [lindex $m 1] [lindex $i 1]
+    }
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>test {0 3}</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- -nocase combined with -matchvar -->
+
+<test-case name="switch -nocase -regexp -matchvar preserves case">
+  <script>
+switch -nocase -regexp -matchvar m "HELLO" {
+    {^(hel)(lo)$} {
+        list [lindex $m 0] [lindex $m 1] [lindex $m 2]
+    }
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>HELLO HEL LO</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- Error cases -->
+
+<test-case name="switch -matchvar without -regexp errors">
+  <script>
+switch -matchvar m "hello" {
+    hello { set x matched }
+}
+  </script>
+  <return>TCL_ERROR</return>
+  <error>-matchvar option requires -regexp option</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="switch -indexvar without -regexp errors">
+  <script>
+switch -indexvar i "hello" {
+    hello { set x matched }
+}
+  </script>
+  <return>TCL_ERROR</return>
+  <error>-indexvar option requires -regexp option</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="switch -glob -matchvar errors">
+  <script>
+switch -glob -matchvar m "hello" {
+    hel* { set x matched }
+}
+  </script>
+  <return>TCL_ERROR</return>
+  <error>-matchvar option requires -regexp option</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="switch -exact -indexvar errors">
+  <script>
+switch -exact -indexvar i "hello" {
+    hello { set x matched }
+}
+  </script>
+  <return>TCL_ERROR</return>
+  <error>-indexvar option requires -regexp option</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+<!-- Option ordering variations -->
+
+<test-case name="switch -matchvar before -regexp">
+  <script>
+switch -matchvar m -regexp "test" {
+    {(.+)} { lindex $m 0 }
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>test</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="switch complex option order">
+  <script>
+switch -nocase -matchvar m -indexvar i -regexp "TEST" {
+    {(t)(e)(s)(t)} {
+        list [lindex $m 1] [lindex $i 1]
+    }
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>T {0 0}</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+</test-suite>
