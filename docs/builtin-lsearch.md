@@ -11,6 +11,7 @@ Our `lsearch` implementation in `src/builtin_lsearch.c` provides list searching 
 - Negated matching via `-not`
 - Start searching from a specific index via `-start`
 - Search within nested list elements via `-index`
+- Search through groups of elements via `-stride`
 
 The implementation searches through list elements linearly and returns either the index of the first match (or -1 if not found), or when combined with `-all` and/or `-inline`, returns lists of indices or matching values.
 
@@ -27,6 +28,7 @@ The implementation searches through list elements linearly and returns either th
 | `-not` | Negate the match condition |
 | `-start index` | Begin searching at specified index |
 | `-index index` | Search within nested list elements at the specified index |
+| `-stride N` | Treat list as groups of N elements, search by first element of each group | **Implemented** |
 
 ## TCL Features We Do NOT Support
 
@@ -63,8 +65,7 @@ These options control the sort order when using `-sorted`:
 
 | Option | Description |
 |--------|-------------|
-| `-stride strideLength` | Treat list as groups of N elements, search by first element of each group |
-| `-subindices` | Return full path indices for nested matches |
+| `-subindices` | Return full path indices for nested matches - Not implemented |
 
 ## Notes on Implementation Differences
 
@@ -79,3 +80,5 @@ These options control the sort order when using `-sorted`:
 5. **No binary search optimization**: TCL's `-sorted` option enables O(log n) binary search. Our implementation always uses O(n) linear search.
 
 6. **Error messages**: Our error message for unknown options includes the bad option name, which matches TCL behavior.
+
+7. **-stride behavior**: With `-stride N`, the list is treated as groups of N elements. By default, searches match against the first element of each group. With `-index M`, searches match against the Mth element of each group (0-indexed). With `-inline`, returns all elements in the matching group.

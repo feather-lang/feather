@@ -252,6 +252,7 @@ FeatherResult feather_builtin_lsort(const FeatherHostOps *ops, FeatherInterp int
   ctx.error = 0;
   int unique = 0;
   int returnIndices = 0;
+  int64_t strideLength = 1; // Default is 1 (no stride)
 
   // Process options until we find a non-option (the list)
   FeatherObj listObj = 0;
@@ -308,11 +309,34 @@ FeatherResult feather_builtin_lsort(const FeatherHostOps *ops, FeatherInterp int
         }
         ctx.commandProc = ops->list.shift(interp, args);
         ctx.hasCommand = 1;
+      } else if (feather_obj_eq_literal(ops, interp, arg, "-stride")) {
+        // -stride requires an argument (stride length) plus the list
+        if (ops->list.length(interp, args) <= 1) {
+          FeatherObj msg = ops->string.intern(interp,
+            "\"-stride\" option must be followed by stride length", 50);
+          ops->interp.set_result(interp, msg);
+          return TCL_ERROR;
+        }
+        FeatherObj strideArg = ops->list.shift(interp, args);
+        if (ops->integer.get(interp, strideArg, &strideLength) != TCL_OK) {
+          FeatherObj msg = ops->string.intern(interp, "bad stride length \"", 19);
+          msg = ops->string.concat(interp, msg, strideArg);
+          FeatherObj suffix = ops->string.intern(interp, "\"", 1);
+          msg = ops->string.concat(interp, msg, suffix);
+          ops->interp.set_result(interp, msg);
+          return TCL_ERROR;
+        }
+        if (strideLength < 2) {
+          FeatherObj msg = ops->string.intern(interp,
+            "stride length must be at least 2", 32);
+          ops->interp.set_result(interp, msg);
+          return TCL_ERROR;
+        }
       } else {
         FeatherObj msg = ops->string.intern(interp, "bad option \"", 12);
         msg = ops->string.concat(interp, msg, arg);
         FeatherObj suffix = ops->string.intern(interp,
-          "\": must be -ascii, -command, -decreasing, -dictionary, -increasing, -index, -indices, -integer, -nocase, -real, or -unique", 122);
+          "\": must be -ascii, -command, -decreasing, -dictionary, -increasing, -index, -indices, -integer, -nocase, -real, -stride, or -unique", 131);
         msg = ops->string.concat(interp, msg, suffix);
         ops->interp.set_result(interp, msg);
         return TCL_ERROR;
@@ -335,11 +359,48 @@ FeatherResult feather_builtin_lsort(const FeatherHostOps *ops, FeatherInterp int
   FeatherObj list = ops->list.from(interp, listObj);
   size_t listLen = ops->list.length(interp, list);
 
-  // Handle empty or single-element list
-  if (listLen <= 1) {
+  // Validate stride constraint
+  if (strideLength > 1 && listLen % (size_t)strideLength != 0) {
+    FeatherObj msg = ops->string.intern(interp,
+      "list size must be a multiple of the stride length", 49);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  // Handle stride: group elements into sublists of stride size
+  size_t stride = (size_t)strideLength;
+  FeatherObj workList = list;
+  size_t numGroups = listLen;
+  if (stride > 1) {
+    workList = ops->list.create(interp);
+    numGroups = listLen / stride;
+    for (size_t i = 0; i < listLen; i += stride) {
+      FeatherObj group = ops->list.create(interp);
+      for (size_t j = 0; j < stride; j++) {
+        group = ops->list.push(interp, group, ops->list.at(interp, list, i + j));
+      }
+      workList = ops->list.push(interp, workList, group);
+    }
+    // When using stride, -index now refers to position within the group
+    // If no -index was specified, default to first element (index 0)
+    if (!ctx.hasIndex) {
+      ctx.hasIndex = 1;
+      ctx.sortIndex = 0;
+    }
+  }
+
+  // Handle empty or single-element list (or single group with stride)
+  if (numGroups <= 1) {
     if (returnIndices) {
       if (listLen == 0) {
         ops->interp.set_result(interp, list);
+      } else if (stride > 1) {
+        // Return all indices in the single group
+        FeatherObj result = ops->list.create(interp);
+        for (size_t i = 0; i < stride; i++) {
+          result = ops->list.push(interp, result, ops->integer.create(interp, (int64_t)i));
+        }
+        ops->interp.set_result(interp, result);
       } else {
         FeatherObj result = ops->list.create(interp);
         result = ops->list.push(interp, result, ops->integer.create(interp, 0));
@@ -352,14 +413,28 @@ FeatherResult feather_builtin_lsort(const FeatherHostOps *ops, FeatherInterp int
   }
 
   if (returnIndices) {
-    // For -indices, create a list of {index, value} pairs
+    // For -indices, create a list of {start-index, value/group} pairs
     FeatherObj pairs = ops->list.create(interp);
-    for (size_t i = 0; i < listLen; i++) {
-      FeatherObj elem = ops->list.at(interp, list, i);
-      FeatherObj pair = ops->list.create(interp);
-      pair = ops->list.push(interp, pair, ops->integer.create(interp, (int64_t)i));
-      pair = ops->list.push(interp, pair, elem);
-      pairs = ops->list.push(interp, pairs, pair);
+    if (stride > 1) {
+      // Create pairs of {start-index, group} for each stride group
+      for (size_t i = 0; i < listLen; i += stride) {
+        FeatherObj group = ops->list.create(interp);
+        for (size_t j = 0; j < stride; j++) {
+          group = ops->list.push(interp, group, ops->list.at(interp, list, i + j));
+        }
+        FeatherObj pair = ops->list.create(interp);
+        pair = ops->list.push(interp, pair, ops->integer.create(interp, (int64_t)i));
+        pair = ops->list.push(interp, pair, group);
+        pairs = ops->list.push(interp, pairs, pair);
+      }
+    } else {
+      for (size_t i = 0; i < listLen; i++) {
+        FeatherObj elem = ops->list.at(interp, list, i);
+        FeatherObj pair = ops->list.create(interp);
+        pair = ops->list.push(interp, pair, ops->integer.create(interp, (int64_t)i));
+        pair = ops->list.push(interp, pair, elem);
+        pairs = ops->list.push(interp, pairs, pair);
+      }
     }
 
     // Sort the pairs - the context's sortingPairs flag handles extraction
@@ -386,19 +461,24 @@ FeatherResult feather_builtin_lsort(const FeatherHostOps *ops, FeatherInterp int
       for (size_t i = 0; i < pairsLen; i++) {
         FeatherObj pair = ops->list.at(interp, pairs, i);
         FeatherObj pairList = ops->list.from(interp, pair);
-        FeatherObj idx = ops->list.at(interp, pairList, 0);
         FeatherObj value = ops->list.at(interp, pairList, 1);
+        int64_t startIdx;
+        ops->integer.get(interp, ops->list.at(interp, pairList, 0), &startIdx);
 
         if (i == pairsLen - 1) {
-          // Last element, always add
-          result = ops->list.push(interp, result, idx);
+          // Last element, always add all indices in the group
+          for (size_t j = 0; j < stride; j++) {
+            result = ops->list.push(interp, result, ops->integer.create(interp, startIdx + (int64_t)j));
+          }
         } else {
           // Compare with next value
           FeatherObj nextPair = ops->list.at(interp, pairs, i + 1);
           FeatherObj nextPairList = ops->list.from(interp, nextPair);
           FeatherObj nextValue = ops->list.at(interp, nextPairList, 1);
           if (compare_elements(interp, value, nextValue, &ctx) != 0) {
-            result = ops->list.push(interp, result, idx);
+            for (size_t j = 0; j < stride; j++) {
+              result = ops->list.push(interp, result, ops->integer.create(interp, startIdx + (int64_t)j));
+            }
           }
         }
       }
@@ -408,15 +488,19 @@ FeatherResult feather_builtin_lsort(const FeatherHostOps *ops, FeatherInterp int
       for (size_t i = 0; i < pairsLen; i++) {
         FeatherObj pair = ops->list.at(interp, pairs, i);
         FeatherObj pairList = ops->list.from(interp, pair);
-        FeatherObj idx = ops->list.at(interp, pairList, 0);
-        result = ops->list.push(interp, result, idx);
+        int64_t startIdx;
+        ops->integer.get(interp, ops->list.at(interp, pairList, 0), &startIdx);
+        // Add all indices in the stride group
+        for (size_t j = 0; j < stride; j++) {
+          result = ops->list.push(interp, result, ops->integer.create(interp, startIdx + (int64_t)j));
+        }
       }
       ops->interp.set_result(interp, result);
     }
   } else {
     // Regular sort without -indices
     // Use host's O(n log n) sort - no size limit!
-    if (ops->list.sort(interp, list, compare_elements, &ctx) != TCL_OK) {
+    if (ops->list.sort(interp, workList, compare_elements, &ctx) != TCL_OK) {
       FeatherObj msg = ops->string.intern(interp, "sort failed", 11);
       ops->interp.set_result(interp, msg);
       return TCL_ERROR;
@@ -431,21 +515,53 @@ FeatherResult feather_builtin_lsort(const FeatherHostOps *ops, FeatherInterp int
     // TCL keeps the LAST duplicate, so we add an element when the NEXT is different
     if (unique) {
       FeatherObj result = ops->list.create(interp);
-      for (size_t i = 0; i < listLen; i++) {
-        FeatherObj elem = ops->list.at(interp, list, i);
+      size_t workLen = ops->list.length(interp, workList);
+      for (size_t i = 0; i < workLen; i++) {
+        FeatherObj elem = ops->list.at(interp, workList, i);
         // Add if this is the last element or different from next
-        if (i == listLen - 1) {
-          result = ops->list.push(interp, result, elem);
-        } else {
-          FeatherObj next = ops->list.at(interp, list, i + 1);
-          if (compare_elements(interp, elem, next, &ctx) != 0) {
+        if (i == workLen - 1) {
+          // Flatten if using stride
+          if (stride > 1) {
+            FeatherObj group = ops->list.from(interp, elem);
+            size_t groupLen = ops->list.length(interp, group);
+            for (size_t j = 0; j < groupLen; j++) {
+              result = ops->list.push(interp, result, ops->list.at(interp, group, j));
+            }
+          } else {
             result = ops->list.push(interp, result, elem);
+          }
+        } else {
+          FeatherObj next = ops->list.at(interp, workList, i + 1);
+          if (compare_elements(interp, elem, next, &ctx) != 0) {
+            // Flatten if using stride
+            if (stride > 1) {
+              FeatherObj group = ops->list.from(interp, elem);
+              size_t groupLen = ops->list.length(interp, group);
+              for (size_t j = 0; j < groupLen; j++) {
+                result = ops->list.push(interp, result, ops->list.at(interp, group, j));
+              }
+            } else {
+              result = ops->list.push(interp, result, elem);
+            }
           }
         }
       }
       ops->interp.set_result(interp, result);
+    } else if (stride > 1) {
+      // Flatten the sorted groups back into a single list
+      FeatherObj result = ops->list.create(interp);
+      size_t workLen = ops->list.length(interp, workList);
+      for (size_t i = 0; i < workLen; i++) {
+        FeatherObj group = ops->list.at(interp, workList, i);
+        FeatherObj groupList = ops->list.from(interp, group);
+        size_t groupLen = ops->list.length(interp, groupList);
+        for (size_t j = 0; j < groupLen; j++) {
+          result = ops->list.push(interp, result, ops->list.at(interp, groupList, j));
+        }
+      }
+      ops->interp.set_result(interp, result);
     } else {
-      ops->interp.set_result(interp, list);
+      ops->interp.set_result(interp, workList);
     }
   }
 

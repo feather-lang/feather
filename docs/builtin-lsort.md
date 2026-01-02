@@ -14,6 +14,7 @@ Our `lsort` implementation in `src/builtin_lsort.c` provides list sorting functi
 - Supports sorting nested lists by a specific element via `-index`
 - Can return indices instead of values via `-indices`
 - Supports custom comparison commands via `-command`
+- Supports sorting groups of elements via `-stride`
 
 ## TCL Features We Support
 
@@ -30,21 +31,11 @@ Our `lsort` implementation in `src/builtin_lsort.c` provides list sorting functi
 | `-index index` | Sort sublists by element at the given index | Supported |
 | `-indices` | Return list of indices in sorted order instead of values | Supported |
 | `-command cmd` | Use a custom TCL command as the comparison function | **Implemented** |
+| `-stride N` | Treat the list as groups of N elements and sort the groups | **Implemented** |
 
 ## TCL Features We Do NOT Support
 
-| Option | Description | TCL Behavior |
-|--------|-------------|--------------|
-| `-stride <strideLength>` | Treat the list as groups of N elements and sort the groups | Not implemented |
-
-### Feature Details
-
-#### -stride
-Groups elements for sorting:
-```tcl
-lsort -stride 2 {carrot 10 apple 50 banana 25}
-# Returns: apple 50 banana 25 carrot 10
-```
+All major lsort features are now implemented.
 
 ## Notes on Implementation Differences
 
@@ -61,3 +52,5 @@ lsort -stride 2 {carrot 10 apple 50 banana 25}
 6. **Simple index format**: Our `-index` option only supports simple integer indices, not TCL's `end-N` syntax or nested index lists.
 
 7. **-command behavior**: The comparison command must return an integer. Negative values mean the first argument is less than the second, positive means greater, zero means equal. Non-integer return values cause an error.
+
+8. **-stride behavior**: With `-stride N`, the list is treated as groups of N elements. Sorting is done by comparing the first element of each group (or the element at `-index M` position within each group). The stride length must be at least 2, and the list size must be a multiple of the stride length.

@@ -110,6 +110,7 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
   int64_t startIndex = 0;
   int hasIndex = 0;
   int64_t searchIndex = 0;
+  int64_t strideLength = 1;  // Default is 1 (no stride)
 
   // Process options
   while (ops->list.length(interp, args) > 2) {
@@ -164,6 +165,29 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
         return TCL_ERROR;
       }
       hasIndex = 1;
+    } else if (feather_obj_eq_literal(ops, interp, arg, "-stride")) {
+      // -stride requires an argument
+      if (ops->list.length(interp, args) < 3) {
+        FeatherObj msg = ops->string.intern(interp,
+          "\"-stride\" option must be followed by stride length", 50);
+        ops->interp.set_result(interp, msg);
+        return TCL_ERROR;
+      }
+      FeatherObj strideArg = ops->list.shift(interp, args);
+      if (ops->integer.get(interp, strideArg, &strideLength) != TCL_OK) {
+        FeatherObj msg = ops->string.intern(interp, "bad stride length \"", 19);
+        msg = ops->string.concat(interp, msg, strideArg);
+        FeatherObj suffix = ops->string.intern(interp, "\"", 1);
+        msg = ops->string.concat(interp, msg, suffix);
+        ops->interp.set_result(interp, msg);
+        return TCL_ERROR;
+      }
+      if (strideLength < 1) {
+        FeatherObj msg = ops->string.intern(interp,
+          "stride length must be at least 1", 32);
+        ops->interp.set_result(interp, msg);
+        return TCL_ERROR;
+      }
     } else if (feather_obj_eq_literal(ops, interp, arg, "-dictionary") ||
                feather_obj_eq_literal(ops, interp, arg, "-ascii") ||
                feather_obj_eq_literal(ops, interp, arg, "-integer") ||
@@ -188,6 +212,15 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
   // Convert to list
   FeatherObj list = ops->list.from(interp, listObj);
   size_t listLen = ops->list.length(interp, list);
+  size_t stride = (size_t)strideLength;
+
+  // Validate stride constraint
+  if (stride > 1 && listLen % stride != 0) {
+    FeatherObj msg = ops->string.intern(interp,
+      "list size must be a multiple of the stride length", 49);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
 
   // Clamp startIndex to list length (returns -1 or empty for out of range)
   size_t start = (size_t)startIndex;
@@ -196,11 +229,23 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
   if (all) {
     // Return all matching indices/elements
     FeatherObj result = ops->list.create(interp);
-    for (size_t i = start; i < listLen; i++) {
+    for (size_t i = start; i < listLen; i += stride) {
+      FeatherObj matchElem;
       FeatherObj elem = ops->list.at(interp, list, i);
-      // For -index, extract the element at the specified index within the sublist
-      FeatherObj matchElem = elem;
-      if (hasIndex) {
+
+      if (stride > 1 && hasIndex) {
+        // With stride, -index specifies position within the stride group
+        size_t elemIdx = (size_t)searchIndex;
+        if (elemIdx >= stride) {
+          // Index out of range for this stride group - skip
+          continue;
+        }
+        matchElem = ops->list.at(interp, list, i + elemIdx);
+      } else if (stride > 1) {
+        // With stride but no -index, match against first element of group
+        matchElem = elem;
+      } else if (hasIndex) {
+        // No stride but with -index: search within nested sublists
         FeatherObj sublist = ops->list.from(interp, elem);
         size_t sublistLen = ops->list.length(interp, sublist);
         if (searchIndex >= 0 && (size_t)searchIndex < sublistLen) {
@@ -209,10 +254,21 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
           // Index out of range - skip this element (doesn't match)
           continue;
         }
+      } else {
+        // No stride, no -index: match against element directly
+        matchElem = elem;
       }
+
       if (element_matches(ops, interp, matchElem, pattern, mode, nocase, negate)) {
         if (inlineResult) {
-          result = ops->list.push(interp, result, elem);
+          if (stride > 1) {
+            // Return all elements in the stride group
+            for (size_t j = 0; j < stride; j++) {
+              result = ops->list.push(interp, result, ops->list.at(interp, list, i + j));
+            }
+          } else {
+            result = ops->list.push(interp, result, elem);
+          }
         } else {
           result = ops->list.push(interp, result, ops->integer.create(interp, (int64_t)i));
         }
@@ -221,11 +277,23 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
     ops->interp.set_result(interp, result);
   } else {
     // Return first match
-    for (size_t i = start; i < listLen; i++) {
+    for (size_t i = start; i < listLen; i += stride) {
+      FeatherObj matchElem;
       FeatherObj elem = ops->list.at(interp, list, i);
-      // For -index, extract the element at the specified index within the sublist
-      FeatherObj matchElem = elem;
-      if (hasIndex) {
+
+      if (stride > 1 && hasIndex) {
+        // With stride, -index specifies position within the stride group
+        size_t elemIdx = (size_t)searchIndex;
+        if (elemIdx >= stride) {
+          // Index out of range for this stride group - skip
+          continue;
+        }
+        matchElem = ops->list.at(interp, list, i + elemIdx);
+      } else if (stride > 1) {
+        // With stride but no -index, match against first element of group
+        matchElem = elem;
+      } else if (hasIndex) {
+        // No stride but with -index: search within nested sublists
         FeatherObj sublist = ops->list.from(interp, elem);
         size_t sublistLen = ops->list.length(interp, sublist);
         if (searchIndex >= 0 && (size_t)searchIndex < sublistLen) {
@@ -234,10 +302,23 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
           // Index out of range - skip this element (doesn't match)
           continue;
         }
+      } else {
+        // No stride, no -index: match against element directly
+        matchElem = elem;
       }
+
       if (element_matches(ops, interp, matchElem, pattern, mode, nocase, negate)) {
         if (inlineResult) {
-          ops->interp.set_result(interp, elem);
+          if (stride > 1) {
+            // Return all elements in the stride group
+            FeatherObj group = ops->list.create(interp);
+            for (size_t j = 0; j < stride; j++) {
+              group = ops->list.push(interp, group, ops->list.at(interp, list, i + j));
+            }
+            ops->interp.set_result(interp, group);
+          } else {
+            ops->interp.set_result(interp, elem);
+          }
         } else {
           ops->interp.set_result(interp, ops->integer.create(interp, (int64_t)i));
         }
