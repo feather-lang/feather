@@ -244,7 +244,8 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
   int subindices = 0;
   int64_t startIndex = 0;
   int hasIndex = 0;
-  int64_t searchIndex = 0;
+  int64_t searchIndices[16];  // Support up to 16 levels of nesting
+  size_t numSearchIndices = 0;
   int64_t strideLength = 1;  // Default is 1 (no stride)
 
   // Process options
@@ -291,13 +292,35 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
         return TCL_ERROR;
       }
       FeatherObj indexArg = ops->list.shift(interp, args);
-      if (ops->integer.get(interp, indexArg, &searchIndex) != TCL_OK) {
-        FeatherObj msg = ops->string.intern(interp, "bad index \"", 11);
-        msg = ops->string.concat(interp, msg, indexArg);
-        FeatherObj suffix = ops->string.intern(interp, "\": must be integer?[+-]integer? or end?[+-]integer?", 51);
-        msg = ops->string.concat(interp, msg, suffix);
-        ops->interp.set_result(interp, msg);
-        return TCL_ERROR;
+      // Try as single integer first
+      int64_t singleIndex;
+      if (ops->integer.get(interp, indexArg, &singleIndex) == TCL_OK) {
+        searchIndices[0] = singleIndex;
+        numSearchIndices = 1;
+      } else {
+        // Try as list of integers
+        FeatherObj indexList = ops->list.from(interp, indexArg);
+        size_t indexListLen = ops->list.length(interp, indexList);
+        if (indexListLen == 0 || indexListLen > 16) {
+          FeatherObj msg = ops->string.intern(interp, "bad index \"", 11);
+          msg = ops->string.concat(interp, msg, indexArg);
+          FeatherObj suffix = ops->string.intern(interp, "\": must be integer?[+-]integer? or end?[+-]integer?", 51);
+          msg = ops->string.concat(interp, msg, suffix);
+          ops->interp.set_result(interp, msg);
+          return TCL_ERROR;
+        }
+        for (size_t j = 0; j < indexListLen; j++) {
+          FeatherObj idxObj = ops->list.at(interp, indexList, j);
+          if (ops->integer.get(interp, idxObj, &searchIndices[j]) != TCL_OK) {
+            FeatherObj msg = ops->string.intern(interp, "bad index \"", 11);
+            msg = ops->string.concat(interp, msg, idxObj);
+            FeatherObj suffix = ops->string.intern(interp, "\": must be integer?[+-]integer? or end?[+-]integer?", 51);
+            msg = ops->string.concat(interp, msg, suffix);
+            ops->interp.set_result(interp, msg);
+            return TCL_ERROR;
+          }
+        }
+        numSearchIndices = indexListLen;
       }
       hasIndex = 1;
     } else if (feather_obj_eq_literal(ops, interp, arg, "-stride")) {
@@ -382,20 +405,34 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
   size_t start = (size_t)startIndex;
   if (start > listLen) start = listLen;
 
-  // Helper macro to extract element to compare
+  // Helper macro to extract element to compare (supports nested indices)
   #define GET_MATCH_ELEM(i, elem, matchElem) do { \
     if (stride > 1 && hasIndex) { \
-      size_t elemIdx = (size_t)searchIndex; \
+      size_t elemIdx = (size_t)searchIndices[0]; \
       if (elemIdx >= stride) { matchElem = 0; } \
-      else { matchElem = ops->list.at(interp, list, (i) + elemIdx); } \
+      else { \
+        matchElem = ops->list.at(interp, list, (i) + elemIdx); \
+        /* Traverse remaining indices for nested access */ \
+        for (size_t _k = 1; _k < numSearchIndices && matchElem; _k++) { \
+          FeatherObj _sub = ops->list.from(interp, matchElem); \
+          size_t _subLen = ops->list.length(interp, _sub); \
+          if (searchIndices[_k] >= 0 && (size_t)searchIndices[_k] < _subLen) { \
+            matchElem = ops->list.at(interp, _sub, (size_t)searchIndices[_k]); \
+          } else { matchElem = 0; } \
+        } \
+      } \
     } else if (stride > 1) { \
       matchElem = elem; \
     } else if (hasIndex) { \
-      FeatherObj sublist = ops->list.from(interp, elem); \
-      size_t sublistLen = ops->list.length(interp, sublist); \
-      if (searchIndex >= 0 && (size_t)searchIndex < sublistLen) { \
-        matchElem = ops->list.at(interp, sublist, (size_t)searchIndex); \
-      } else { matchElem = 0; } \
+      matchElem = elem; \
+      /* Traverse all indices for nested access */ \
+      for (size_t _k = 0; _k < numSearchIndices && matchElem; _k++) { \
+        FeatherObj _sub = ops->list.from(interp, matchElem); \
+        size_t _subLen = ops->list.length(interp, _sub); \
+        if (searchIndices[_k] >= 0 && (size_t)searchIndices[_k] < _subLen) { \
+          matchElem = ops->list.at(interp, _sub, (size_t)searchIndices[_k]); \
+        } else { matchElem = 0; } \
+      } \
     } else { \
       matchElem = elem; \
     } \
@@ -475,7 +512,9 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
       } else if (subindices) {
         FeatherObj pair = ops->list.create(interp);
         pair = ops->list.push(interp, pair, ops->integer.create(interp, -1));
-        pair = ops->list.push(interp, pair, ops->integer.create(interp, searchIndex));
+        for (size_t si = 0; si < numSearchIndices; si++) {
+          pair = ops->list.push(interp, pair, ops->integer.create(interp, searchIndices[si]));
+        }
         ops->interp.set_result(interp, pair);
       } else {
         ops->interp.set_result(interp, ops->integer.create(interp, -1));
@@ -526,7 +565,9 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
         } else if (subindices) {
           FeatherObj pair = ops->list.create(interp);
           pair = ops->list.push(interp, pair, ops->integer.create(interp, (int64_t)realIdx));
-          pair = ops->list.push(interp, pair, ops->integer.create(interp, searchIndex));
+          for (size_t si = 0; si < numSearchIndices; si++) {
+            pair = ops->list.push(interp, pair, ops->integer.create(interp, searchIndices[si]));
+          }
           result = ops->list.push(interp, result, pair);
         } else {
           result = ops->list.push(interp, result, ops->integer.create(interp, (int64_t)realIdx));
@@ -555,7 +596,9 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
       } else if (subindices) {
         FeatherObj pair = ops->list.create(interp);
         pair = ops->list.push(interp, pair, ops->integer.create(interp, (int64_t)realIdx));
-        pair = ops->list.push(interp, pair, ops->integer.create(interp, searchIndex));
+        for (size_t si = 0; si < numSearchIndices; si++) {
+          pair = ops->list.push(interp, pair, ops->integer.create(interp, searchIndices[si]));
+        }
         ops->interp.set_result(interp, pair);
       } else {
         ops->interp.set_result(interp, ops->integer.create(interp, (int64_t)realIdx));
@@ -599,7 +642,9 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
         } else if (subindices) {
           FeatherObj pair = ops->list.create(interp);
           pair = ops->list.push(interp, pair, ops->integer.create(interp, (int64_t)i));
-          pair = ops->list.push(interp, pair, ops->integer.create(interp, searchIndex));
+          for (size_t si = 0; si < numSearchIndices; si++) {
+            pair = ops->list.push(interp, pair, ops->integer.create(interp, searchIndices[si]));
+          }
           result = ops->list.push(interp, result, pair);
         } else {
           result = ops->list.push(interp, result, ops->integer.create(interp, (int64_t)i));
@@ -642,7 +687,9 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
         } else if (subindices) {
           FeatherObj pair = ops->list.create(interp);
           pair = ops->list.push(interp, pair, ops->integer.create(interp, (int64_t)i));
-          pair = ops->list.push(interp, pair, ops->integer.create(interp, searchIndex));
+          for (size_t si = 0; si < numSearchIndices; si++) {
+            pair = ops->list.push(interp, pair, ops->integer.create(interp, searchIndices[si]));
+          }
           ops->interp.set_result(interp, pair);
         } else {
           ops->interp.set_result(interp, ops->integer.create(interp, (int64_t)i));
@@ -656,7 +703,9 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
     } else if (subindices) {
       FeatherObj pair = ops->list.create(interp);
       pair = ops->list.push(interp, pair, ops->integer.create(interp, -1));
-      pair = ops->list.push(interp, pair, ops->integer.create(interp, searchIndex));
+      for (size_t si = 0; si < numSearchIndices; si++) {
+        pair = ops->list.push(interp, pair, ops->integer.create(interp, searchIndices[si]));
+      }
       ops->interp.set_result(interp, pair);
     } else {
       ops->interp.set_result(interp, ops->integer.create(interp, -1));

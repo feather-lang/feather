@@ -63,4 +63,6 @@ All major lsearch features are now implemented.
 
 8. **-stride behavior**: With `-stride N`, the list is treated as groups of N elements. By default, searches match against the first element of each group. With `-index M`, searches match against the Mth element of each group (0-indexed). With `-inline`, returns all elements in the matching group.
 
-9. **-subindices behavior**: Requires `-index`. Returns `{listindex subindex}` instead of just the list index. With `-inline`, returns the matched element value (the element at the specified subindex). Our implementation only supports simple integer indices, not TCL's nested index lists.
+9. **-subindices behavior**: Requires `-index`. Returns `{listindex subindex...}` instead of just the list index. With `-inline`, returns the matched element value (the element at the specified subindex).
+
+10. **Nested index lists**: The `-index` option supports both simple integers (e.g., `0`) and lists of integers (e.g., `{0 1}`) for traversing nested list structures. With `{0 1}`, element 0 is extracted from each list item, then element 1 from that. With `-subindices`, the full path is returned (e.g., `1 0 1`). Maximum nesting depth is 16 levels.
