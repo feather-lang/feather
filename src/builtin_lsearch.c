@@ -241,6 +241,7 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
   int sorted = 0;
   int bisect = 0;
   int decreasing = 0;
+  int subindices = 0;
   int64_t startIndex = 0;
   int hasIndex = 0;
   int64_t searchIndex = 0;
@@ -341,6 +342,8 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
       decreasing = 0;
     } else if (feather_obj_eq_literal(ops, interp, arg, "-decreasing")) {
       decreasing = 1;
+    } else if (feather_obj_eq_literal(ops, interp, arg, "-subindices")) {
+      subindices = 1;
     } else {
       FeatherObj msg = ops->string.intern(interp, "bad option \"", 12);
       msg = ops->string.concat(interp, msg, arg);
@@ -363,6 +366,14 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
   if (stride > 1 && listLen % stride != 0) {
     FeatherObj msg = ops->string.intern(interp,
       "list size must be a multiple of the stride length", 49);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  // Validate -subindices requires -index
+  if (subindices && !hasIndex) {
+    FeatherObj msg = ops->string.intern(interp,
+      "-subindices cannot be used without -index option", 48);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
@@ -461,6 +472,11 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
         ops->interp.set_result(interp, ops->list.create(interp));
       } else if (inlineResult) {
         ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
+      } else if (subindices) {
+        FeatherObj pair = ops->list.create(interp);
+        pair = ops->list.push(interp, pair, ops->integer.create(interp, -1));
+        pair = ops->list.push(interp, pair, ops->integer.create(interp, searchIndex));
+        ops->interp.set_result(interp, pair);
       } else {
         ops->interp.set_result(interp, ops->integer.create(interp, -1));
       }
@@ -498,9 +514,20 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
             for (size_t j = 0; j < stride; j++) {
               result = ops->list.push(interp, result, ops->list.at(interp, list, realIdx + j));
             }
+          } else if (subindices) {
+            // With -subindices -inline, return the matched element value
+            FeatherObj subElem = ops->list.at(interp, list, realIdx);
+            FeatherObj subMatchElem;
+            GET_MATCH_ELEM(realIdx, subElem, subMatchElem);
+            result = ops->list.push(interp, result, subMatchElem);
           } else {
             result = ops->list.push(interp, result, ops->list.at(interp, list, realIdx));
           }
+        } else if (subindices) {
+          FeatherObj pair = ops->list.create(interp);
+          pair = ops->list.push(interp, pair, ops->integer.create(interp, (int64_t)realIdx));
+          pair = ops->list.push(interp, pair, ops->integer.create(interp, searchIndex));
+          result = ops->list.push(interp, result, pair);
         } else {
           result = ops->list.push(interp, result, ops->integer.create(interp, (int64_t)realIdx));
         }
@@ -516,9 +543,20 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
             group = ops->list.push(interp, group, ops->list.at(interp, list, realIdx + j));
           }
           ops->interp.set_result(interp, group);
+        } else if (subindices) {
+          // With -subindices -inline, return the matched element value
+          FeatherObj singleElem = ops->list.at(interp, list, realIdx);
+          FeatherObj singleMatchElem;
+          GET_MATCH_ELEM(realIdx, singleElem, singleMatchElem);
+          ops->interp.set_result(interp, singleMatchElem);
         } else {
           ops->interp.set_result(interp, ops->list.at(interp, list, realIdx));
         }
+      } else if (subindices) {
+        FeatherObj pair = ops->list.create(interp);
+        pair = ops->list.push(interp, pair, ops->integer.create(interp, (int64_t)realIdx));
+        pair = ops->list.push(interp, pair, ops->integer.create(interp, searchIndex));
+        ops->interp.set_result(interp, pair);
       } else {
         ops->interp.set_result(interp, ops->integer.create(interp, (int64_t)realIdx));
       }
@@ -552,9 +590,17 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
             for (size_t j = 0; j < stride; j++) {
               result = ops->list.push(interp, result, ops->list.at(interp, list, i + j));
             }
+          } else if (subindices) {
+            // With -subindices -inline, return the matched element value, not the container
+            result = ops->list.push(interp, result, matchElem);
           } else {
             result = ops->list.push(interp, result, elem);
           }
+        } else if (subindices) {
+          FeatherObj pair = ops->list.create(interp);
+          pair = ops->list.push(interp, pair, ops->integer.create(interp, (int64_t)i));
+          pair = ops->list.push(interp, pair, ops->integer.create(interp, searchIndex));
+          result = ops->list.push(interp, result, pair);
         } else {
           result = ops->list.push(interp, result, ops->integer.create(interp, (int64_t)i));
         }
@@ -587,9 +633,17 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
               group = ops->list.push(interp, group, ops->list.at(interp, list, i + j));
             }
             ops->interp.set_result(interp, group);
+          } else if (subindices) {
+            // With -subindices -inline, return the matched element value, not the container
+            ops->interp.set_result(interp, matchElem);
           } else {
             ops->interp.set_result(interp, elem);
           }
+        } else if (subindices) {
+          FeatherObj pair = ops->list.create(interp);
+          pair = ops->list.push(interp, pair, ops->integer.create(interp, (int64_t)i));
+          pair = ops->list.push(interp, pair, ops->integer.create(interp, searchIndex));
+          ops->interp.set_result(interp, pair);
         } else {
           ops->interp.set_result(interp, ops->integer.create(interp, (int64_t)i));
         }
@@ -599,6 +653,11 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
     // Not found
     if (inlineResult) {
       ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
+    } else if (subindices) {
+      FeatherObj pair = ops->list.create(interp);
+      pair = ops->list.push(interp, pair, ops->integer.create(interp, -1));
+      pair = ops->list.push(interp, pair, ops->integer.create(interp, searchIndex));
+      ops->interp.set_result(interp, pair);
     } else {
       ops->interp.set_result(interp, ops->integer.create(interp, -1));
     }

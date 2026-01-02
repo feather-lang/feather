@@ -39,14 +39,11 @@ The implementation supports both linear search (O(n)) for unsorted lists and bin
 | `-real` | Compare as floating-point values |
 | `-increasing` | List is sorted in increasing order (default) |
 | `-decreasing` | List is sorted in decreasing order |
+| `-subindices` | Return full path indices {listindex subindex} for nested matches |
 
 ## TCL Features We Do NOT Support
 
-### Nested List Options
-
-| Option | Description |
-|--------|-------------|
-| `-subindices` | Return full path indices for nested matches - Not implemented |
+All major lsearch features are now implemented.
 
 ## Notes on Implementation Differences
 
@@ -65,3 +62,5 @@ The implementation supports both linear search (O(n)) for unsorted lists and bin
 7. **Error messages**: Our error message for unknown options includes the bad option name, which matches TCL behavior.
 
 8. **-stride behavior**: With `-stride N`, the list is treated as groups of N elements. By default, searches match against the first element of each group. With `-index M`, searches match against the Mth element of each group (0-indexed). With `-inline`, returns all elements in the matching group.
+
+9. **-subindices behavior**: Requires `-index`. Returns `{listindex subindex}` instead of just the list index. With `-inline`, returns the matched element value (the element at the specified subindex). Our implementation only supports simple integer indices, not TCL's nested index lists.
