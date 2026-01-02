@@ -12,8 +12,10 @@ Our `lsearch` implementation in `src/builtin_lsearch.c` provides list searching 
 - Start searching from a specific index via `-start`
 - Search within nested list elements via `-index`
 - Search through groups of elements via `-stride`
+- Binary search for sorted lists via `-sorted` with multiple comparison modes
+- Insertion point search via `-bisect`
 
-The implementation searches through list elements linearly and returns either the index of the first match (or -1 if not found), or when combined with `-all` and/or `-inline`, returns lists of indices or matching values.
+The implementation supports both linear search (O(n)) for unsorted lists and binary search (O(log n)) for sorted lists via the `-sorted` option.
 
 ## TCL Features We Support
 
@@ -28,38 +30,17 @@ The implementation searches through list elements linearly and returns either th
 | `-not` | Negate the match condition |
 | `-start index` | Begin searching at specified index |
 | `-index index` | Search within nested list elements at the specified index |
-| `-stride N` | Treat list as groups of N elements, search by first element of each group | **Implemented** |
+| `-stride N` | Treat list as groups of N elements, search by first element of each group |
+| `-sorted` | Binary search for sorted lists (O(log n) algorithm) |
+| `-bisect` | Inexact search returning last index <= pattern (increasing) or >= pattern (decreasing) |
+| `-ascii` | Compare as Unicode strings (default for sorted search) |
+| `-dictionary` | Dictionary-style comparison (case-insensitive, embedded numbers compared numerically) |
+| `-integer` | Compare as integers |
+| `-real` | Compare as floating-point values |
+| `-increasing` | List is sorted in increasing order (default) |
+| `-decreasing` | List is sorted in decreasing order |
 
 ## TCL Features We Do NOT Support
-
-### Matching Style Options
-
-| Option | Description |
-|--------|-------------|
-| `-sorted` | Binary search for sorted lists (more efficient algorithm) |
-
-### Content Description Options
-
-These options control how list elements are compared (only meaningful with `-exact` and `-sorted`):
-
-| Option | Description |
-|--------|-------------|
-| `-ascii` | Compare as Unicode strings (default in TCL) - **Accepted** (no effect on linear search) |
-| `-dictionary` | Dictionary-style comparison - **Accepted** (no effect on linear search) |
-| `-integer` | Compare as integers - **Accepted** (no effect on linear search) |
-| `-real` | Compare as floating-point values - **Accepted** (no effect on linear search) |
-
-Note: These options are accepted for compatibility but have no effect without `-sorted` mode.
-
-### Sorted List Options
-
-These options control the sort order when using `-sorted`:
-
-| Option | Description |
-|--------|-------------|
-| `-increasing` | List is sorted in increasing order (default) - **Accepted** (no effect without -sorted) |
-| `-decreasing` | List is sorted in decreasing order - **Accepted** (no effect without -sorted) |
-| `-bisect` | Inexact search returning last index <= pattern (increasing) or >= pattern (decreasing) - Not implemented |
 
 ### Nested List Options
 
@@ -75,10 +56,12 @@ These options control the sort order when using `-sorted`:
 
 3. **Simple index format**: Our `-start` and `-index` options only support simple integer indices, not TCL's `end-N` syntax or nested index lists.
 
-4. **Content comparison options accepted**: The `-ascii`, `-dictionary`, `-integer`, `-real`, `-increasing`, and `-decreasing` options are accepted for compatibility, but they only affect binary search mode which is not implemented. Linear search always uses string comparison for matching.
+4. **Binary search with -sorted**: The `-sorted` option enables O(log n) binary search. The comparison mode options (`-ascii`, `-dictionary`, `-integer`, `-real`) control how elements are compared during binary search.
 
-5. **No binary search optimization**: TCL's `-sorted` option enables O(log n) binary search. Our implementation always uses O(n) linear search.
+5. **-bisect behavior**: With `-bisect`, returns the index of the last element <= pattern (for increasing order) or >= pattern (for decreasing order). Returns -1 if pattern is smaller than all elements.
 
-6. **Error messages**: Our error message for unknown options includes the bad option name, which matches TCL behavior.
+6. **-sorted with -not**: When `-sorted` and `-not` are combined, the implementation falls back to linear search since binary search can't efficiently find non-matches.
 
-7. **-stride behavior**: With `-stride N`, the list is treated as groups of N elements. By default, searches match against the first element of each group. With `-index M`, searches match against the Mth element of each group (0-indexed). With `-inline`, returns all elements in the matching group.
+7. **Error messages**: Our error message for unknown options includes the bad option name, which matches TCL behavior.
+
+8. **-stride behavior**: With `-stride N`, the list is treated as groups of N elements. By default, searches match against the first element of each group. With `-index M`, searches match against the Mth element of each group (0-indexed). With `-inline`, returns all elements in the matching group.

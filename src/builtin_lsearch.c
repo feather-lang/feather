@@ -9,6 +9,14 @@ typedef enum {
   MATCH_REGEXP
 } MatchMode;
 
+// Compare mode for sorted searches
+typedef enum {
+  COMPARE_ASCII,
+  COMPARE_INTEGER,
+  COMPARE_REAL,
+  COMPARE_DICTIONARY
+} CompareMode;
+
 static int lsearch_compare_nocase(const FeatherHostOps *ops, FeatherInterp interp,
                           FeatherObj a, FeatherObj b) {
   size_t lenA = ops->string.byte_length(interp, a);
@@ -54,6 +62,128 @@ static int glob_match_nocase(const char *pattern, size_t plen,
 
   while (p < plen && pattern[p] == '*') p++;
   return p == plen;
+}
+
+// Case-insensitive comparison that returns -1, 0, or 1 (for sorted comparison)
+static int lsearch_compare_nocase_cmp(const FeatherHostOps *ops, FeatherInterp interp,
+                                       FeatherObj a, FeatherObj b) {
+  size_t lenA = ops->string.byte_length(interp, a);
+  size_t lenB = ops->string.byte_length(interp, b);
+
+  size_t minLen = lenA < lenB ? lenA : lenB;
+  for (size_t i = 0; i < minLen; i++) {
+    int ca = feather_char_tolower((unsigned char)ops->string.byte_at(interp, a, i));
+    int cb = feather_char_tolower((unsigned char)ops->string.byte_at(interp, b, i));
+    if (ca != cb) return ca - cb;
+  }
+  if (lenA < lenB) return -1;
+  if (lenA > lenB) return 1;
+  return 0;
+}
+
+// Dictionary comparison for sorted searches
+static int lsearch_compare_dictionary(const FeatherHostOps *ops, FeatherInterp interp,
+                                      FeatherObj a, FeatherObj b) {
+  size_t lenA = ops->string.byte_length(interp, a);
+  size_t lenB = ops->string.byte_length(interp, b);
+  size_t iA = 0, iB = 0;
+  int caseDiff = 0;
+
+  while (iA < lenA && iB < lenB) {
+    unsigned char cA = (unsigned char)ops->string.byte_at(interp, a, iA);
+    unsigned char cB = (unsigned char)ops->string.byte_at(interp, b, iB);
+
+    if (feather_is_digit(cA) && feather_is_digit(cB)) {
+      size_t zerosA = 0, zerosB = 0;
+      while (iA < lenA && ops->string.byte_at(interp, a, iA) == '0') {
+        zerosA++;
+        iA++;
+      }
+      while (iB < lenB && ops->string.byte_at(interp, b, iB) == '0') {
+        zerosB++;
+        iB++;
+      }
+
+      int64_t numA = 0, numB = 0;
+      while (iA < lenA && feather_is_digit((unsigned char)ops->string.byte_at(interp, a, iA))) {
+        numA = numA * 10 + (ops->string.byte_at(interp, a, iA) - '0');
+        iA++;
+      }
+      while (iB < lenB && feather_is_digit((unsigned char)ops->string.byte_at(interp, b, iB))) {
+        numB = numB * 10 + (ops->string.byte_at(interp, b, iB) - '0');
+        iB++;
+      }
+
+      if (numA != numB) {
+        return (numA < numB) ? -1 : 1;
+      }
+      if (zerosA != zerosB) {
+        return (zerosA < zerosB) ? -1 : 1;
+      }
+    } else {
+      int lowerA = feather_char_tolower(cA);
+      int lowerB = feather_char_tolower(cB);
+
+      if (lowerA != lowerB) {
+        return lowerA - lowerB;
+      }
+
+      if (caseDiff == 0 && cA != cB) {
+        caseDiff = (int)cA - (int)cB;
+      }
+
+      iA++;
+      iB++;
+    }
+  }
+
+  if (iA < lenA) return 1;
+  if (iB < lenB) return -1;
+  return caseDiff;
+}
+
+// Compare two elements for sorted search - returns -1, 0, or 1
+static int sorted_compare(const FeatherHostOps *ops, FeatherInterp interp,
+                          FeatherObj a, FeatherObj b,
+                          CompareMode mode, int nocase, int decreasing) {
+  int result = 0;
+
+  switch (mode) {
+    case COMPARE_ASCII:
+      if (nocase) {
+        result = lsearch_compare_nocase_cmp(ops, interp, a, b);
+      } else {
+        result = ops->string.compare(interp, a, b);
+      }
+      break;
+
+    case COMPARE_INTEGER: {
+      int64_t va, vb;
+      ops->integer.get(interp, a, &va);
+      ops->integer.get(interp, b, &vb);
+      if (va < vb) result = -1;
+      else if (va > vb) result = 1;
+      else result = 0;
+      break;
+    }
+
+    case COMPARE_REAL: {
+      double va, vb;
+      ops->dbl.get(interp, a, &va);
+      ops->dbl.get(interp, b, &vb);
+      if (va < vb) result = -1;
+      else if (va > vb) result = 1;
+      else result = 0;
+      break;
+    }
+
+    case COMPARE_DICTIONARY:
+      result = lsearch_compare_dictionary(ops, interp, a, b);
+      break;
+  }
+
+  if (decreasing) result = -result;
+  return result;
 }
 
 // Check if element matches pattern
@@ -103,10 +233,14 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
 
   // Parse options
   MatchMode mode = MATCH_GLOB;  // Default is glob
+  CompareMode compareMode = COMPARE_ASCII;  // Default for sorted
   int nocase = 0;
   int all = 0;
   int inlineResult = 0;
   int negate = 0;
+  int sorted = 0;
+  int bisect = 0;
+  int decreasing = 0;
   int64_t startIndex = 0;
   int hasIndex = 0;
   int64_t searchIndex = 0;
@@ -188,14 +322,25 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
         ops->interp.set_result(interp, msg);
         return TCL_ERROR;
       }
-    } else if (feather_obj_eq_literal(ops, interp, arg, "-dictionary") ||
-               feather_obj_eq_literal(ops, interp, arg, "-ascii") ||
-               feather_obj_eq_literal(ops, interp, arg, "-integer") ||
-               feather_obj_eq_literal(ops, interp, arg, "-real") ||
-               feather_obj_eq_literal(ops, interp, arg, "-increasing") ||
-               feather_obj_eq_literal(ops, interp, arg, "-decreasing")) {
-      // These options are for -sorted mode which we don't support
-      // Accept them for compatibility but they have no effect on linear search
+    } else if (feather_obj_eq_literal(ops, interp, arg, "-sorted")) {
+      sorted = 1;
+      mode = MATCH_EXACT;  // -sorted implies -exact
+    } else if (feather_obj_eq_literal(ops, interp, arg, "-bisect")) {
+      bisect = 1;
+      sorted = 1;  // -bisect implies -sorted
+      mode = MATCH_EXACT;
+    } else if (feather_obj_eq_literal(ops, interp, arg, "-dictionary")) {
+      compareMode = COMPARE_DICTIONARY;
+    } else if (feather_obj_eq_literal(ops, interp, arg, "-ascii")) {
+      compareMode = COMPARE_ASCII;
+    } else if (feather_obj_eq_literal(ops, interp, arg, "-integer")) {
+      compareMode = COMPARE_INTEGER;
+    } else if (feather_obj_eq_literal(ops, interp, arg, "-real")) {
+      compareMode = COMPARE_REAL;
+    } else if (feather_obj_eq_literal(ops, interp, arg, "-increasing")) {
+      decreasing = 0;
+    } else if (feather_obj_eq_literal(ops, interp, arg, "-decreasing")) {
+      decreasing = 1;
     } else {
       FeatherObj msg = ops->string.intern(interp, "bad option \"", 12);
       msg = ops->string.concat(interp, msg, arg);
@@ -226,40 +371,181 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
   size_t start = (size_t)startIndex;
   if (start > listLen) start = listLen;
 
+  // Helper macro to extract element to compare
+  #define GET_MATCH_ELEM(i, elem, matchElem) do { \
+    if (stride > 1 && hasIndex) { \
+      size_t elemIdx = (size_t)searchIndex; \
+      if (elemIdx >= stride) { matchElem = 0; } \
+      else { matchElem = ops->list.at(interp, list, (i) + elemIdx); } \
+    } else if (stride > 1) { \
+      matchElem = elem; \
+    } else if (hasIndex) { \
+      FeatherObj sublist = ops->list.from(interp, elem); \
+      size_t sublistLen = ops->list.length(interp, sublist); \
+      if (searchIndex >= 0 && (size_t)searchIndex < sublistLen) { \
+        matchElem = ops->list.at(interp, sublist, (size_t)searchIndex); \
+      } else { matchElem = 0; } \
+    } else { \
+      matchElem = elem; \
+    } \
+  } while(0)
+
+  // Use binary search for sorted lists
+  if (sorted && !negate) {
+    // Binary search to find an exact match or insertion point
+    size_t numGroups = listLen / stride;
+    size_t lo = 0, hi = numGroups;
+    size_t foundIdx = (size_t)-1;
+
+    while (lo < hi) {
+      size_t mid = lo + (hi - lo) / 2;
+      size_t realIdx = mid * stride;
+      FeatherObj elem = ops->list.at(interp, list, realIdx);
+      FeatherObj matchElem;
+      GET_MATCH_ELEM(realIdx, elem, matchElem);
+
+      int cmp = sorted_compare(ops, interp, matchElem, pattern, compareMode, nocase, decreasing);
+
+      if (cmp < 0) {
+        lo = mid + 1;
+      } else if (cmp > 0) {
+        hi = mid;
+      } else {
+        // Found a match
+        foundIdx = mid;
+        break;
+      }
+    }
+
+    if (bisect) {
+      // Return insertion point: last element <= pattern (increasing) or >= pattern (decreasing)
+      // For bisect, we want the largest index where element <= pattern
+      if (numGroups == 0) {
+        ops->interp.set_result(interp, ops->integer.create(interp, -1));
+        return TCL_OK;
+      }
+
+      // Reset and do bisect search
+      lo = 0;
+      hi = numGroups;
+      size_t bisectIdx = (size_t)-1;
+
+      while (lo < hi) {
+        size_t mid = lo + (hi - lo) / 2;
+        size_t realIdx = mid * stride;
+        FeatherObj elem = ops->list.at(interp, list, realIdx);
+        FeatherObj matchElem;
+        GET_MATCH_ELEM(realIdx, elem, matchElem);
+
+        int cmp = sorted_compare(ops, interp, matchElem, pattern, compareMode, nocase, decreasing);
+
+        if (cmp <= 0) {
+          bisectIdx = mid;
+          lo = mid + 1;
+        } else {
+          hi = mid;
+        }
+      }
+
+      if (bisectIdx == (size_t)-1) {
+        ops->interp.set_result(interp, ops->integer.create(interp, -1));
+      } else {
+        ops->interp.set_result(interp, ops->integer.create(interp, (int64_t)(bisectIdx * stride)));
+      }
+      return TCL_OK;
+    }
+
+    if (foundIdx == (size_t)-1) {
+      // Not found
+      if (all) {
+        ops->interp.set_result(interp, ops->list.create(interp));
+      } else if (inlineResult) {
+        ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
+      } else {
+        ops->interp.set_result(interp, ops->integer.create(interp, -1));
+      }
+      return TCL_OK;
+    }
+
+    // Found at foundIdx - handle -all to find all duplicates
+    if (all) {
+      // Find range of matching elements
+      size_t first = foundIdx, last = foundIdx;
+      // Search backward for first match
+      while (first > 0) {
+        size_t prevIdx = (first - 1) * stride;
+        FeatherObj elem = ops->list.at(interp, list, prevIdx);
+        FeatherObj matchElem;
+        GET_MATCH_ELEM(prevIdx, elem, matchElem);
+        if (sorted_compare(ops, interp, matchElem, pattern, compareMode, nocase, decreasing) != 0) break;
+        first--;
+      }
+      // Search forward for last match
+      while (last < numGroups - 1) {
+        size_t nextIdx = (last + 1) * stride;
+        FeatherObj elem = ops->list.at(interp, list, nextIdx);
+        FeatherObj matchElem;
+        GET_MATCH_ELEM(nextIdx, elem, matchElem);
+        if (sorted_compare(ops, interp, matchElem, pattern, compareMode, nocase, decreasing) != 0) break;
+        last++;
+      }
+
+      FeatherObj result = ops->list.create(interp);
+      for (size_t i = first; i <= last; i++) {
+        size_t realIdx = i * stride;
+        if (inlineResult) {
+          if (stride > 1) {
+            for (size_t j = 0; j < stride; j++) {
+              result = ops->list.push(interp, result, ops->list.at(interp, list, realIdx + j));
+            }
+          } else {
+            result = ops->list.push(interp, result, ops->list.at(interp, list, realIdx));
+          }
+        } else {
+          result = ops->list.push(interp, result, ops->integer.create(interp, (int64_t)realIdx));
+        }
+      }
+      ops->interp.set_result(interp, result);
+    } else {
+      // Return first match
+      size_t realIdx = foundIdx * stride;
+      if (inlineResult) {
+        if (stride > 1) {
+          FeatherObj group = ops->list.create(interp);
+          for (size_t j = 0; j < stride; j++) {
+            group = ops->list.push(interp, group, ops->list.at(interp, list, realIdx + j));
+          }
+          ops->interp.set_result(interp, group);
+        } else {
+          ops->interp.set_result(interp, ops->list.at(interp, list, realIdx));
+        }
+      } else {
+        ops->interp.set_result(interp, ops->integer.create(interp, (int64_t)realIdx));
+      }
+    }
+    return TCL_OK;
+  }
+
+  // Linear search (used for unsorted lists or when -not is specified with -sorted)
   if (all) {
     // Return all matching indices/elements
     FeatherObj result = ops->list.create(interp);
     for (size_t i = start; i < listLen; i += stride) {
-      FeatherObj matchElem;
       FeatherObj elem = ops->list.at(interp, list, i);
+      FeatherObj matchElem;
+      GET_MATCH_ELEM(i, elem, matchElem);
+      if (!matchElem) continue;  // Index out of range
 
-      if (stride > 1 && hasIndex) {
-        // With stride, -index specifies position within the stride group
-        size_t elemIdx = (size_t)searchIndex;
-        if (elemIdx >= stride) {
-          // Index out of range for this stride group - skip
-          continue;
-        }
-        matchElem = ops->list.at(interp, list, i + elemIdx);
-      } else if (stride > 1) {
-        // With stride but no -index, match against first element of group
-        matchElem = elem;
-      } else if (hasIndex) {
-        // No stride but with -index: search within nested sublists
-        FeatherObj sublist = ops->list.from(interp, elem);
-        size_t sublistLen = ops->list.length(interp, sublist);
-        if (searchIndex >= 0 && (size_t)searchIndex < sublistLen) {
-          matchElem = ops->list.at(interp, sublist, (size_t)searchIndex);
-        } else {
-          // Index out of range - skip this element (doesn't match)
-          continue;
-        }
+      int matches;
+      if (sorted) {
+        // -sorted with -not uses linear search but sorted comparison
+        matches = (sorted_compare(ops, interp, matchElem, pattern, compareMode, nocase, decreasing) == 0);
+        if (negate) matches = !matches;
       } else {
-        // No stride, no -index: match against element directly
-        matchElem = elem;
+        matches = element_matches(ops, interp, matchElem, pattern, mode, nocase, negate);
       }
 
-      if (element_matches(ops, interp, matchElem, pattern, mode, nocase, negate)) {
+      if (matches) {
         if (inlineResult) {
           if (stride > 1) {
             // Return all elements in the stride group
@@ -278,36 +564,21 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
   } else {
     // Return first match
     for (size_t i = start; i < listLen; i += stride) {
-      FeatherObj matchElem;
       FeatherObj elem = ops->list.at(interp, list, i);
+      FeatherObj matchElem;
+      GET_MATCH_ELEM(i, elem, matchElem);
+      if (!matchElem) continue;  // Index out of range
 
-      if (stride > 1 && hasIndex) {
-        // With stride, -index specifies position within the stride group
-        size_t elemIdx = (size_t)searchIndex;
-        if (elemIdx >= stride) {
-          // Index out of range for this stride group - skip
-          continue;
-        }
-        matchElem = ops->list.at(interp, list, i + elemIdx);
-      } else if (stride > 1) {
-        // With stride but no -index, match against first element of group
-        matchElem = elem;
-      } else if (hasIndex) {
-        // No stride but with -index: search within nested sublists
-        FeatherObj sublist = ops->list.from(interp, elem);
-        size_t sublistLen = ops->list.length(interp, sublist);
-        if (searchIndex >= 0 && (size_t)searchIndex < sublistLen) {
-          matchElem = ops->list.at(interp, sublist, (size_t)searchIndex);
-        } else {
-          // Index out of range - skip this element (doesn't match)
-          continue;
-        }
+      int matches;
+      if (sorted) {
+        // -sorted with -not uses linear search but sorted comparison
+        matches = (sorted_compare(ops, interp, matchElem, pattern, compareMode, nocase, decreasing) == 0);
+        if (negate) matches = !matches;
       } else {
-        // No stride, no -index: match against element directly
-        matchElem = elem;
+        matches = element_matches(ops, interp, matchElem, pattern, mode, nocase, negate);
       }
 
-      if (element_matches(ops, interp, matchElem, pattern, mode, nocase, negate)) {
+      if (matches) {
         if (inlineResult) {
           if (stride > 1) {
             // Return all elements in the stride group
