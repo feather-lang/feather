@@ -618,6 +618,358 @@ static FeatherResult dict_getdef(const FeatherHostOps *ops, FeatherInterp interp
   return TCL_OK;
 }
 
+// dict filter dictionary filterType ?arg ...?
+static FeatherResult dict_filter(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
+  size_t argc = ops->list.length(interp, args);
+  if (argc < 2) {
+    FeatherObj msg = ops->string.intern(interp,
+      "wrong # args: should be \"dict filter dictionary filterType ?arg ...?\"", 69);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  FeatherObj dict = ops->list.shift(interp, args);
+  FeatherObj filterType = ops->list.shift(interp, args);
+
+  FeatherObj result = ops->dict.create(interp);
+  FeatherObj keys = ops->dict.keys(interp, dict);
+  size_t numKeys = ops->list.length(interp, keys);
+
+  if (feather_obj_eq_literal(ops, interp, filterType, "key")) {
+    // dict filter dictionary key ?pattern ...?
+    for (size_t i = 0; i < numKeys; i++) {
+      FeatherObj key = ops->list.at(interp, keys, i);
+      // Check if key matches any pattern
+      int matched = 0;
+      size_t numPatterns = ops->list.length(interp, args);
+      if (numPatterns == 0) {
+        matched = 1; // No patterns means match all
+      } else {
+        for (size_t p = 0; p < numPatterns; p++) {
+          FeatherObj pattern = ops->list.at(interp, args, p);
+          if (feather_obj_glob_match(ops, interp, pattern, key)) {
+            matched = 1;
+            break;
+          }
+        }
+      }
+      if (matched) {
+        FeatherObj val = ops->dict.get(interp, dict, key);
+        result = ops->dict.set(interp, result, key, val);
+      }
+    }
+  } else if (feather_obj_eq_literal(ops, interp, filterType, "value")) {
+    // dict filter dictionary value ?pattern ...?
+    for (size_t i = 0; i < numKeys; i++) {
+      FeatherObj key = ops->list.at(interp, keys, i);
+      FeatherObj val = ops->dict.get(interp, dict, key);
+      // Check if value matches any pattern
+      int matched = 0;
+      size_t numPatterns = ops->list.length(interp, args);
+      if (numPatterns == 0) {
+        matched = 1;
+      } else {
+        for (size_t p = 0; p < numPatterns; p++) {
+          FeatherObj pattern = ops->list.at(interp, args, p);
+          if (feather_obj_glob_match(ops, interp, pattern, val)) {
+            matched = 1;
+            break;
+          }
+        }
+      }
+      if (matched) {
+        result = ops->dict.set(interp, result, key, val);
+      }
+    }
+  } else if (feather_obj_eq_literal(ops, interp, filterType, "script")) {
+    // dict filter dictionary script {keyVar valueVar} script
+    if (ops->list.length(interp, args) != 2) {
+      FeatherObj msg = ops->string.intern(interp,
+        "wrong # args: should be \"dict filter dictionary script {keyVarName valueVarName} filterScript\"", 94);
+      ops->interp.set_result(interp, msg);
+      return TCL_ERROR;
+    }
+
+    FeatherObj varSpec = ops->list.shift(interp, args);
+    FeatherObj script = ops->list.shift(interp, args);
+
+    FeatherObj varList = ops->list.from(interp, varSpec);
+    if (ops->list.length(interp, varList) != 2) {
+      FeatherObj msg = ops->string.intern(interp, "must have exactly two variable names", 36);
+      ops->interp.set_result(interp, msg);
+      return TCL_ERROR;
+    }
+    FeatherObj keyVar = ops->list.at(interp, varList, 0);
+    FeatherObj valVar = ops->list.at(interp, varList, 1);
+
+    for (size_t i = 0; i < numKeys; i++) {
+      FeatherObj key = ops->list.at(interp, keys, i);
+      FeatherObj val = ops->dict.get(interp, dict, key);
+
+      ops->var.set(interp, keyVar, key);
+      ops->var.set(interp, valVar, val);
+
+      FeatherResult res = feather_script_eval_obj(ops, interp, script, TCL_EVAL_LOCAL);
+      if (res == TCL_BREAK) {
+        break;
+      } else if (res == TCL_CONTINUE) {
+        continue;
+      } else if (res != TCL_OK) {
+        return res;
+      }
+
+      // Check if result is true
+      FeatherObj scriptResult = ops->interp.get_result(interp);
+      int boolVal;
+      if (feather_obj_to_bool_literal(ops, interp, scriptResult, &boolVal)) {
+        if (boolVal) {
+          result = ops->dict.set(interp, result, key, val);
+        }
+      } else {
+        int64_t intVal;
+        if (ops->integer.get(interp, scriptResult, &intVal) == TCL_OK) {
+          if (intVal != 0) {
+            result = ops->dict.set(interp, result, key, val);
+          }
+        }
+      }
+    }
+  } else {
+    FeatherObj msg = ops->string.intern(interp, "bad filterType \"", 16);
+    msg = ops->string.concat(interp, msg, filterType);
+    FeatherObj suffix = ops->string.intern(interp, "\": must be key, script, or value", 32);
+    msg = ops->string.concat(interp, msg, suffix);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  ops->interp.set_result(interp, result);
+  return TCL_OK;
+}
+
+// dict map {keyVarName valueVarName} dictionary script
+static FeatherResult dict_map(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
+  if (ops->list.length(interp, args) != 3) {
+    FeatherObj msg = ops->string.intern(interp,
+      "wrong # args: should be \"dict map {keyVarName valueVarName} dictionary script\"", 78);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  FeatherObj varSpec = ops->list.shift(interp, args);
+  FeatherObj dict = ops->list.shift(interp, args);
+  FeatherObj script = ops->list.shift(interp, args);
+
+  FeatherObj varList = ops->list.from(interp, varSpec);
+  if (ops->list.length(interp, varList) != 2) {
+    FeatherObj msg = ops->string.intern(interp, "must have exactly two variable names", 36);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+  FeatherObj keyVar = ops->list.at(interp, varList, 0);
+  FeatherObj valVar = ops->list.at(interp, varList, 1);
+
+  FeatherObj result = ops->dict.create(interp);
+  FeatherObj keys = ops->dict.keys(interp, dict);
+  size_t numKeys = ops->list.length(interp, keys);
+
+  for (size_t i = 0; i < numKeys; i++) {
+    FeatherObj key = ops->list.at(interp, keys, i);
+    FeatherObj val = ops->dict.get(interp, dict, key);
+
+    ops->var.set(interp, keyVar, key);
+    ops->var.set(interp, valVar, val);
+
+    FeatherResult res = feather_script_eval_obj(ops, interp, script, TCL_EVAL_LOCAL);
+    if (res == TCL_BREAK) {
+      // break returns empty dict
+      ops->interp.set_result(interp, ops->dict.create(interp));
+      return TCL_OK;
+    } else if (res == TCL_CONTINUE) {
+      // skip this key-value pair
+      continue;
+    } else if (res != TCL_OK) {
+      return res;
+    }
+
+    FeatherObj newVal = ops->interp.get_result(interp);
+    result = ops->dict.set(interp, result, key, newVal);
+  }
+
+  ops->interp.set_result(interp, result);
+  return TCL_OK;
+}
+
+// dict update dictVarName key varName ?key varName ...? script
+static FeatherResult dict_update(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
+  size_t argc = ops->list.length(interp, args);
+  // Need: varName, at least one key-varName pair, and script = min 4 args
+  if (argc < 4 || (argc - 2) % 2 != 0) {
+    FeatherObj msg = ops->string.intern(interp,
+      "wrong # args: should be \"dict update dictVarName key varName ?key varName ...? script\"", 86);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  FeatherObj dictVarName = ops->list.shift(interp, args);
+  FeatherObj script = ops->list.pop(interp, args);
+
+  // Get current dict
+  FeatherObj dict = ops->var.get(interp, dictVarName);
+  if (ops->list.is_nil(interp, dict)) {
+    dict = ops->dict.create(interp);
+  }
+
+  // Collect key-varName pairs
+  size_t numPairs = ops->list.length(interp, args) / 2;
+  FeatherObj dictKeys[64];
+  FeatherObj varNames[64];
+  if (numPairs > 64) {
+    FeatherObj msg = ops->string.intern(interp, "too many key-variable pairs", 27);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  for (size_t i = 0; i < numPairs; i++) {
+    dictKeys[i] = ops->list.shift(interp, args);
+    varNames[i] = ops->list.shift(interp, args);
+
+    // Set variable to dict value (or leave unset if key doesn't exist)
+    FeatherObj val = ops->dict.get(interp, dict, dictKeys[i]);
+    if (!ops->list.is_nil(interp, val)) {
+      ops->var.set(interp, varNames[i], val);
+    }
+  }
+
+  // Execute script
+  FeatherResult res = feather_script_eval_obj(ops, interp, script, TCL_EVAL_LOCAL);
+  FeatherObj scriptResult = ops->interp.get_result(interp);
+
+  // Update dict from variables
+  for (size_t i = 0; i < numPairs; i++) {
+    FeatherObj val = ops->var.get(interp, varNames[i]);
+    if (ops->list.is_nil(interp, val)) {
+      // Variable was unset - remove key from dict
+      dict = ops->dict.remove(interp, dict, dictKeys[i]);
+    } else {
+      // Variable exists - update dict
+      dict = ops->dict.set(interp, dict, dictKeys[i], val);
+    }
+  }
+
+  // Store updated dict
+  ops->var.set(interp, dictVarName, dict);
+
+  if (res != TCL_OK) {
+    return res;
+  }
+
+  ops->interp.set_result(interp, scriptResult);
+  return TCL_OK;
+}
+
+// dict with dictVarName ?key ...? script
+static FeatherResult dict_with(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
+  size_t argc = ops->list.length(interp, args);
+  if (argc < 2) {
+    FeatherObj msg = ops->string.intern(interp,
+      "wrong # args: should be \"dict with dictVarName ?key ...? script\"", 64);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  FeatherObj dictVarName = ops->list.shift(interp, args);
+  FeatherObj script = ops->list.pop(interp, args);
+
+  // Get current dict
+  FeatherObj dict = ops->var.get(interp, dictVarName);
+  if (ops->list.is_nil(interp, dict)) {
+    dict = ops->dict.create(interp);
+  }
+
+  // Navigate to nested dict if keys provided
+  FeatherObj nestedKeys = ops->list.create(interp);
+  while (ops->list.length(interp, args) > 0) {
+    FeatherObj key = ops->list.shift(interp, args);
+    nestedKeys = ops->list.push(interp, nestedKeys, key);
+    FeatherObj nested = ops->dict.get(interp, dict, key);
+    if (ops->list.is_nil(interp, nested)) {
+      nested = ops->dict.create(interp);
+    }
+    dict = nested;
+  }
+
+  // Get all keys from the target dict
+  FeatherObj keys = ops->dict.keys(interp, dict);
+  size_t numKeys = ops->list.length(interp, keys);
+
+  // Set variables for each key
+  for (size_t i = 0; i < numKeys; i++) {
+    FeatherObj key = ops->list.at(interp, keys, i);
+    FeatherObj val = ops->dict.get(interp, dict, key);
+    ops->var.set(interp, key, val);
+  }
+
+  // Execute script
+  FeatherResult res = feather_script_eval_obj(ops, interp, script, TCL_EVAL_LOCAL);
+  FeatherObj scriptResult = ops->interp.get_result(interp);
+
+  // Update dict from variables (only for keys that existed in original dict)
+  for (size_t i = 0; i < numKeys; i++) {
+    FeatherObj key = ops->list.at(interp, keys, i);
+    FeatherObj val = ops->var.get(interp, key);
+    if (ops->list.is_nil(interp, val)) {
+      // Variable was unset - remove key from dict
+      dict = ops->dict.remove(interp, dict, key);
+    } else {
+      // Variable exists - update dict
+      dict = ops->dict.set(interp, dict, key, val);
+    }
+  }
+
+  // If we navigated into nested dict, rebuild from inside out
+  size_t numNestedKeys = ops->list.length(interp, nestedKeys);
+  if (numNestedKeys > 0) {
+    // Need to rebuild the nested structure
+    FeatherObj rootDict = ops->var.get(interp, dictVarName);
+    if (ops->list.is_nil(interp, rootDict)) {
+      rootDict = ops->dict.create(interp);
+    }
+
+    // Navigate and rebuild
+    FeatherObj dicts[65];
+    dicts[0] = rootDict;
+    for (size_t i = 0; i < numNestedKeys; i++) {
+      FeatherObj key = ops->list.at(interp, nestedKeys, i);
+      FeatherObj nested = ops->dict.get(interp, dicts[i], key);
+      if (ops->list.is_nil(interp, nested)) {
+        nested = ops->dict.create(interp);
+      }
+      dicts[i + 1] = nested;
+    }
+
+    // Set innermost dict
+    dicts[numNestedKeys] = dict;
+
+    // Rebuild from inside out
+    for (size_t i = numNestedKeys; i > 0; i--) {
+      FeatherObj key = ops->list.at(interp, nestedKeys, i - 1);
+      dicts[i - 1] = ops->dict.set(interp, dicts[i - 1], key, dicts[i]);
+    }
+    dict = dicts[0];
+  }
+
+  // Store updated dict
+  ops->var.set(interp, dictVarName, dict);
+
+  if (res != TCL_OK) {
+    return res;
+  }
+
+  ops->interp.set_result(interp, scriptResult);
+  return TCL_OK;
+}
+
 // Main dict command dispatcher
 FeatherResult feather_builtin_dict(const FeatherHostOps *ops, FeatherInterp interp,
                            FeatherObj cmd, FeatherObj args) {
@@ -667,11 +1019,19 @@ FeatherResult feather_builtin_dict(const FeatherHostOps *ops, FeatherInterp inte
     return dict_info(ops, interp, args);
   } else if (feather_obj_eq_literal(ops, interp, subcmd, "getdef") || feather_obj_eq_literal(ops, interp, subcmd, "getwithdefault")) {
     return dict_getdef(ops, interp, args);
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "filter")) {
+    return dict_filter(ops, interp, args);
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "map")) {
+    return dict_map(ops, interp, args);
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "update")) {
+    return dict_update(ops, interp, args);
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "with")) {
+    return dict_with(ops, interp, args);
   } else {
     FeatherObj msg = ops->string.intern(interp, "unknown or ambiguous subcommand \"", 33);
     msg = ops->string.concat(interp, msg, subcmd);
     FeatherObj suffix = ops->string.intern(interp,
-      "\": must be append, create, exists, for, get, getdef, getwithdefault, incr, info, keys, lappend, merge, remove, replace, set, size, unset, or values", 147);
+      "\": must be append, create, exists, filter, for, get, getdef, getwithdefault, incr, info, keys, lappend, map, merge, remove, replace, set, size, unset, update, values, or with", 174);
     msg = ops->string.concat(interp, msg, suffix);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;

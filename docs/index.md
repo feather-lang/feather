@@ -38,7 +38,7 @@ These builtins match TCL's documented behavior:
 | Builtin | Key Missing Features |
 |---------|---------------------|
 | `string` | 12 subcommands (cat, compare, equal, first, last, insert, is, repeat, replace, reverse, totitle, wordend/wordstart) |
-| `dict` | filter, map, update, with subcommands |
+| `dict` | All major features implemented |
 | `info` | 14+ subcommands (cmdcount, cmdtype, complete, coroutine, class/object introspection) |
 | `namespace` | 9 subcommands (code, ensemble, forget, inscope, origin, path, unknown, upvar, which) |
 | `try` | -during key in exception dictionary |

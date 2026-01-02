@@ -4,7 +4,7 @@ This document compares feather's `dict` builtin implementation against the stand
 
 ## Summary of Our Implementation
 
-Feather implements the `dict` command in `src/builtin_dict.c`. The implementation provides 17 subcommands for dictionary manipulation, including basic CRUD operations, iteration, and modification of dictionary values stored in variables.
+Feather implements the `dict` command in `src/builtin_dict.c`. The implementation provides 21 subcommands for dictionary manipulation, including basic CRUD operations, iteration, filtering, mapping, and modification of dictionary values stored in variables.
 
 Key characteristics:
 - Dictionaries are order-preserving key-value mappings
@@ -37,47 +37,35 @@ The following `dict` subcommands are fully implemented:
 | `size` | `dict size dictValue` | Returns the number of key-value pairs |
 | `unset` | `dict unset dictVar key ?key ...?` | Removes a key from a nested dictionary path |
 | `values` | `dict values dictValue ?globPattern?` | Returns list of values, optionally filtered by glob |
+| `filter` | `dict filter dictValue filterType ?arg ...?` | Filters dictionary by key patterns, value patterns, or script |
+| `map` | `dict map {keyVar valueVar} dictValue body` | Transforms dictionary values using a script |
+| `update` | `dict update dictVar key varName ?key varName ...? body` | Binds keys to variables, updates after body |
+| `with` | `dict with dictVar ?key ...? body` | Opens dict keys as variables, updates after body |
+
+### `dict filter` Details
+
+Supports three filter types:
+- `dict filter dictValue key ?globPattern ...?` - Filter by key patterns (OR'd together)
+- `dict filter dictValue value ?globPattern ...?` - Filter by value patterns (OR'd together)
+- `dict filter dictValue script {keyVar valueVar} script` - Filter using a script that returns boolean
+
+Supports `break` (stops filtering, returns results so far) and `continue` (skips current key) in script mode.
+
+### `dict map` Details
+
+Transforms dictionary values by evaluating a body script for each key-value pair. The result of each script evaluation becomes the new value for that key. Supports `break` (returns empty dict) and `continue` (skips key-value pair).
+
+### `dict update` Details
+
+Binds specified dictionary keys to local variables, executes the body, then writes the (potentially modified) values back to the dictionary. If a variable is unset, the corresponding key is removed from the dictionary. If a key doesn't exist initially, the variable is not created, but if set during the body, the key is added.
+
+### `dict with` Details
+
+Opens up a dictionary (or nested dictionary at the given key path) so that all its keys become local variables. After the body executes, any changes to those variables are written back to the dictionary. Unsetting a variable removes the key. New variables created during the body are NOT added as new keys (only existing keys are tracked).
 
 ## TCL Features We Do NOT Support
 
-The following `dict` subcommands are present in standard TCL but **not implemented** in feather:
-
-### `dict filter`
-
-```tcl
-dict filter dictionaryValue filterType arg ?arg ...?
-```
-
-TCL supports three filter types:
-- `dict filter dictValue key ?globPattern ...?` - Filter by key patterns
-- `dict filter dictValue value ?globPattern ...?` - Filter by value patterns
-- `dict filter dictValue script {keyVar valueVar} script` - Filter using a script that returns boolean
-
-This is a fairly complex command that allows selective extraction of dictionary entries based on keys, values, or arbitrary script evaluation.
-
-### `dict map`
-
-```tcl
-dict map {keyVariable valueVariable} dictionaryValue body
-```
-
-Similar to `dict for`, but transforms the dictionary by evaluating a body script for each key-value pair. The result of each script evaluation becomes the new value for that key. Supports `break` and `continue`. This is the dictionary equivalent of `lmap` for lists.
-
-### `dict update`
-
-```tcl
-dict update dictionaryVariable key varName ?key varName ...? body
-```
-
-Provides a convenient way to update multiple dictionary values at once. It binds specified keys to local variables, executes the body, then writes the (potentially modified) values back to the dictionary. Changes to variables are reflected back even if an error occurs.
-
-### `dict with`
-
-```tcl
-dict with dictionaryVariable ?key ...? body
-```
-
-Opens up a dictionary (or nested dictionary at the given key path) so that all its keys become local variables. After the body executes, any changes to those variables are written back to the dictionary. This is powerful for working with structured data.
+All major `dict` subcommands are now implemented.
 
 ## Notes on Implementation Differences
 
