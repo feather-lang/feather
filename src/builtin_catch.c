@@ -70,20 +70,25 @@ FeatherResult feather_builtin_catch(const FeatherHostOps *ops, FeatherInterp int
     if (feather_error_is_active(ops, interp)) {
       feather_error_finalize(ops, interp);
     } else {
-      // Even without active error trace, set ::errorCode from return options
+      // Even without active error trace, set ::errorCode and ::errorInfo from return options
       FeatherObj opts = ops->interp.get_return_options(interp, code);
       FeatherObj globalNs = ops->string.intern(interp, S("::"));
       FeatherObj errorCode = ops->string.intern(interp, S("NONE"));
+      FeatherObj errorInfo = 0;
 
       size_t optsLen = ops->list.length(interp, opts);
       for (size_t i = 0; i + 1 < optsLen; i += 2) {
         FeatherObj key = ops->list.at(interp, opts, i);
         if (feather_obj_eq_literal(ops, interp, key, "-errorcode")) {
           errorCode = ops->list.at(interp, opts, i + 1);
-          break;
+        } else if (feather_obj_eq_literal(ops, interp, key, "-errorinfo")) {
+          errorInfo = ops->list.at(interp, opts, i + 1);
         }
       }
       ops->ns.set_var(interp, globalNs, ops->string.intern(interp, S("errorCode")), errorCode);
+      if (errorInfo != 0) {
+        ops->ns.set_var(interp, globalNs, ops->string.intern(interp, S("errorInfo")), errorInfo);
+      }
     }
   }
 

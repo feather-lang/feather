@@ -50,6 +50,7 @@ FeatherResult feather_builtin_return(const FeatherHostOps *ops, FeatherInterp in
   int code = TCL_OK;      // Default: -code ok
   int level = 1;          // Default: -level 1
   FeatherObj errorcode = 0;  // Default: not set (will use NONE)
+  FeatherObj errorinfo = 0;  // Default: not set
   FeatherObj resultValue = ops->string.intern(interp, "", 0);
 
   // Make a copy of args since we'll be shifting
@@ -117,6 +118,15 @@ FeatherResult feather_builtin_return(const FeatherHostOps *ops, FeatherInterp in
         }
         errorcode = ops->list.shift(interp, argsCopy);
         argc--;
+      } else if (feather_obj_eq_literal(ops, interp, arg, "-errorinfo")) {
+        // Need value
+        if (argc == 0) {
+          FeatherObj msg = ops->string.intern(interp, "-errorinfo requires a value", 27);
+          ops->interp.set_result(interp, msg);
+          return TCL_ERROR;
+        }
+        errorinfo = ops->list.shift(interp, argsCopy);
+        argc--;
       } else if (feather_obj_eq_literal(ops, interp, arg, "-options")) {
         // -options takes a dictionary, extract -code and -level from it
         if (argc == 0) {
@@ -178,11 +188,17 @@ FeatherResult feather_builtin_return(const FeatherHostOps *ops, FeatherInterp in
         if (ops->dict.exists(interp, optDict, errorcodeKey)) {
           errorcode = ops->dict.get(interp, optDict, errorcodeKey);
         }
+
+        // Extract -errorinfo if present
+        FeatherObj errorinfoKey = ops->string.intern(interp, "-errorinfo", 10);
+        if (ops->dict.exists(interp, optDict, errorinfoKey)) {
+          errorinfo = ops->dict.get(interp, optDict, errorinfoKey);
+        }
       } else {
         // Unknown option - build error with original object
         FeatherObj msg1 = ops->string.intern(interp, "bad option \"", 12);
         FeatherObj msg3 = ops->string.intern(interp,
-          "\": must be -code, -level, -errorcode, or -options", 49);
+          "\": must be -code, -level, -errorcode, -errorinfo, or -options", 61);
         FeatherObj msg = ops->string.concat(interp, msg1, arg);
         msg = ops->string.concat(interp, msg, msg3);
         ops->interp.set_result(interp, msg);
@@ -224,6 +240,12 @@ FeatherResult feather_builtin_return(const FeatherHostOps *ops, FeatherInterp in
     // Default errorcode for errors is NONE
     options = ops->list.push(interp, options, ops->string.intern(interp, "-errorcode", 10));
     options = ops->list.push(interp, options, ops->string.intern(interp, "NONE", 4));
+  }
+
+  // Add -errorinfo if set
+  if (errorinfo != 0) {
+    options = ops->list.push(interp, options, ops->string.intern(interp, "-errorinfo", 10));
+    options = ops->list.push(interp, options, errorinfo);
   }
 
   // Store the return options
