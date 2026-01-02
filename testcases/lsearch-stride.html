@@ -1,0 +1,118 @@
+<test-suite name="lsearch -stride option">
+
+<test-case name="lsearch -stride 2 basic">
+  <script>
+    lsearch -stride 2 {a 1 b 2 c 3} b
+  </script>
+  <return>TCL_OK</return>
+  <stdout>2</stdout>
+</test-case>
+
+<test-case name="lsearch -stride 2 not found">
+  <script>
+    lsearch -stride 2 {a 1 b 2 c 3} d
+  </script>
+  <return>TCL_OK</return>
+  <stdout>-1</stdout>
+</test-case>
+
+<test-case name="lsearch -stride 2 with -index 1">
+  <script>
+    lsearch -stride 2 -index 1 {a 1 b 2 c 3} 2
+  </script>
+  <return>TCL_OK</return>
+  <stdout>2</stdout>
+</test-case>
+
+<test-case name="lsearch -stride 2 with -all">
+  <script>
+    lsearch -stride 2 -all {a 1 b 2 a 3} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>0 4</stdout>
+</test-case>
+
+<test-case name="lsearch -stride 2 with -inline">
+  <script>
+    lsearch -stride 2 -inline {a 1 b 2 c 3} b
+  </script>
+  <return>TCL_OK</return>
+  <stdout>b 2</stdout>
+</test-case>
+
+<test-case name="lsearch -stride 2 with -inline -all">
+  <script>
+    lsearch -stride 2 -inline -all {a 1 b 2 a 3} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>a 1 a 3</stdout>
+</test-case>
+
+<test-case name="lsearch -stride 2 with -not">
+  <script>
+    lsearch -stride 2 -not {a 1 b 2 c 3} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>2</stdout>
+</test-case>
+
+<test-case name="lsearch -stride 2 with -start">
+  <script>
+    lsearch -stride 2 -start 2 {a 1 b 2 a 3} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>4</stdout>
+</test-case>
+
+<test-case name="lsearch -stride 2 empty list">
+  <script>
+    lsearch -stride 2 {} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>-1</stdout>
+</test-case>
+
+<test-case name="lsearch -stride 3">
+  <script>
+    lsearch -stride 3 {a 1 x b 2 y c 3 z} b
+  </script>
+  <return>TCL_OK</return>
+  <stdout>3</stdout>
+</test-case>
+
+<test-case name="lsearch -stride error odd elements">
+  <script>
+    lsearch -stride 2 {a b c} a
+  </script>
+  <return>TCL_ERROR</return>
+  <error>list size must be a multiple of the stride length</error>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="lsearch -stride error zero">
+  <script>
+    lsearch -stride 0 {a b} a
+  </script>
+  <return>TCL_ERROR</return>
+  <error>stride length must be at least 1</error>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="lsearch -stride 1 valid">
+  <script>
+    lsearch -stride 1 {a b c} b
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+<test-case name="lsearch -stride missing stride value">
+  <script>
+    lsearch -stride
+  </script>
+  <return>TCL_ERROR</return>
+  <error>wrong # args: should be "lsearch ?-option value ...? list pattern"</error>
+  <exit-code>1</exit-code>
+</test-case>
+
+</test-suite>
