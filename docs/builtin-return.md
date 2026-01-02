@@ -74,22 +74,25 @@ Our implementation in `src/builtin_return.c` provides basic `return` functionali
    - Example: `return a b c` returns `c`
    - This matches TCL's behavior
 
+9. **Arbitrary return options**
+   - Any `-option value` pairs are accepted, not just the known options
+   - Custom options are stored in the return options dictionary
+   - They become available through `catch {cmd} result opts`
+   - Custom options are preserved through error re-raising via `-options`
+   - Example:
+     ```tcl
+     proc test {} {
+         return -custom "mydata" -another 42 "result"
+     }
+     catch {test} msg opts
+     dict get $opts -custom  ;# Returns "mydata"
+     ```
+
 ## TCL Features We Do NOT Support
 
 ### 1. The `-errorstack` Option (TCL 8.6+)
 
 TCL supports `-errorstack list` which records actual argument values passed to each proc level during errors. Our implementation does not support this option.
-
-### 2. Arbitrary Return Options
-
-TCL allows any option-value pairs in the return options dictionary, not just the recognized ones. These become available through `catch`. Our implementation only accepts `-code`, `-level`, `-errorcode`, `-errorinfo`, and `-options`.
-
-**TCL behavior:**
-```tcl
-return -myoption myvalue "result"  ;# Allowed in TCL
-```
-
-**Our behavior:** Returns error "bad option \"-myoption\""
 
 ## Notes on Implementation Differences
 
@@ -115,13 +118,12 @@ TCL documentation recommends applications use values 5-1073741823 (0x3fffffff) f
 
 ## Recommendations for Future Work
 
-1. **Low Priority:** Allow arbitrary option-value pairs in return options
-2. **Low Priority:** Add `-errorstack` support (TCL 8.6+ feature)
+1. **Low Priority:** Add `-errorstack` support (TCL 8.6+ feature)
 
 ## Implementation Notes
 
 ### `-options` Processing
 
-The `-options` option was implemented to extract `-code` and `-level` values from a dictionary. Other options in the dictionary (like `-errorcode`, `-errorinfo`, `-errorstack`) are currently ignored but will be passed through when those features are implemented.
+The `-options` option extracts `-code`, `-level`, `-errorcode`, and `-errorinfo` values from a dictionary. Any other options in the dictionary (custom options) are preserved and passed through to the return options dictionary.
 
-The order of option processing matters: options appearing later in the command line override earlier values. This is important for the error re-raising pattern where `return -options $opts $result` should preserve the original error's code and level.
+The order of option processing matters: options appearing later in the command line override earlier values. This is important for the error re-raising pattern where `return -options $opts $result` should preserve the original error's code, level, and any custom options.
