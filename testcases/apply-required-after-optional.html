@@ -1,0 +1,138 @@
+<test-suite name="apply required-after-optional">
+
+<!-- When an optional parameter is followed by a required parameter,
+     the optional becomes required (TCL behavior) -->
+
+<!-- Case 1: optional followed by required -->
+<test-case name="apply optional-required needs 2 args">
+  <script>
+    apply {{{x 1} y} {list $x $y}} 10
+  </script>
+  <return>TCL_ERROR</return>
+  <error>wrong # args: should be "apply lambdaExpr ?x? y"</error>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="apply optional-required with 2 args works">
+  <script>
+    apply {{{x 1} y} {list $x $y}} 5 10
+  </script>
+  <return>TCL_OK</return>
+  <stdout>5 10</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- Case 2: required followed by optional (normal case) -->
+<test-case name="apply required-optional with 1 arg uses default">
+  <script>
+    apply {{x {y 1}} {list $x $y}} 10
+  </script>
+  <return>TCL_OK</return>
+  <stdout>10 1</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="apply required-optional with 2 args works">
+  <script>
+    apply {{x {y 1}} {list $x $y}} 10 20
+  </script>
+  <return>TCL_OK</return>
+  <stdout>10 20</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- Case 3: two optionals followed by required -->
+<test-case name="apply two optionals before required needs 3 args">
+  <script>
+    apply {{{a 1} {b 2} c} {list $a $b $c}} 10
+  </script>
+  <return>TCL_ERROR</return>
+  <error>wrong # args: should be "apply lambdaExpr ?a? ?b? c"</error>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="apply two optionals before required with 3 args works">
+  <script>
+    apply {{{a 1} {b 2} c} {list $a $b $c}} 10 20 30
+  </script>
+  <return>TCL_OK</return>
+  <stdout>10 20 30</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- Case 4: required, optional, required -->
+<test-case name="apply req-opt-req needs 3 args">
+  <script>
+    apply {{a {b 2} c} {list $a $b $c}} 10 20
+  </script>
+  <return>TCL_ERROR</return>
+  <error>wrong # args: should be "apply lambdaExpr a ?b? c"</error>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="apply req-opt-req with 3 args works">
+  <script>
+    apply {{a {b 2} c} {list $a $b $c}} 10 20 30
+  </script>
+  <return>TCL_OK</return>
+  <stdout>10 20 30</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- Case 5: optional followed by args (args doesn't make optional required) -->
+<test-case name="apply optional-args with 0 args uses default">
+  <script>
+    apply {{{x 1} args} {list $x $args}}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1 {}</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="apply optional-args with 1 arg">
+  <script>
+    apply {{{x 1} args} {list $x $args}} 10
+  </script>
+  <return>TCL_OK</return>
+  <stdout>10 {}</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="apply optional-args with multiple args">
+  <script>
+    apply {{{x 1} args} {list $x $args}} 10 20 30
+  </script>
+  <return>TCL_OK</return>
+  <stdout>10 {20 30}</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- Case 6: required, optional, args -->
+<test-case name="apply req-opt-args with 1 arg uses default">
+  <script>
+    apply {{x {y 1} args} {list $x $y $args}} 10
+  </script>
+  <return>TCL_OK</return>
+  <stdout>10 1 {}</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="apply req-opt-args with 2 args">
+  <script>
+    apply {{x {y 1} args} {list $x $y $args}} 10 20
+  </script>
+  <return>TCL_OK</return>
+  <stdout>10 20 {}</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="apply req-opt-args with extra args">
+  <script>
+    apply {{x {y 1} args} {list $x $y $args}} 10 20 30 40
+  </script>
+  <return>TCL_OK</return>
+  <stdout>10 20 {30 40}</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+</test-suite>
