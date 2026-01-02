@@ -55,12 +55,45 @@ FeatherResult feather_command_exec(const FeatherHostOps *ops, FeatherInterp inte
   FeatherObj globalNs = ops->string.intern(interp, "::", 2);
 
   if (feather_obj_is_qualified(ops, interp, cmd)) {
-    // Qualified name - split and look up in the target namespace
-    feather_obj_split_command(ops, interp, cmd, &lookupNs, &simpleName);
-    if (ops->list.is_nil(interp, lookupNs)) {
-      lookupNs = globalNs;
+    // Qualified name - check if absolute (starts with ::)
+    size_t len = ops->string.byte_length(interp, cmd);
+    int isAbsolute = (len >= 2 &&
+                      ops->string.byte_at(interp, cmd, 0) == ':' &&
+                      ops->string.byte_at(interp, cmd, 1) == ':');
+
+    if (isAbsolute) {
+      // Absolute name - look up directly
+      feather_obj_split_command(ops, interp, cmd, &lookupNs, &simpleName);
+      if (ops->list.is_nil(interp, lookupNs)) {
+        lookupNs = globalNs;
+      }
+      cmdType = ops->ns.get_command(interp, lookupNs, simpleName, &builtin, NULL, NULL);
+    } else {
+      // Relative qualified name (like "foo::cmd") - try relative first, then global
+      // TCL resolution: first try currentNs::foo::cmd, then ::foo::cmd
+
+      if (!inGlobalNs) {
+        // Try relative to current namespace: currentNs::name
+        FeatherObj sep = ops->string.intern(interp, "::", 2);
+        FeatherObj relativeName = ops->string.concat(interp, currentNs, sep);
+        relativeName = ops->string.concat(interp, relativeName, cmd);
+        feather_obj_split_command(ops, interp, relativeName, &lookupNs, &simpleName);
+        if (ops->list.is_nil(interp, lookupNs)) {
+          lookupNs = globalNs;
+        }
+        cmdType = ops->ns.get_command(interp, lookupNs, simpleName, &builtin, NULL, NULL);
+      }
+
+      // If not found, try as global: ::name
+      if (cmdType == TCL_CMD_NONE) {
+        FeatherObj absoluteName = ops->string.concat(interp, globalNs, cmd);
+        feather_obj_split_command(ops, interp, absoluteName, &lookupNs, &simpleName);
+        if (ops->list.is_nil(interp, lookupNs)) {
+          lookupNs = globalNs;
+        }
+        cmdType = ops->ns.get_command(interp, lookupNs, simpleName, &builtin, NULL, NULL);
+      }
     }
-    cmdType = ops->ns.get_command(interp, lookupNs, simpleName, &builtin, NULL, NULL);
   } else {
     // Unqualified name - try current namespace first, then global
     if (!inGlobalNs) {
