@@ -12,7 +12,7 @@ incr varName ?increment?
 
 Key implementation details:
 - Uses `feather_get_var` and `feather_set_var` for variable access, which handle qualified names and fire read/write traces
-- Requires the variable to exist before incrementing
+- Auto-initializes unset variables to 0 before incrementing (TCL 8.5+ behavior)
 - Requires both the current value and the increment to be valid integers
 - Default increment is 1 when not specified
 - Returns the new value as the result
@@ -25,28 +25,18 @@ Key implementation details:
 4. **Zero increment**: `incr x 0` can be used to validate that x contains an integer
 5. **Proper error messages**: Returns appropriate error messages for:
    - Wrong number of arguments
-   - Variable does not exist
    - Variable value is not an integer
    - Increment value is not an integer
 6. **Variable traces**: Uses `feather_get_var` and `feather_set_var` which fire read/write traces
 7. **Qualified variable names**: Variable access functions handle namespace-qualified names
+8. **Auto-initialization of unset variables**: If the variable does not exist, it is initialized to 0 before incrementing (TCL 8.5+ behavior)
 
 ## TCL Features We Do NOT Support
 
-1. **Auto-initialization of unset variables**: Starting with TCL 8.5, if the variable does not exist, `incr` will create it and set it to the increment value (or 1 if no increment is specified). Our implementation requires the variable to exist first and returns an error "can't read ... : no such variable" if it does not.
-
-2. **Array default values**: TCL 8.5+ supports array default values. If an array element does not exist but the array has a default value set, TCL will use the sum of the default value and the increment. Our implementation does not support this feature.
+1. **Array default values**: TCL 8.5+ supports array default values. If an array element does not exist but the array has a default value set, TCL will use the sum of the default value and the increment. Our implementation does not support this feature (Feather does not support arrays).
 
 ## Notes on Implementation Differences
 
-1. **Error on unset variable**: This is the most significant behavioral difference. In standard TCL 8.5+:
-   ```tcl
-   # Assuming x is unset
-   incr x      ;# Sets x to 1, returns 1
-   incr x 5    ;# Sets x to 5, returns 5
-   ```
-   In our implementation, both of these would return an error.
+1. **Integer representation**: Our implementation uses 64-bit signed integers (`int64_t`). TCL uses arbitrary precision integers (bignums) for values that exceed the native integer range. Our implementation does not handle overflow conditions explicitly.
 
-2. **Integer representation**: Our implementation uses 64-bit signed integers (`int64_t`). TCL uses arbitrary precision integers (bignums) for values that exceed the native integer range. Our implementation does not handle overflow conditions explicitly.
-
-3. **Result format**: TCL specifies that "The new value is stored as a decimal string". Our implementation creates an integer object and sets it as the result, relying on the object system's string representation when needed.
+2. **Result format**: TCL specifies that "The new value is stored as a decimal string". Our implementation creates an integer object and sets it as the result, relying on the object system's string representation when needed.

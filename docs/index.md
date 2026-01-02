@@ -47,7 +47,7 @@ These builtins match TCL's documented behavior:
 | `scan` | Integer truncation, Unicode %c, unsigned conversion |
 | `subst` | Unicode escapes (\uNNNN) |
 | `trace` | Variable creation on trace add, array operation |
-| `incr` | Auto-initialization of unset variables |
+| `incr` | Array default values (Feather doesn't support arrays) |
 | `set` | Array element syntax |
 | `append` | Array default values |
 | `lappend` | Array default values |
