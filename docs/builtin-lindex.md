@@ -1,15 +1,17 @@
-# lindex Builtin Implementation Comparison
+# lindex Builtin Implementation
 
-This document compares feather's implementation of `lindex` with TCL's official specification.
+This document describes feather's implementation of `lindex`.
 
-## Summary of Our Implementation
+## Summary
 
-Our implementation in `src/builtin_lindex.c` provides list indexing functionality:
+Our `lindex` implementation in `src/builtin_lindex.c` provides full TCL-compatible list indexing:
 
-- Accepts exactly 2 arguments: a list and an index expression
-- Returns the element at the specified position (0-indexed)
-- Returns an empty string for out-of-bounds indices (negative or >= list length)
+- Accepts 1 or more arguments
+- Returns the element at the specified position(s) (0-indexed)
+- Returns an empty string for out-of-bounds indices
 - Supports `end`, `end-N`, and arithmetic expressions (`M+N`, `M-N`)
+- Supports nested indexing with multiple indices
+- Supports index lists as a single argument
 
 ## TCL Features We Support
 
@@ -22,56 +24,49 @@ Our implementation in `src/builtin_lindex.c` provides list indexing functionalit
 | `end` index | Supported | `lindex {a b c} end` returns `c` |
 | `end-N` syntax | Supported | `lindex {a b c} end-1` returns `b` |
 | Arithmetic expressions | Supported | `lindex {a b c} 0+1` returns `b` |
+| Identity (no index) | Supported | `lindex {a b c}` returns `a b c` |
+| Empty index list | Supported | `lindex {a b c} {}` returns `a b c` |
+| Multiple indices | Supported | `lindex {{a b} {c d}} 1 0` returns `c` |
+| Index list | Supported | `lindex {{a b} {c d}} {1 0}` returns `c` |
+| Deep nesting | Supported | Up to 64 levels of nesting |
 
-## TCL Features We Do NOT Support
-
-### 1. Multiple Indices for Nested Lists
-
-TCL allows multiple indices to access nested lists:
-
-```tcl
-lindex {{a b c} {d e f} {g h i}} 2 1           ;# returns "h"
-lindex {{a b c} {d e f} {g h i}} {2 1}         ;# same result
-lindex {{{a b} {c d}} {{e f} {g h}}} 1 1 0     ;# returns "g"
-```
-
-Our implementation requires exactly 2 arguments and does not support nested indexing.
-
-### 2. Zero Arguments (Identity Behavior)
-
-TCL allows calling `lindex` with just the list (or with an empty index list):
+## Usage Examples
 
 ```tcl
-lindex {a b c}      ;# returns "a b c"
-lindex {a b c} {}   ;# returns "a b c"
+# Basic indexing
+lindex {a b c} 1           ;# returns "b"
+
+# Identity (no index)
+lindex {a b c}             ;# returns "a b c"
+
+# End-relative indexing
+lindex {a b c d e} end     ;# returns "e"
+lindex {a b c d e} end-2   ;# returns "c"
+
+# Nested list indexing
+lindex {{a b} {c d} {e f}} 1 0     ;# returns "c"
+lindex {{a b} {c d} {e f}} {1 0}   ;# same result
+
+# Deep nesting
+lindex {{{a b} {c d}} {{e f} {g h}}} 1 1 0   ;# returns "g"
+
+# End in nested indexing
+lindex {{a b c} {d e f}} end end   ;# returns "f"
 ```
 
-Our implementation requires exactly 2 arguments and will error in these cases.
+## Implementation Notes
 
-### 3. Index List as Single Argument
+1. **Index Resolution**: Each index in the sequence is resolved using `feather_parse_index()`, which handles `end`, `end-N`, and arithmetic at each nesting level.
 
-TCL allows grouping multiple indices into a list:
+2. **Empty Results**: If any index is out of bounds at any level, an empty string is returned immediately.
 
-```tcl
-lindex $nested {1 2 3}    ;# equivalent to: lindex $nested 1 2 3
-```
+3. **Maximum Depth**: The implementation supports up to 64 levels of nesting.
 
-Our implementation does not support this syntax.
+4. **Single vs List Index**: When given exactly 2 arguments, the second argument is checked:
+   - If it parses as a list with multiple elements, each element is treated as an index
+   - If it's empty, the list is returned as-is
+   - Otherwise, it's treated as a single index
 
-## Notes on Implementation
+## All Major Features Implemented
 
-### Index Parsing
-
-Our implementation uses `feather_parse_index()` which properly handles:
-- Simple integers: `0`, `1`, `2`, `-1`
-- `end` keyword: resolves to `length - 1`
-- `end-N` syntax: `end-1`, `end-2`, etc.
-- Arithmetic: `M+N`, `M-N`, e.g., `0+1`, `5-2`
-- Combined forms: `end+1`, `end-5+2`
-
-### Argument Count Strictness
-
-Our implementation is stricter than TCL:
-
-- **Feather**: Requires exactly 2 arguments
-- **TCL**: Accepts 1 argument (returns list as-is) or 2+ arguments (for nested access)
+This implementation is now feature-complete for the common use cases of `lindex`.
