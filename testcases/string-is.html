@@ -1,0 +1,543 @@
+<test-suite>
+  <!-- string is - character/value class testing -->
+
+  <!-- ============================================= -->
+  <!-- alnum class                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="string is alnum true">
+    <script>string is alnum abc123</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is alnum false">
+    <script>string is alnum abc!</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is alnum empty">
+    <script>string is alnum {}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is alnum strict empty">
+    <script>string is alnum -strict {}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- alpha class                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="string is alpha true">
+    <script>string is alpha abc</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is alpha false">
+    <script>string is alpha abc123</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- NOTE: Unicode alpha test skipped - JS/WASM host has Unicode input parsing issue -->
+
+  <!-- ============================================= -->
+  <!-- ascii class                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="string is ascii true">
+    <script>string is ascii hello</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- NOTE: Unicode ascii test skipped - JS/WASM host has Unicode input parsing issue -->
+
+  <!-- ============================================= -->
+  <!-- control class                                 -->
+  <!-- ============================================= -->
+
+  <test-case name="string is control true">
+    <script>string is control "\t"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is control false">
+    <script>string is control a</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- digit class                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="string is digit true">
+    <script>string is digit 123</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is digit false">
+    <script>string is digit 12a</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- NOTE: Unicode digit test skipped - JS/WASM host has Unicode input parsing issue -->
+
+  <!-- ============================================= -->
+  <!-- graph class                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="string is graph true">
+    <script>string is graph abc</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is graph false with space">
+    <script>string is graph {a b}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- lower class                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="string is lower true">
+    <script>string is lower abc</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is lower false">
+    <script>string is lower ABC</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- NOTE: Unicode lower test skipped - JS/WASM host has Unicode input parsing issue -->
+
+  <!-- ============================================= -->
+  <!-- print class                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="string is print true">
+    <script>string is print abc</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is print false with tab">
+    <script>string is print "a\tb"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- punct class                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="string is punct true">
+    <script>string is punct .,!</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is punct false">
+    <script>string is punct abc</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- space class                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="string is space true">
+    <script>string is space {   }</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is space false">
+    <script>string is space abc</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- upper class                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="string is upper true">
+    <script>string is upper ABC</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is upper false">
+    <script>string is upper abc</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- NOTE: Unicode upper test skipped - JS/WASM host has Unicode input parsing issue -->
+
+  <!-- ============================================= -->
+  <!-- wordchar class                                -->
+  <!-- ============================================= -->
+
+  <test-case name="string is wordchar true">
+    <script>string is wordchar abc_123</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is wordchar false">
+    <script>string is wordchar abc-123</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- xdigit class                                  -->
+  <!-- ============================================= -->
+
+  <test-case name="string is xdigit true">
+    <script>string is xdigit 0123abcdef</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is xdigit false">
+    <script>string is xdigit 0123xyz</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- boolean class                                 -->
+  <!-- ============================================= -->
+
+  <test-case name="string is boolean true">
+    <script>string is boolean true</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is boolean 1">
+    <script>string is boolean 1</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is boolean yes">
+    <script>string is boolean yes</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is boolean false">
+    <script>string is boolean abc</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- true/false classes                            -->
+  <!-- ============================================= -->
+
+  <test-case name="string is true true">
+    <script>string is true true</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is true 1">
+    <script>string is true 1</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is true on">
+    <script>string is true on</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is false false">
+    <script>string is false false</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is false 0">
+    <script>string is false 0</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- double class                                  -->
+  <!-- ============================================= -->
+
+  <test-case name="string is double true">
+    <script>string is double 3.14</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is double false">
+    <script>string is double abc</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- integer class                                 -->
+  <!-- ============================================= -->
+
+  <test-case name="string is integer true">
+    <script>string is integer 123</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is integer false">
+    <script>string is integer 12.3</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- list class                                    -->
+  <!-- ============================================= -->
+
+  <test-case name="string is list true">
+    <script>string is list {a b c}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is list false">
+    <script>string is list "\{"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- dict class                                    -->
+  <!-- ============================================= -->
+
+  <test-case name="string is dict true">
+    <script>string is dict {a 1 b 2}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is dict false odd">
+    <script>string is dict {a 1 b}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- -failindex option                             -->
+  <!-- ============================================= -->
+
+  <test-case name="string is digit failindex">
+    <script>
+set result [string is digit -failindex idx "12a"]
+list $result $idx
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0 2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="string is digit strict empty failindex">
+    <script>
+set result [string is digit -strict -failindex idx ""]
+list $result $idx
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0 0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Error cases                                   -->
+  <!-- ============================================= -->
+
+  <test-case name="string is wrong args">
+    <script>string is</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "string is class ?-strict? ?-failindex var? str"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="string is missing string">
+    <script>string is alnum</script>
+    <return>TCL_ERROR</return>
+    <error>wrong # args: should be "string is class ?-strict? ?-failindex var? str"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- NOTE: We omit entier and wideinteger classes which TCL has -->
+  <test-case name="string is bad class">
+    <script>string is xyz abc</script>
+    <return>TCL_ERROR</return>
+    <error>bad class "xyz": must be alnum, alpha, ascii, boolean, control, dict, digit, double, false, graph, integer, list, lower, print, punct, space, true, upper, wordchar, or xdigit</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

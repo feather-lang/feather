@@ -406,6 +406,76 @@ func goRuneFold(interp C.FeatherInterp, str C.FeatherObj) C.FeatherObj {
 	return C.FeatherObj(i.internString(result.String()))
 }
 
+//export goRuneIsClass
+func goRuneIsClass(interp C.FeatherInterp, ch C.FeatherObj, charClass C.FeatherCharClass) C.int {
+	i := getInterp(interp)
+	if i == nil {
+		return 0
+	}
+	s := i.getString(FeatherObj(ch))
+	if len(s) == 0 {
+		return 0
+	}
+	// Get the first rune from the string
+	r, _ := utf8.DecodeRuneInString(s)
+
+	// Character class constants match FeatherCharClass enum
+	const (
+		charAlnum    = 0
+		charAlpha    = 1
+		charAscii    = 2
+		charControl  = 3
+		charDigit    = 4
+		charGraph    = 5
+		charLower    = 6
+		charPrint    = 7
+		charPunct    = 8
+		charSpace    = 9
+		charUpper    = 10
+		charWordchar = 11
+		charXdigit   = 12
+	)
+
+	var result bool
+	switch int(charClass) {
+	case charAlnum:
+		result = unicode.IsLetter(r) || unicode.IsDigit(r)
+	case charAlpha:
+		result = unicode.IsLetter(r)
+	case charAscii:
+		result = r <= 127
+	case charControl:
+		result = unicode.IsControl(r)
+	case charDigit:
+		result = unicode.IsDigit(r)
+	case charGraph:
+		// Graphical = printable and not space
+		result = unicode.IsPrint(r) && !unicode.IsSpace(r)
+	case charLower:
+		result = unicode.IsLower(r)
+	case charPrint:
+		result = unicode.IsPrint(r)
+	case charPunct:
+		result = unicode.IsPunct(r)
+	case charSpace:
+		result = unicode.IsSpace(r)
+	case charUpper:
+		result = unicode.IsUpper(r)
+	case charWordchar:
+		// Word character = alphanumeric or underscore
+		result = unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'
+	case charXdigit:
+		result = (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')
+	default:
+		result = false
+	}
+
+	if result {
+		return 1
+	}
+	return 0
+}
+
 //export goInterpSetResult
 func goInterpSetResult(interp C.FeatherInterp, result C.FeatherObj) C.FeatherResult {
 	i := getInterp(interp)

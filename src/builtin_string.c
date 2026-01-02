@@ -677,6 +677,237 @@ static FeatherResult string_insert(const FeatherHostOps *ops, FeatherInterp inte
   return TCL_OK;
 }
 
+// Character class type for string is
+typedef enum {
+  CLASS_ALNUM,
+  CLASS_ALPHA,
+  CLASS_ASCII,
+  CLASS_BOOLEAN,
+  CLASS_CONTROL,
+  CLASS_DICT,
+  CLASS_DIGIT,
+  CLASS_DOUBLE,
+  CLASS_FALSE,
+  CLASS_GRAPH,
+  CLASS_INTEGER,
+  CLASS_LIST,
+  CLASS_LOWER,
+  CLASS_PRINT,
+  CLASS_PUNCT,
+  CLASS_SPACE,
+  CLASS_TRUE,
+  CLASS_UPPER,
+  CLASS_WORDCHAR,
+  CLASS_XDIGIT,
+  CLASS_UNKNOWN
+} StringIsClass;
+
+// Parse class name to enum
+static StringIsClass parse_class(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj classObj) {
+  if (feather_obj_eq_literal(ops, interp, classObj, "alnum")) return CLASS_ALNUM;
+  if (feather_obj_eq_literal(ops, interp, classObj, "alpha")) return CLASS_ALPHA;
+  if (feather_obj_eq_literal(ops, interp, classObj, "ascii")) return CLASS_ASCII;
+  if (feather_obj_eq_literal(ops, interp, classObj, "boolean")) return CLASS_BOOLEAN;
+  if (feather_obj_eq_literal(ops, interp, classObj, "control")) return CLASS_CONTROL;
+  if (feather_obj_eq_literal(ops, interp, classObj, "dict")) return CLASS_DICT;
+  if (feather_obj_eq_literal(ops, interp, classObj, "digit")) return CLASS_DIGIT;
+  if (feather_obj_eq_literal(ops, interp, classObj, "double")) return CLASS_DOUBLE;
+  if (feather_obj_eq_literal(ops, interp, classObj, "false")) return CLASS_FALSE;
+  if (feather_obj_eq_literal(ops, interp, classObj, "graph")) return CLASS_GRAPH;
+  if (feather_obj_eq_literal(ops, interp, classObj, "integer")) return CLASS_INTEGER;
+  if (feather_obj_eq_literal(ops, interp, classObj, "list")) return CLASS_LIST;
+  if (feather_obj_eq_literal(ops, interp, classObj, "lower")) return CLASS_LOWER;
+  if (feather_obj_eq_literal(ops, interp, classObj, "print")) return CLASS_PRINT;
+  if (feather_obj_eq_literal(ops, interp, classObj, "punct")) return CLASS_PUNCT;
+  if (feather_obj_eq_literal(ops, interp, classObj, "space")) return CLASS_SPACE;
+  if (feather_obj_eq_literal(ops, interp, classObj, "true")) return CLASS_TRUE;
+  if (feather_obj_eq_literal(ops, interp, classObj, "upper")) return CLASS_UPPER;
+  if (feather_obj_eq_literal(ops, interp, classObj, "wordchar")) return CLASS_WORDCHAR;
+  if (feather_obj_eq_literal(ops, interp, classObj, "xdigit")) return CLASS_XDIGIT;
+  return CLASS_UNKNOWN;
+}
+
+// Map StringIsClass to FeatherCharClass for character testing
+static FeatherCharClass class_to_char_class(StringIsClass cls) {
+  switch (cls) {
+    case CLASS_ALNUM: return FEATHER_CHAR_ALNUM;
+    case CLASS_ALPHA: return FEATHER_CHAR_ALPHA;
+    case CLASS_ASCII: return FEATHER_CHAR_ASCII;
+    case CLASS_CONTROL: return FEATHER_CHAR_CONTROL;
+    case CLASS_DIGIT: return FEATHER_CHAR_DIGIT;
+    case CLASS_GRAPH: return FEATHER_CHAR_GRAPH;
+    case CLASS_LOWER: return FEATHER_CHAR_LOWER;
+    case CLASS_PRINT: return FEATHER_CHAR_PRINT;
+    case CLASS_PUNCT: return FEATHER_CHAR_PUNCT;
+    case CLASS_SPACE: return FEATHER_CHAR_SPACE;
+    case CLASS_UPPER: return FEATHER_CHAR_UPPER;
+    case CLASS_WORDCHAR: return FEATHER_CHAR_WORDCHAR;
+    case CLASS_XDIGIT: return FEATHER_CHAR_XDIGIT;
+    default: return FEATHER_CHAR_ALNUM; // Should not happen
+  }
+}
+
+// Check if class is a character class (vs value class)
+static int is_char_class(StringIsClass cls) {
+  return cls == CLASS_ALNUM || cls == CLASS_ALPHA || cls == CLASS_ASCII ||
+         cls == CLASS_CONTROL || cls == CLASS_DIGIT || cls == CLASS_GRAPH ||
+         cls == CLASS_LOWER || cls == CLASS_PRINT || cls == CLASS_PUNCT ||
+         cls == CLASS_SPACE || cls == CLASS_UPPER || cls == CLASS_WORDCHAR ||
+         cls == CLASS_XDIGIT;
+}
+
+// Check if a string is a valid true value
+static int is_true_value(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj str) {
+  if (feather_obj_eq_literal(ops, interp, str, "true")) return 1;
+  if (feather_obj_eq_literal(ops, interp, str, "yes")) return 1;
+  if (feather_obj_eq_literal(ops, interp, str, "on")) return 1;
+  if (feather_obj_eq_literal(ops, interp, str, "1")) return 1;
+  return 0;
+}
+
+// Check if a string is a valid false value
+static int is_false_value(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj str) {
+  if (feather_obj_eq_literal(ops, interp, str, "false")) return 1;
+  if (feather_obj_eq_literal(ops, interp, str, "no")) return 1;
+  if (feather_obj_eq_literal(ops, interp, str, "off")) return 1;
+  if (feather_obj_eq_literal(ops, interp, str, "0")) return 1;
+  return 0;
+}
+
+// string is class ?-strict? ?-failindex varname? string
+static FeatherResult string_is(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
+  size_t argc = ops->list.length(interp, args);
+  if (argc < 2) {
+    FeatherObj msg = ops->string.intern(interp,
+      "wrong # args: should be \"string is class ?-strict? ?-failindex var? str\"", 72);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  FeatherObj classObj = ops->list.shift(interp, args);
+  StringIsClass cls = parse_class(ops, interp, classObj);
+
+  if (cls == CLASS_UNKNOWN) {
+    FeatherObj msg = ops->string.intern(interp, "bad class \"", 11);
+    msg = ops->string.concat(interp, msg, classObj);
+    FeatherObj suffix = ops->string.intern(interp,
+      "\": must be alnum, alpha, ascii, boolean, control, dict, digit, double, false, graph, integer, list, lower, print, punct, space, true, upper, wordchar, or xdigit", 160);
+    msg = ops->string.concat(interp, msg, suffix);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  int strict = 0;
+  FeatherObj failindexVar = 0;
+
+  // Parse options
+  while (ops->list.length(interp, args) > 1) {
+    FeatherObj opt = ops->list.at(interp, args, 0);
+    if (feather_obj_eq_literal(ops, interp, opt, "-strict")) {
+      strict = 1;
+      ops->list.shift(interp, args);
+    } else if (feather_obj_eq_literal(ops, interp, opt, "-failindex")) {
+      ops->list.shift(interp, args);
+      if (ops->list.length(interp, args) < 2) {
+        FeatherObj msg = ops->string.intern(interp,
+          "wrong # args: should be \"string is class ?-strict? ?-failindex var? str\"", 72);
+        ops->interp.set_result(interp, msg);
+        return TCL_ERROR;
+      }
+      failindexVar = ops->list.shift(interp, args);
+    } else {
+      break;
+    }
+  }
+
+  if (ops->list.length(interp, args) != 1) {
+    FeatherObj msg = ops->string.intern(interp,
+      "wrong # args: should be \"string is class ?-strict? ?-failindex var? str\"", 72);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  FeatherObj str = ops->list.shift(interp, args);
+  size_t len = ops->rune.length(interp, str);
+
+  // Handle value classes first
+  if (!is_char_class(cls)) {
+    int result = 0;
+
+    switch (cls) {
+      case CLASS_BOOLEAN:
+        result = is_true_value(ops, interp, str) || is_false_value(ops, interp, str);
+        break;
+      case CLASS_TRUE:
+        result = is_true_value(ops, interp, str);
+        break;
+      case CLASS_FALSE:
+        result = is_false_value(ops, interp, str);
+        break;
+      case CLASS_INTEGER: {
+        int64_t dummy;
+        result = (ops->integer.get(interp, str, &dummy) == TCL_OK);
+        break;
+      }
+      case CLASS_DOUBLE: {
+        double dummy;
+        result = (ops->dbl.get(interp, str, &dummy) == TCL_OK);
+        break;
+      }
+      case CLASS_LIST: {
+        FeatherObj listObj = ops->list.from(interp, str);
+        result = (listObj != 0);
+        break;
+      }
+      case CLASS_DICT: {
+        FeatherObj dictObj = ops->dict.from(interp, str);
+        result = (dictObj != 0);
+        break;
+      }
+      default:
+        result = 0;
+    }
+
+    // Clear any error set during value parsing
+    ops->interp.reset_result(interp, ops->string.intern(interp, "", 0));
+
+    if (failindexVar && !result) {
+      // For value classes, failindex is set to the end of string
+      ops->var.set(interp, failindexVar, ops->integer.create(interp, 0));
+    }
+
+    ops->interp.set_result(interp, ops->integer.create(interp, result ? 1 : 0));
+    return TCL_OK;
+  }
+
+  // Handle character classes
+  // Empty string: true unless -strict
+  if (len == 0) {
+    if (failindexVar && strict) {
+      ops->var.set(interp, failindexVar, ops->integer.create(interp, 0));
+    }
+    ops->interp.set_result(interp, ops->integer.create(interp, strict ? 0 : 1));
+    return TCL_OK;
+  }
+
+  FeatherCharClass charClass = class_to_char_class(cls);
+
+  // Check each character
+  for (size_t i = 0; i < len; i++) {
+    FeatherObj ch = ops->rune.at(interp, str, i);
+    if (!ops->rune.is_class(interp, ch, charClass)) {
+      if (failindexVar) {
+        ops->var.set(interp, failindexVar, ops->integer.create(interp, (int64_t)i));
+      }
+      ops->interp.set_result(interp, ops->integer.create(interp, 0));
+      return TCL_OK;
+    }
+  }
+
+  ops->interp.set_result(interp, ops->integer.create(interp, 1));
+  return TCL_OK;
+}
+
 // string replace string first last ?newString?
 static FeatherResult string_replace(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
@@ -777,13 +1008,15 @@ FeatherResult feather_builtin_string(const FeatherHostOps *ops, FeatherInterp in
     return string_reverse(ops, interp, args);
   } else if (feather_obj_eq_literal(ops, interp, subcmd, "insert")) {
     return string_insert(ops, interp, args);
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "is")) {
+    return string_is(ops, interp, args);
   } else if (feather_obj_eq_literal(ops, interp, subcmd, "replace")) {
     return string_replace(ops, interp, args);
   } else {
     FeatherObj msg = ops->string.intern(interp, "unknown or ambiguous subcommand \"", 33);
     msg = ops->string.concat(interp, msg, subcmd);
     FeatherObj suffix = ops->string.intern(interp,
-      "\": must be cat, compare, equal, first, index, insert, last, length, map, match, range, repeat, replace, reverse, tolower, toupper, trim, trimleft, or trimright", 159);
+      "\": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, toupper, trim, trimleft, or trimright", 163);
     msg = ops->string.concat(interp, msg, suffix);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;

@@ -111,7 +111,7 @@ extern FeatherObj feather_host_string_builder_finish(FeatherInterp interp, Feath
 extern FeatherObj feather_host_string_intern(FeatherInterp interp, const char *s, size_t len);
 
 /* ============================================================================
- * Rune Operations (6 functions)
+ * Rune Operations (7 functions)
  * ============================================================================ */
 
 extern size_t feather_host_rune_length(FeatherInterp interp, FeatherObj str);
@@ -121,6 +121,8 @@ extern FeatherObj feather_host_rune_range(FeatherInterp interp, FeatherObj str, 
 extern FeatherObj feather_host_rune_to_upper(FeatherInterp interp, FeatherObj str);
 extern FeatherObj feather_host_rune_to_lower(FeatherInterp interp, FeatherObj str);
 extern FeatherObj feather_host_rune_fold(FeatherInterp interp, FeatherObj str);
+extern int feather_host_rune_is_class(FeatherInterp interp, FeatherObj ch,
+                                      FeatherCharClass charClass);
 
 /* ============================================================================
  * List Operations (13 functions)

@@ -548,6 +548,26 @@ typedef struct FeatherStringOps {
 } FeatherStringOps;
 
 /**
+ * FeatherCharClass identifies Unicode character classes for classification.
+ * Used by rune.is_class to test character properties.
+ */
+typedef enum FeatherCharClass {
+  FEATHER_CHAR_ALNUM,    /* Alphanumeric (letter or digit) */
+  FEATHER_CHAR_ALPHA,    /* Alphabetic letter */
+  FEATHER_CHAR_ASCII,    /* ASCII character (0-127) */
+  FEATHER_CHAR_CONTROL,  /* Control character */
+  FEATHER_CHAR_DIGIT,    /* Decimal digit */
+  FEATHER_CHAR_GRAPH,    /* Graphical (visible) character */
+  FEATHER_CHAR_LOWER,    /* Lowercase letter */
+  FEATHER_CHAR_PRINT,    /* Printable character (includes space) */
+  FEATHER_CHAR_PUNCT,    /* Punctuation */
+  FEATHER_CHAR_SPACE,    /* Whitespace */
+  FEATHER_CHAR_UPPER,    /* Uppercase letter */
+  FEATHER_CHAR_WORDCHAR, /* Word character (alnum or underscore) */
+  FEATHER_CHAR_XDIGIT,   /* Hexadecimal digit */
+} FeatherCharClass;
+
+/**
  * FeatherRuneOps provides Unicode-aware character operations.
  *
  * These operations work with Unicode code points (runes) rather than bytes.
@@ -600,6 +620,14 @@ typedef struct FeatherRuneOps {
    * For example, German ß folds to "ss".
    */
   FeatherObj (*fold)(FeatherInterp interp, FeatherObj str);
+
+  /**
+   * is_class tests if a Unicode code point belongs to a character class.
+   *
+   * The codepoint is the first rune of the string object.
+   * Returns 1 if the character belongs to the class, 0 otherwise.
+   */
+  int (*is_class)(FeatherInterp interp, FeatherObj ch, FeatherCharClass charClass);
 } FeatherRuneOps;
 
 /**

@@ -97,6 +97,10 @@ FeatherObj feather_host_rune_fold(FeatherInterp interp, FeatherObj str) {
     return goRuneFold(interp, str);
 }
 
+int feather_host_rune_is_class(FeatherInterp interp, FeatherObj ch, FeatherCharClass charClass) {
+    return goRuneIsClass(interp, ch, charClass);
+}
+
 // ============================================================================
 // Interp Operations
 // ============================================================================

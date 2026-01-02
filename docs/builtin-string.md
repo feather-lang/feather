@@ -16,6 +16,7 @@ Feather implements the following `string` subcommands in `src/builtin_string.c`:
 - `string trimleft` - Removes leading characters
 - `string trimright` - Removes trailing characters
 - `string map` - Substring replacement with optional `-nocase`
+- `string is` - Character and value class testing
 
 ## TCL Features We Support
 
@@ -40,6 +41,19 @@ Feather implements the following `string` subcommands in `src/builtin_string.c`:
 | `string reverse string` | Supported | Reverse character order |
 | `string insert string index insertString` | Supported | Insert substring at index |
 | `string replace string first last ?newstring?` | Supported | Replace range with optional new string |
+| `string is class ?-strict? ?-failindex var? string` | Supported | Character/value class testing (see below) |
+
+### Supported `string is` Classes
+
+**Character classes:** alnum, alpha, ascii, control, digit, graph, lower, print, punct, space, upper, wordchar, xdigit
+
+**Value classes:** boolean, true, false, integer, double, list, dict
+
+**Options:**
+- `-strict` - Empty string returns false (default: empty returns true for character classes)
+- `-failindex varname` - Sets variable to index of first non-matching character
+
+**Note:** TCL's `entier` and `wideinteger` classes are not supported.
 
 ## TCL Features We Do NOT Support
 
@@ -47,7 +61,6 @@ Feather implements the following `string` subcommands in `src/builtin_string.c`:
 
 | Subcommand | Description |
 |------------|-------------|
-| `string is class ?-strict? ?-failindex varname? string` | Character class testing (alnum, alpha, ascii, boolean, control, dict, digit, double, false, graph, integer, list, lower, print, punct, space, true, upper, wideinteger, wordchar, xdigit) |
 | `string totitle string ?first? ?last?` | Title case conversion |
 | `string wordend string charIndex` | Find end of word (obsolete) |
 | `string wordstart string charIndex` | Find start of word (obsolete) |

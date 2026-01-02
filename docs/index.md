@@ -40,7 +40,7 @@ These builtins match TCL's documented behavior:
 
 | Builtin | Key Missing Features |
 |---------|---------------------|
-| `string` | 4 subcommands (is, totitle, wordend/wordstart) |
+| `string` | 3 subcommands (totitle, wordend/wordstart) |
 | `info` | 14+ subcommands (cmdcount, cmdtype, complete, coroutine, class/object introspection) |
 | `namespace` | 9 subcommands (code, ensemble, forget, inscope, origin, path, unknown, upvar, which) |
 | `try` | -during key in exception dictionary |

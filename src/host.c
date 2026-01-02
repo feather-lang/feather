@@ -69,6 +69,7 @@ static FeatherHostOps default_ops = {
         .to_upper = feather_host_rune_to_upper,
         .to_lower = feather_host_rune_to_lower,
         .fold = feather_host_rune_fold,
+        .is_class = feather_host_rune_is_class,
     },
     .list = {
         .is_nil = feather_host_list_is_nil,

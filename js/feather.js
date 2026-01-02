@@ -933,7 +933,9 @@ async function createFeather(wasmSource) {
     // Rune operations
     feather_host_rune_length: (interpId, str) => {
       const interp = interpreters.get(interpId);
-      return [...interp.getString(str)].length;
+      const s = interp.getString(str);
+      const len = [...s].length;
+      return len;
     },
     feather_host_rune_at: (interpId, str, index) => {
       const interp = interpreters.get(interpId);
@@ -960,6 +962,85 @@ async function createFeather(wasmSource) {
     feather_host_rune_fold: (interpId, str) => {
       const interp = interpreters.get(interpId);
       return interp.store({ type: 'string', value: interp.getString(str).toLowerCase() });
+    },
+    feather_host_rune_is_class: (interpId, ch, charClass) => {
+      const interp = interpreters.get(interpId);
+      const s = interp.getString(ch);
+      if (s.length === 0) return 0;
+      // Get the first code point
+      const codePoint = s.codePointAt(0);
+      const c = String.fromCodePoint(codePoint);
+
+      // Character class constants match FeatherCharClass enum
+      const CHAR_ALNUM = 0;
+      const CHAR_ALPHA = 1;
+      const CHAR_ASCII = 2;
+      const CHAR_CONTROL = 3;
+      const CHAR_DIGIT = 4;
+      const CHAR_GRAPH = 5;
+      const CHAR_LOWER = 6;
+      const CHAR_PRINT = 7;
+      const CHAR_PUNCT = 8;
+      const CHAR_SPACE = 9;
+      const CHAR_UPPER = 10;
+      const CHAR_WORDCHAR = 11;
+      const CHAR_XDIGIT = 12;
+
+      // Helper functions for Unicode classification
+      const isLetter = (cp) => /\p{L}/u.test(String.fromCodePoint(cp));
+      const isDigit = (cp) => /\p{Nd}/u.test(String.fromCodePoint(cp));
+      const isUpper = (cp) => /\p{Lu}/u.test(String.fromCodePoint(cp));
+      const isLower = (cp) => /\p{Ll}/u.test(String.fromCodePoint(cp));
+      const isSpace = (cp) => /\p{Zs}|\t|\n|\r|\v|\f/u.test(String.fromCodePoint(cp));
+      const isControl = (cp) => /\p{Cc}/u.test(String.fromCodePoint(cp));
+      const isPunct = (cp) => /\p{P}/u.test(String.fromCodePoint(cp));
+      const isPrint = (cp) => !/\p{Cc}/u.test(String.fromCodePoint(cp)) && !/\p{Cs}/u.test(String.fromCodePoint(cp));
+
+      let result = false;
+      switch (charClass) {
+        case CHAR_ALNUM:
+          result = isLetter(codePoint) || isDigit(codePoint);
+          break;
+        case CHAR_ALPHA:
+          result = isLetter(codePoint);
+          break;
+        case CHAR_ASCII:
+          result = codePoint <= 127;
+          break;
+        case CHAR_CONTROL:
+          result = isControl(codePoint);
+          break;
+        case CHAR_DIGIT:
+          result = isDigit(codePoint);
+          break;
+        case CHAR_GRAPH:
+          // Graphical = printable and not space
+          result = isPrint(codePoint) && !isSpace(codePoint);
+          break;
+        case CHAR_LOWER:
+          result = isLower(codePoint);
+          break;
+        case CHAR_PRINT:
+          result = isPrint(codePoint);
+          break;
+        case CHAR_PUNCT:
+          result = isPunct(codePoint);
+          break;
+        case CHAR_SPACE:
+          result = isSpace(codePoint);
+          break;
+        case CHAR_UPPER:
+          result = isUpper(codePoint);
+          break;
+        case CHAR_WORDCHAR:
+          // Word character = alphanumeric or underscore
+          result = isLetter(codePoint) || isDigit(codePoint) || codePoint === 0x5F; // underscore
+          break;
+        case CHAR_XDIGIT:
+          result = /^[0-9a-fA-F]$/.test(c);
+          break;
+      }
+      return result ? 1 : 0;
     },
 
     // List operations
