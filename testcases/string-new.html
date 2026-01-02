@@ -1,0 +1,327 @@
+<test-suite name="string new subcommands">
+
+<!-- string cat -->
+
+<test-case name="string cat basic">
+  <script>string cat a b c</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>abc</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string cat empty">
+  <script>string cat</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout></stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string cat single">
+  <script>string cat hello</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>hello</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- string compare -->
+
+<test-case name="string compare equal">
+  <script>string compare abc abc</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>0</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string compare less than">
+  <script>string compare abc abd</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>-1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string compare greater than">
+  <script>string compare abd abc</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string compare nocase">
+  <script>string compare -nocase ABC abc</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>0</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string compare length">
+  <script>string compare -length 2 abc abd</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>0</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string compare length and nocase">
+  <script>string compare -nocase -length 3 ABCDEF abcxyz</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>0</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- string equal -->
+
+<test-case name="string equal true">
+  <script>string equal abc abc</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string equal false">
+  <script>string equal abc abd</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>0</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string equal nocase">
+  <script>string equal -nocase ABC abc</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string equal length">
+  <script>string equal -length 2 abc abd</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- string first -->
+
+<test-case name="string first found">
+  <script>string first bc abcabc</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string first with start index">
+  <script>string first bc abcabc 2</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>4</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string first not found">
+  <script>string first xy abcabc</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>-1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string first empty needle">
+  <script>string first {} hello</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>-1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- string last -->
+
+<test-case name="string last found">
+  <script>string last bc abcabc</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>4</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string last with end index">
+  <script>string last bc abcabc 3</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string last not found">
+  <script>string last xy abcabc</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>-1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- string repeat -->
+
+<test-case name="string repeat basic">
+  <script>string repeat abc 3</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>abcabcabc</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string repeat zero">
+  <script>string repeat abc 0</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout></stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string repeat one">
+  <script>string repeat abc 1</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>abc</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- string reverse -->
+
+<test-case name="string reverse basic">
+  <script>string reverse hello</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>olleh</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string reverse empty">
+  <script>string reverse {}</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout></stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string reverse single char">
+  <script>string reverse x</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>x</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- string insert -->
+
+<test-case name="string insert middle">
+  <script>string insert hello 2 XY</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>heXYllo</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string insert start">
+  <script>string insert hello 0 XY</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>XYhello</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string insert end">
+  <script>string insert hello end XY</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>helloXY</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string insert end+1">
+  <script>string insert hello end+1 XY</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>helloXY</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- string replace -->
+
+<test-case name="string replace delete">
+  <script>string replace hello 1 3</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>ho</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string replace with new string">
+  <script>string replace hello 1 3 XY</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>hXYo</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string replace entire string">
+  <script>string replace hello 0 end</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout></stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string replace entire string with replacement">
+  <script>string replace hello 0 end world</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>world</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+</test-suite>
