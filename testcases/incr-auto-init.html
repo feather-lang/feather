@@ -1,0 +1,81 @@
+<test-suite name="incr auto-initialization">
+
+<!-- TCL 8.5+ auto-initializes unset variables to 0 before incrementing -->
+
+<test-case name="incr unset variable default increment">
+  <script>
+    incr x
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="incr unset variable custom increment">
+  <script>
+    incr y 5
+  </script>
+  <return>TCL_OK</return>
+  <stdout>5</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="incr unset variable negative increment">
+  <script>
+    incr z -3
+  </script>
+  <return>TCL_OK</return>
+  <stdout>-3</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="incr unset variable zero increment">
+  <script>
+    incr w 0
+  </script>
+  <return>TCL_OK</return>
+  <stdout>0</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="incr unset then read">
+  <script>
+    incr a 10
+    set a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>10</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="incr existing variable still works">
+  <script>
+    set x 10
+    incr x
+  </script>
+  <return>TCL_OK</return>
+  <stdout>11</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="incr existing variable with increment">
+  <script>
+    set x 10
+    incr x 5
+  </script>
+  <return>TCL_OK</return>
+  <stdout>15</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="incr non-integer still errors">
+  <script>
+    set x hello
+    incr x
+  </script>
+  <return>TCL_ERROR</return>
+  <error>expected integer but got "hello"</error>
+  <exit-code>1</exit-code>
+</test-case>
+
+</test-suite>
