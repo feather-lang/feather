@@ -4,16 +4,18 @@ This document compares our implementation of the `return` builtin command with t
 
 ## Summary of Our Implementation
 
-Our implementation in `src/builtin_return.c` provides basic `return` functionality with support for:
+Our implementation in `src/builtin_return.c` provides full `return` functionality with support for:
 
 - Returning a result value (or empty string if not provided)
 - The `-code` option with named codes (`ok`, `error`, `return`, `break`, `continue`) and integer values
 - The `-level` option to control which stack level the return code applies to
-- The `-options` option for extracting `-code`, `-level`, `-errorcode`, and `-errorinfo` from a dictionary
+- The `-options` option for extracting all standard options from a dictionary
 - The `-errorcode` option for machine-readable error codes
 - The `-errorinfo` option for custom stack traces
+- The `-errorstack` option for call stack information (partial support)
 - Proper level-based return code handling (level 0 returns code directly, level > 0 returns TCL_RETURN)
-- Building a return options dictionary with `-code` and `-level` entries
+- Building a return options dictionary with all set options
+- Arbitrary user-defined options
 
 ## TCL Features We Support
 
@@ -88,11 +90,23 @@ Our implementation in `src/builtin_return.c` provides basic `return` functionali
      dict get $opts -custom  ;# Returns "mydata"
      ```
 
+10. **The `-errorstack` option (partial)**
+    - Accepts `-errorstack` as a command line option
+    - Stores the value in the return options dictionary
+    - Preserved through error re-raising via `-options`
+    - Example:
+      ```tcl
+      return -code error -errorstack {CALL test} "error message"
+      ```
+    - **Note:** We do NOT automatically generate call stack traces during error propagation.
+      TCL 8.6+ populates `-errorstack` with actual argument values at each call level,
+      which requires tracking proc arguments at runtime.
+
 ## TCL Features We Do NOT Support
 
-### 1. The `-errorstack` Option (TCL 8.6+)
+### 1. Automatic `-errorstack` Generation
 
-TCL supports `-errorstack list` which records actual argument values passed to each proc level during errors. Our implementation does not support this option.
+TCL 8.6+ automatically populates `-errorstack` with the call stack and actual argument values during error propagation. Our implementation accepts and preserves manually-set `-errorstack` values, but does not generate them automatically.
 
 ## Notes on Implementation Differences
 
@@ -118,7 +132,7 @@ TCL documentation recommends applications use values 5-1073741823 (0x3fffffff) f
 
 ## Recommendations for Future Work
 
-1. **Low Priority:** Add `-errorstack` support (TCL 8.6+ feature)
+1. **Low Priority:** Add automatic `-errorstack` generation during error propagation (requires tracking proc arguments at runtime)
 
 ## Implementation Notes
 
