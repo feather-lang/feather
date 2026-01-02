@@ -6,7 +6,8 @@
 typedef enum {
   SORT_ASCII,
   SORT_INTEGER,
-  SORT_REAL
+  SORT_REAL,
+  SORT_DICTIONARY
 } SortMode;
 
 // Comparison context
@@ -19,6 +20,9 @@ typedef struct {
   int hasIndex;
   int64_t sortIndex;
   int sortingPairs; // True when sorting {idx, value} pairs for -indices
+  int hasCommand;   // True when using -command
+  FeatherObj commandProc; // The command to use for comparison
+  int error;        // Set to 1 if command comparison fails
 } SortContext;
 
 static int lsort_compare_nocase(const FeatherHostOps *ops, FeatherInterp interp,
@@ -35,6 +39,83 @@ static int lsort_compare_nocase(const FeatherHostOps *ops, FeatherInterp interp,
   if (lenA < lenB) return -1;
   if (lenA > lenB) return 1;
   return 0;
+}
+
+// Dictionary comparison: numbers in strings compared numerically, case-insensitive with case as tiebreaker
+static int lsort_compare_dictionary(const FeatherHostOps *ops, FeatherInterp interp,
+                                    FeatherObj a, FeatherObj b) {
+  size_t lenA = ops->string.byte_length(interp, a);
+  size_t lenB = ops->string.byte_length(interp, b);
+  size_t iA = 0, iB = 0;
+  int caseDiff = 0; // Track first case difference as tiebreaker
+
+  while (iA < lenA && iB < lenB) {
+    unsigned char cA = (unsigned char)ops->string.byte_at(interp, a, iA);
+    unsigned char cB = (unsigned char)ops->string.byte_at(interp, b, iB);
+
+    // Both are digits - compare as numbers
+    if (feather_is_digit(cA) && feather_is_digit(cB)) {
+      // Count leading zeros
+      size_t zerosA = 0, zerosB = 0;
+      while (iA < lenA && ops->string.byte_at(interp, a, iA) == '0') {
+        zerosA++;
+        iA++;
+      }
+      while (iB < lenB && ops->string.byte_at(interp, b, iB) == '0') {
+        zerosB++;
+        iB++;
+      }
+
+      // Extract numeric values
+      int64_t numA = 0, numB = 0;
+      size_t digitsA = 0, digitsB = 0;
+      while (iA < lenA && feather_is_digit((unsigned char)ops->string.byte_at(interp, a, iA))) {
+        numA = numA * 10 + (ops->string.byte_at(interp, a, iA) - '0');
+        digitsA++;
+        iA++;
+      }
+      while (iB < lenB && feather_is_digit((unsigned char)ops->string.byte_at(interp, b, iB))) {
+        numB = numB * 10 + (ops->string.byte_at(interp, b, iB) - '0');
+        digitsB++;
+        iB++;
+      }
+
+      // Compare numeric values
+      if (numA != numB) {
+        return (numA < numB) ? -1 : 1;
+      }
+
+      // Same numeric value - more leading zeros comes later (a1 < a01 < a001)
+      if (zerosA != zerosB) {
+        return (zerosA < zerosB) ? -1 : 1;
+      }
+      // Continue to next part of string
+    } else {
+      // Non-digit comparison: case-insensitive, but track case difference
+      int lowerA = feather_char_tolower(cA);
+      int lowerB = feather_char_tolower(cB);
+
+      if (lowerA != lowerB) {
+        return lowerA - lowerB;
+      }
+
+      // Same letter case-insensitively - track case difference for tiebreaker
+      // Uppercase comes before lowercase in TCL dictionary sort
+      if (caseDiff == 0 && cA != cB) {
+        caseDiff = (int)cA - (int)cB;
+      }
+
+      iA++;
+      iB++;
+    }
+  }
+
+  // One string is prefix of the other
+  if (iA < lenA) return 1;  // A is longer
+  if (iB < lenB) return -1; // B is longer
+
+  // Strings are equal ignoring case - use case difference as tiebreaker
+  return caseDiff;
 }
 
 // Extract element for comparison - handles -index option and -indices pairs
@@ -67,39 +148,76 @@ static int compare_elements(FeatherInterp interp, FeatherObj a, FeatherObj b, vo
   SortContext *ctx = (SortContext *)ctx_ptr;
   int result = 0;
 
+  // If an error already occurred, don't continue processing
+  if (ctx->error) return 0;
+
   // Extract values to compare (handles -index)
   FeatherObj valA = extract_compare_value(ctx, interp, a);
   FeatherObj valB = extract_compare_value(ctx, interp, b);
 
-  switch (ctx->mode) {
-    case SORT_ASCII:
-      if (ctx->nocase) {
-        result = lsort_compare_nocase(ctx->ops, interp, valA, valB);
-      } else {
-        result = ctx->ops->string.compare(interp, valA, valB);
-      }
-      break;
+  if (ctx->hasCommand) {
+    // Build command: {proc a b}
+    FeatherObj cmdList = ctx->ops->list.create(interp);
+    cmdList = ctx->ops->list.push(interp, cmdList, ctx->commandProc);
+    cmdList = ctx->ops->list.push(interp, cmdList, valA);
+    cmdList = ctx->ops->list.push(interp, cmdList, valB);
 
-    case SORT_INTEGER: {
-      int64_t va, vb;
-      // For integer mode, we assume the conversion will succeed
-      // (error checking should happen before sort)
-      ctx->ops->integer.get(interp, valA, &va);
-      ctx->ops->integer.get(interp, valB, &vb);
-      if (va < vb) result = -1;
-      else if (va > vb) result = 1;
-      else result = 0;
-      break;
+    // Execute the command
+    FeatherResult rc = feather_command_exec(ctx->ops, interp, cmdList, TCL_EVAL_LOCAL);
+    if (rc != TCL_OK) {
+      // Command failed - set error flag and return
+      ctx->error = 1;
+      return 0;
     }
 
-    case SORT_REAL: {
-      double va, vb;
-      ctx->ops->dbl.get(interp, valA, &va);
-      ctx->ops->dbl.get(interp, valB, &vb);
-      if (va < vb) result = -1;
-      else if (va > vb) result = 1;
-      else result = 0;
-      break;
+    // Get the result and parse as integer
+    FeatherObj cmdResult = ctx->ops->interp.get_result(interp);
+    int64_t cmpResult;
+    if (ctx->ops->integer.get(interp, cmdResult, &cmpResult) != TCL_OK) {
+      // Result is not an integer
+      ctx->error = 1;
+      FeatherObj msg = ctx->ops->string.intern(interp,
+        "-compare command returned non-integer result", 44);
+      ctx->ops->interp.set_result(interp, msg);
+      return 0;
+    }
+
+    result = (cmpResult < 0) ? -1 : (cmpResult > 0) ? 1 : 0;
+  } else {
+    switch (ctx->mode) {
+      case SORT_ASCII:
+        if (ctx->nocase) {
+          result = lsort_compare_nocase(ctx->ops, interp, valA, valB);
+        } else {
+          result = ctx->ops->string.compare(interp, valA, valB);
+        }
+        break;
+
+      case SORT_INTEGER: {
+        int64_t va, vb;
+        // For integer mode, we assume the conversion will succeed
+        // (error checking should happen before sort)
+        ctx->ops->integer.get(interp, valA, &va);
+        ctx->ops->integer.get(interp, valB, &vb);
+        if (va < vb) result = -1;
+        else if (va > vb) result = 1;
+        else result = 0;
+        break;
+      }
+
+      case SORT_REAL: {
+        double va, vb;
+        ctx->ops->dbl.get(interp, valA, &va);
+        ctx->ops->dbl.get(interp, valB, &vb);
+        if (va < vb) result = -1;
+        else if (va > vb) result = 1;
+        else result = 0;
+        break;
+      }
+
+      case SORT_DICTIONARY:
+        result = lsort_compare_dictionary(ctx->ops, interp, valA, valB);
+        break;
     }
   }
 
@@ -129,6 +247,9 @@ FeatherResult feather_builtin_lsort(const FeatherHostOps *ops, FeatherInterp int
   ctx.hasIndex = 0;
   ctx.sortIndex = 0;
   ctx.sortingPairs = 0;
+  ctx.hasCommand = 0;
+  ctx.commandProc = 0;
+  ctx.error = 0;
   int unique = 0;
   int returnIndices = 0;
 
@@ -145,6 +266,8 @@ FeatherResult feather_builtin_lsort(const FeatherHostOps *ops, FeatherInterp int
         ctx.mode = SORT_INTEGER;
       } else if (feather_obj_eq_literal(ops, interp, arg, "-real")) {
         ctx.mode = SORT_REAL;
+      } else if (feather_obj_eq_literal(ops, interp, arg, "-dictionary")) {
+        ctx.mode = SORT_DICTIONARY;
       } else if (feather_obj_eq_literal(ops, interp, arg, "-increasing")) {
         ctx.decreasing = 0;
       } else if (feather_obj_eq_literal(ops, interp, arg, "-decreasing")) {
@@ -175,11 +298,21 @@ FeatherResult feather_builtin_lsort(const FeatherHostOps *ops, FeatherInterp int
           return TCL_ERROR;
         }
         ctx.hasIndex = 1;
+      } else if (feather_obj_eq_literal(ops, interp, arg, "-command")) {
+        // -command requires an argument (command name) plus the list
+        if (ops->list.length(interp, args) <= 1) {
+          FeatherObj msg = ops->string.intern(interp,
+            "\"-command\" option must be followed by comparison command", 56);
+          ops->interp.set_result(interp, msg);
+          return TCL_ERROR;
+        }
+        ctx.commandProc = ops->list.shift(interp, args);
+        ctx.hasCommand = 1;
       } else {
         FeatherObj msg = ops->string.intern(interp, "bad option \"", 12);
         msg = ops->string.concat(interp, msg, arg);
         FeatherObj suffix = ops->string.intern(interp,
-          "\": must be -ascii, -decreasing, -increasing, -index, -indices, -integer, -nocase, -real, or -unique", 99);
+          "\": must be -ascii, -command, -decreasing, -dictionary, -increasing, -index, -indices, -integer, -nocase, -real, or -unique", 122);
         msg = ops->string.concat(interp, msg, suffix);
         ops->interp.set_result(interp, msg);
         return TCL_ERROR;
@@ -238,6 +371,11 @@ FeatherResult feather_builtin_lsort(const FeatherHostOps *ops, FeatherInterp int
       return TCL_ERROR;
     }
 
+    // Check if -command callback failed
+    if (ctx.error) {
+      return TCL_ERROR;
+    }
+
     // Extract indices from sorted pairs
     // Reset sortingPairs for value comparisons in unique check
     ctx.sortingPairs = 0;
@@ -281,6 +419,11 @@ FeatherResult feather_builtin_lsort(const FeatherHostOps *ops, FeatherInterp int
     if (ops->list.sort(interp, list, compare_elements, &ctx) != TCL_OK) {
       FeatherObj msg = ops->string.intern(interp, "sort failed", 11);
       ops->interp.set_result(interp, msg);
+      return TCL_ERROR;
+    }
+
+    // Check if -command callback failed
+    if (ctx.error) {
       return TCL_ERROR;
     }
 

@@ -164,6 +164,14 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
         return TCL_ERROR;
       }
       hasIndex = 1;
+    } else if (feather_obj_eq_literal(ops, interp, arg, "-dictionary") ||
+               feather_obj_eq_literal(ops, interp, arg, "-ascii") ||
+               feather_obj_eq_literal(ops, interp, arg, "-integer") ||
+               feather_obj_eq_literal(ops, interp, arg, "-real") ||
+               feather_obj_eq_literal(ops, interp, arg, "-increasing") ||
+               feather_obj_eq_literal(ops, interp, arg, "-decreasing")) {
+      // These options are for -sorted mode which we don't support
+      // Accept them for compatibility but they have no effect on linear search
     } else {
       FeatherObj msg = ops->string.intern(interp, "bad option \"", 12);
       msg = ops->string.concat(interp, msg, arg);
