@@ -55,12 +55,12 @@ TCL objects can have multiple representations (string, int, list, etc.).
 
 **All shimmering logic is centralized in free-standing conversion functions:**
 
-| Function | Conversion |
-|----------|------------|
-| `AsString(o *Obj)` | any → string |
-| `AsInt(o *Obj)` | string → int |
-| `AsList(o *Obj)` | (existing list rep only) |
-| `AsDict(o *Obj)` | (existing dict rep only) |
+| Function              | Conversion                       |
+| --------------------- | -------------------------------- |
+| `AsString(o *Obj)`    | any → string                     |
+| `AsInt(o *Obj)`       | string → int                     |
+| `AsList(o *Obj)`      | (existing list rep only)         |
+| `AsDict(o *Obj)`      | (existing dict rep only)         |
 | `Interp.ParseList(s)` | string → list (requires parsing) |
 | `Interp.ParseDict(s)` | string → dict (requires parsing) |
 
@@ -121,3 +121,11 @@ they have access to.
 `mise test` runs the test harness against the Go reference implementation.
 
 `mise test:js` runs the test harness against the JavaScript/WASM host.
+
+## Important differences from TCL
+
+Feather does not support TCL-style arrays.
+
+Sometimes you will find references to arrays when comparing TCL to Feather.
+
+We do not aim for array support in Feather.
