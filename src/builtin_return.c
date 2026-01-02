@@ -51,6 +51,7 @@ FeatherResult feather_builtin_return(const FeatherHostOps *ops, FeatherInterp in
   int level = 1;          // Default: -level 1
   FeatherObj errorcode = 0;  // Default: not set (will use NONE)
   FeatherObj errorinfo = 0;  // Default: not set
+  FeatherObj errorstack = 0;  // Default: not set
   FeatherObj resultValue = ops->string.intern(interp, "", 0);
   FeatherObj customOptions = ops->list.create(interp);  // Collect arbitrary options
 
@@ -128,6 +129,15 @@ FeatherResult feather_builtin_return(const FeatherHostOps *ops, FeatherInterp in
         }
         errorinfo = ops->list.shift(interp, argsCopy);
         argc--;
+      } else if (feather_obj_eq_literal(ops, interp, arg, "-errorstack")) {
+        // Need value
+        if (argc == 0) {
+          FeatherObj msg = ops->string.intern(interp, "-errorstack requires a value", 28);
+          ops->interp.set_result(interp, msg);
+          return TCL_ERROR;
+        }
+        errorstack = ops->list.shift(interp, argsCopy);
+        argc--;
       } else if (feather_obj_eq_literal(ops, interp, arg, "-options")) {
         // -options takes a dictionary, extract -code and -level from it
         if (argc == 0) {
@@ -194,6 +204,12 @@ FeatherResult feather_builtin_return(const FeatherHostOps *ops, FeatherInterp in
         FeatherObj errorinfoKey = ops->string.intern(interp, "-errorinfo", 10);
         if (ops->dict.exists(interp, optDict, errorinfoKey)) {
           errorinfo = ops->dict.get(interp, optDict, errorinfoKey);
+        }
+
+        // Extract -errorstack if present
+        FeatherObj errorstackKey = ops->string.intern(interp, "-errorstack", 11);
+        if (ops->dict.exists(interp, optDict, errorstackKey)) {
+          errorstack = ops->dict.get(interp, optDict, errorstackKey);
         }
 
         // Copy any other (custom) options from the dictionary
@@ -266,6 +282,12 @@ FeatherResult feather_builtin_return(const FeatherHostOps *ops, FeatherInterp in
   if (errorinfo != 0) {
     options = ops->list.push(interp, options, ops->string.intern(interp, "-errorinfo", 10));
     options = ops->list.push(interp, options, errorinfo);
+  }
+
+  // Add -errorstack if set
+  if (errorstack != 0) {
+    options = ops->list.push(interp, options, ops->string.intern(interp, "-errorstack", 11));
+    options = ops->list.push(interp, options, errorstack);
   }
 
   // Store the return options
