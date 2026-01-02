@@ -2,7 +2,7 @@
 
 This document summarizes the comparison between Feather's TCL builtin implementations and official TCL 8.6+/9.0.
 
-## Feature-Complete Builtins (25)
+## Feature-Complete Builtins (26)
 
 These builtins match TCL's documented behavior:
 
@@ -31,6 +31,7 @@ These builtins match TCL's documented behavior:
 - `proc` - Procedure definition (with default parameters)
 - `return` - Procedure return (with -code, -level, -options, -errorcode, -errorinfo, -errorstack)
 - `catch` - Exception catching (with -errorinfo, -errorcode, -errorstack, -errorline, globals)
+- `uplevel` - Execute script in different stack frame (with namespace and apply interaction)
 
 ## Builtins with Missing Features
 
@@ -52,7 +53,6 @@ These builtins match TCL's documented behavior:
 | `lappend` | Array default values |
 | `unset` | Array support |
 | `upvar` | Array element references, validation checks |
-| `uplevel` | Namespace interaction, concat-style argument joining |
 | `tailcall` | Uplevel restriction (may not be enforced in TCL 9.0) |
 | `for` | break handling in next script |
 | `split` | Unicode character handling |

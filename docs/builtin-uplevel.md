@@ -29,29 +29,15 @@ Our implementation:
 | Result propagation | Supported | Returns result of evaluated script |
 | Error propagation | Supported | Errors from script evaluation are propagated |
 
-## TCL Features We Do NOT Support
+## Additional Supported Features
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Namespace interaction | Not Supported | TCL's `namespace eval` adds call frames that count for `uplevel`. Feather does not implement namespaces. |
-| `apply` command interaction | Not Supported | TCL's `apply` command adds call frames; Feather does not implement `apply`. |
-| Concat-style argument joining | Partial | TCL uses `concat` semantics (which trims and handles lists specially). We use simple space-joining. |
+| Namespace interaction | **Supported** | Namespace eval and procs add call frames correctly |
+| `apply` command interaction | **Supported** | Apply adds call frames that count for uplevel |
+| Concat-style argument joining | **Supported** | Whitespace trimming and list handling work correctly |
 
-### Details on Unsupported Features
-
-**Namespace Interaction:**
-In TCL, `namespace eval` commands add call frames to the stack. This means `uplevel 1` from within a namespace context would skip over the namespace frame. Since Feather does not implement namespaces, this behavior is not applicable.
-
-**Apply Command:**
-TCL's `apply` command creates anonymous procedures that also add call frames. Since Feather does not implement `apply`, this interaction is not present.
-
-**Concat-style Argument Joining:**
-TCL specifies that arguments are concatenated "as if they had been passed to `concat`". The `concat` command in TCL:
-- Joins arguments with single spaces
-- Trims leading/trailing whitespace from each argument
-- Treats list arguments specially (unwraps outer braces)
-
-Our implementation uses simple space concatenation, which works correctly for most common use cases but may behave differently with list values or arguments containing leading/trailing whitespace.
+All major uplevel features are now implemented and match TCL behavior.
 
 ## Notes on Implementation Differences
 
