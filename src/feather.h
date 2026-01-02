@@ -614,11 +614,12 @@ typedef struct FeatherIntOps {
  * FeatherDoubleClass classifies floating-point values for special value detection.
  */
 typedef enum FeatherDoubleClass {
-  FEATHER_DBL_NORMAL  = 0, /* Finite, non-zero */
-  FEATHER_DBL_ZERO    = 1, /* Positive or negative zero */
-  FEATHER_DBL_INF     = 2, /* Positive infinity */
-  FEATHER_DBL_NEG_INF = 3, /* Negative infinity */
-  FEATHER_DBL_NAN     = 4, /* Not a number */
+  FEATHER_DBL_NORMAL    = 0, /* Finite, non-zero, normalized */
+  FEATHER_DBL_ZERO      = 1, /* Positive or negative zero */
+  FEATHER_DBL_INF       = 2, /* Positive infinity */
+  FEATHER_DBL_NEG_INF   = 3, /* Negative infinity */
+  FEATHER_DBL_NAN       = 4, /* Not a number */
+  FEATHER_DBL_SUBNORMAL = 5, /* Subnormal (denormalized) */
 } FeatherDoubleClass;
 
 /**

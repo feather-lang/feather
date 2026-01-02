@@ -87,21 +87,21 @@ Feather implements a comprehensive expression evaluator in `src/builtin_expr.c`.
 
 | Function | Description |
 |----------|-------------|
-| `bool(arg)` | Convert to boolean (0 or 1) |
-| `entier(x)` | Integer part with unlimited precision (differs from `int` which truncates to machine word) |
-| `isfinite(x)` | Returns 1 if finite (zero, subnormal, or normal) |
-| `isnormal(x)` | Returns 1 if normal (not zero, subnormal, infinite, or NaN) |
 | `isqrt(x)` | Integer square root with arbitrary precision |
-| `issubnormal(x)` | Returns 1 if subnormal (gradual underflow) |
-| `isunordered(x, y)` | Returns 1 if either is NaN (cannot be ordered) |
-| `max(arg, ...)` | Maximum of multiple arguments |
-| `min(arg, ...)` | Minimum of multiple arguments |
 | `rand()` | Random number in (0, 1) |
 | `srand(seed)` | Seed random number generator |
 
-### Missing Operand Features
+### Notes on Implemented Functions
 
-- **Decimal prefix `0d`**: TCL allows `0d` prefix for explicit decimal (e.g., `0d123`). Feather does not recognize this.
+- **`bool(arg)`**: Implemented. Converts to boolean (0 or 1). Accepts numeric values and boolean strings like "true", "false", "yes", "no", "on", "off".
+- **`entier(x)`**: Implemented. Note that in Feather, this behaves identically to `int()` since we use 64-bit integers (no arbitrary precision).
+- **`isfinite(x)`**: Implemented. Returns 1 if finite (zero, subnormal, or normal).
+- **`isnormal(x)`**: Implemented. Returns 1 if normal (not zero, subnormal, infinite, or NaN).
+- **`issubnormal(x)`**: Implemented. Returns 1 if subnormal (denormalized).
+- **`isunordered(x, y)`**: Implemented. Returns 1 if either is NaN (cannot be ordered).
+- **`max(arg, ...)`**: Implemented. Returns maximum of one or more arguments. Preserves int/double types.
+- **`min(arg, ...)`**: Implemented. Returns minimum of one or more arguments. Preserves int/double types.
+- **Decimal prefix `0d`**: Implemented. TCL allows `0d` prefix for explicit decimal (e.g., `0d123`).
 
 ## Notes on Implementation Differences
 

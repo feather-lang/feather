@@ -1042,6 +1042,12 @@ func goDoubleClassify(val C.double) C.FeatherDoubleClass {
 	if v == 0 {
 		return C.FEATHER_DBL_ZERO
 	}
+	// Smallest normal positive float64 is 2^-1022
+	const smallestNormal = 2.2250738585072014e-308
+	absV := math.Abs(v)
+	if absV < smallestNormal {
+		return C.FEATHER_DBL_SUBNORMAL
+	}
 	return C.FEATHER_DBL_NORMAL
 }
 

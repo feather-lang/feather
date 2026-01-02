@@ -1175,6 +1175,9 @@ async function createFeather(wasmSource) {
       if (val === Infinity) return 2;   // FEATHER_DBL_INF
       if (val === -Infinity) return 3;  // FEATHER_DBL_NEG_INF
       if (val === 0) return 1;          // FEATHER_DBL_ZERO
+      // Smallest normal positive float64 is 2^-1022
+      const smallestNormal = 2.2250738585072014e-308;
+      if (Math.abs(val) < smallestNormal) return 5;  // FEATHER_DBL_SUBNORMAL
       return 0;                         // FEATHER_DBL_NORMAL
     },
     feather_host_dbl_format: (interpId, val, specifier, precision) => {

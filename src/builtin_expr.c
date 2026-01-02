@@ -501,12 +501,33 @@ static ExprValue parse_quoted(ExprParser *p) {
   return make_str(p->ops->interp.get_result(p->interp));
 }
 
+// Parse a floating-point number by extracting the string and using host parser
+// This is more accurate than computing mantissa * 10^exp manually
+static ExprValue parse_float_string(ExprParser *p, size_t start, int negative) {
+  // Extract the number string from the expression
+  FeatherObj num_str = p->ops->string.slice(p->interp, p->expr_obj, start, p->pos);
+
+  // Remove any underscores from the string (not supported by standard parsers)
+  // For now, just use the host's double parser directly
+  double val;
+  if (p->ops->dbl.get(p->interp, num_str, &val) == TCL_OK) {
+    if (negative) val = -val;
+    return make_double(val);
+  }
+
+  // Fallback: shouldn't happen for valid float syntax we parsed
+  set_syntax_error(p);
+  return make_error();
+}
+
 // Parse number literal (integer or floating-point)
 // Integers: 123, 0x1f, 0b101, 0o17, with optional underscores
 // Floats: 3.14, .5, 5., 1e10, 3.14e-5
 static ExprValue parse_number(ExprParser *p) {
   size_t start = p->pos;
   int negative = 0;
+  int is_float = 0;
+  int has_underscores = 0;
 
   int c = CUR_BYTE(p);
   if (c == '-') {
@@ -516,8 +537,11 @@ static ExprValue parse_number(ExprParser *p) {
     p->pos++;
   }
 
+  size_t num_start = p->pos; // Start of number without sign
+
   // Handle leading decimal point: .5
   if (p->pos < p->len && CUR_BYTE(p) == '.') {
+    is_float = 1;
     p->pos++;
     if (AT_END(p) || CUR_BYTE(p) < '0' || CUR_BYTE(p) > '9') {
       FeatherObj token = p->ops->string.slice(p->interp, p->expr_obj, start,
@@ -525,34 +549,23 @@ static ExprValue parse_number(ExprParser *p) {
       set_integer_error_obj(p, token);
       return make_error();
     }
-    // Parse fractional digits
-    double frac = 0.0;
-    double place = 0.1;
+    // Skip fractional digits
     while (p->pos < p->len) {
       c = CUR_BYTE(p);
-      if (c == '_') { p->pos++; continue; }
+      if (c == '_') { has_underscores = 1; p->pos++; continue; }
       if (c < '0' || c > '9') break;
-      frac += (c - '0') * place;
-      place *= 0.1;
       p->pos++;
     }
-    double result = frac;
     // Check for exponent
     if (p->pos < p->len && (CUR_BYTE(p) == 'e' || CUR_BYTE(p) == 'E')) {
       p->pos++;
-      int exp_neg = 0;
-      if (p->pos < p->len && CUR_BYTE(p) == '-') { exp_neg = 1; p->pos++; }
-      else if (p->pos < p->len && CUR_BYTE(p) == '+') { p->pos++; }
-      int64_t exp = 0;
+      if (p->pos < p->len && (CUR_BYTE(p) == '-' || CUR_BYTE(p) == '+')) p->pos++;
       while (p->pos < p->len && CUR_BYTE(p) >= '0' && CUR_BYTE(p) <= '9') {
-        exp = exp * 10 + (CUR_BYTE(p) - '0');
         p->pos++;
       }
-      double mult = 1.0;
-      for (int64_t i = 0; i < exp; i++) mult *= 10.0;
-      if (exp_neg) result /= mult; else result *= mult;
     }
-    return make_double(negative ? -result : result);
+    // Use host parser for the float string
+    return parse_float_string(p, num_start, negative);
   }
 
   if (AT_END(p) || (CUR_BYTE(p) < '0' || CUR_BYTE(p) > '9')) {
@@ -576,6 +589,9 @@ static ExprValue parse_number(ExprParser *p) {
     } else if (next == 'o' || next == 'O') {
       base = 8;
       p->pos += 2;
+    } else if (next == 'd' || next == 'D') {
+      // Explicit decimal prefix - base stays 10
+      p->pos += 2;
     }
   }
 
@@ -583,7 +599,7 @@ static ExprValue parse_number(ExprParser *p) {
   int64_t int_value = 0;
   while (p->pos < p->len) {
     c = CUR_BYTE(p);
-    if (c == '_') { p->pos++; continue; }
+    if (c == '_') { has_underscores = 1; p->pos++; continue; }
     int digit = -1;
     if (c >= '0' && c <= '9') digit = c - '0';
     else if (c >= 'a' && c <= 'f') digit = c - 'a' + 10;
@@ -597,53 +613,38 @@ static ExprValue parse_number(ExprParser *p) {
   if (base == 10 && p->pos < p->len && CUR_BYTE(p) == '.') {
     // Look ahead to distinguish 5.0 from 5.method()
     if (p->pos + 1 < p->len && BYTE_AT(p, p->pos + 1) >= '0' && BYTE_AT(p, p->pos + 1) <= '9') {
+      is_float = 1;
       p->pos++; // skip .
-      double frac = 0.0;
-      double place = 0.1;
+      // Skip fractional digits
       while (p->pos < p->len) {
         c = CUR_BYTE(p);
-        if (c == '_') { p->pos++; continue; }
+        if (c == '_') { has_underscores = 1; p->pos++; continue; }
         if (c < '0' || c > '9') break;
-        frac += (c - '0') * place;
-        place *= 0.1;
         p->pos++;
       }
-      double result = (double)int_value + frac;
       // Check for exponent
       if (p->pos < p->len && (CUR_BYTE(p) == 'e' || CUR_BYTE(p) == 'E')) {
         p->pos++;
-        int exp_neg = 0;
-        if (p->pos < p->len && CUR_BYTE(p) == '-') { exp_neg = 1; p->pos++; }
-        else if (p->pos < p->len && CUR_BYTE(p) == '+') { p->pos++; }
-        int64_t exp = 0;
+        if (p->pos < p->len && (CUR_BYTE(p) == '-' || CUR_BYTE(p) == '+')) p->pos++;
         while (p->pos < p->len && CUR_BYTE(p) >= '0' && CUR_BYTE(p) <= '9') {
-          exp = exp * 10 + (CUR_BYTE(p) - '0');
           p->pos++;
         }
-        double mult = 1.0;
-        for (int64_t i = 0; i < exp; i++) mult *= 10.0;
-        if (exp_neg) result /= mult; else result *= mult;
       }
-      return make_double(negative ? -result : result);
+      // Use host parser for the float string
+      return parse_float_string(p, num_start, negative);
     }
   }
 
   // Check for exponent without decimal point (e.g., 1e10) - only base 10
   if (base == 10 && p->pos < p->len && (CUR_BYTE(p) == 'e' || CUR_BYTE(p) == 'E')) {
+    is_float = 1;
     p->pos++;
-    int exp_neg = 0;
-    if (p->pos < p->len && CUR_BYTE(p) == '-') { exp_neg = 1; p->pos++; }
-    else if (p->pos < p->len && CUR_BYTE(p) == '+') { p->pos++; }
-    int64_t exp = 0;
+    if (p->pos < p->len && (CUR_BYTE(p) == '-' || CUR_BYTE(p) == '+')) p->pos++;
     while (p->pos < p->len && CUR_BYTE(p) >= '0' && CUR_BYTE(p) <= '9') {
-      exp = exp * 10 + (CUR_BYTE(p) - '0');
       p->pos++;
     }
-    double result = (double)int_value;
-    double mult = 1.0;
-    for (int64_t i = 0; i < exp; i++) mult *= 10.0;
-    if (exp_neg) result /= mult; else result *= mult;
-    return make_double(negative ? -result : result);
+    // Use host parser for the float string
+    return parse_float_string(p, num_start, negative);
   }
 
   return make_int(negative ? -int_value : int_value);

@@ -57,6 +57,16 @@ the `FEATHER_MATH_*` operation codes.
 ### Classification Functions
 - `isnan(arg)` - test if Not-a-Number
 - `isinf(arg)` - test if infinite
+- `isfinite(arg)` - test if finite (zero, subnormal, or normal)
+- `isnormal(arg)` - test if normal (not zero, subnormal, infinite, or NaN)
+- `issubnormal(arg)` - test if subnormal (denormalized)
+- `isunordered(x, y)` - test if either is NaN
+
+### Boolean and Variadic Functions
+- `bool(arg)` - convert to boolean (0 or 1)
+- `entier(arg)` - convert to integer (same as `int` in Feather due to 64-bit integers)
+- `max(arg, ...)` - return maximum of one or more numeric arguments
+- `min(arg, ...)` - return minimum of one or more numeric arguments
 
 ## TCL Features We Do NOT Support
 
@@ -64,22 +74,9 @@ the `FEATHER_MATH_*` operation codes.
 
 | Function | Description |
 |----------|-------------|
-| `bool(arg)` | Convert to boolean (0 or 1). Accepts numeric values and boolean strings like "true", "false", "yes", "no". |
-| `entier(arg)` | Convert to arbitrary-precision integer. Unlike `int` and `wide`, has unlimited range. |
 | `isqrt(arg)` | Integer square root with arbitrary precision. Returns exact integer part of sqrt. |
-| `max(arg, ...)` | Return maximum of one or more numeric arguments. Variadic function. |
-| `min(arg, ...)` | Return minimum of one or more numeric arguments. Variadic function. |
 | `rand()` | Return pseudo-random float in range (0,1). Zero-argument function. |
 | `srand(arg)` | Seed the random number generator. Returns first random number from that seed. |
-
-### Missing Classification Functions
-
-| Function | Description |
-|----------|-------------|
-| `isfinite(arg)` | Returns 1 if arg is zero, subnormal, or normal (not infinite, not NaN). |
-| `isnormal(arg)` | Returns 1 if arg is a normal floating-point number (not zero, subnormal, infinite, or NaN). |
-| `issubnormal(arg)` | Returns 1 if arg is a subnormal (denormalized) floating-point number. |
-| `isunordered(x, y)` | Returns 1 if either x or y is NaN (cannot be ordered). Binary function. |
 
 ## Notes on Implementation Differences
 

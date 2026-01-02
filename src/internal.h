@@ -467,6 +467,22 @@ FeatherResult feather_builtin_mathfunc_isnan(const FeatherHostOps *ops, FeatherI
                                              FeatherObj cmd, FeatherObj args);
 FeatherResult feather_builtin_mathfunc_isinf(const FeatherHostOps *ops, FeatherInterp interp,
                                              FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_isfinite(const FeatherHostOps *ops, FeatherInterp interp,
+                                                FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_isnormal(const FeatherHostOps *ops, FeatherInterp interp,
+                                                FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_issubnormal(const FeatherHostOps *ops, FeatherInterp interp,
+                                                   FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_isunordered(const FeatherHostOps *ops, FeatherInterp interp,
+                                                   FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_bool(const FeatherHostOps *ops, FeatherInterp interp,
+                                            FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_entier(const FeatherHostOps *ops, FeatherInterp interp,
+                                              FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_max(const FeatherHostOps *ops, FeatherInterp interp,
+                                           FeatherObj cmd, FeatherObj args);
+FeatherResult feather_builtin_mathfunc_min(const FeatherHostOps *ops, FeatherInterp interp,
+                                           FeatherObj cmd, FeatherObj args);
 
 /**
  * feather_builtin_error implements the TCL 'error' command.
