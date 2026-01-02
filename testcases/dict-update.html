@@ -1,0 +1,129 @@
+<test-suite name="dict update">
+
+<test-case name="dict update basic">
+  <script>
+set d {a 1 b 2 c 3}
+dict update d a x b y {
+    set x 10
+    set y 20
+}
+set d
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>a 10 b 20 c 3</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict update returns script result">
+  <script>
+set d {a 1 b 2}
+dict update d a x { expr {$x * 10} }
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>10</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict update unset removes key">
+  <script>
+set d {a 1 b 2 c 3}
+dict update d a x b y {
+    unset x
+}
+set d
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>b 2 c 3</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict update missing key creates if set">
+  <script>
+set d {a 1 b 2}
+dict update d a x c z {
+    set z 99
+}
+set d
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>a 1 b 2 c 99</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict update missing key not created if not set">
+  <script>
+set d {a 1 b 2}
+dict update d a x c z {
+    set x 10
+}
+set d
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>a 10 b 2</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict update single key">
+  <script>
+set d {name john age 30}
+dict update d age a {
+    incr a
+}
+set d
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>name john age 31</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict update preserves unchanged keys">
+  <script>
+set d {a 1 b 2 c 3}
+dict update d b x {
+    set x 20
+}
+set d
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>a 1 b 20 c 3</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- error cases -->
+
+<test-case name="dict update wrong args">
+  <script>
+dict update
+  </script>
+  <return>TCL_ERROR</return>
+  <error>wrong # args: should be "dict update dictVarName key varName ?key varName ...? script"</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="dict update missing body">
+  <script>
+set d {a 1}
+dict update d a
+  </script>
+  <return>TCL_ERROR</return>
+  <error>wrong # args: should be "dict update dictVarName key varName ?key varName ...? script"</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+</test-suite>

@@ -1,0 +1,99 @@
+<test-suite name="dict map">
+
+<test-case name="dict map basic multiply">
+  <script>
+dict map {k v} {a 1 b 2 c 3} {expr {$v * 2}}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>a 2 b 4 c 6</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict map transform key and value">
+  <script>
+dict map {k v} {a 1 b 2} {list $k $v}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>a {a 1} b {b 2}</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict map with break returns empty">
+  <script>
+dict map {k v} {a 1 b 2 c 3 d 4} {
+    if {$v == 3} break
+    expr {$v * 10}
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout></stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict map with continue skips pair">
+  <script>
+dict map {k v} {a 1 b 2 c 3 d 4} {
+    if {$v == 2} continue
+    expr {$v * 10}
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>a 10 c 30 d 40</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict map empty dict">
+  <script>
+dict map {k v} {} {expr {$v * 2}}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout></stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict map preserves key">
+  <script>
+dict map {key val} {x 10 y 20} {
+    string toupper $key
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>x X y Y</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- error cases -->
+
+<test-case name="dict map wrong args">
+  <script>
+dict map
+  </script>
+  <return>TCL_ERROR</return>
+  <error>wrong # args: should be "dict map {keyVarName valueVarName} dictionary script"</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="dict map wrong var count">
+  <script>
+dict map {k} {a 1} {expr 1}
+  </script>
+  <return>TCL_ERROR</return>
+  <error>must have exactly two variable names</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+</test-suite>
