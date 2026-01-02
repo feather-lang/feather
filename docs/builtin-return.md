@@ -69,6 +69,11 @@ Our implementation in `src/builtin_return.c` provides basic `return` functionali
      return -code error -errorinfo "Custom trace\n    at line 5" "Something failed"
      ```
 
+8. **Multiple trailing arguments**
+   - When multiple non-option arguments are provided, only the last one is used as the result
+   - Example: `return a b c` returns `c`
+   - This matches TCL's behavior
+
 ## TCL Features We Do NOT Support
 
 ### 1. The `-errorstack` Option (TCL 8.6+)
@@ -85,10 +90,6 @@ return -myoption myvalue "result"  ;# Allowed in TCL
 ```
 
 **Our behavior:** Returns error "bad option \"-myoption\""
-
-### 3. Multiple Result Arguments
-
-TCL concatenates multiple trailing arguments with spaces. Our implementation does support this, but the behavior should be verified for edge cases.
 
 ## Notes on Implementation Differences
 
