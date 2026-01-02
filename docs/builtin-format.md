@@ -72,15 +72,15 @@ TCL specifies precise truncation behavior for size modifiers:
 
 ### Alternate Form (`#`) Differences
 
-TCL's `#` flag has specific behavior we don't fully match:
+TCL's `#` flag has specific behavior:
 
 | Conversion | TCL Behavior | Our Behavior |
 |------------|--------------|--------------|
 | `%#o` | Adds `0o` prefix (unless zero) | Adds `0o` prefix (unless zero) - Matches |
 | `%#x`/`%#X` | Adds `0x` prefix (unless zero) | Adds `0x` prefix (unless zero) - Matches |
 | `%#b` | Adds `0b` prefix (unless zero) | Adds `0b` prefix (unless zero) - Matches |
-| `%#d` | No effect (without `0` flag) | No effect - Matches |
-| `%#0d` | Adds `0d` prefix | Not implemented |
+| `%#d` | Adds `0d` prefix (unless zero) | **Implemented** - Matches |
+| `%#0Nd` | Adds `0d` with zero padding | **Implemented** - Matches |
 | `%#f`, `%#e`, etc. | Guarantees decimal point | Not implemented |
 | `%#g`, `%#G` | Keeps trailing zeroes | Not implemented |
 
