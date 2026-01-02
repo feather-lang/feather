@@ -1,0 +1,83 @@
+<test-suite name="lsort -dictionary option">
+
+<test-case name="lsort -dictionary numbers in strings">
+  <script>
+    lsort -dictionary {a10 a2 a1 a20}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>a1 a2 a10 a20</stdout>
+</test-case>
+
+<test-case name="lsort -dictionary case handling">
+  <script>
+    lsort -dictionary {bigBoy bigbang bigboy}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>bigbang bigBoy bigboy</stdout>
+</test-case>
+
+<test-case name="lsort -dictionary mixed">
+  <script>
+    lsort -dictionary {x10y x9y x11y X10Y}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>x9y X10Y x10y x11y</stdout>
+</test-case>
+
+<test-case name="lsort -dictionary leading zeros">
+  <script>
+    lsort -dictionary {a01 a1 a001}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>a1 a01 a001</stdout>
+</test-case>
+
+<test-case name="lsort -dictionary empty nums">
+  <script>
+    lsort -dictionary {a a1 a2}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>a a1 a2</stdout>
+</test-case>
+
+<test-case name="lsort -dictionary only numbers">
+  <script>
+    lsort -dictionary {10 2 1 20}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1 2 10 20</stdout>
+</test-case>
+
+<test-case name="lsort -dictionary with -decreasing">
+  <script>
+    lsort -dictionary -decreasing {a1 a2 a10}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>a10 a2 a1</stdout>
+</test-case>
+
+<test-case name="lsort -dictionary with -unique">
+  <script>
+    lsort -dictionary -unique {a1 A1 a1}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>A1 a1</stdout>
+</test-case>
+
+<test-case name="lsort -dictionary alpha only">
+  <script>
+    lsort -dictionary {cat Cat CAT dog Dog}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>CAT Cat cat Dog dog</stdout>
+</test-case>
+
+<test-case name="lsort -dictionary file names">
+  <script>
+    lsort -dictionary {file1.txt file10.txt file2.txt file20.txt}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>file1.txt file2.txt file10.txt file20.txt</stdout>
+</test-case>
+
+</test-suite>
