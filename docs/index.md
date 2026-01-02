@@ -53,7 +53,7 @@ These builtins match TCL's documented behavior:
 | `unset` | Array support |
 | `upvar` | Array element references, validation checks |
 | `uplevel` | Namespace interaction, concat-style argument joining |
-| `tailcall` | Namespace context resolution, uplevel restriction |
+| `tailcall` | Uplevel restriction (may not be enforced in TCL 9.0) |
 | `for` | break handling in next script |
 | `split` | Unicode character handling |
 

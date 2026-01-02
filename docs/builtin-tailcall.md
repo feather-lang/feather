@@ -20,13 +20,27 @@ Our implementation in `src/builtin_tailcall.c`:
 - **Error propagation**: Errors from the tailcalled command are properly propagated
 - **Proc-only restriction**: Correctly rejects tailcall when called at the global level (level 0)
 
+## TCL Features We Support
+
+### Namespace context resolution
+
+**Implemented.** According to TCL documentation, the command "will be looked up in the current namespace context, not in the caller's." Our implementation saves the namespace before popping the frame, then temporarily restores it for command lookup.
+
+```tcl
+namespace eval foo {
+    proc cmd {} { return "foo::cmd" }
+    proc caller {} { tailcall cmd }  ;# Looks up in foo::
+}
+namespace eval bar {
+    proc test {} { foo::caller }  ;# Still resolves to foo::cmd
+}
+```
+
 ## TCL Features We Do NOT Support
 
-1. **Namespace context resolution**: According to TCL documentation, the command "will be looked up in the current namespace context, not in the caller's." Our implementation uses `feather_command_exec` with `TCL_EVAL_LOCAL` but may not correctly handle namespace resolution differences.
+1. **Lambda/method support**: TCL states tailcall works with "procedure, lambda application, or method." While our implementation checks `level > 0`, we may not have full support for lambda applications or TclOO methods.
 
-2. **Lambda/method support**: TCL states tailcall works with "procedure, lambda application, or method." While our implementation checks `level > 0`, we may not have full support for lambda applications or TclOO methods.
-
-3. **Uplevel restriction**: TCL specifies that "This command may not be invoked from within an uplevel into a procedure or inside a catch inside a procedure or lambda." Our implementation does not enforce this restriction - it only checks that level > 0, not whether we are inside an uplevel or catch context.
+2. **Uplevel restriction**: TCL specifies that "This command may not be invoked from within an uplevel into a procedure or inside a catch inside a procedure or lambda." Our implementation does not enforce this restriction - it only checks that level > 0, not whether we are inside an uplevel or catch context. Note: Testing against TCL 9.0 shows this restriction may no longer be enforced in modern TCL.
 
 ## Notes on Implementation Differences
 
