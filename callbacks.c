@@ -29,8 +29,8 @@ int feather_host_string_compare(FeatherInterp interp, FeatherObj a, FeatherObj b
     return goStringCompare(interp, a, b);
 }
 
-FeatherResult feather_host_string_regex_match(FeatherInterp interp, FeatherObj pattern, FeatherObj string, int *result) {
-    return goStringRegexMatch(interp, pattern, string, result);
+FeatherResult feather_host_string_regex_match(FeatherInterp interp, FeatherObj pattern, FeatherObj string, int nocase, int *result, FeatherObj *matches, FeatherObj *indices) {
+    return goStringRegexMatch(interp, pattern, string, nocase, result, matches, indices);
 }
 
 int feather_host_string_byte_at(FeatherInterp interp, FeatherObj str, size_t index) {

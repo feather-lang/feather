@@ -30,6 +30,9 @@ FeatherResult feather_builtin_switch(const FeatherHostOps *ops, FeatherInterp in
   }
 
   SwitchMode mode = SWITCH_EXACT;
+  int nocase = 0;
+  FeatherObj matchvarName = 0;
+  FeatherObj indexvarName = 0;
   size_t idx = 0;
 
   // Parse options
@@ -48,6 +51,29 @@ FeatherResult feather_builtin_switch(const FeatherHostOps *ops, FeatherInterp in
     } else if (feather_obj_eq_literal(ops, interp, arg, "-regexp")) {
       mode = SWITCH_REGEXP;
       idx++;
+    } else if (feather_obj_eq_literal(ops, interp, arg, "-nocase")) {
+      nocase = 1;
+      idx++;
+    } else if (feather_obj_eq_literal(ops, interp, arg, "-matchvar")) {
+      idx++;
+      if (idx >= argc) {
+        FeatherObj msg = ops->string.intern(interp,
+            "missing variable name argument to -matchvar option", 50);
+        ops->interp.set_result(interp, msg);
+        return TCL_ERROR;
+      }
+      matchvarName = ops->list.at(interp, args, idx);
+      idx++;
+    } else if (feather_obj_eq_literal(ops, interp, arg, "-indexvar")) {
+      idx++;
+      if (idx >= argc) {
+        FeatherObj msg = ops->string.intern(interp,
+            "missing variable name argument to -indexvar option", 50);
+        ops->interp.set_result(interp, msg);
+        return TCL_ERROR;
+      }
+      indexvarName = ops->list.at(interp, args, idx);
+      idx++;
     } else if (feather_obj_eq_literal(ops, interp, arg, "--")) {
       idx++;
       break;
@@ -56,12 +82,21 @@ FeatherResult feather_builtin_switch(const FeatherHostOps *ops, FeatherInterp in
       FeatherObj msg = ops->string.intern(interp,
           "bad option \"", 12);
       FeatherObj part3 = ops->string.intern(interp,
-          "\": must be -exact, -glob, -regexp, or --", 40);
+          "\": must be -exact, -glob, -indexvar, -matchvar, -nocase, -regexp, or --", 71);
       msg = ops->string.concat(interp, msg, arg);
       msg = ops->string.concat(interp, msg, part3);
       ops->interp.set_result(interp, msg);
       return TCL_ERROR;
     }
+  }
+
+  // -matchvar and -indexvar require -regexp
+  if ((matchvarName != 0 || indexvarName != 0) && mode != SWITCH_REGEXP) {
+    FeatherObj msg = ops->string.intern(interp,
+        matchvarName != 0 ? "-matchvar option requires -regexp option" : "-indexvar option requires -regexp option",
+        matchvarName != 0 ? 40 : 40);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
   }
 
   // Need at least string and one pattern-body pair
@@ -125,6 +160,8 @@ FeatherResult feather_builtin_switch(const FeatherHostOps *ops, FeatherInterp in
 
   // Find matching pattern
   FeatherObj bodyToExecute = 0;
+  FeatherObj capturedMatches = 0;
+  FeatherObj capturedIndices = 0;
   int inFallthrough = 0;
 
   for (size_t i = 0; i < numItems; i += 2) {
@@ -151,22 +188,44 @@ FeatherResult feather_builtin_switch(const FeatherHostOps *ops, FeatherInterp in
 
       if (isDefault) {
         matched = 1;
+        // For default, set empty captures
+        capturedMatches = ops->list.create(interp);
+        capturedIndices = ops->list.create(interp);
       } else {
         switch (mode) {
           case SWITCH_EXACT:
-            matched = ops->string.equal(interp, matchString, pattern);
+            if (nocase) {
+              FeatherObj foldedMatch = ops->rune.fold(interp, matchString);
+              FeatherObj foldedPattern = ops->rune.fold(interp, pattern);
+              matched = ops->string.equal(interp, foldedMatch, foldedPattern);
+            } else {
+              matched = ops->string.equal(interp, matchString, pattern);
+            }
             break;
           case SWITCH_GLOB:
-            // Use feather_obj_glob_match which handles character classes [...]
-            matched = feather_obj_glob_match(ops, interp, pattern, matchString);
+            if (nocase) {
+              FeatherObj foldedMatch = ops->rune.fold(interp, matchString);
+              FeatherObj foldedPattern = ops->rune.fold(interp, pattern);
+              matched = feather_obj_glob_match(ops, interp, foldedPattern, foldedMatch);
+            } else {
+              matched = feather_obj_glob_match(ops, interp, pattern, matchString);
+            }
             break;
           case SWITCH_REGEXP: {
             int result;
-            FeatherResult rc = ops->string.regex_match(interp, pattern, matchString, &result);
+            FeatherObj matches = 0;
+            FeatherObj indices = 0;
+            FeatherObj *matchesPtr = (matchvarName != 0) ? &matches : NULL;
+            FeatherObj *indicesPtr = (indexvarName != 0) ? &indices : NULL;
+            FeatherResult rc = ops->string.regex_match(interp, pattern, matchString, nocase, &result, matchesPtr, indicesPtr);
             if (rc != TCL_OK) {
               return rc;
             }
             matched = result;
+            if (matched) {
+              capturedMatches = matches;
+              capturedIndices = indices;
+            }
             break;
           }
         }
@@ -185,9 +244,29 @@ FeatherResult feather_builtin_switch(const FeatherHostOps *ops, FeatherInterp in
   }
 
   if (bodyToExecute == 0) {
-    // No match - return empty string
+    // No match - set empty variables if requested and return empty string
+    if (matchvarName != 0) {
+      feather_set_var(ops, interp, matchvarName, ops->list.create(interp));
+    }
+    if (indexvarName != 0) {
+      feather_set_var(ops, interp, indexvarName, ops->list.create(interp));
+    }
     ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
     return TCL_OK;
+  }
+
+  // Set capture variables before executing body
+  if (matchvarName != 0 && capturedMatches != 0) {
+    feather_set_var(ops, interp, matchvarName, capturedMatches);
+  } else if (matchvarName != 0) {
+    // No captures (e.g., default branch)
+    feather_set_var(ops, interp, matchvarName, ops->list.create(interp));
+  }
+  if (indexvarName != 0 && capturedIndices != 0) {
+    feather_set_var(ops, interp, indexvarName, capturedIndices);
+  } else if (indexvarName != 0) {
+    // No captures (e.g., default branch)
+    feather_set_var(ops, interp, indexvarName, ops->list.create(interp));
   }
 
   // Execute the matched body

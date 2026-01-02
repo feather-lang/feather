@@ -210,7 +210,7 @@ static int element_matches(const FeatherHostOps *ops, FeatherInterp interp,
 
     case MATCH_REGEXP: {
       int result;
-      if (ops->string.regex_match(interp, pattern, element, &result) == TCL_OK) {
+      if (ops->string.regex_match(interp, pattern, element, nocase, &result, NULL, NULL) == TCL_OK) {
         matches = result;
       }
       break;

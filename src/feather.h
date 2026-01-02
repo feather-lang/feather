@@ -503,9 +503,19 @@ typedef struct FeatherStringOps {
    * Returns TCL_OK and sets *result to 1 if the string matches the pattern,
    * or 0 if it doesn't match. Returns TCL_ERROR if the pattern is invalid,
    * with an error message in the interpreter's result.
+   *
+   * Parameters:
+   *   nocase  - If non-zero, perform case-insensitive matching
+   *   result  - Set to 1 on match, 0 on no match
+   *   matches - If non-NULL, set to list of matched strings [full, group1, ...]
+   *   indices - If non-NULL, set to list of {start end} pairs for each group
+   *
+   * When matches/indices are NULL, only the boolean result is computed.
+   * Indices are inclusive character positions (not byte offsets).
    */
   FeatherResult (*regex_match)(FeatherInterp interp, FeatherObj pattern, FeatherObj string,
-                           int *result);
+                               int nocase, int *result,
+                               FeatherObj *matches, FeatherObj *indices);
 
   /**
    * builder_new creates a new string builder with optional initial capacity.

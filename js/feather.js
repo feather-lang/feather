@@ -793,13 +793,94 @@ async function createFeather(wasmSource) {
         .replace(/\*/g, '.*').replace(/\?/g, '.') + '$');
       return regex.test(s) ? 1 : 0;
     },
-    feather_host_string_regex_match: (interpId, pattern, string, resultPtr) => {
+    feather_host_string_regex_match: (interpId, pattern, string, nocase, resultPtr, matchesPtr, indicesPtr) => {
       const interp = interpreters.get(interpId);
-      const patStr = interp.getString(pattern);
+      let patStr = interp.getString(pattern);
       const strVal = interp.getString(string);
+
+      // Add case-insensitive flag if needed
+      const flags = nocase ? 'i' : '';
+
       try {
-        const re = new RegExp(patStr);
-        writeI32(resultPtr, re.test(strVal) ? 1 : 0);
+        const re = new RegExp(patStr, flags);
+
+        if (matchesPtr || indicesPtr) {
+          // Need captures
+          const match = re.exec(strVal);
+          if (match === null) {
+            // No match
+            writeI32(resultPtr, 0);
+            if (matchesPtr) {
+              writeI32(matchesPtr, interp.store({ type: 'list', items: [] }));
+            }
+            if (indicesPtr) {
+              writeI32(indicesPtr, interp.store({ type: 'list', items: [] }));
+            }
+          } else {
+            // Match found
+            writeI32(resultPtr, 1);
+
+            if (matchesPtr) {
+              // Build list of matched substrings
+              const matchList = [];
+              for (let j = 0; j < match.length; j++) {
+                matchList.push(interp.store({
+                  type: 'string',
+                  value: match[j] !== undefined ? match[j] : ''
+                }));
+              }
+              writeI32(matchesPtr, interp.store({ type: 'list', items: matchList }));
+            }
+
+            if (indicesPtr) {
+              // Build list of {start end} pairs
+              // Note: TCL uses inclusive character indices
+              const indexList = [];
+
+              // Full match is at match.index with length match[0].length
+              let pos = match.index;
+              indexList.push(interp.store({
+                type: 'list',
+                items: [
+                  interp.store({ type: 'int', value: pos }),
+                  interp.store({ type: 'int', value: pos + match[0].length - 1 })
+                ]
+              }));
+
+              // For capturing groups, we need to find their positions
+              // JavaScript doesn't give us group indices directly in older engines,
+              // but we can use the 'd' flag if available (ES2022) or work around it
+              // For simplicity, we'll search for each group within the string
+              for (let j = 1; j < match.length; j++) {
+                if (match[j] === undefined) {
+                  // Unmatched optional group
+                  indexList.push(interp.store({
+                    type: 'list',
+                    items: [
+                      interp.store({ type: 'int', value: -1 }),
+                      interp.store({ type: 'int', value: -1 })
+                    ]
+                  }));
+                } else {
+                  // Find the group's position - search from full match position
+                  const groupStart = strVal.indexOf(match[j], match.index);
+                  const groupEnd = groupStart + match[j].length - 1;
+                  indexList.push(interp.store({
+                    type: 'list',
+                    items: [
+                      interp.store({ type: 'int', value: groupStart }),
+                      interp.store({ type: 'int', value: groupEnd })
+                    ]
+                  }));
+                }
+              }
+              writeI32(indicesPtr, interp.store({ type: 'list', items: indexList }));
+            }
+          }
+        } else {
+          // Simple match - no captures needed
+          writeI32(resultPtr, re.test(strVal) ? 1 : 0);
+        }
         return TCL_OK;
       } catch (e) {
         interp.result = interp.store({ type: 'string', value: `invalid regex: ${e.message}` });

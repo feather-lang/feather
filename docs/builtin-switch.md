@@ -31,19 +31,19 @@ The Feather `switch` builtin is implemented in `src/builtin_switch.c`. It provid
 | List syntax | Supported | Single braced list containing pattern-body pairs |
 | Empty result on no match | Supported | Returns empty string when nothing matches |
 
-## TCL Features We Do NOT Support
+## TCL Features We Support (continued)
 
-| Feature | Description |
-|---------|-------------|
-| `-nocase` option | Case-insensitive matching. TCL supports this option to perform comparisons in a case-insensitive manner. |
-| `-matchvar varName` option | Only valid with `-regexp`. Captures the list of matches (overall match and capturing groups) into the specified variable. |
-| `-indexvar varName` option | Only valid with `-regexp`. Captures the list of start/end indices for each match into the specified variable. |
+| Feature | Status | Notes |
+|---------|--------|-------|
+| `-nocase` option | **Supported** | Case-insensitive matching with all modes |
+| `-matchvar varName` option | **Supported** | Captures regex matches into variable |
+| `-indexvar varName` option | **Supported** | Captures match indices into variable |
 
-### Details on Missing Features
+### Details on Newly Supported Features
 
 #### `-nocase`
 
-TCL's `-nocase` option allows case-insensitive pattern matching. For example:
+Case-insensitive pattern matching for all modes:
 
 ```tcl
 switch -nocase -glob $input {
@@ -51,11 +51,11 @@ switch -nocase -glob $input {
 }
 ```
 
-This would match "HELLO", "hello", "HeLLo", etc. Our implementation does not support this option.
+This matches "HELLO", "hello", "HeLLo", etc.
 
 #### `-matchvar`
 
-TCL's `-matchvar` option (only valid with `-regexp`) allows capturing the matched substrings:
+Only valid with `-regexp`. Captures the matched substrings:
 
 ```tcl
 switch -regexp -matchvar foo $bar {
@@ -69,11 +69,9 @@ The variable receives a list where:
 - Element 0: The overall matched substring
 - Element 1..n: Substrings matched by capturing groups
 
-Our implementation does not support capturing match results.
-
 #### `-indexvar`
 
-TCL's `-indexvar` option (only valid with `-regexp`) captures the indices of matches:
+Only valid with `-regexp`. Captures the indices of matches:
 
 ```tcl
 switch -regexp -indexvar indices $bar {
@@ -83,9 +81,11 @@ switch -regexp -indexvar indices $bar {
 }
 ```
 
-The variable receives a list of two-element lists, each containing `{start end}` indices.
+The variable receives a list of two-element lists, each containing `{start end}` indices (inclusive).
 
-Our implementation does not support capturing match indices.
+## TCL Features We Do NOT Support
+
+All major switch features are now implemented.
 
 ## Notes on Implementation Differences
 

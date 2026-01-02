@@ -100,13 +100,18 @@ func goStringCompare(interp C.FeatherInterp, a C.FeatherObj, b C.FeatherObj) C.i
 }
 
 //export goStringRegexMatch
-func goStringRegexMatch(interp C.FeatherInterp, pattern C.FeatherObj, str C.FeatherObj, result *C.int) C.FeatherResult {
+func goStringRegexMatch(interp C.FeatherInterp, pattern C.FeatherObj, str C.FeatherObj, nocase C.int, result *C.int, matches *C.FeatherObj, indices *C.FeatherObj) C.FeatherResult {
 	i := getInterp(interp)
 	if i == nil {
 		return C.TCL_ERROR
 	}
 	patternStr := i.getString(FeatherObj(pattern))
 	strStr := i.getString(FeatherObj(str))
+
+	// Prepend (?i) for case-insensitive matching
+	if nocase != 0 {
+		patternStr = "(?i)" + patternStr
+	}
 
 	re, err := regexp.Compile(patternStr)
 	if err != nil {
@@ -115,10 +120,64 @@ func goStringRegexMatch(interp C.FeatherInterp, pattern C.FeatherObj, str C.Feat
 		return C.TCL_ERROR
 	}
 
-	if re.MatchString(strStr) {
-		*result = 1
+	// If we need captures, use FindStringSubmatchIndex
+	if matches != nil || indices != nil {
+		locs := re.FindStringSubmatchIndex(strStr)
+		if locs == nil {
+			// No match
+			*result = 0
+			if matches != nil {
+				*matches = C.FeatherObj(i.registerObj(i.List()))
+			}
+			if indices != nil {
+				*indices = C.FeatherObj(i.registerObj(i.List()))
+			}
+		} else {
+			// Match found
+			*result = 1
+
+			if matches != nil {
+				// Build list of matched substrings
+				var matchItems []*Obj
+				for j := 0; j < len(locs); j += 2 {
+					start, end := locs[j], locs[j+1]
+					if start == -1 {
+						// Unmatched optional group
+						matchItems = append(matchItems, i.String(""))
+					} else {
+						matchItems = append(matchItems, i.String(strStr[start:end]))
+					}
+				}
+				*matches = C.FeatherObj(i.registerObj(i.List(matchItems...)))
+			}
+
+			if indices != nil {
+				// Build list of {start end} pairs
+				// Note: TCL uses inclusive character indices, not byte indices
+				// We need to convert byte offsets to rune offsets
+				var indexItems []*Obj
+				for j := 0; j < len(locs); j += 2 {
+					start, end := locs[j], locs[j+1]
+					if start == -1 {
+						// Unmatched optional group - use {-1 -1}
+						indexItems = append(indexItems, i.List(i.Int(-1), i.Int(-1)))
+					} else {
+						// Convert byte offsets to rune (character) offsets
+						runeStart := len([]rune(strStr[:start]))
+						runeEnd := len([]rune(strStr[:end])) - 1 // TCL uses inclusive end
+						indexItems = append(indexItems, i.List(i.Int(int64(runeStart)), i.Int(int64(runeEnd))))
+					}
+				}
+				*indices = C.FeatherObj(i.registerObj(i.List(indexItems...)))
+			}
+		}
 	} else {
-		*result = 0
+		// Simple match - no captures needed
+		if re.MatchString(strStr) {
+			*result = 1
+		} else {
+			*result = 0
+		}
 	}
 	return C.TCL_OK
 }

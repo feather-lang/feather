@@ -100,7 +100,8 @@ extern int feather_host_string_equal(FeatherInterp interp, FeatherObj a, Feather
 extern int feather_host_string_match(FeatherInterp interp, FeatherObj pattern, FeatherObj str,
                                      int nocase);
 extern FeatherResult feather_host_string_regex_match(FeatherInterp interp, FeatherObj pattern,
-                                                     FeatherObj string, int *result);
+                                                     FeatherObj string, int nocase, int *result,
+                                                     FeatherObj *matches, FeatherObj *indices);
 extern FeatherObj feather_host_string_builder_new(FeatherInterp interp, size_t capacity);
 extern void feather_host_string_builder_append_byte(FeatherInterp interp, FeatherObj builder,
                                                     int byte);
