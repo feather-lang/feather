@@ -206,21 +206,8 @@ FeatherResult feather_builtin_return(const FeatherHostOps *ops, FeatherInterp in
       }
     } else {
       // Not an option, must be the result value
-      // Remaining arguments form the result
-      if (argc == 1) {
-        resultValue = ops->list.shift(interp, argsCopy);
-      } else {
-        // Multiple remaining args - join with space
-        resultValue = ops->list.shift(interp, argsCopy);
-        argc--;
-        while (argc > 0) {
-          FeatherObj space = ops->string.intern(interp, " ", 1);
-          FeatherObj next = ops->list.shift(interp, argsCopy);
-          resultValue = ops->string.concat(interp, resultValue, space);
-          resultValue = ops->string.concat(interp, resultValue, next);
-          argc--;
-        }
-      }
+      // TCL takes only the last argument as the result
+      resultValue = ops->list.at(interp, argsCopy, argc - 1);
       break;
     }
   }

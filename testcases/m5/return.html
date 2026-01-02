@@ -416,4 +416,36 @@ set result</script>
     <exit-code>1</exit-code>
   </test-case>
 
+  <!-- ============================================= -->
+  <!-- multiple trailing arguments                   -->
+  <!-- ============================================= -->
+
+  <test-case name="return with multiple args returns last only">
+    <script>
+proc test {} {
+    return a b c
+}
+test
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="return with options then multiple args returns last">
+    <script>
+proc test {} {
+    return -code ok first second third
+}
+test
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>third</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
 </test-suite>
