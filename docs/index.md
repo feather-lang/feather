@@ -54,7 +54,7 @@ These builtins match TCL's documented behavior:
 | `unset` | Array support |
 | `upvar` | Array element references, validation checks |
 | `tailcall` | Uplevel restriction (may not be enforced in TCL 9.0) |
-| `for` | break handling in next script |
+| `for` | All features implemented |
 | `split` | Unicode character handling |
 
 ## Documentation Files

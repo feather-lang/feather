@@ -90,7 +90,11 @@ FeatherResult feather_builtin_for(const FeatherHostOps *ops, FeatherInterp inter
 
     // Execute the 'next' script (increment/update)
     rc = feather_script_eval_obj(ops, interp, next, TCL_EVAL_LOCAL);
-    if (rc != TCL_OK) {
+    if (rc == TCL_BREAK) {
+      // break was invoked in next - exit loop normally
+      break;
+    } else if (rc != TCL_OK) {
+      // Error or continue - propagate (continue in next is an error per TCL)
       return rc;
     }
   }
