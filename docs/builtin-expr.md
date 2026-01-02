@@ -83,13 +83,15 @@ Feather implements a comprehensive expression evaluator in `src/builtin_expr.c`.
 
 ## TCL Features We Do NOT Support
 
-### Missing Math Functions
+### Explicitly Unsupported Math Functions
 
-| Function | Description |
-|----------|-------------|
-| `isqrt(x)` | Integer square root with arbitrary precision |
-| `rand()` | Random number in (0, 1) |
-| `srand(seed)` | Seed random number generator |
+These functions will NOT be implemented in Feather:
+
+| Function | Reason |
+|----------|--------|
+| `isqrt(x)` | Requires arbitrary precision integers (bignums), which Feather does not support |
+| `rand()` | Random number generation is outside Feather's scope as an embeddable interpreter |
+| `srand(seed)` | Random number generation is outside Feather's scope as an embeddable interpreter |
 
 ### Notes on Implemented Functions
 

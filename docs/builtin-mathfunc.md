@@ -70,13 +70,15 @@ the `FEATHER_MATH_*` operation codes.
 
 ## TCL Features We Do NOT Support
 
-### Missing Math Functions
+### Explicitly Unsupported Math Functions
 
-| Function | Description |
-|----------|-------------|
-| `isqrt(arg)` | Integer square root with arbitrary precision. Returns exact integer part of sqrt. |
-| `rand()` | Return pseudo-random float in range (0,1). Zero-argument function. |
-| `srand(arg)` | Seed the random number generator. Returns first random number from that seed. |
+These functions will NOT be implemented in Feather:
+
+| Function | Reason |
+|----------|--------|
+| `isqrt(arg)` | Requires arbitrary precision integers (bignums), which Feather does not support |
+| `rand()` | Random number generation is outside Feather's scope as an embeddable interpreter |
+| `srand(arg)` | Random number generation is outside Feather's scope as an embeddable interpreter |
 
 ## Notes on Implementation Differences
 
