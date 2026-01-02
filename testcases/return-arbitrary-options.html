@@ -1,0 +1,116 @@
+<test-suite>
+  <!--
+    Tests for return command with arbitrary (user-defined) options.
+    TCL allows any -option value pairs, not just the known ones.
+  -->
+
+  <test-case name="return with custom option stores in opts">
+    <script>
+proc test {} {
+    return -custom "myvalue" "result"
+}
+catch {test} msg opts
+dict get $opts -custom
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>myvalue</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="return with multiple custom options">
+    <script>
+proc test {} {
+    return -foo bar -baz qux "result"
+}
+catch {test} msg opts
+set r "[dict get $opts -foo],[dict get $opts -baz]"
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>bar,qux</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="return custom option with -code error">
+    <script>
+proc test {} {
+    return -code error -custom "data" "error message"
+}
+catch {test} msg opts
+dict get $opts -custom
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>data</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="custom options mixed with known options">
+    <script>
+proc test {} {
+    return -myopt val1 -code ok -another val2 "result"
+}
+catch {test} msg opts
+set r "[dict get $opts -myopt],[dict get $opts -another],[dict get $opts -code]"
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>val1,val2,0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="custom option preserved through -options re-raise">
+    <script>
+proc inner {} {
+    return -code error -custom "preserved" "error msg"
+}
+proc outer {} {
+    catch {inner} msg opts
+    return -options $opts $msg
+}
+catch {outer} msg opts
+dict get $opts -custom
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>preserved</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="custom option value can be a list">
+    <script>
+proc test {} {
+    return -mylist {a b c} "result"
+}
+catch {test} msg opts
+dict get $opts -mylist
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="custom option after known option">
+    <script>
+proc test {} {
+    return -level 0 -custom "after" "result"
+}
+catch {test} msg opts
+dict get $opts -custom
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>after</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>
