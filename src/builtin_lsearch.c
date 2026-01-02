@@ -107,6 +107,9 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
   int all = 0;
   int inlineResult = 0;
   int negate = 0;
+  int64_t startIndex = 0;
+  int hasIndex = 0;
+  int64_t searchIndex = 0;
 
   // Process options
   while (ops->list.length(interp, args) > 2) {
@@ -126,6 +129,41 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
       inlineResult = 1;
     } else if (feather_obj_eq_literal(ops, interp, arg, "-not")) {
       negate = 1;
+    } else if (feather_obj_eq_literal(ops, interp, arg, "-start")) {
+      // -start requires an argument
+      if (ops->list.length(interp, args) < 3) {
+        FeatherObj msg = ops->string.intern(interp, "missing starting index", 22);
+        ops->interp.set_result(interp, msg);
+        return TCL_ERROR;
+      }
+      FeatherObj startArg = ops->list.shift(interp, args);
+      if (ops->integer.get(interp, startArg, &startIndex) != TCL_OK) {
+        FeatherObj msg = ops->string.intern(interp, "bad index \"", 11);
+        msg = ops->string.concat(interp, msg, startArg);
+        FeatherObj suffix = ops->string.intern(interp, "\": must be integer?[+-]integer? or end?[+-]integer?", 51);
+        msg = ops->string.concat(interp, msg, suffix);
+        ops->interp.set_result(interp, msg);
+        return TCL_ERROR;
+      }
+      // Clamp negative to 0
+      if (startIndex < 0) startIndex = 0;
+    } else if (feather_obj_eq_literal(ops, interp, arg, "-index")) {
+      // -index requires an argument
+      if (ops->list.length(interp, args) < 3) {
+        FeatherObj msg = ops->string.intern(interp, "\"-index\" option must be followed by list index", 46);
+        ops->interp.set_result(interp, msg);
+        return TCL_ERROR;
+      }
+      FeatherObj indexArg = ops->list.shift(interp, args);
+      if (ops->integer.get(interp, indexArg, &searchIndex) != TCL_OK) {
+        FeatherObj msg = ops->string.intern(interp, "bad index \"", 11);
+        msg = ops->string.concat(interp, msg, indexArg);
+        FeatherObj suffix = ops->string.intern(interp, "\": must be integer?[+-]integer? or end?[+-]integer?", 51);
+        msg = ops->string.concat(interp, msg, suffix);
+        ops->interp.set_result(interp, msg);
+        return TCL_ERROR;
+      }
+      hasIndex = 1;
     } else {
       FeatherObj msg = ops->string.intern(interp, "bad option \"", 12);
       msg = ops->string.concat(interp, msg, arg);
@@ -143,12 +181,28 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
   FeatherObj list = ops->list.from(interp, listObj);
   size_t listLen = ops->list.length(interp, list);
 
+  // Clamp startIndex to list length (returns -1 or empty for out of range)
+  size_t start = (size_t)startIndex;
+  if (start > listLen) start = listLen;
+
   if (all) {
     // Return all matching indices/elements
     FeatherObj result = ops->list.create(interp);
-    for (size_t i = 0; i < listLen; i++) {
+    for (size_t i = start; i < listLen; i++) {
       FeatherObj elem = ops->list.at(interp, list, i);
-      if (element_matches(ops, interp, elem, pattern, mode, nocase, negate)) {
+      // For -index, extract the element at the specified index within the sublist
+      FeatherObj matchElem = elem;
+      if (hasIndex) {
+        FeatherObj sublist = ops->list.from(interp, elem);
+        size_t sublistLen = ops->list.length(interp, sublist);
+        if (searchIndex >= 0 && (size_t)searchIndex < sublistLen) {
+          matchElem = ops->list.at(interp, sublist, (size_t)searchIndex);
+        } else {
+          // Index out of range - skip this element (doesn't match)
+          continue;
+        }
+      }
+      if (element_matches(ops, interp, matchElem, pattern, mode, nocase, negate)) {
         if (inlineResult) {
           result = ops->list.push(interp, result, elem);
         } else {
@@ -159,9 +213,21 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
     ops->interp.set_result(interp, result);
   } else {
     // Return first match
-    for (size_t i = 0; i < listLen; i++) {
+    for (size_t i = start; i < listLen; i++) {
       FeatherObj elem = ops->list.at(interp, list, i);
-      if (element_matches(ops, interp, elem, pattern, mode, nocase, negate)) {
+      // For -index, extract the element at the specified index within the sublist
+      FeatherObj matchElem = elem;
+      if (hasIndex) {
+        FeatherObj sublist = ops->list.from(interp, elem);
+        size_t sublistLen = ops->list.length(interp, sublist);
+        if (searchIndex >= 0 && (size_t)searchIndex < sublistLen) {
+          matchElem = ops->list.at(interp, sublist, (size_t)searchIndex);
+        } else {
+          // Index out of range - skip this element (doesn't match)
+          continue;
+        }
+      }
+      if (element_matches(ops, interp, matchElem, pattern, mode, nocase, negate)) {
         if (inlineResult) {
           ops->interp.set_result(interp, elem);
         } else {

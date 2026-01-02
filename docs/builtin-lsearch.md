@@ -2,13 +2,15 @@
 
 ## Summary of Our Implementation
 
-Our `lsearch` implementation in `src/builtin_lsearch.c` provides basic list searching functionality with the following features:
+Our `lsearch` implementation in `src/builtin_lsearch.c` provides list searching functionality with the following features:
 
 - Three matching modes: exact, glob (default), and regexp
 - Case-insensitive matching via `-nocase`
 - Return all matches via `-all`
 - Return values instead of indices via `-inline`
 - Negated matching via `-not`
+- Start searching from a specific index via `-start`
+- Search within nested list elements via `-index`
 
 The implementation searches through list elements linearly and returns either the index of the first match (or -1 if not found), or when combined with `-all` and/or `-inline`, returns lists of indices or matching values.
 
@@ -23,6 +25,8 @@ The implementation searches through list elements linearly and returns either th
 | `-all` | Return all matching indices/values |
 | `-inline` | Return matching values instead of indices |
 | `-not` | Negate the match condition |
+| `-start index` | Begin searching at specified index |
+| `-index index` | Search within nested list elements at the specified index |
 
 ## TCL Features We Do NOT Support
 
@@ -53,18 +57,11 @@ These options control the sort order when using `-sorted`:
 | `-decreasing` | List is sorted in decreasing order |
 | `-bisect` | Inexact search returning last index <= pattern (increasing) or >= pattern (decreasing) |
 
-### General Modifier Options
-
-| Option | Description |
-|--------|-------------|
-| `-start index` | Begin searching at specified index (supports end-relative indices) |
-
 ### Nested List Options
 
 | Option | Description |
 |--------|-------------|
 | `-stride strideLength` | Treat list as groups of N elements, search by first element of each group |
-| `-index indexList` | Search within nested list elements at the specified path |
 | `-subindices` | Return full path indices for nested matches |
 
 ## Notes on Implementation Differences
@@ -73,12 +70,10 @@ These options control the sort order when using `-sorted`:
 
 2. **No `-nocase` support for `-regexp`**: In TCL, `-nocase` affects regexp matching. Our implementation passes regexp matching to the host's `regex_match` function, but it's unclear if nocase is honored for regexp mode.
 
-3. **No index arithmetic**: TCL's `-start` option supports expressions like `end-3` or simple arithmetic. We do not support the `-start` option at all.
+3. **Simple index format**: Our `-start` and `-index` options only support simple integer indices, not TCL's `end-N` syntax or nested index lists.
 
 4. **No type-aware comparisons**: TCL can compare list elements as integers or floats with `-integer` and `-real` options. Our implementation only does string-based comparisons.
 
 5. **No binary search optimization**: TCL's `-sorted` option enables O(log n) binary search. Our implementation always uses O(n) linear search.
 
-6. **No nested list support**: TCL can search within nested lists using `-index` and `-stride`. Our implementation only searches top-level list elements.
-
-7. **Error messages**: Our error message for unknown options includes the bad option name, which matches TCL behavior.
+6. **Error messages**: Our error message for unknown options includes the bad option name, which matches TCL behavior.
