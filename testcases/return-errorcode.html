@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head><title>return -errorcode tests</title></head>
+<body>
+<h1>return -errorcode tests</h1>
+
+<h2>Basic -errorcode usage</h2>
+
+<test-case name="return -errorcode sets errorcode in options">
+  <script>
+proc test {} {
+    return -code error -errorcode {MYERR 42} "my error"
+}
+catch {test} msg opts
+dict get $opts -errorcode
+</script>
+  <return>TCL_OK</return>
+  <stdout>MYERR 42</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="return -errorcode sets global errorCode">
+  <script>
+proc test {} {
+    return -code error -errorcode {POSIX ENOENT} "file not found"
+}
+catch {test} msg opts
+set ::errorCode
+</script>
+  <return>TCL_OK</return>
+  <stdout>POSIX ENOENT</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="return -code error without -errorcode defaults to NONE">
+  <script>
+proc test {} {
+    return -code error "plain error"
+}
+catch {test} msg opts
+dict get $opts -errorcode
+</script>
+  <return>TCL_OK</return>
+  <stdout>NONE</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>-errorcode via -options</h2>
+
+<test-case name="return -options preserves errorcode">
+  <script>
+proc inner {} {
+    return -code error -errorcode {INNER_ERR 99} "inner error"
+}
+proc outer {} {
+    catch {inner} result opts
+    return -options $opts $result
+}
+catch {outer} msg opts
+dict get $opts -errorcode
+</script>
+  <return>TCL_OK</return>
+  <stdout>INNER_ERR 99</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="return -options preserves errorcode in global">
+  <script>
+proc inner {} {
+    return -code error -errorcode {PRESERVED 123} "inner error"
+}
+proc outer {} {
+    catch {inner} result opts
+    return -options $opts $result
+}
+catch {outer} msg opts
+set ::errorCode
+</script>
+  <return>TCL_OK</return>
+  <stdout>PRESERVED 123</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>-errorcode with string value</h2>
+
+<test-case name="return -errorcode with simple string">
+  <script>
+proc test {} {
+    return -code error -errorcode SIMPLE "error"
+}
+catch {test} msg opts
+dict get $opts -errorcode
+</script>
+  <return>TCL_OK</return>
+  <stdout>SIMPLE</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="return -errorcode with multi-element list">
+  <script>
+proc test {} {
+    return -code error -errorcode {A B C D} "error"
+}
+catch {test} msg opts
+dict get $opts -errorcode
+</script>
+  <return>TCL_OK</return>
+  <stdout>A B C D</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+</body>
+</html>
