@@ -40,25 +40,29 @@ Our implementation supports:
 - Validates argument count matches parameter requirements
 - Provides descriptive error messages matching TCL format
 
-## TCL Features We Do NOT Support
+## TCL Features We Support
 
 ### Required Arguments After Optional Arguments
 
-The TCL manual states:
+**Implemented.** The TCL manual states:
 
 > "Arguments with default values that are followed by non-defaulted arguments become required arguments; enough actual arguments must be supplied to allow all arguments up to and including the last required formal argument."
 
-Our implementation does not enforce this rule. In TCL, a parameter list like `{{x 1} y}` would require both arguments to be provided (the optional `x` becomes required because required `y` follows it). Our implementation processes parameters in strict order without this look-ahead behavior.
+Our implementation correctly enforces this rule. A parameter list like `{{x 1} y}` requires both arguments because the optional `x` becomes required due to required `y` following it.
 
-**Example difference:**
 ```tcl
-# TCL behavior:
-apply {{x 1} y} {expr $x + $y} 10       ;# Error: needs 2 args (x becomes required)
-apply {{x 1} y} {expr $x + $y} 5 10     ;# Returns 15
-
-# Feather behavior:
-apply {{x 1} y} {expr $x + $y} 10       ;# Would assign x=1, y=10 (incorrect)
+apply {{{x 1} y} {list $x $y}} 10       ;# Error: wrong # args
+apply {{{x 1} y} {list $x $y}} 5 10     ;# Returns "5 10"
 ```
+
+Note: The `args` parameter does NOT make preceding optionals required:
+
+```tcl
+apply {{{x 1} args} {list $x $args}}        ;# OK: returns "1 {}"
+apply {{{x 1} args} {list $x $args}} 10     ;# OK: returns "10 {}"
+```
+
+## TCL Features We May Not Fully Support
 
 ### Variable Access Commands
 

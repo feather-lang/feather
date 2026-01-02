@@ -2,10 +2,11 @@
 
 This document summarizes the comparison between Feather's TCL builtin implementations and official TCL 8.6+/9.0.
 
-## Feature-Complete Builtins (24)
+## Feature-Complete Builtins (25)
 
 These builtins match TCL's documented behavior:
 
+- `apply` - Lambda application (with required-after-optional handling)
 - `break` - Loop termination
 - `continue` - Loop continuation
 - `list` - List construction
@@ -39,7 +40,6 @@ These builtins match TCL's documented behavior:
 | `dict` | filter, map, update, with subcommands |
 | `info` | 14+ subcommands (cmdcount, cmdtype, complete, coroutine, class/object introspection) |
 | `namespace` | 9 subcommands (code, ensemble, forget, inscope, origin, path, unknown, upvar, which) |
-| `apply` | Required-after-optional argument handling |
 | `try` | -during key in exception dictionary |
 | `switch` | -nocase, -matchvar, -indexvar |
 | `format` | Size modifier truncation, some # flag behaviors |

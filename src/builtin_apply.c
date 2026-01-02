@@ -40,8 +40,13 @@ FeatherResult feather_builtin_apply(const FeatherHostOps *ops, FeatherInterp int
   size_t provided_argc = argc - 1;
 
   int is_variadic = 0;
-  size_t required_params = 0;
-  size_t optional_params = 0;
+
+  // Track parameter types: 0=required, 1=optional, 2=args
+  // We need to know which optionals become required due to TCL rule:
+  // "optional params followed by required params become required"
+  int param_types[64];
+  int param_effectively_required[64];  // After applying the rule
+  if (paramc > 64) paramc = 64;  // Safety limit
 
   FeatherObj paramsCopy = ops->list.from(interp, params);
   for (size_t i = 0; i < paramc; i++) {
@@ -49,16 +54,48 @@ FeatherResult feather_builtin_apply(const FeatherHostOps *ops, FeatherInterp int
 
     size_t paramListLen = ops->list.length(interp, param);
     if (paramListLen == 2) {
-      optional_params++;
+      param_types[i] = 1;  // optional
     } else if (feather_obj_is_args_param(ops, interp, param)) {
+      param_types[i] = 2;  // args
       is_variadic = 1;
     } else {
-      required_params++;
+      param_types[i] = 0;  // required
     }
+    param_effectively_required[i] = (param_types[i] == 0);  // Start with required only
   }
 
-  size_t min_args = required_params;
-  size_t max_args = is_variadic ? (size_t)-1 : (required_params + optional_params);
+  // TCL rule: scan backwards from end, any optional before a non-args required
+  // param becomes effectively required
+  int seen_non_args_required = 0;
+  for (size_t i = paramc; i > 0; i--) {
+    size_t idx = i - 1;
+    if (param_types[idx] == 0) {
+      // Required param (not args)
+      seen_non_args_required = 1;
+      param_effectively_required[idx] = 1;
+    } else if (param_types[idx] == 1) {
+      // Optional - becomes required if followed by non-args required
+      param_effectively_required[idx] = seen_non_args_required;
+    }
+    // args (type 2) doesn't affect seen_non_args_required and stays optional
+  }
+
+  // Count min/max args based on effective requirements
+  size_t min_args = 0;
+  size_t max_args = 0;
+  for (size_t i = 0; i < paramc; i++) {
+    if (param_types[i] == 2) {
+      // args - unlimited max
+      continue;
+    }
+    max_args++;
+    if (param_effectively_required[i]) {
+      min_args++;
+    }
+  }
+  if (is_variadic) {
+    max_args = (size_t)-1;
+  }
 
   if (provided_argc < min_args || provided_argc > max_args) {
     FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"apply lambdaExpr", 41);
@@ -67,16 +104,19 @@ FeatherResult feather_builtin_apply(const FeatherHostOps *ops, FeatherInterp int
     for (size_t i = 0; i < paramc; i++) {
       FeatherObj param = ops->list.shift(interp, paramsCopy);
 
-      size_t paramListLen = ops->list.length(interp, param);
-
       msg = ops->string.concat(interp, msg, ops->string.intern(interp, " ", 1));
 
-      if (feather_obj_is_args_param(ops, interp, param) && paramListLen == 1) {
+      if (param_types[i] == 2) {
+        // args parameter
         msg = ops->string.concat(interp, msg, ops->string.intern(interp, "?arg ...?", 9));
-      } else if (paramListLen == 2) {
+      } else if (param_types[i] == 1) {
+        // Optional parameter - always shown with ?...? notation
         FeatherObj paramName = ops->list.at(interp, param, 0);
+        msg = ops->string.concat(interp, msg, ops->string.intern(interp, "?", 1));
         msg = ops->string.concat(interp, msg, paramName);
+        msg = ops->string.concat(interp, msg, ops->string.intern(interp, "?", 1));
       } else {
+        // Required parameter
         msg = ops->string.concat(interp, msg, param);
       }
     }
