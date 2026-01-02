@@ -18,16 +18,30 @@ Our implementation in `src/builtin_variable.c` provides the core functionality o
 - **Multiple name/value pairs**: `variable name1 value1 name2 value2` works correctly
 - **Optional final value**: The value for the last variable is optional (e.g., `variable name1 value1 name2`)
 - **Local variable linking**: When executed inside a procedure, creates local variables linked to namespace variables
-- **Error on qualified names when defining**: Properly rejects qualified names like `ns::varname` with the error message "can't define ... name refers to an element in another namespace"
+- **Qualified names for cross-namespace access**: Supports qualified names like `::ns::varname` to link to variables in other namespaces
+
+## TCL Features We Support
+
+### Qualified names for accessing other namespaces' variables
+
+**Implemented.** TCL allows using qualified names like `variable ::someNS::varname` inside a procedure to create a local link to a variable in a different namespace. Our implementation now supports this:
+
+```tcl
+namespace eval ns1 {
+    variable myvar "original"
+}
+
+proc accessOther {} {
+    variable ::ns1::myvar  ;# Creates local link 'myvar' to ::ns1::myvar
+    return $myvar
+}
+```
+
+If the target namespace doesn't exist, an error is raised: `can't access "::nonexistent::x": parent namespace doesn't exist`
 
 ## TCL Features We Do NOT Support
 
-1. **Qualified names for accessing other namespaces' variables**
-   - TCL allows using qualified names like `variable ::someNS::someAry` inside a procedure to create a local link to a variable in a different namespace
-   - Our implementation rejects all qualified names with an error
-   - This is a significant limitation for accessing variables from other namespaces within procedures
-
-2. **Creating undefined variables**
+1. **Creating undefined variables**
    - In TCL, `variable name` (without a value) creates the variable in an undefined state
    - Such variables are visible to `namespace which` but not to `info exists`
    - Our implementation may not correctly handle this undefined/exists distinction
@@ -49,7 +63,7 @@ TCL's behavior with qualified names is context-dependent:
 - **When defining a namespace variable** (inside `namespace eval`): qualified names should work and create the variable in the specified namespace
 - **When creating a local link in a procedure**: qualified names create a link to a variable in another namespace
 
-Our implementation treats all qualified names as errors, which is more restrictive than TCL. The TCL manual example shows:
+Our implementation now supports qualified names when creating local links:
 ```tcl
 proc spong {} {
     # Variable in another namespace
@@ -57,7 +71,7 @@ proc spong {} {
     parray someAry
 }
 ```
-This use case is not supported by our implementation.
+This creates a local variable `someAry` linked to `::someNS::someAry`.
 
 ### Namespace Context
 Our implementation uses `ops->ns.current(interp)` to get the current namespace and `ops->var.link_ns()` to create links. This appears to correctly handle the basic case of linking local variables to namespace variables within the same namespace.

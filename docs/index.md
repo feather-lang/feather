@@ -55,7 +55,6 @@ These builtins match TCL's documented behavior:
 | `uplevel` | Namespace interaction, concat-style argument joining |
 | `tailcall` | Namespace context resolution, uplevel restriction |
 | `for` | break handling in next script |
-| `variable` | Qualified names for cross-namespace access |
 | `split` | Unicode character handling |
 
 ## Documentation Files
