@@ -1,0 +1,295 @@
+<test-suite name="lsearch -sorted and -bisect options">
+
+<!-- Basic -sorted searches -->
+<test-case name="lsearch -sorted basic found">
+  <script>
+    lsearch -sorted {a b c d e} c
+  </script>
+  <return>TCL_OK</return>
+  <stdout>2</stdout>
+</test-case>
+
+<test-case name="lsearch -sorted not found">
+  <script>
+    lsearch -sorted {a b c d e} z
+  </script>
+  <return>TCL_OK</return>
+  <stdout>-1</stdout>
+</test-case>
+
+<test-case name="lsearch -sorted first element">
+  <script>
+    lsearch -sorted {a b c d e} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>0</stdout>
+</test-case>
+
+<test-case name="lsearch -sorted last element">
+  <script>
+    lsearch -sorted {a b c d e} e
+  </script>
+  <return>TCL_OK</return>
+  <stdout>4</stdout>
+</test-case>
+
+<test-case name="lsearch -sorted empty list">
+  <script>
+    lsearch -sorted {} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>-1</stdout>
+</test-case>
+
+<!-- -sorted -integer -->
+<test-case name="lsearch -sorted -integer found">
+  <script>
+    lsearch -sorted -integer {1 2 5 10 20} 5
+  </script>
+  <return>TCL_OK</return>
+  <stdout>2</stdout>
+</test-case>
+
+<test-case name="lsearch -sorted -integer not found">
+  <script>
+    lsearch -sorted -integer {1 2 5 10 20} 3
+  </script>
+  <return>TCL_OK</return>
+  <stdout>-1</stdout>
+</test-case>
+
+<test-case name="lsearch -sorted -integer last">
+  <script>
+    lsearch -sorted -integer {1 2 5 10 20} 20
+  </script>
+  <return>TCL_OK</return>
+  <stdout>4</stdout>
+</test-case>
+
+<!-- -sorted -real -->
+<test-case name="lsearch -sorted -real found">
+  <script>
+    lsearch -sorted -real {1.1 2.2 3.3 4.4} 2.2
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+<test-case name="lsearch -sorted -real not found">
+  <script>
+    lsearch -sorted -real {1.1 2.2 3.3 4.4} 2.5
+  </script>
+  <return>TCL_OK</return>
+  <stdout>-1</stdout>
+</test-case>
+
+<!-- -sorted -decreasing -->
+<test-case name="lsearch -sorted -decreasing ascii">
+  <script>
+    lsearch -sorted -decreasing {e d c b a} c
+  </script>
+  <return>TCL_OK</return>
+  <stdout>2</stdout>
+</test-case>
+
+<test-case name="lsearch -sorted -decreasing -integer">
+  <script>
+    lsearch -sorted -decreasing -integer {20 10 5 2 1} 5
+  </script>
+  <return>TCL_OK</return>
+  <stdout>2</stdout>
+</test-case>
+
+<!-- -sorted -nocase -->
+<test-case name="lsearch -sorted -nocase">
+  <script>
+    lsearch -sorted -nocase {A b C d} B
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+<!-- -sorted -dictionary -->
+<test-case name="lsearch -sorted -dictionary found">
+  <script>
+    lsearch -sorted -dictionary {a1 a2 a10 b1} a10
+  </script>
+  <return>TCL_OK</return>
+  <stdout>2</stdout>
+</test-case>
+
+<test-case name="lsearch -sorted -dictionary not found">
+  <script>
+    lsearch -sorted -dictionary {a1 a2 a10 b1} a3
+  </script>
+  <return>TCL_OK</return>
+  <stdout>-1</stdout>
+</test-case>
+
+<!-- -sorted with -all -->
+<test-case name="lsearch -sorted -all multiple matches">
+  <script>
+    lsearch -sorted -all {a b b b c} b
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1 2 3</stdout>
+</test-case>
+
+<test-case name="lsearch -sorted -all no match">
+  <script>
+    lsearch -sorted -all {a b c} z
+  </script>
+  <return>TCL_OK</return>
+  <stdout></stdout>
+</test-case>
+
+<!-- -sorted with -inline -->
+<test-case name="lsearch -sorted -inline found">
+  <script>
+    lsearch -sorted -inline {a b c d e} c
+  </script>
+  <return>TCL_OK</return>
+  <stdout>c</stdout>
+</test-case>
+
+<test-case name="lsearch -sorted -inline not found">
+  <script>
+    lsearch -sorted -inline {a b c d e} z
+  </script>
+  <return>TCL_OK</return>
+  <stdout></stdout>
+</test-case>
+
+<test-case name="lsearch -sorted -all -inline">
+  <script>
+    lsearch -sorted -all -inline {a b b b c} b
+  </script>
+  <return>TCL_OK</return>
+  <stdout>b b b</stdout>
+</test-case>
+
+<!-- -sorted with -not -->
+<test-case name="lsearch -sorted -not">
+  <script>
+    lsearch -sorted -not {a b b b c} b
+  </script>
+  <return>TCL_OK</return>
+  <stdout>0</stdout>
+</test-case>
+
+<test-case name="lsearch -sorted -not -all">
+  <script>
+    lsearch -sorted -not -all {a b b b c} b
+  </script>
+  <return>TCL_OK</return>
+  <stdout>0 4</stdout>
+</test-case>
+
+<!-- -sorted with -index -->
+<test-case name="lsearch -sorted -index">
+  <script>
+    lsearch -sorted -index 0 {{a 1} {b 2} {c 3}} b
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+<!-- -bisect tests -->
+<test-case name="lsearch -sorted -bisect found">
+  <script>
+    lsearch -sorted -bisect {a b d e} c
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+<test-case name="lsearch -sorted -bisect exact match">
+  <script>
+    lsearch -sorted -bisect {a b d e} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>0</stdout>
+</test-case>
+
+<test-case name="lsearch -sorted -bisect after all">
+  <script>
+    lsearch -sorted -bisect {a b d e} z
+  </script>
+  <return>TCL_OK</return>
+  <stdout>3</stdout>
+</test-case>
+
+<test-case name="lsearch -sorted -bisect before all">
+  <script>
+    lsearch -sorted -bisect {b c d e} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>-1</stdout>
+</test-case>
+
+<test-case name="lsearch -sorted -bisect empty list">
+  <script>
+    lsearch -sorted -bisect {} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>-1</stdout>
+</test-case>
+
+<test-case name="lsearch -sorted -bisect -integer">
+  <script>
+    lsearch -sorted -bisect -integer {1 3 5 7} 4
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+<test-case name="lsearch -sorted -bisect -integer before all">
+  <script>
+    lsearch -sorted -bisect -integer {1 3 5 7} 0
+  </script>
+  <return>TCL_OK</return>
+  <stdout>-1</stdout>
+</test-case>
+
+<test-case name="lsearch -sorted -bisect -integer after all">
+  <script>
+    lsearch -sorted -bisect -integer {1 3 5 7} 10
+  </script>
+  <return>TCL_OK</return>
+  <stdout>3</stdout>
+</test-case>
+
+<test-case name="lsearch -sorted -bisect -decreasing">
+  <script>
+    lsearch -sorted -bisect -decreasing {e d c b a} c
+  </script>
+  <return>TCL_OK</return>
+  <stdout>2</stdout>
+</test-case>
+
+<test-case name="lsearch -sorted -bisect -decreasing before all">
+  <script>
+    lsearch -sorted -bisect -decreasing {e d c b a} z
+  </script>
+  <return>TCL_OK</return>
+  <stdout>-1</stdout>
+</test-case>
+
+<test-case name="lsearch -sorted -bisect -decreasing after all">
+  <script>
+    lsearch -sorted -bisect -decreasing {e d c b a} aa
+  </script>
+  <return>TCL_OK</return>
+  <stdout>3</stdout>
+</test-case>
+
+<!-- -bisect without -sorted (TCL accepts this) -->
+<test-case name="lsearch -bisect without -sorted">
+  <script>
+    lsearch -bisect {a b c d} b
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+</test-suite>
