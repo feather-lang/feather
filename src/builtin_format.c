@@ -358,6 +358,7 @@ static FeatherObj format_integer(const FeatherHostOps *ops, FeatherInterp interp
   }
 
   // Add alternate prefix
+  int used_decimal_alternate = 0;
   if (spec->alternate && val != 0) {
     if (spec->specifier == 'x' || spec->specifier == 'X') {
       FeatherObj prefix = ops->string.intern(interp, "0x", 2);
@@ -368,12 +369,66 @@ static FeatherObj format_integer(const FeatherHostOps *ops, FeatherInterp interp
     } else if (spec->specifier == 'b') {
       FeatherObj prefix = ops->string.intern(interp, "0b", 2);
       result = ops->string.concat(interp, prefix, result);
+    } else if (spec->specifier == 'd' || spec->specifier == 'i') {
+      used_decimal_alternate = 1;
+      // Handle %#d specially: sign + 0d + zeros + digits
+      // We'll apply width here instead of in apply_width
+      FeatherObj prefix = ops->string.intern(interp, "0d", 2);
+      int first_byte = ops->string.byte_at(interp, result, 0);
+      int result_has_sign = (first_byte == '-' || first_byte == '+');
+      size_t result_len = ops->string.byte_length(interp, result);
+
+      // Calculate total length needed for width
+      size_t total_len = result_len + 2; // result + "0d"
+
+      if (spec->zero_pad && !spec->left_justify && spec->width > 0 &&
+          (size_t)spec->width > total_len) {
+        // Need zero padding: sign + 0d + zeros + digits
+        size_t zeros_needed = (size_t)spec->width - total_len;
+        char zeros[256];
+        if (zeros_needed > sizeof(zeros) - 1) zeros_needed = sizeof(zeros) - 1;
+        for (size_t i = 0; i < zeros_needed; i++) zeros[i] = '0';
+        zeros[zeros_needed] = '\0';
+        FeatherObj zerosObj = ops->string.intern(interp, zeros, zeros_needed);
+
+        if (result_has_sign) {
+          // -42 with width 8 -> -0d00042
+          char signbuf[2] = {(char)first_byte, '\0'};
+          FeatherObj sign = ops->string.intern(interp, signbuf, 1);
+          FeatherObj digits = ops->string.slice(interp, result, 1, result_len);
+          result = ops->string.concat(interp, sign, prefix);
+          result = ops->string.concat(interp, result, zerosObj);
+          result = ops->string.concat(interp, result, digits);
+        } else {
+          // 42 with width 8 -> 0d000042
+          result = ops->string.concat(interp, prefix, zerosObj);
+          FeatherObj digits = ops->string.intern(interp, buf, buflen);
+          result = ops->string.concat(interp, result, digits);
+        }
+      } else {
+        // No zero padding, just add prefix
+        if (result_has_sign) {
+          size_t len = ops->string.byte_length(interp, result);
+          char signbuf[2] = {(char)first_byte, '\0'};
+          FeatherObj sign = ops->string.intern(interp, signbuf, 1);
+          FeatherObj rest = ops->string.slice(interp, result, 1, len);
+          result = ops->string.concat(interp, sign, prefix);
+          result = ops->string.concat(interp, result, rest);
+        } else {
+          result = ops->string.concat(interp, prefix, result);
+        }
+      }
     }
   }
 
-  // Apply width
-  char padchar = (spec->zero_pad && !spec->left_justify && spec->precision == -2) ? '0' : ' ';
-  result = apply_width(ops, interp, result, spec->width, spec->left_justify, padchar);
+  // Apply width (skip for %#d with non-zero value - already handled)
+  if (!used_decimal_alternate) {
+    char padchar = (spec->zero_pad && !spec->left_justify && spec->precision == -2) ? '0' : ' ';
+    result = apply_width(ops, interp, result, spec->width, spec->left_justify, padchar);
+  } else if (spec->width > 0 && !spec->zero_pad) {
+    // %#d needs space padding (not zero), use apply_width
+    result = apply_width(ops, interp, result, spec->width, spec->left_justify, ' ');
+  }
 
   return result;
 }
