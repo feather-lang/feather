@@ -26,12 +26,23 @@ FeatherResult feather_builtin_tailcall(const FeatherHostOps *ops, FeatherInterp 
   // The args list is already [cmdName, arg1, arg2, ...]
   FeatherObj tailCmd = args;
 
+  // Save the current namespace BEFORE popping the frame
+  // TCL specifies: "will be looked up in the current namespace context, not in the caller's"
+  FeatherObj savedNs = ops->ns.current(interp);
+
   // Pop current frame - this makes the caller's frame active
   ops->frame.pop(interp);
 
-  // Execute the command in the caller's context
+  // Temporarily set namespace to the original proc's namespace for command lookup
+  FeatherObj callerNs = ops->ns.current(interp);
+  ops->frame.set_namespace(interp, savedNs);
+
+  // Execute the command with the original namespace context
   // The command is already a list: [cmdName, arg1, arg2, ...]
   FeatherResult rc = feather_command_exec(ops, interp, tailCmd, TCL_EVAL_LOCAL);
+
+  // Restore the caller's namespace
+  ops->frame.set_namespace(interp, callerNs);
 
   // If command succeeded, return TCL_RETURN to stop body evaluation.
   // If command failed, propagate the error.
