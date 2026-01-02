@@ -1,0 +1,106 @@
+<test-suite name="lsearch nested index lists">
+
+<!-- Single element index list (equivalent to integer) -->
+<test-case name="lsearch -index {0} single element list">
+  <script>
+    lsearch -index {0} {{a 1} {b 2}} b
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+<test-case name="lsearch -index {1} single element list">
+  <script>
+    lsearch -index {1} {{a 1} {b 2}} 2
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+<!-- Two-level nested index -->
+<test-case name="lsearch -index {0 0} two levels">
+  <script>
+    lsearch -index {0 0} {{{a b} x} {{c d} y}} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>0</stdout>
+</test-case>
+
+<test-case name="lsearch -index {0 1} two levels">
+  <script>
+    lsearch -index {0 1} {{{a b} x} {{c d} y}} d
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+<!-- Three-level nested index -->
+<test-case name="lsearch -index {0 0 0} three levels">
+  <script>
+    lsearch -index {0 0 0} {{{{a}}} {{{b}}}} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>0</stdout>
+</test-case>
+
+<!-- With -subindices -->
+<test-case name="lsearch -index {0 0} -subindices">
+  <script>
+    lsearch -index {0 0} -subindices {{{a b} x} {{c d} y}} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>0 0 0</stdout>
+</test-case>
+
+<test-case name="lsearch -index {0 1} -subindices">
+  <script>
+    lsearch -index {0 1} -subindices {{{a b} x} {{c d} y}} b
+  </script>
+  <return>TCL_OK</return>
+  <stdout>0 0 1</stdout>
+</test-case>
+
+<test-case name="lsearch -index {0 0 0} -subindices three levels">
+  <script>
+    lsearch -index {0 0 0} -subindices {{{{a}}} {{{b}}}} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>0 0 0 0</stdout>
+</test-case>
+
+<!-- With -inline -->
+<test-case name="lsearch -index {0 1} -inline">
+  <script>
+    lsearch -index {0 1} -inline {{{a b} x} {{c d} y}} d
+  </script>
+  <return>TCL_OK</return>
+  <stdout>{c d} y</stdout>
+</test-case>
+
+<test-case name="lsearch -index {0 1} -subindices -inline">
+  <script>
+    lsearch -index {0 1} -subindices -inline {{{a b} x} {{c d} y}} d
+  </script>
+  <return>TCL_OK</return>
+  <stdout>d</stdout>
+</test-case>
+
+<!-- Not found -->
+<test-case name="lsearch -index {0 1} -subindices not found">
+  <script>
+    lsearch -index {0 1} -subindices {{{a b} x} {{c d} y}} z
+  </script>
+  <return>TCL_OK</return>
+  <stdout>-1 0 1</stdout>
+</test-case>
+
+<!-- With -all -->
+<test-case name="lsearch -index {0} -all nested">
+  <script>
+    lsearch -index {0} -all {{{a} 1} {{b} 2} {{a} 3}} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>0 2</stdout>
+</test-case>
+
+</test-suite>
