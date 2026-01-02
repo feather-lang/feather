@@ -1,0 +1,83 @@
+<test-suite name="lsort -indices option">
+
+<test-case name="lsort -indices basic">
+  <script>
+    lsort -indices {c a b}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1 2 0</stdout>
+</test-case>
+
+<test-case name="lsort -indices already sorted">
+  <script>
+    lsort -indices {a b c}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>0 1 2</stdout>
+</test-case>
+
+<test-case name="lsort -indices reverse sorted">
+  <script>
+    lsort -indices {c b a}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>2 1 0</stdout>
+</test-case>
+
+<test-case name="lsort -indices with -decreasing">
+  <script>
+    lsort -indices -decreasing {c a b}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>0 2 1</stdout>
+</test-case>
+
+<test-case name="lsort -indices with -integer">
+  <script>
+    lsort -indices -integer {10 2 20}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1 0 2</stdout>
+</test-case>
+
+<test-case name="lsort -indices with -nocase">
+  <script>
+    lsort -indices -nocase {C a B}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1 2 0</stdout>
+</test-case>
+
+<test-case name="lsort -indices with -unique">
+  <script>
+    lsort -indices -unique {c a b a}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>3 2 0</stdout>
+</test-case>
+
+<test-case name="lsort -indices empty list">
+  <script>
+    lsort -indices {}
+  </script>
+  <return>TCL_OK</return>
+  <stdout></stdout>
+</test-case>
+
+<test-case name="lsort -indices single element">
+  <script>
+    lsort -indices {a}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>0</stdout>
+</test-case>
+
+<test-case name="lsort -indices with -index">
+  <script>
+    lsort -indices -index 1 {{a 3} {b 1} {c 2}}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1 2 0</stdout>
+</test-case>
+
+</test-suite>

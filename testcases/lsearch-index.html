@@ -1,0 +1,100 @@
+<test-suite name="lsearch -index option">
+
+<test-case name="lsearch -index basic">
+  <script>
+    lsearch -index 0 {{a 1} {b 2} {c 3}} b
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+<test-case name="lsearch -index second element">
+  <script>
+    lsearch -index 1 {{a 1} {b 2} {c 1}} 2
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+<test-case name="lsearch -index not found">
+  <script>
+    lsearch -index 0 {{a 1} {b 2} {c 3}} x
+  </script>
+  <return>TCL_OK</return>
+  <stdout>-1</stdout>
+</test-case>
+
+<test-case name="lsearch -index with -all">
+  <script>
+    lsearch -index 0 -all {{a 1} {b 2} {a 3}} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>0 2</stdout>
+</test-case>
+
+<test-case name="lsearch -index with -inline">
+  <script>
+    lsearch -index 0 -inline {{a 1} {b 2} {c 3}} b
+  </script>
+  <return>TCL_OK</return>
+  <stdout>b 2</stdout>
+</test-case>
+
+<test-case name="lsearch -index with -all -inline">
+  <script>
+    lsearch -index 0 -all -inline {{a 1} {b 2} {a 3}} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>{a 1} {a 3}</stdout>
+</test-case>
+
+<test-case name="lsearch -index with glob">
+  <script>
+    lsearch -index 0 {{foo 1} {bar 2} {baz 3}} b*
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+<test-case name="lsearch -index with -exact">
+  <script>
+    lsearch -index 0 -exact {{a* 1} {b* 2} {c* 3}} b*
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+<test-case name="lsearch -index with -nocase">
+  <script>
+    lsearch -index 0 -nocase {{A 1} {B 2} {C 3}} b
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+<test-case name="lsearch -index with -not">
+  <script>
+    lsearch -index 0 -not {{a 1} {b 2} {c 3}} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+<test-case name="lsearch -index combined with -start">
+  <script>
+    lsearch -index 0 -start 1 {{a 1} {b 2} {a 3}} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>2</stdout>
+</test-case>
+
+<test-case name="lsearch -index missing argument">
+  <script>
+    lsearch -index {{a 1} {b 2}} a
+  </script>
+  <return>TCL_ERROR</return>
+  <error>"-index" option must be followed by list index</error>
+  <exit-code>1</exit-code>
+</test-case>
+
+</test-suite>
