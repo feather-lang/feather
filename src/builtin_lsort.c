@@ -1,6 +1,7 @@
 #include "feather.h"
 #include "internal.h"
 #include "charclass.h"
+#include "index_parse.h"
 
 // Sort mode
 typedef enum {
@@ -18,7 +19,8 @@ typedef struct {
   int nocase;
   int decreasing;
   int hasIndex;
-  int64_t sortIndex;
+  FeatherObj sortIndexObjs[16];  // Raw index objects for end-N support
+  size_t numSortIndices;
   int sortingPairs; // True when sorting {idx, value} pairs for -indices
   int hasCommand;   // True when using -command
   FeatherObj commandProc; // The command to use for comparison
@@ -119,6 +121,7 @@ static int lsort_compare_dictionary(const FeatherHostOps *ops, FeatherInterp int
 }
 
 // Extract element for comparison - handles -index option and -indices pairs
+// Supports nested indices with end-N resolution at each level
 static FeatherObj extract_compare_value(SortContext *ctx, FeatherInterp interp, FeatherObj elem) {
   FeatherObj value = elem;
 
@@ -131,12 +134,20 @@ static FeatherObj extract_compare_value(SortContext *ctx, FeatherInterp interp, 
     }
   }
 
-  // If -index was specified, extract the element at sortIndex from the value
+  // If -index was specified, traverse each index level
   if (ctx->hasIndex) {
-    FeatherObj sublist = ctx->ops->list.from(interp, value);
-    size_t sublistLen = ctx->ops->list.length(interp, sublist);
-    if (ctx->sortIndex >= 0 && (size_t)ctx->sortIndex < sublistLen) {
-      return ctx->ops->list.at(interp, sublist, (size_t)ctx->sortIndex);
+    for (size_t k = 0; k < ctx->numSortIndices && value; k++) {
+      FeatherObj sublist = ctx->ops->list.from(interp, value);
+      size_t sublistLen = ctx->ops->list.length(interp, sublist);
+      int64_t idx;
+      if (feather_parse_index(ctx->ops, interp, ctx->sortIndexObjs[k], sublistLen, &idx) != TCL_OK) {
+        return 0;  // Parse error
+      }
+      if (idx >= 0 && (size_t)idx < sublistLen) {
+        value = ctx->ops->list.at(interp, sublist, (size_t)idx);
+      } else {
+        return 0;  // Index out of bounds
+      }
     }
   }
 
@@ -245,7 +256,7 @@ FeatherResult feather_builtin_lsort(const FeatherHostOps *ops, FeatherInterp int
   ctx.nocase = 0;
   ctx.decreasing = 0;
   ctx.hasIndex = 0;
-  ctx.sortIndex = 0;
+  ctx.numSortIndices = 0;
   ctx.sortingPairs = 0;
   ctx.hasCommand = 0;
   ctx.commandProc = 0;
@@ -289,14 +300,28 @@ FeatherResult feather_builtin_lsort(const FeatherHostOps *ops, FeatherInterp int
           return TCL_ERROR;
         }
         FeatherObj indexArg = ops->list.shift(interp, args);
-        if (ops->integer.get(interp, indexArg, &ctx.sortIndex) != TCL_OK) {
-          FeatherObj msg = ops->string.intern(interp, "bad index \"", 11);
-          msg = ops->string.concat(interp, msg, indexArg);
-          FeatherObj suffix = ops->string.intern(interp,
-            "\": must be integer?[+-]integer? or end?[+-]integer?", 51);
-          msg = ops->string.concat(interp, msg, suffix);
-          ops->interp.set_result(interp, msg);
-          return TCL_ERROR;
+        // Try as list of indices first
+        FeatherObj indexList = ops->list.from(interp, indexArg);
+        size_t indexListLen = ops->list.length(interp, indexList);
+        if (indexListLen > 1) {
+          // It's a list of indices
+          if (indexListLen > 16) {
+            FeatherObj msg = ops->string.intern(interp, "bad index \"", 11);
+            msg = ops->string.concat(interp, msg, indexArg);
+            FeatherObj suffix = ops->string.intern(interp,
+              "\": must be integer?[+-]integer? or end?[+-]integer?", 51);
+            msg = ops->string.concat(interp, msg, suffix);
+            ops->interp.set_result(interp, msg);
+            return TCL_ERROR;
+          }
+          for (size_t j = 0; j < indexListLen; j++) {
+            ctx.sortIndexObjs[j] = ops->list.at(interp, indexList, j);
+          }
+          ctx.numSortIndices = indexListLen;
+        } else {
+          // Single index (store as-is for end-N support)
+          ctx.sortIndexObjs[0] = indexArg;
+          ctx.numSortIndices = 1;
         }
         ctx.hasIndex = 1;
       } else if (feather_obj_eq_literal(ops, interp, arg, "-command")) {
@@ -385,7 +410,8 @@ FeatherResult feather_builtin_lsort(const FeatherHostOps *ops, FeatherInterp int
     // If no -index was specified, default to first element (index 0)
     if (!ctx.hasIndex) {
       ctx.hasIndex = 1;
-      ctx.sortIndex = 0;
+      ctx.sortIndexObjs[0] = ops->string.intern(interp, "0", 1);
+      ctx.numSortIndices = 1;
     }
   }
 

@@ -51,7 +51,7 @@ All major lsearch features are now implemented.
 
 2. **No `-nocase` support for `-regexp`**: In TCL, `-nocase` affects regexp matching. Our implementation passes regexp matching to the host's `regex_match` function, but it's unclear if nocase is honored for regexp mode.
 
-3. **Simple index format**: Our `-start` and `-index` options only support simple integer indices, not TCL's `end-N` syntax or nested index lists.
+3. **Full index expression support**: Our `-start` and `-index` options support TCL's full index expression syntax including `end`, `end-N`, and arithmetic (`M+N`, `M-N`). Nested index lists (e.g., `{0 1}`) are also supported.
 
 4. **Binary search with -sorted**: The `-sorted` option enables O(log n) binary search. The comparison mode options (`-ascii`, `-dictionary`, `-integer`, `-real`) control how elements are compared during binary search.
 

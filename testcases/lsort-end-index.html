@@ -1,0 +1,62 @@
+<test-suite name="lsort end-N index expressions">
+
+<!-- -index with end -->
+<test-case name="lsort -index end">
+  <script>
+    lsort -index end {{a 3} {b 1} {c 2}}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>{b 1} {c 2} {a 3}</stdout>
+</test-case>
+
+<test-case name="lsort -index end-1">
+  <script>
+    lsort -index end-1 {{a 3} {b 1} {c 2}}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>{a 3} {b 1} {c 2}</stdout>
+</test-case>
+
+<test-case name="lsort -index end with 3 elements">
+  <script>
+    lsort -index end {{a b 3} {c d 1} {e f 2}}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>{c d 1} {e f 2} {a b 3}</stdout>
+</test-case>
+
+<test-case name="lsort -index end-1 with 3 elements">
+  <script>
+    lsort -index end-1 {{a b 3} {c d 1} {e f 2}}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>{a b 3} {c d 1} {e f 2}</stdout>
+</test-case>
+
+<!-- Nested index with end -->
+<test-case name="lsort -index {end} nested">
+  <script>
+    lsort -index {end} {{a 3} {b 1} {c 2}}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>{b 1} {c 2} {a 3}</stdout>
+</test-case>
+
+<test-case name="lsort -index {0 end} nested deep">
+  <script>
+    lsort -index {0 end} {{{a b} x} {{c d} y} {{e f} z}}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>{{a b} x} {{c d} y} {{e f} z}</stdout>
+</test-case>
+
+<!-- -index with arithmetic -->
+<test-case name="lsort -index 0+1">
+  <script>
+    lsort -index 0+1 {{a 3} {b 1} {c 2}}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>{b 1} {c 2} {a 3}</stdout>
+</test-case>
+
+</test-suite>

@@ -200,7 +200,7 @@ set result $result</script>
   <test-case name="lindex with non-integer index errors">
     <script>lindex {a b c} hello</script>
     <return>TCL_ERROR</return>
-    <error>expected integer but got "hello"</error>
+    <error>bad index "hello": must be integer?[+-]integer? or end?[+-]integer?</error>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>

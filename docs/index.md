@@ -39,9 +39,7 @@ These builtins match TCL's documented behavior:
 | `dict` | filter, map, update, with subcommands |
 | `info` | 14+ subcommands (cmdcount, cmdtype, complete, coroutine, class/object introspection) |
 | `namespace` | 9 subcommands (code, ensemble, forget, inscope, origin, path, unknown, upvar, which) |
-| `lsearch` | -sorted, -start, -stride, -index options |
-| `lsort` | -dictionary, -command, -index, -indices, -stride options |
-| `lindex` | end/end-N syntax, index arithmetic, nested indexing |
+| `lindex` | nested indexing (multiple index arguments) |
 | `lset` | multiple/nested indices support |
 | `mathfunc` | 11 functions (bool, entier, isqrt, max, min, rand, srand, isfinite, isnormal, issubnormal, isunordered) |
 | `expr` | Same 11 math functions, 0d prefix |

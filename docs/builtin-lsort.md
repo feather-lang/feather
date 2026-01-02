@@ -49,7 +49,7 @@ All major lsort features are now implemented.
 
 5. **Stability**: TCL explicitly uses merge-sort for stable sorting. Our implementation delegates to the host's sort function, so stability depends on the host implementation.
 
-6. **Simple index format**: Our `-index` option only supports simple integer indices, not TCL's `end-N` syntax or nested index lists.
+6. **Full index expression support**: Our `-index` option supports TCL's full index expression syntax including `end`, `end-N`, and arithmetic (`M+N`, `M-N`). Nested index lists (e.g., `{0 1}`) are also supported with up to 16 nesting levels.
 
 7. **-command behavior**: The comparison command must return an integer. Negative values mean the first argument is less than the second, positive means greater, zero means equal. Non-integer return values cause an error.
 

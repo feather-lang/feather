@@ -1,4 +1,5 @@
 #include "feather.h"
+#include "index_parse.h"
 
 FeatherResult feather_builtin_lindex(const FeatherHostOps *ops, FeatherInterp interp,
                               FeatherObj cmd, FeatherObj args) {
@@ -14,29 +15,18 @@ FeatherResult feather_builtin_lindex(const FeatherHostOps *ops, FeatherInterp in
   FeatherObj list = ops->list.shift(interp, args);
   FeatherObj indexObj = ops->list.shift(interp, args);
 
-  // Convert index to integer
+  // Convert to list first to get length
+  FeatherObj listCopy = ops->list.from(interp, list);
+  size_t len = ops->list.length(interp, listCopy);
+
+  // Parse index with end-N support
   int64_t index;
-  if (ops->integer.get(interp, indexObj, &index) != TCL_OK) {
-    // Build error message using concat with original object
-    FeatherObj part1 = ops->string.intern(interp, "expected integer but got \"", 26);
-    FeatherObj part3 = ops->string.intern(interp, "\"", 1);
-    FeatherObj msg = ops->string.concat(interp, part1, indexObj);
-    msg = ops->string.concat(interp, msg, part3);
-    ops->interp.set_result(interp, msg);
+  if (feather_parse_index(ops, interp, indexObj, len, &index) != TCL_OK) {
     return TCL_ERROR;
   }
 
-  // Convert to list
-  FeatherObj listCopy = ops->list.from(interp, list);
-
   // Out of bounds returns empty string
-  if (index < 0) {
-    ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
-    return TCL_OK;
-  }
-
-  size_t len = ops->list.length(interp, listCopy);
-  if ((size_t)index >= len) {
+  if (index < 0 || (size_t)index >= len) {
     ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
     return TCL_OK;
   }

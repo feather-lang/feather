@@ -1,0 +1,94 @@
+<test-suite name="lsearch end-N index expressions">
+
+<!-- -start with end-N -->
+<test-case name="lsearch -start end-2">
+  <script>
+    lsearch -start end-2 {a b c d e} d
+  </script>
+  <return>TCL_OK</return>
+  <stdout>3</stdout>
+</test-case>
+
+<test-case name="lsearch -start end-3">
+  <script>
+    lsearch -start end-3 {a b c d e} b
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+<test-case name="lsearch -start end">
+  <script>
+    lsearch -start end {a b c d e} e
+  </script>
+  <return>TCL_OK</return>
+  <stdout>4</stdout>
+</test-case>
+
+<test-case name="lsearch -start end not found">
+  <script>
+    lsearch -start end {a b c d e} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>-1</stdout>
+</test-case>
+
+<test-case name="lsearch -start 0+1">
+  <script>
+    lsearch -start 0+1 {a b c d e} b
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+<!-- -index with end-N -->
+<test-case name="lsearch -index end">
+  <script>
+    lsearch -index end {{a x} {b y} {c z}} y
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+<test-case name="lsearch -index end-1">
+  <script>
+    lsearch -index end-1 {{a x} {b y} {c z}} b
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+<test-case name="lsearch -index end with 3 elements">
+  <script>
+    lsearch -index end {{a b 1} {c d 2} {e f 3}} 2
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+<test-case name="lsearch -index end-2 with 3 elements">
+  <script>
+    lsearch -index end-2 {{a b 1} {c d 2} {e f 3}} c
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+<!-- -index with nested list containing end-N -->
+<test-case name="lsearch -index {end} nested">
+  <script>
+    lsearch -index {end} {{a x} {b y} {c z}} z
+  </script>
+  <return>TCL_OK</return>
+  <stdout>2</stdout>
+</test-case>
+
+<test-case name="lsearch -index {0 end} nested deep">
+  <script>
+    lsearch -index {0 end} {{{a b} x} {{c d} y}} d
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+</test-suite>
