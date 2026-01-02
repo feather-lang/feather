@@ -1,0 +1,130 @@
+<test-suite name="variable qualified names">
+
+<!-- Test variable command with qualified names for cross-namespace access -->
+
+<!-- Basic qualified name access -->
+<test-case name="variable qualified name creates local link">
+  <script>
+    namespace eval ns1 {
+        variable x "initial"
+    }
+
+    proc test {} {
+        variable ::ns1::x
+        set x
+    }
+
+    test
+  </script>
+  <return>TCL_OK</return>
+  <stdout>initial</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="variable qualified name allows modification">
+  <script>
+    namespace eval ns1 {
+        variable y "original"
+    }
+
+    proc modify {} {
+        variable ::ns1::y
+        set y "modified"
+    }
+
+    modify
+    set ::ns1::y
+  </script>
+  <return>TCL_OK</return>
+  <stdout>modified</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="variable qualified name with value">
+  <script>
+    namespace eval ns1 {
+        variable z "old"
+    }
+
+    proc setval {} {
+        variable ::ns1::z "new"
+        set z
+    }
+
+    setval
+  </script>
+  <return>TCL_OK</return>
+  <stdout>new</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- Cross-namespace access -->
+<test-case name="variable from different namespace proc">
+  <script>
+    namespace eval target {
+        variable data "target-data"
+    }
+
+    namespace eval other {
+        proc access {} {
+            variable ::target::data
+            set data
+        }
+    }
+
+    other::access
+  </script>
+  <return>TCL_OK</return>
+  <stdout>target-data</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- Creating variable via qualified link -->
+<test-case name="variable qualified link then set creates variable">
+  <script>
+    namespace eval empty {}
+
+    proc creator {} {
+        variable ::empty::newvar
+        set newvar "created"
+    }
+
+    creator
+    set ::empty::newvar
+  </script>
+  <return>TCL_OK</return>
+  <stdout>created</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- Error case: nonexistent namespace -->
+<test-case name="variable qualified nonexistent namespace errors">
+  <script>
+    proc test {} {
+        variable ::nonexistent::x
+    }
+    test
+  </script>
+  <return>TCL_ERROR</return>
+  <error>can't access "::nonexistent::x": parent namespace doesn't exist</error>
+  <exit-code>1</exit-code>
+</test-case>
+
+<!-- Global qualified name from global proc -->
+<test-case name="variable qualified global var from proc">
+  <script>
+    set ::globalvar "global-value"
+
+    proc getglobal {} {
+        variable ::globalvar
+        set globalvar
+    }
+
+    getglobal
+  </script>
+  <return>TCL_OK</return>
+  <stdout>global-value</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+</test-suite>
