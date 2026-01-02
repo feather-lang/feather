@@ -2,7 +2,7 @@
 
 This document summarizes the comparison between Feather's TCL builtin implementations and official TCL 8.6+/9.0.
 
-## Feature-Complete Builtins (23)
+## Feature-Complete Builtins (24)
 
 These builtins match TCL's documented behavior:
 
@@ -29,6 +29,7 @@ These builtins match TCL's documented behavior:
 - `eval` - Script evaluation
 - `proc` - Procedure definition (with default parameters)
 - `return` - Procedure return (with -code, -level, -options, -errorcode, -errorinfo, -errorstack)
+- `catch` - Exception catching (with -errorinfo, -errorcode, -errorstack, -errorline, globals)
 
 ## Builtins with Missing Features
 
@@ -45,7 +46,6 @@ These builtins match TCL's documented behavior:
 | `mathfunc` | 11 functions (bool, entier, isqrt, max, min, rand, srand, isfinite, isnormal, issubnormal, isunordered) |
 | `expr` | Same 11 math functions, 0d prefix |
 | `apply` | Required-after-optional argument handling |
-| `catch` | -errorinfo, -errorcode, -errorline, -errorstack population |
 | `try` | -during key in exception dictionary |
 | `switch` | -nocase, -matchvar, -indexvar |
 | `format` | Size modifier truncation, some # flag behaviors |

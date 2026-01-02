@@ -163,23 +163,32 @@ void feather_error_finalize(const FeatherHostOps *ops, FeatherInterp interp) {
     opts = ops->list.push(interp, opts, ops->string.intern(interp, S("-errorline")));
     opts = ops->list.push(interp, opts, line);
 
+    // Find -errorcode in opts, or default to NONE
+    FeatherObj errorCode = ops->string.intern(interp, S("NONE"));
+    size_t optsLen = ops->list.length(interp, opts);
+    int hasErrorCode = 0;
+    for (size_t i = 0; i + 1 < optsLen; i += 2) {
+        FeatherObj key = ops->list.at(interp, opts, i);
+        if (feather_obj_eq_literal(ops, interp, key, "-errorcode")) {
+            errorCode = ops->list.at(interp, opts, i + 1);
+            hasErrorCode = 1;
+            break;
+        }
+    }
+
+    // Add -errorcode to opts if not already present
+    if (!hasErrorCode) {
+        opts = ops->list.push(interp, opts, ops->string.intern(interp, S("-errorcode")));
+        opts = ops->list.push(interp, opts, errorCode);
+    }
+
     ops->interp.set_return_options(interp, opts);
 
     // Set global ::errorInfo variable
     FeatherObj globalNs = ops->string.intern(interp, S("::"));
     ops->ns.set_var(interp, globalNs, ops->string.intern(interp, S("errorInfo")), info);
 
-    // Set global ::errorCode variable (from opts or default NONE)
-    // Check if -errorcode is already in opts
-    FeatherObj errorCode = ops->string.intern(interp, S("NONE"));
-    size_t optsLen = ops->list.length(interp, opts);
-    for (size_t i = 0; i + 1 < optsLen; i += 2) {
-        FeatherObj key = ops->list.at(interp, opts, i);
-        if (feather_obj_eq_literal(ops, interp, key, "-errorcode")) {
-            errorCode = ops->list.at(interp, opts, i + 1);
-            break;
-        }
-    }
+    // Set global ::errorCode variable
     ops->ns.set_var(interp, globalNs, ops->string.intern(interp, S("errorCode")), errorCode);
 
     // Clear error state
