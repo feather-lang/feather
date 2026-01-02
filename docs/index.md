@@ -2,47 +2,48 @@
 
 This document summarizes the comparison between Feather's TCL builtin implementations and official TCL 8.6+/9.0.
 
-## Feature-Complete Builtins (26)
+## Feature-Complete Builtins (29)
 
 These builtins match TCL's documented behavior:
 
 - `apply` - Lambda application (with required-after-optional handling)
 - `break` - Loop termination
+- `catch` - Exception catching (with -errorinfo, -errorcode, -errorstack, -errorline, globals)
+- `concat` - List concatenation
 - `continue` - Loop continuation
+- `dict` - Dictionary operations (all 21 subcommands)
+- `error` - Error raising
+- `eval` - Script evaluation
+- `for` - C-style for loop (with break/continue in next script)
+- `foreach` - List iteration
+- `global` - Global variable access
+- `if` - Conditional execution
+- `join` - List to string
+- `lassign` - List assignment to variables
+- `linsert` - List insertion
 - `list` - List construction
 - `llength` - List length
-- `lreverse` - List reversal
-- `concat` - List concatenation
-- `join` - List to string
-- `lrange` - List range extraction
-- `lreplace` - List element replacement
-- `linsert` - List insertion
-- `lrepeat` - List repetition
 - `lmap` - List mapping
-- `lassign` - List assignment to variables
-- `foreach` - List iteration
-- `while` - While loop
-- `if` - Conditional execution
-- `error` - Error raising
-- `throw` - Exception throwing
-- `rename` - Command renaming
-- `global` - Global variable access
-- `eval` - Script evaluation
+- `lrange` - List range extraction
+- `lrepeat` - List repetition
+- `lreplace` - List element replacement
+- `lreverse` - List reversal
 - `proc` - Procedure definition (with default parameters)
+- `rename` - Command renaming
 - `return` - Procedure return (with -code, -level, -options, -errorcode, -errorinfo, -errorstack)
-- `catch` - Exception catching (with -errorinfo, -errorcode, -errorstack, -errorline, globals)
+- `switch` - Pattern matching (with -exact, -glob, -regexp, -nocase, -matchvar, -indexvar)
+- `throw` - Exception throwing
 - `uplevel` - Execute script in different stack frame (with namespace and apply interaction)
+- `while` - While loop
 
 ## Builtins with Missing Features
 
 | Builtin | Key Missing Features |
 |---------|---------------------|
 | `string` | 12 subcommands (cat, compare, equal, first, last, insert, is, repeat, replace, reverse, totitle, wordend/wordstart) |
-| `dict` | All major features implemented |
 | `info` | 14+ subcommands (cmdcount, cmdtype, complete, coroutine, class/object introspection) |
 | `namespace` | 9 subcommands (code, ensemble, forget, inscope, origin, path, unknown, upvar, which) |
 | `try` | -during key in exception dictionary |
-| `switch` | All major features implemented |
 | `format` | Size modifier truncation, some # flag behaviors |
 | `scan` | Integer truncation, Unicode %c, unsigned conversion |
 | `subst` | Unicode escapes (\uNNNN) |
@@ -54,7 +55,6 @@ These builtins match TCL's documented behavior:
 | `unset` | Array support |
 | `upvar` | Array element references, validation checks |
 | `tailcall` | Uplevel restriction (may not be enforced in TCL 9.0) |
-| `for` | All features implemented |
 | `split` | Unicode character handling |
 
 ## Documentation Files
