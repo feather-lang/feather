@@ -47,15 +47,11 @@ These builtins match TCL's documented behavior:
 | `format` | Size modifier truncation, some # flag behaviors |
 | `scan` | Integer truncation, Unicode %c, unsigned conversion |
 | `subst` | Unicode escapes (\uNNNN) |
-| `trace` | Variable creation on trace add, array operation |
-| `incr` | Array default values (Feather doesn't support arrays) |
-| `set` | Array element syntax |
-| `append` | Array default values |
-| `lappend` | Array default values |
-| `unset` | Array support |
-| `upvar` | Array element references, validation checks |
+| `trace` | Variable creation on trace add |
 | `tailcall` | Uplevel restriction (may not be enforced in TCL 9.0) |
 | `split` | Unicode character handling |
+
+**Note:** TCL arrays are explicitly not supported in Feather. Array-related features in `set`, `unset`, `append`, `lappend`, `incr`, `upvar`, and `trace` are intentionally omitted.
 
 ## Documentation Files
 
