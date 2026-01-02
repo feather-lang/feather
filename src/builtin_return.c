@@ -49,6 +49,7 @@ FeatherResult feather_builtin_return(const FeatherHostOps *ops, FeatherInterp in
 
   int code = TCL_OK;      // Default: -code ok
   int level = 1;          // Default: -level 1
+  FeatherObj errorcode = 0;  // Default: not set (will use NONE)
   FeatherObj resultValue = ops->string.intern(interp, "", 0);
 
   // Make a copy of args since we'll be shifting
@@ -107,6 +108,15 @@ FeatherResult feather_builtin_return(const FeatherHostOps *ops, FeatherInterp in
           return TCL_ERROR;
         }
         level = (int)levelVal;
+      } else if (feather_obj_eq_literal(ops, interp, arg, "-errorcode")) {
+        // Need value
+        if (argc == 0) {
+          FeatherObj msg = ops->string.intern(interp, "-errorcode requires a value", 27);
+          ops->interp.set_result(interp, msg);
+          return TCL_ERROR;
+        }
+        errorcode = ops->list.shift(interp, argsCopy);
+        argc--;
       } else if (feather_obj_eq_literal(ops, interp, arg, "-options")) {
         // -options takes a dictionary, extract -code and -level from it
         if (argc == 0) {
@@ -162,11 +172,17 @@ FeatherResult feather_builtin_return(const FeatherHostOps *ops, FeatherInterp in
           }
           level = (int)levelInt;
         }
+
+        // Extract -errorcode if present
+        FeatherObj errorcodeKey = ops->string.intern(interp, "-errorcode", 10);
+        if (ops->dict.exists(interp, optDict, errorcodeKey)) {
+          errorcode = ops->dict.get(interp, optDict, errorcodeKey);
+        }
       } else {
         // Unknown option - build error with original object
         FeatherObj msg1 = ops->string.intern(interp, "bad option \"", 12);
         FeatherObj msg3 = ops->string.intern(interp,
-          "\": must be -code, -level, or -options", 37);
+          "\": must be -code, -level, -errorcode, or -options", 49);
         FeatherObj msg = ops->string.concat(interp, msg1, arg);
         msg = ops->string.concat(interp, msg, msg3);
         ops->interp.set_result(interp, msg);
@@ -193,12 +209,22 @@ FeatherResult feather_builtin_return(const FeatherHostOps *ops, FeatherInterp in
     }
   }
 
-  // Build return options dictionary as a list: {-code X -level Y}
+  // Build return options dictionary as a list: {-code X -level Y ...}
   FeatherObj options = ops->list.create(interp);
   options = ops->list.push(interp, options, ops->string.intern(interp, "-code", 5));
   options = ops->list.push(interp, options, ops->integer.create(interp, code));
   options = ops->list.push(interp, options, ops->string.intern(interp, "-level", 6));
   options = ops->list.push(interp, options, ops->integer.create(interp, level));
+
+  // Add -errorcode if set, or default to NONE for error codes
+  if (errorcode != 0) {
+    options = ops->list.push(interp, options, ops->string.intern(interp, "-errorcode", 10));
+    options = ops->list.push(interp, options, errorcode);
+  } else if (code == TCL_ERROR) {
+    // Default errorcode for errors is NONE
+    options = ops->list.push(interp, options, ops->string.intern(interp, "-errorcode", 10));
+    options = ops->list.push(interp, options, ops->string.intern(interp, "NONE", 4));
+  }
 
   // Store the return options
   FeatherResult storeResult = ops->interp.set_return_options(interp, options);

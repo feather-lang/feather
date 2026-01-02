@@ -66,8 +66,25 @@ FeatherResult feather_builtin_catch(const FeatherHostOps *ops, FeatherInterp int
   }
 
   // Finalize error state before getting options (transfers accumulated trace to opts)
-  if (code == TCL_ERROR && feather_error_is_active(ops, interp)) {
-    feather_error_finalize(ops, interp);
+  if (code == TCL_ERROR) {
+    if (feather_error_is_active(ops, interp)) {
+      feather_error_finalize(ops, interp);
+    } else {
+      // Even without active error trace, set ::errorCode from return options
+      FeatherObj opts = ops->interp.get_return_options(interp, code);
+      FeatherObj globalNs = ops->string.intern(interp, S("::"));
+      FeatherObj errorCode = ops->string.intern(interp, S("NONE"));
+
+      size_t optsLen = ops->list.length(interp, opts);
+      for (size_t i = 0; i + 1 < optsLen; i += 2) {
+        FeatherObj key = ops->list.at(interp, opts, i);
+        if (feather_obj_eq_literal(ops, interp, key, "-errorcode")) {
+          errorCode = ops->list.at(interp, opts, i + 1);
+          break;
+        }
+      }
+      ops->ns.set_var(interp, globalNs, ops->string.intern(interp, S("errorCode")), errorCode);
+    }
   }
 
   // Get the result (either normal result or error message)

@@ -390,7 +390,7 @@ set result</script>
   <test-case name="return with unknown option gives error">
     <script>return -unknown value</script>
     <return>TCL_ERROR</return>
-    <error>bad option "-unknown": must be -code, -level, or -options</error>
+    <error>bad option "-unknown": must be -code, -level, -errorcode, or -options</error>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
