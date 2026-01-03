@@ -84,7 +84,8 @@ FeatherResult feather_builtin_split(const FeatherHostOps *ops, FeatherInterp int
 
     if (isDelim || i == strLen) {
       // End of segment - extract using rune.range
-      FeatherObj elem = ops->rune.range(interp, strObj, (int64_t)start, (int64_t)(i - 1));
+      // Cast to int64_t before subtraction to avoid unsigned underflow on 32-bit
+      FeatherObj elem = ops->rune.range(interp, strObj, (int64_t)start, (int64_t)i - 1);
       result = ops->list.push(interp, result, elem);
       start = i + 1;
     }
