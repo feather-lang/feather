@@ -55,24 +55,15 @@ The implementation supports:
 - Correctly processes `return -code` and `return -level` options
 - Decrements level appropriately per TCL semantics
 
+### `-during` Key in Exception Dictionary
+- If an exception (any non-ok result) occurs during evaluation of a handler or finally clause, the original exception's status dictionary is added to the new exception's status dictionary under the `-during` key
+- This preserves context about what exception was being handled when the new error occurred
+- Supports nested `-during` for multiple levels of exception handling
+- Only added when an exception occurs; successful handlers/finally clauses do not add `-during`
+
 ## TCL Features We Do NOT Support
 
-### `-during` Key in Exception Dictionary
-
-**TCL Behavior:** If an exception occurs during the evaluation of either a handler or the finally clause, the original exception's status dictionary is added to the new exception's status dictionary under the `-during` key.
-
-**Our Implementation:** We do not add the `-during` key. If a handler or finally raises an error, we simply propagate that error without preserving the original exception context.
-
-**Example of missing behavior:**
-```tcl
-try {
-    error "original error"
-} on error {} {
-    error "handler error"
-}
-# TCL: error dict contains -during with original error info
-# Feather: only returns "handler error" without -during
-```
+None. Feather's `try` implementation is fully compatible with TCL 8.6+.
 
 ## Notes on Implementation Differences
 
