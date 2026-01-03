@@ -162,6 +162,85 @@ static FeatherResult string_tolower(const FeatherHostOps *ops, FeatherInterp int
   return TCL_OK;
 }
 
+// string totitle
+static FeatherResult string_totitle(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
+  size_t argc = ops->list.length(interp, args);
+  if (argc < 1 || argc > 3) {
+    FeatherObj msg = ops->string.intern(interp,
+      "wrong # args: should be \"string totitle string ?first? ?last?\"", 62);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  FeatherObj strObj = ops->list.shift(interp, args);
+  size_t len = ops->rune.length(interp, strObj);
+
+  // Default range is entire string
+  int64_t first = 0;
+  int64_t last = (int64_t)len - 1;
+
+  // Parse optional first/last arguments
+  if (argc >= 2) {
+    FeatherObj firstObj = ops->list.shift(interp, args);
+    if (feather_parse_index(ops, interp, firstObj, len, &first) != TCL_OK) {
+      return TCL_ERROR;
+    }
+  }
+  if (argc >= 3) {
+    FeatherObj lastObj = ops->list.shift(interp, args);
+    if (feather_parse_index(ops, interp, lastObj, len, &last) != TCL_OK) {
+      return TCL_ERROR;
+    }
+  }
+
+  // Handle empty string
+  if (len == 0) {
+    ops->interp.set_result(interp, strObj);
+    return TCL_OK;
+  }
+
+  // Clamp indices
+  if (first < 0) first = 0;
+  if (last >= (int64_t)len) last = (int64_t)len - 1;
+
+  // If range is invalid, return original string
+  if (first > last) {
+    ops->interp.set_result(interp, strObj);
+    return TCL_OK;
+  }
+
+  // Build result: prefix + title-cased range + suffix
+  // Title case = first char upper, rest lower
+  FeatherObj result = ops->string.intern(interp, "", 0);
+
+  // Add prefix (before first) unchanged
+  if (first > 0) {
+    FeatherObj prefix = ops->rune.range(interp, strObj, 0, first - 1);
+    result = ops->string.concat(interp, result, prefix);
+  }
+
+  // Add first character of range uppercased
+  FeatherObj firstChar = ops->rune.at(interp, strObj, (size_t)first);
+  FeatherObj upperFirst = ops->rune.to_upper(interp, firstChar);
+  result = ops->string.concat(interp, result, upperFirst);
+
+  // Add rest of range lowercased
+  if (first < last) {
+    FeatherObj restOfRange = ops->rune.range(interp, strObj, first + 1, last);
+    FeatherObj lowerRest = ops->rune.to_lower(interp, restOfRange);
+    result = ops->string.concat(interp, result, lowerRest);
+  }
+
+  // Add suffix (after last) unchanged
+  if (last < (int64_t)len - 1) {
+    FeatherObj suffix = ops->rune.range(interp, strObj, last + 1, len - 1);
+    result = ops->string.concat(interp, result, suffix);
+  }
+
+  ops->interp.set_result(interp, result);
+  return TCL_OK;
+}
+
 // string trim
 static FeatherResult string_trim(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
@@ -984,6 +1063,8 @@ FeatherResult feather_builtin_string(const FeatherHostOps *ops, FeatherInterp in
     return string_toupper(ops, interp, args);
   } else if (feather_obj_eq_literal(ops, interp, subcmd, "tolower")) {
     return string_tolower(ops, interp, args);
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "totitle")) {
+    return string_totitle(ops, interp, args);
   } else if (feather_obj_eq_literal(ops, interp, subcmd, "trim")) {
     return string_trim(ops, interp, args);
   } else if (feather_obj_eq_literal(ops, interp, subcmd, "trimleft")) {
@@ -1016,7 +1097,7 @@ FeatherResult feather_builtin_string(const FeatherHostOps *ops, FeatherInterp in
     FeatherObj msg = ops->string.intern(interp, "unknown or ambiguous subcommand \"", 33);
     msg = ops->string.concat(interp, msg, subcmd);
     FeatherObj suffix = ops->string.intern(interp,
-      "\": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, toupper, trim, trimleft, or trimright", 163);
+      "\": must be cat, compare, equal, first, index, insert, is, last, length, map, match, range, repeat, replace, reverse, tolower, totitle, toupper, trim, trimleft, or trimright", 172);
     msg = ops->string.concat(interp, msg, suffix);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;

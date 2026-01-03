@@ -42,6 +42,7 @@ Feather implements the following `string` subcommands in `src/builtin_string.c`:
 | `string insert string index insertString` | Supported | Insert substring at index |
 | `string replace string first last ?newstring?` | Supported | Replace range with optional new string |
 | `string is class ?-strict? ?-failindex var? string` | Supported | Character/value class testing (see below) |
+| `string totitle string ?first? ?last?` | Supported | Title case conversion with optional range |
 
 ### Supported `string is` Classes
 
@@ -56,12 +57,6 @@ Feather implements the following `string` subcommands in `src/builtin_string.c`:
 **Note:** TCL's `entier` and `wideinteger` classes are not supported.
 
 ## TCL Features We Do NOT Support
-
-### Missing Subcommands
-
-| Subcommand | Description |
-|------------|-------------|
-| `string totitle string ?first? ?last?` | Title case conversion |
 
 ### Deliberately Unsupported (Obsolete in TCL)
 
