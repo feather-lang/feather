@@ -62,8 +62,17 @@ Feather implements the following `string` subcommands in `src/builtin_string.c`:
 | Subcommand | Description |
 |------------|-------------|
 | `string totitle string ?first? ?last?` | Title case conversion |
-| `string wordend string charIndex` | Find end of word (obsolete) |
-| `string wordstart string charIndex` | Find start of word (obsolete) |
+
+### Deliberately Unsupported (Obsolete in TCL)
+
+The following subcommands are marked as obsolete in TCL and are **intentionally not supported** in Feather:
+
+| Subcommand | Description |
+|------------|-------------|
+| `string wordend string charIndex` | Find end of word - use `regexp` or `string first` instead |
+| `string wordstart string charIndex` | Find start of word - use `regexp` or `string last` instead |
+
+These commands are deprecated in TCL in favor of more flexible regular expression-based approaches.
 
 ### Partial Implementations
 
