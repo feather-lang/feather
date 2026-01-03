@@ -2,7 +2,7 @@
 
 This document summarizes the comparison between Feather's TCL builtin implementations and official TCL 8.6+/9.0.
 
-## Feature-Complete Builtins (29)
+## Feature-Complete Builtins (30)
 
 These builtins match TCL's documented behavior:
 
@@ -33,6 +33,7 @@ These builtins match TCL's documented behavior:
 - `return` - Procedure return (with -code, -level, -options, -errorcode, -errorinfo, -errorstack)
 - `switch` - Pattern matching (with -exact, -glob, -regexp, -nocase, -matchvar, -indexvar)
 - `throw` - Exception throwing
+- `try` - Exception handling (with -during key in exception dictionary)
 - `uplevel` - Execute script in different stack frame (with namespace and apply interaction)
 - `while` - While loop
 
@@ -43,7 +44,6 @@ These builtins match TCL's documented behavior:
 | `string` | 3 subcommands (totitle, wordend/wordstart) |
 | `info` | 14+ subcommands (cmdcount, cmdtype, complete, coroutine, class/object introspection) |
 | `namespace` | 9 subcommands (code, ensemble, forget, inscope, origin, path, unknown, upvar, which) |
-| `try` | -during key in exception dictionary |
 | `trace` | Variable creation on trace add |
 | `tailcall` | Uplevel restriction (may not be enforced in TCL 9.0) |
 
