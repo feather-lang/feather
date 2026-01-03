@@ -2,10 +2,11 @@
 
 This document summarizes the comparison between Feather's TCL builtin implementations and official TCL 8.6+/9.0.
 
-## Feature-Complete Builtins (30)
+## Feature-Complete Builtins (46)
 
 These builtins match TCL's documented behavior:
 
+- `append` - Variable append
 - `apply` - Lambda application (with required-after-optional handling)
 - `break` - Loop termination
 - `catch` - Exception catching (with -errorinfo, -errorcode, -errorstack, -errorline, globals)
@@ -14,12 +15,17 @@ These builtins match TCL's documented behavior:
 - `dict` - Dictionary operations (all 21 subcommands)
 - `error` - Error raising
 - `eval` - Script evaluation
+- `expr` - Expression evaluation (all operators, math functions)
 - `for` - C-style for loop (with break/continue in next script)
 - `foreach` - List iteration
+- `format` - String formatting (all format specifiers)
 - `global` - Global variable access
 - `if` - Conditional execution
+- `incr` - Variable increment
 - `join` - List to string
+- `lappend` - List append to variable
 - `lassign` - List assignment to variables
+- `lindex` - List element access (with full index expression support)
 - `linsert` - List insertion
 - `list` - List construction
 - `llength` - List length
@@ -28,22 +34,32 @@ These builtins match TCL's documented behavior:
 - `lrepeat` - List repetition
 - `lreplace` - List element replacement
 - `lreverse` - List reversal
+- `lsearch` - List searching (all modes and options)
+- `lset` - List element modification (with nested support)
+- `lsort` - List sorting (all modes and options)
 - `proc` - Procedure definition (with default parameters)
 - `rename` - Command renaming
 - `return` - Procedure return (with -code, -level, -options, -errorcode, -errorinfo, -errorstack)
+- `scan` - String parsing (all format specifiers)
+- `set` - Variable get/set
+- `split` - String splitting (with full Unicode support)
+- `subst` - String substitution (all types and options)
 - `switch` - Pattern matching (with -exact, -glob, -regexp, -nocase, -matchvar, -indexvar)
 - `throw` - Exception throwing
 - `try` - Exception handling (with -during key in exception dictionary)
+- `unset` - Variable deletion
 - `uplevel` - Execute script in different stack frame (with namespace and apply interaction)
+- `upvar` - Variable linking
+- `variable` - Namespace variable declaration (with qualified names)
 - `while` - While loop
 
 ## Builtins with Missing Features
 
 | Builtin | Key Missing Features |
 |---------|---------------------|
-| `string` | 3 subcommands (totitle, wordend/wordstart) |
-| `info` | 14+ subcommands (cmdcount, cmdtype, complete, coroutine, class/object introspection) |
-| `namespace` | 9 subcommands (code, ensemble, forget, inscope, origin, path, unknown, upvar, which) |
+| `string` | Range arguments for toupper/tolower (first/last parameters parsed but ignored) |
+| `info` | 14+ subcommands (cmdcount, cmdtype, complete, coroutine, class/object introspection, hostname, library) |
+| `namespace` | 4 subcommands (ensemble, path, unknown, upvar) |
 | `trace` | Variable creation on trace add |
 | `tailcall` | Uplevel restriction (may not be enforced in TCL 9.0) |
 
