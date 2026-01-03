@@ -2,6 +2,7 @@
 #include "host.h"
 #include "internal.h"
 #include "charclass.h"
+#include "unicode.h"
 
 static FeatherObj append_literal(const FeatherHostOps *ops, FeatherInterp interp,
                                   FeatherObj result, const char *s, size_t len) {
@@ -70,40 +71,6 @@ static FeatherObj build_no_such_variable_error(const FeatherHostOps *ops, Feathe
     ops->string.builder_append_byte(interp, builder, suffix[i]);
   }
   return ops->string.builder_finish(interp, builder);
-}
-
-// Encode a Unicode codepoint as UTF-8 bytes
-// Returns the number of bytes written (1-4)
-static size_t encode_utf8(uint32_t codepoint, char *buf) {
-  if (codepoint <= 0x7F) {
-    // 1-byte sequence: 0xxxxxxx
-    buf[0] = (char)codepoint;
-    return 1;
-  } else if (codepoint <= 0x7FF) {
-    // 2-byte sequence: 110xxxxx 10xxxxxx
-    buf[0] = (char)(0xC0 | (codepoint >> 6));
-    buf[1] = (char)(0x80 | (codepoint & 0x3F));
-    return 2;
-  } else if (codepoint <= 0xFFFF) {
-    // 3-byte sequence: 1110xxxx 10xxxxxx 10xxxxxx
-    buf[0] = (char)(0xE0 | (codepoint >> 12));
-    buf[1] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
-    buf[2] = (char)(0x80 | (codepoint & 0x3F));
-    return 3;
-  } else if (codepoint <= 0x10FFFF) {
-    // 4-byte sequence: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
-    buf[0] = (char)(0xF0 | (codepoint >> 18));
-    buf[1] = (char)(0x80 | ((codepoint >> 12) & 0x3F));
-    buf[2] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
-    buf[3] = (char)(0x80 | (codepoint & 0x3F));
-    return 4;
-  } else {
-    // Invalid codepoint - return replacement character (U+FFFD)
-    buf[0] = (char)0xEF;
-    buf[1] = (char)0xBF;
-    buf[2] = (char)0xBD;
-    return 3;
-  }
 }
 
 static FeatherResult process_backslash_subst_obj(const FeatherHostOps *ops, FeatherInterp interp,
@@ -175,7 +142,7 @@ static FeatherResult process_backslash_subst_obj(const FeatherHostOps *ops, Feat
         ops->interp.set_result(interp, msg);
         return TCL_ERROR;
       }
-      *out_len = encode_utf8(codepoint, buf);
+      *out_len = feather_utf8_encode(codepoint, buf);
       *consumed = 5; // 'u' + 4 hex digits
       return TCL_OK;
     }
@@ -194,7 +161,7 @@ static FeatherResult process_backslash_subst_obj(const FeatherHostOps *ops, Feat
         ops->interp.set_result(interp, msg);
         return TCL_ERROR;
       }
-      *out_len = encode_utf8(codepoint, buf);
+      *out_len = feather_utf8_encode(codepoint, buf);
       *consumed = 9; // 'U' + 8 hex digits
       return TCL_OK;
     }

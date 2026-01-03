@@ -453,11 +453,7 @@ static FeatherResult string_compare(const FeatherHostOps *ops, FeatherInterp int
       }
       FeatherObj lenObj = ops->list.shift(interp, args);
       if (ops->integer.get(interp, lenObj, &length) != TCL_OK) {
-        FeatherObj msg = ops->string.intern(interp, "expected integer but got \"", 26);
-        msg = ops->string.concat(interp, msg, lenObj);
-        FeatherObj suffix = ops->string.intern(interp, "\"", 1);
-        msg = ops->string.concat(interp, msg, suffix);
-        ops->interp.set_result(interp, msg);
+        feather_error_expected(ops, interp, "integer", lenObj);
         return TCL_ERROR;
       }
     } else {
@@ -517,11 +513,7 @@ static FeatherResult string_equal(const FeatherHostOps *ops, FeatherInterp inter
       }
       FeatherObj lenObj = ops->list.shift(interp, args);
       if (ops->integer.get(interp, lenObj, &length) != TCL_OK) {
-        FeatherObj msg = ops->string.intern(interp, "expected integer but got \"", 26);
-        msg = ops->string.concat(interp, msg, lenObj);
-        FeatherObj suffix = ops->string.intern(interp, "\"", 1);
-        msg = ops->string.concat(interp, msg, suffix);
-        ops->interp.set_result(interp, msg);
+        feather_error_expected(ops, interp, "integer", lenObj);
         return TCL_ERROR;
       }
     } else {
@@ -662,11 +654,7 @@ static FeatherResult string_repeat(const FeatherHostOps *ops, FeatherInterp inte
 
   int64_t count;
   if (ops->integer.get(interp, countObj, &count) != TCL_OK) {
-    FeatherObj msg = ops->string.intern(interp, "expected integer but got \"", 26);
-    msg = ops->string.concat(interp, msg, countObj);
-    FeatherObj suffix = ops->string.intern(interp, "\"", 1);
-    msg = ops->string.concat(interp, msg, suffix);
-    ops->interp.set_result(interp, msg);
+    feather_error_expected(ops, interp, "integer", countObj);
     return TCL_ERROR;
   }
 

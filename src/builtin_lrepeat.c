@@ -1,4 +1,5 @@
 #include "feather.h"
+#include "internal.h"
 
 FeatherResult feather_builtin_lrepeat(const FeatherHostOps *ops, FeatherInterp interp,
                                       FeatherObj cmd, FeatherObj args) {
@@ -14,11 +15,7 @@ FeatherResult feather_builtin_lrepeat(const FeatherHostOps *ops, FeatherInterp i
   FeatherObj countObj = ops->list.shift(interp, args);
   int64_t count;
   if (ops->integer.get(interp, countObj, &count) != TCL_OK) {
-    FeatherObj part1 = ops->string.intern(interp, "expected integer but got \"", 26);
-    FeatherObj part3 = ops->string.intern(interp, "\"", 1);
-    FeatherObj msg = ops->string.concat(interp, part1, countObj);
-    msg = ops->string.concat(interp, msg, part3);
-    ops->interp.set_result(interp, msg);
+    feather_error_expected(ops, interp, "integer", countObj);
     return TCL_ERROR;
   }
 

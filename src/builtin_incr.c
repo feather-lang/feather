@@ -27,11 +27,7 @@ FeatherResult feather_builtin_incr(const FeatherHostOps *ops, FeatherInterp inte
   if (!ops->list.is_nil(interp, currentVal)) {
     // Variable exists - convert to integer
     if (ops->integer.get(interp, currentVal, &current) != TCL_OK) {
-      FeatherObj part1 = ops->string.intern(interp, "expected integer but got \"", 26);
-      FeatherObj part3 = ops->string.intern(interp, "\"", 1);
-      FeatherObj msg = ops->string.concat(interp, part1, currentVal);
-      msg = ops->string.concat(interp, msg, part3);
-      ops->interp.set_result(interp, msg);
+      feather_error_expected(ops, interp, "integer", currentVal);
       return TCL_ERROR;
     }
   }
@@ -42,11 +38,7 @@ FeatherResult feather_builtin_incr(const FeatherHostOps *ops, FeatherInterp inte
   if (argc == 2) {
     FeatherObj incrVal = ops->list.shift(interp, args);
     if (ops->integer.get(interp, incrVal, &increment) != TCL_OK) {
-      FeatherObj part1 = ops->string.intern(interp, "expected integer but got \"", 26);
-      FeatherObj part3 = ops->string.intern(interp, "\"", 1);
-      FeatherObj msg = ops->string.concat(interp, part1, incrVal);
-      msg = ops->string.concat(interp, msg, part3);
-      ops->interp.set_result(interp, msg);
+      feather_error_expected(ops, interp, "integer", incrVal);
       return TCL_ERROR;
     }
   }

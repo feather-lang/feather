@@ -355,11 +355,7 @@ static FeatherResult dict_incr(const FeatherHostOps *ops, FeatherInterp interp, 
   if (argc == 3) {
     FeatherObj incrObj = ops->list.shift(interp, args);
     if (ops->integer.get(interp, incrObj, &increment) != TCL_OK) {
-      FeatherObj msg = ops->string.intern(interp, "expected integer but got \"", 26);
-      msg = ops->string.concat(interp, msg, incrObj);
-      FeatherObj suffix = ops->string.intern(interp, "\"", 1);
-      msg = ops->string.concat(interp, msg, suffix);
-      ops->interp.set_result(interp, msg);
+      feather_error_expected(ops, interp, "integer", incrObj);
       return TCL_ERROR;
     }
   }
@@ -375,12 +371,7 @@ static FeatherResult dict_incr(const FeatherHostOps *ops, FeatherInterp interp, 
   FeatherObj val = ops->dict.get(interp, dict, key);
   if (!ops->list.is_nil(interp, val)) {
     if (ops->integer.get(interp, val, &current) != TCL_OK) {
-      FeatherObj msg = ops->string.intern(interp,
-        "expected integer but got \"", 26);
-      msg = ops->string.concat(interp, msg, val);
-      FeatherObj suffix = ops->string.intern(interp, "\"", 1);
-      msg = ops->string.concat(interp, msg, suffix);
-      ops->interp.set_result(interp, msg);
+      feather_error_expected(ops, interp, "integer", val);
       return TCL_ERROR;
     }
   }

@@ -1,6 +1,7 @@
 #include "feather.h"
 #include "internal.h"
 #include "charclass.h"
+#include "unicode.h"
 
 // Decode a UTF-8 codepoint from a string object starting at a given byte position
 // Returns the codepoint value and sets *bytes_read to the number of bytes consumed

@@ -1209,4 +1209,34 @@ static inline int64_t feather_apply_unsigned_conversion(int64_t val, SizeModifie
   return val;
 }
 
+// ============================================================================
+// Iteration helpers (foreach/lmap shared logic)
+// ============================================================================
+
+/**
+ * Callback invoked after each iteration body executes successfully.
+ * For lmap: appends body result to accumulator list.
+ * For foreach: does nothing (NULL callback).
+ */
+typedef void (*FeatherIterCallback)(const FeatherHostOps *ops,
+                                     FeatherInterp interp,
+                                     FeatherObj bodyResult,
+                                     void *ctx);
+
+/**
+ * feather_foreach_impl implements the shared foreach/lmap iteration logic.
+ *
+ * cmdName: "foreach" or "lmap" (for error messages)
+ * callback: called after each successful body evaluation (NULL to skip)
+ * ctx: passed to callback
+ *
+ * Returns TCL_OK on success, TCL_ERROR on error (break/continue are handled internally).
+ */
+FeatherResult feather_foreach_impl(const FeatherHostOps *ops,
+                                    FeatherInterp interp,
+                                    FeatherObj args,
+                                    const char *cmdName,
+                                    FeatherIterCallback callback,
+                                    void *ctx);
+
 #endif
