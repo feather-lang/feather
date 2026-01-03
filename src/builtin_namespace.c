@@ -1,6 +1,68 @@
 #include "feather.h"
 #include "internal.h"
 
+// Helper: Get the imports variable name for a namespace
+// Stores imports in ::tcl::imports::<ns> as a dict {localName originPath ...}
+static FeatherObj get_imports_varname(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj ns) {
+  FeatherObj prefix = ops->string.intern(interp, "::tcl::imports::", 16);
+  return ops->string.concat(interp, prefix, ns);
+}
+
+// Helper: Get the imports dict for a namespace (creates empty dict if none)
+static FeatherObj get_imports_dict(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj ns) {
+  FeatherObj varname = get_imports_varname(ops, interp, ns);
+  FeatherObj tclNs = ops->string.intern(interp, "::tcl", 5);
+
+  // Extract the variable name part after ::tcl::
+  size_t varname_len = ops->string.byte_length(interp, varname);
+  FeatherObj localName = ops->string.slice(interp, varname, 6, varname_len); // skip "::tcl::"
+
+  FeatherObj dict = ops->ns.get_var(interp, tclNs, localName);
+  if (dict == 0) {
+    // No imports yet, return empty dict
+    dict = ops->dict.create(interp);
+  }
+  return dict;
+}
+
+// Helper: Set the imports dict for a namespace
+static void set_imports_dict(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj ns, FeatherObj dict) {
+  FeatherObj varname = get_imports_varname(ops, interp, ns);
+  FeatherObj tclNs = ops->string.intern(interp, "::tcl", 5);
+
+  // Extract the variable name part after ::tcl::
+  size_t varname_len = ops->string.byte_length(interp, varname);
+  FeatherObj localName = ops->string.slice(interp, varname, 6, varname_len); // skip "::tcl::"
+
+  ops->ns.set_var(interp, tclNs, localName, dict);
+}
+
+// Helper: Record an import (localName -> srcNs::srcName)
+static void record_import(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj dstNs,
+                          FeatherObj localName, FeatherObj srcNs, FeatherObj srcName) {
+  FeatherObj dict = get_imports_dict(ops, interp, dstNs);
+
+  // Build the origin path: srcNs::srcName
+  FeatherObj origin;
+  if (feather_obj_is_global_ns(ops, interp, srcNs)) {
+    origin = ops->string.intern(interp, "::", 2);
+    origin = ops->string.concat(interp, origin, srcName);
+  } else {
+    origin = ops->string.concat(interp, srcNs, ops->string.intern(interp, "::", 2));
+    origin = ops->string.concat(interp, origin, srcName);
+  }
+
+  dict = ops->dict.set(interp, dict, localName, origin);
+  set_imports_dict(ops, interp, dstNs, dict);
+}
+
+// Helper: Remove an import record
+static void remove_import(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj ns, FeatherObj localName) {
+  FeatherObj dict = get_imports_dict(ops, interp, ns);
+  dict = ops->dict.remove(interp, dict, localName);
+  set_imports_dict(ops, interp, ns, dict);
+}
+
 // Resolve a namespace path (relative or absolute) to an absolute path
 static FeatherObj resolve_ns_path(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj path) {
   // If absolute (starts with ::), return as-is
@@ -316,12 +378,25 @@ static FeatherResult ns_tail(const FeatherHostOps *ops, FeatherInterp interp, Fe
 // namespace import ?-force? ?pattern pattern ...?
 static FeatherResult ns_import(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
+  FeatherObj current = ops->ns.current(interp);
 
+  // Query mode: no args returns list of imported commands
   if (argc == 0) {
-    FeatherObj msg = ops->string.intern(interp,
-      "wrong # args: should be \"namespace import ?-force? ?pattern pattern ...?\"", 73);
-    ops->interp.set_result(interp, msg);
-    return TCL_ERROR;
+    FeatherObj dict = get_imports_dict(ops, interp, current);
+    FeatherObj keys = ops->dict.keys(interp, dict);
+    // Convert to space-separated string
+    size_t num_keys = ops->list.length(interp, keys);
+    if (num_keys == 0) {
+      ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
+      return TCL_OK;
+    }
+    FeatherObj result = ops->list.at(interp, keys, 0);
+    for (size_t i = 1; i < num_keys; i++) {
+      result = ops->string.concat(interp, result, ops->string.intern(interp, " ", 1));
+      result = ops->string.concat(interp, result, ops->list.at(interp, keys, i));
+    }
+    ops->interp.set_result(interp, result);
+    return TCL_OK;
   }
 
   // Check for -force flag
@@ -332,8 +407,6 @@ static FeatherResult ns_import(const FeatherHostOps *ops, FeatherInterp interp, 
     ops->list.shift(interp, args);
     argc--;
   }
-
-  FeatherObj current = ops->ns.current(interp);
 
   // Process each pattern
   for (size_t i = 0; i < argc; i++) {
@@ -434,6 +507,9 @@ static FeatherResult ns_import(const FeatherHostOps *ops, FeatherInterp interp, 
 
       // Copy command from source to current namespace
       ops->ns.copy_command(interp, srcNs, cmdName, current, cmdName);
+
+      // Record the import for origin/forget tracking
+      record_import(ops, interp, current, cmdName, srcNs, cmdName);
     }
 
     // If no wildcard and no match, error
@@ -446,6 +522,145 @@ static FeatherResult ns_import(const FeatherHostOps *ops, FeatherInterp interp, 
     }
   }
 
+  ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
+  return TCL_OK;
+}
+
+// namespace origin command
+static FeatherResult ns_origin(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
+  size_t argc = ops->list.length(interp, args);
+  if (argc != 1) {
+    FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"namespace origin name\"", 47);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  FeatherObj name = ops->list.at(interp, args, 0);
+  FeatherObj current = ops->ns.current(interp);
+
+  // First check if the command exists
+  FeatherBuiltinCmd fn;
+  FeatherCommandType cmdType = ops->ns.get_command(interp, current, name, &fn, NULL, NULL);
+  if (cmdType == TCL_CMD_NONE) {
+    // Try global namespace
+    FeatherObj global = ops->string.intern(interp, "::", 2);
+    cmdType = ops->ns.get_command(interp, global, name, &fn, NULL, NULL);
+    if (cmdType == TCL_CMD_NONE) {
+      FeatherObj msg = ops->string.intern(interp, "invalid command name \"", 22);
+      msg = ops->string.concat(interp, msg, name);
+      msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\"", 1));
+      ops->interp.set_result(interp, msg);
+      return TCL_ERROR;
+    }
+    // Command found in global, return its qualified name
+    FeatherObj result = ops->string.intern(interp, "::", 2);
+    result = ops->string.concat(interp, result, name);
+    ops->interp.set_result(interp, result);
+    return TCL_OK;
+  }
+
+  // Command exists in current namespace - check if it's an import
+  FeatherObj dict = get_imports_dict(ops, interp, current);
+  FeatherObj origin = ops->dict.get(interp, dict, name);
+
+  if (origin != 0) {
+    // It's an imported command, return the origin
+    ops->interp.set_result(interp, origin);
+  } else {
+    // Not imported, return the qualified name in current namespace
+    FeatherObj result;
+    if (feather_obj_is_global_ns(ops, interp, current)) {
+      result = ops->string.intern(interp, "::", 2);
+      result = ops->string.concat(interp, result, name);
+    } else {
+      result = ops->string.concat(interp, current, ops->string.intern(interp, "::", 2));
+      result = ops->string.concat(interp, result, name);
+    }
+    ops->interp.set_result(interp, result);
+  }
+  return TCL_OK;
+}
+
+// namespace forget ?pattern ...?
+static FeatherResult ns_forget(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
+  size_t argc = ops->list.length(interp, args);
+  FeatherObj current = ops->ns.current(interp);
+
+  // No args is a no-op
+  if (argc == 0) {
+    ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
+    return TCL_OK;
+  }
+
+  // Get the imports dict
+  FeatherObj dict = get_imports_dict(ops, interp, current);
+
+  // Process each pattern
+  for (size_t i = 0; i < argc; i++) {
+    FeatherObj pattern = ops->list.at(interp, args, i);
+
+    // Pattern should be like ::src::cmd or ::src::*
+    long last_sep = feather_obj_find_last_colons(ops, interp, pattern);
+    if (last_sep < 0) {
+      // No :: - just use as local pattern
+      continue;
+    }
+
+    size_t pat_len = ops->string.byte_length(interp, pattern);
+    FeatherObj srcNs = ops->string.slice(interp, pattern, 0, (size_t)last_sep);
+    if (ops->string.byte_length(interp, srcNs) == 0) {
+      srcNs = ops->string.intern(interp, "::", 2);
+    }
+    srcNs = resolve_ns_path(ops, interp, srcNs);
+    FeatherObj cmdPattern = ops->string.slice(interp, pattern, (size_t)last_sep + 2, pat_len);
+
+    int has_wildcard = feather_obj_contains_char(ops, interp, cmdPattern, '*') ||
+                       feather_obj_contains_char(ops, interp, cmdPattern, '?');
+
+    // Iterate over imported commands and remove matching ones
+    FeatherObj keys = ops->dict.keys(interp, dict);
+    size_t num_keys = ops->list.length(interp, keys);
+
+    for (size_t j = 0; j < num_keys; j++) {
+      FeatherObj cmdName = ops->list.at(interp, keys, j);
+      FeatherObj origin = ops->dict.get(interp, dict, cmdName);
+
+      // Check if origin matches srcNs::cmdPattern
+      // First check if origin starts with srcNs::
+      size_t origin_len = ops->string.byte_length(interp, origin);
+      size_t srcNs_len = ops->string.byte_length(interp, srcNs);
+
+      if (origin_len < srcNs_len + 2) continue;
+
+      // Check namespace prefix
+      FeatherObj origin_ns = ops->string.slice(interp, origin, 0, srcNs_len);
+      if (!ops->string.equal(interp, origin_ns, srcNs)) continue;
+
+      // Check separator
+      if (ops->string.byte_at(interp, origin, srcNs_len) != ':' ||
+          ops->string.byte_at(interp, origin, srcNs_len + 1) != ':') continue;
+
+      // Get the command name part from origin
+      FeatherObj origin_cmd = ops->string.slice(interp, origin, srcNs_len + 2, origin_len);
+
+      // Check if it matches the pattern
+      int matches = 0;
+      if (has_wildcard) {
+        matches = feather_obj_glob_match(ops, interp, cmdPattern, origin_cmd);
+      } else {
+        matches = ops->string.equal(interp, cmdPattern, origin_cmd);
+      }
+
+      if (matches) {
+        // Remove the command from current namespace
+        ops->ns.delete_command(interp, current, cmdName);
+        // Remove from imports dict
+        dict = ops->dict.remove(interp, dict, cmdName);
+      }
+    }
+  }
+
+  set_imports_dict(ops, interp, current, dict);
   ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
   return TCL_OK;
 }
@@ -664,6 +879,10 @@ FeatherResult feather_builtin_namespace(const FeatherHostOps *ops, FeatherInterp
     return ns_export(ops, interp, args);
   } else if (feather_obj_eq_literal(ops, interp, subcmd, "import")) {
     return ns_import(ops, interp, args);
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "origin")) {
+    return ns_origin(ops, interp, args);
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "forget")) {
+    return ns_forget(ops, interp, args);
   } else if (feather_obj_eq_literal(ops, interp, subcmd, "qualifiers")) {
     return ns_qualifiers(ops, interp, args);
   } else if (feather_obj_eq_literal(ops, interp, subcmd, "tail")) {
@@ -679,7 +898,7 @@ FeatherResult feather_builtin_namespace(const FeatherHostOps *ops, FeatherInterp
       "bad option \"", 12);
     msg = ops->string.concat(interp, msg, subcmd);
     FeatherObj suffix = ops->string.intern(interp,
-      "\": must be children, code, current, delete, eval, exists, export, import, inscope, parent, qualifiers, tail, or which", 117);
+      "\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which", 133);
     msg = ops->string.concat(interp, msg, suffix);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;

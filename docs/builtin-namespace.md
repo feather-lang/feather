@@ -4,7 +4,7 @@ This document compares Feather's `namespace` implementation against the TCL 9 re
 
 ## Summary of Our Implementation
 
-Feather implements a subset of the TCL `namespace` command with 10 subcommands. The implementation is found in `/Users/dhamidi/projects/feather/src/builtin_namespace.c`.
+Feather implements 15 of TCL's `namespace` subcommands. The implementation is found in `src/builtin_namespace.c`.
 
 Our implementation provides:
 
@@ -18,16 +18,21 @@ Our implementation provides:
 
 | Subcommand | Status | Notes |
 |------------|--------|-------|
-| `namespace children ?namespace? ?pattern?` | Partial | We support `?namespace?` but NOT the `?pattern?` argument for filtering |
+| `namespace children ?namespace? ?pattern?` | Full | Lists child namespaces, optional pattern filtering |
+| `namespace code script` | Full | Wraps script with `::namespace inscope` for deferred execution |
 | `namespace current` | Full | Returns fully-qualified name of current namespace |
-| `namespace delete ?namespace ...?` | Full | Deletes namespaces and their contents |
+| `namespace delete ?namespace ...?` | Full | Deletes namespaces; no args is a no-op |
 | `namespace eval namespace arg ?arg ...?` | Full | Creates namespace if needed and evaluates script |
 | `namespace exists namespace` | Full | Returns 1 if namespace exists, 0 otherwise |
 | `namespace export ?-clear? ?pattern ...?` | Full | Manages export patterns for commands |
-| `namespace import ?-force? ?pattern ...?` | Partial | Imports commands; does NOT support querying imports with no arguments |
+| `namespace forget ?pattern ...?` | Full | Removes previously imported commands |
+| `namespace import ?-force? ?pattern ...?` | Full | Imports commands; no args returns list of imports |
+| `namespace inscope namespace script ?arg...?` | Full | Executes script in namespace context with extra args |
+| `namespace origin command` | Full | Returns fully-qualified name of original command for imports |
 | `namespace parent ?namespace?` | Full | Returns parent namespace |
 | `namespace qualifiers string` | Full | Returns namespace qualifiers (path before last `::`) |
 | `namespace tail string` | Full | Returns tail component (after last `::`) |
+| `namespace which ?-command? ?-variable? name` | Full | Looks up command or variable, returns fully-qualified name |
 
 ## TCL Features We Do NOT Support
 
@@ -35,59 +40,12 @@ The following subcommands are NOT implemented:
 
 | Subcommand | Description |
 |------------|-------------|
-| `namespace code script` | Captures namespace context for later execution; returns script wrapped in `namespace inscope` |
 | `namespace ensemble subcommand ?arg ...?` | Creates and manipulates ensemble commands (commands formed from subcommands) |
-| `namespace forget ?pattern ...?` | Removes previously imported commands from a namespace |
-| `namespace inscope namespace script ?arg ...?` | Executes script in namespace context with additional args appended as list elements |
-| `namespace origin command` | Returns fully-qualified name of the original command for an imported command |
 | `namespace path ?namespaceList?` | Gets/sets the command resolution path for the current namespace |
 | `namespace unknown ?script?` | Gets/sets the unknown command handler for the current namespace |
 | `namespace upvar namespace ?otherVar myVar ...?` | Creates local variables that refer to namespace variables |
-| `namespace which ?-command? ?-variable? name` | Looks up name as command or variable and returns fully-qualified name |
 
 ## Notes on Implementation Differences
-
-### namespace children
-
-TCL supports an optional `pattern` argument to filter children using glob-style matching:
-
-```tcl
-namespace children ::foo ::foo::bar*
-```
-
-Our implementation only supports:
-
-```tcl
-namespace children ?namespace?
-```
-
-### namespace import
-
-TCL allows calling `namespace import` with no arguments to query the list of imported commands in the current namespace. Our implementation requires at least one pattern argument.
-
-TCL:
-```tcl
-namespace import  ;# Returns list of imported commands
-```
-
-Feather:
-```
-wrong # args: should be "namespace import ?-force? ?pattern pattern ...?"
-```
-
-### namespace delete
-
-TCL allows calling `namespace delete` with no arguments (which is a no-op). Our implementation requires at least one namespace name.
-
-TCL:
-```tcl
-namespace delete  ;# Does nothing, no error
-```
-
-Feather:
-```
-wrong # args: should be "namespace delete ?name name ...?"
-```
 
 ### Subcommand Abbreviation
 
@@ -104,3 +62,13 @@ TCL's `namespace ensemble` is a major feature that allows creating command ensem
 ### Unknown Handler
 
 TCL allows customizing the unknown command handler per-namespace via `namespace unknown`. Feather uses a global unknown handler approach only.
+
+## Implementation Notes
+
+### Import Tracking
+
+Import information is stored in the `::tcl` namespace using variables of the form `::tcl::imports::<namespace>`. Each such variable is a dict mapping imported command names to their fully-qualified origin paths (e.g., `{cmd1 ::src::cmd1 cmd2 ::src::cmd2}`). This enables:
+
+- `namespace import` with no args to list imported commands
+- `namespace origin` to return the original command for imports
+- `namespace forget` to remove imported commands by matching origin patterns
