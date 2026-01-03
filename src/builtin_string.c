@@ -1,11 +1,7 @@
 #include "feather.h"
 #include "internal.h"
 #include "index_parse.h"
-
-// Default whitespace characters for trim
-static int string_is_whitespace(int c) {
-  return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f';
-}
+#include "charclass.h"
 
 // Check if char (as int) is in charset object using byte-at-a-time access
 static int in_charset_obj(const FeatherHostOps *ops, FeatherInterp interp,
@@ -264,7 +260,7 @@ static FeatherResult string_trim(const FeatherHostOps *ops, FeatherInterp interp
   while (start < len) {
     int ch = ops->string.byte_at(interp, strObj, start);
     int shouldTrim = charsObj ?
-      in_charset_obj(ops, interp, ch, charsObj) : string_is_whitespace(ch);
+      in_charset_obj(ops, interp, ch, charsObj) : feather_is_whitespace_full(ch);
     if (!shouldTrim) break;
     start++;
   }
@@ -274,7 +270,7 @@ static FeatherResult string_trim(const FeatherHostOps *ops, FeatherInterp interp
   while (end > start) {
     int ch = ops->string.byte_at(interp, strObj, end - 1);
     int shouldTrim = charsObj ?
-      in_charset_obj(ops, interp, ch, charsObj) : string_is_whitespace(ch);
+      in_charset_obj(ops, interp, ch, charsObj) : feather_is_whitespace_full(ch);
     if (!shouldTrim) break;
     end--;
   }
@@ -305,7 +301,7 @@ static FeatherResult string_trimleft(const FeatherHostOps *ops, FeatherInterp in
   while (start < len) {
     int ch = ops->string.byte_at(interp, strObj, start);
     int shouldTrim = charsObj ?
-      in_charset_obj(ops, interp, ch, charsObj) : string_is_whitespace(ch);
+      in_charset_obj(ops, interp, ch, charsObj) : feather_is_whitespace_full(ch);
     if (!shouldTrim) break;
     start++;
   }
@@ -336,7 +332,7 @@ static FeatherResult string_trimright(const FeatherHostOps *ops, FeatherInterp i
   while (end > 0) {
     int ch = ops->string.byte_at(interp, strObj, end - 1);
     int shouldTrim = charsObj ?
-      in_charset_obj(ops, interp, ch, charsObj) : string_is_whitespace(ch);
+      in_charset_obj(ops, interp, ch, charsObj) : feather_is_whitespace_full(ch);
     if (!shouldTrim) break;
     end--;
   }

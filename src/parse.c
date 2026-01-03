@@ -9,24 +9,6 @@ static int parse_is_whitespace(int c) {
   return c == ' ' || c == '\t';
 }
 
-static int is_command_terminator(int c) {
-  return c == '\n' || c == '\r' || c == '\0' || c == ';' || c < 0;
-}
-
-static int is_word_terminator(int c) {
-  return parse_is_whitespace(c) || is_command_terminator(c);
-}
-
-static int parse_is_hex_digit(int c) {
-  return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
-}
-
-// Check if character is valid in a variable name (excluding ::)
-static int is_varname_char_base(int c) {
-  return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-         (c >= '0' && c <= '9') || c == '_';
-}
-
 // Check if we're at a namespace separator (::) using object-based access
 static int is_namespace_sep_obj(const FeatherHostOps *ops, FeatherInterp interp,
                                 FeatherObj script, size_t pos, size_t len) {
@@ -34,13 +16,6 @@ static int is_namespace_sep_obj(const FeatherHostOps *ops, FeatherInterp interp,
   int c1 = ops->string.byte_at(interp, script, pos);
   int c2 = ops->string.byte_at(interp, script, pos + 1);
   return c1 == ':' && c2 == ':';
-}
-
-static int parse_hex_value(int c) {
-  if (c >= '0' && c <= '9') return c - '0';
-  if (c >= 'a' && c <= 'f') return 10 + c - 'a';
-  if (c >= 'A' && c <= 'F') return 10 + c - 'A';
-  return 0;
 }
 
 /**
@@ -89,8 +64,8 @@ static size_t process_backslash_obj(const FeatherHostOps *ops, FeatherInterp int
       int digits = 0;
       while (p < len && digits < 2) {
         int ch = ops->string.byte_at(interp, script, p);
-        if (!parse_is_hex_digit(ch)) break;
-        value = value * 16 + parse_hex_value(ch);
+        if (!feather_is_hex_digit(ch)) break;
+        value = value * 16 + feather_hex_value(ch);
         p++;
         consumed++;
         digits++;
@@ -113,8 +88,8 @@ static size_t process_backslash_obj(const FeatherHostOps *ops, FeatherInterp int
       int digits = 0;
       while (p < len && digits < 4) {
         int ch = ops->string.byte_at(interp, script, p);
-        if (!parse_is_hex_digit(ch)) break;
-        value = value * 16 + parse_hex_value(ch);
+        if (!feather_is_hex_digit(ch)) break;
+        value = value * 16 + feather_hex_value(ch);
         p++;
         consumed++;
         digits++;
@@ -148,8 +123,8 @@ static size_t process_backslash_obj(const FeatherHostOps *ops, FeatherInterp int
       int digits = 0;
       while (p < len && digits < 8) {
         int ch = ops->string.byte_at(interp, script, p);
-        if (!parse_is_hex_digit(ch)) break;
-        unsigned int new_val = value * 16 + parse_hex_value(ch);
+        if (!feather_is_hex_digit(ch)) break;
+        unsigned int new_val = value * 16 + feather_hex_value(ch);
         if (new_val > 0x10FFFF) break;
         value = new_val;
         p++;
@@ -366,13 +341,13 @@ static FeatherResult substitute_variable_obj(const FeatherHostOps *ops, FeatherI
     }
     *consumed_out = (p - pos) + 1; // +1 for closing brace
     return TCL_OK;
-  } else if (is_varname_char_base(c) || is_namespace_sep_obj(ops, interp, script, pos, len)) {
+  } else if (feather_is_varname_char(c) || is_namespace_sep_obj(ops, interp, script, pos, len)) {
     // $name form - scan valid variable name characters
     size_t name_start = pos;
     size_t p = pos;
     while (p < len) {
       int ch = ops->string.byte_at(interp, script, p);
-      if (is_varname_char_base(ch)) {
+      if (feather_is_varname_char(ch)) {
         p++;
       } else if (is_namespace_sep_obj(ops, interp, script, p, len)) {
         p += 2; // Skip both colons
@@ -696,7 +671,7 @@ static FeatherObj parse_word_obj(const FeatherHostOps *ops, FeatherInterp interp
   FeatherObj word = 0;
   size_t word_start = p;
 
-  while (p < len && !is_word_terminator(ops->string.byte_at(interp, script, p))) {
+  while (p < len && !feather_is_word_terminator(ops->string.byte_at(interp, script, p))) {
     int c = ops->string.byte_at(interp, script, p);
 
     if (c == '{') {
@@ -740,7 +715,7 @@ static FeatherObj parse_word_obj(const FeatherHostOps *ops, FeatherInterp interp
       }
 
       // Check for extra characters after close brace
-      if (p < len && !is_word_terminator(ops->string.byte_at(interp, script, p))) {
+      if (p < len && !feather_is_word_terminator(ops->string.byte_at(interp, script, p))) {
         FeatherObj result = ops->list.create(interp);
         FeatherObj error_tag = ops->string.intern(interp, "ERROR", 5);
         FeatherObj start_pos = ops->integer.create(interp, (int64_t)brace_start);
@@ -837,7 +812,7 @@ static FeatherObj parse_word_obj(const FeatherHostOps *ops, FeatherInterp interp
       p++; // skip closing quote
 
       // Check for extra characters after close quote
-      if (p < len && !is_word_terminator(ops->string.byte_at(interp, script, p))) {
+      if (p < len && !feather_is_word_terminator(ops->string.byte_at(interp, script, p))) {
         FeatherObj result = ops->list.create(interp);
         FeatherObj error_tag = ops->string.intern(interp, "ERROR", 5);
         FeatherObj start_pos = ops->integer.create(interp, (int64_t)quote_start);
@@ -897,7 +872,7 @@ static FeatherObj parse_word_obj(const FeatherHostOps *ops, FeatherInterp interp
       size_t seg_start = p;
       while (p < len) {
         int ch = ops->string.byte_at(interp, script, p);
-        if (is_word_terminator(ch) || ch == '{' || ch == '"' || ch == '\\' || ch == '$' || ch == '[') {
+        if (feather_is_word_terminator(ch) || ch == '{' || ch == '"' || ch == '\\' || ch == '$' || ch == '[') {
           break;
         }
         p++;
@@ -1092,7 +1067,7 @@ FeatherParseStatus feather_parse_command_obj(const FeatherHostOps *ops, FeatherI
     c = ops->string.byte_at(interp, script, ctx->pos);
 
     // Check for command terminator
-    if (is_command_terminator(c)) {
+    if (feather_is_command_terminator(c)) {
       // Move past the terminator for next call
       if (c == '\n') {
         ctx->pos++;
@@ -1112,7 +1087,7 @@ FeatherParseStatus feather_parse_command_obj(const FeatherHostOps *ops, FeatherI
       int c3 = ops->string.byte_at(interp, script, ctx->pos + 2);
       if (c1 == '{' && c2 == '*' && c3 == '}' && ctx->pos + 3 < len) {
         int c4 = ops->string.byte_at(interp, script, ctx->pos + 3);
-        if (!is_word_terminator(c4)) {
+        if (!feather_is_word_terminator(c4)) {
           is_expansion = 1;
           ctx->pos += 3; // skip {*}
         }

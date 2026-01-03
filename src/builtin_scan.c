@@ -51,23 +51,8 @@ static int64_t decode_utf8_at_pos(const FeatherHostOps *ops, FeatherInterp inter
   return -1; // Invalid UTF-8
 }
 
-static int scan_is_whitespace(int c) {
-  return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f';
-}
-
-static int scan_is_hex_digit(int c) {
-  return feather_is_digit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
-}
-
 static int is_binary_digit(int c) {
   return c == '0' || c == '1';
-}
-
-static int scan_hex_value(int c) {
-  if (c >= '0' && c <= '9') return c - '0';
-  if (c >= 'a' && c <= 'f') return 10 + c - 'a';
-  if (c >= 'A' && c <= 'F') return 10 + c - 'A';
-  return -1;
 }
 
 typedef struct {
@@ -225,7 +210,7 @@ static int parse_scan_spec_obj(const FeatherHostOps *ops, FeatherInterp interp,
 static size_t scan_skip_whitespace_obj(const FeatherHostOps *ops, FeatherInterp interp,
                                        FeatherObj strObj, size_t pos, size_t len) {
   int ch;
-  while (pos < len && (ch = ops->string.byte_at(interp, strObj, pos)) >= 0 && scan_is_whitespace(ch)) {
+  while (pos < len && (ch = ops->string.byte_at(interp, strObj, pos)) >= 0 && feather_is_whitespace_full(ch)) {
     pos++;
   }
   return pos;
@@ -269,8 +254,8 @@ static int scan_integer_obj(const FeatherHostOps *ops, FeatherInterp interp,
       d = ch - '0';
     } else if (base == 8 && feather_is_octal_digit(ch)) {
       d = ch - '0';
-    } else if (base == 16 && scan_is_hex_digit(ch)) {
-      d = scan_hex_value(ch);
+    } else if (base == 16 && feather_is_hex_digit(ch)) {
+      d = feather_hex_value(ch);
     } else if (base == 2 && is_binary_digit(ch)) {
       d = ch - '0';
     } else {
@@ -334,8 +319,8 @@ static int scan_auto_integer_obj(const FeatherHostOps *ops, FeatherInterp interp
       d = ch - '0';
     } else if (base == 8 && feather_is_octal_digit(ch)) {
       d = ch - '0';
-    } else if (base == 16 && scan_is_hex_digit(ch)) {
-      d = scan_hex_value(ch);
+    } else if (base == 16 && feather_is_hex_digit(ch)) {
+      d = feather_hex_value(ch);
     } else {
       break;
     }
@@ -452,7 +437,7 @@ static int scan_string_obj(const FeatherHostOps *ops, FeatherInterp interp,
 
   while (*pos < len && consumed < max) {
     int ch = ops->string.byte_at(interp, strObj, *pos);
-    if (scan_is_whitespace(ch)) break;
+    if (feather_is_whitespace_full(ch)) break;
     if (*outlen < bufsize - 1) {
       buf[(*outlen)++] = (char)ch;
     }
@@ -527,7 +512,7 @@ FeatherResult feather_builtin_scan(const FeatherHostOps *ops, FeatherInterp inte
   while (fmtPos < fmtLen) {
     int fc = ops->string.byte_at(interp, fmtObj, fmtPos);
 
-    if (scan_is_whitespace(fc)) {
+    if (feather_is_whitespace_full(fc)) {
       fmtPos++;
       strPos = scan_skip_whitespace_obj(ops, interp, strObj, strPos, strLen);
       continue;

@@ -1,5 +1,6 @@
 #include "feather.h"
 #include "internal.h"
+#include "charclass.h"
 
 /**
  * Expression parser for TCL expr command.
@@ -214,7 +215,7 @@ static int looks_like_float_obj(const FeatherHostOps *ops, FeatherInterp interp,
 static void expr_skip_whitespace(ExprParser *p) {
   while (p->pos < p->len) {
     int c = CUR_BYTE(p);
-    if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
+    if (feather_is_whitespace_full(c)) {
       p->pos++;
     } else if (c == '#') {
       // Comment - skip to end of line or expression
@@ -307,12 +308,6 @@ static int match_keyword(ExprParser *p, const char *kw, size_t kwlen) {
   return 1;
 }
 
-// Check if character is valid in a variable name (including :: for namespaces)
-static int is_varname_char(int c) {
-  return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-         (c >= '0' && c <= '9') || c == '_' || c == ':';
-}
-
 // Parse a variable reference $name or ${name}
 static ExprValue parse_variable(ExprParser *p) {
   p->pos++; // skip $
@@ -339,8 +334,13 @@ static ExprValue parse_variable(ExprParser *p) {
     p->pos++;
   } else {
     name_start = p->pos;
-    while (p->pos < p->len && is_varname_char(CUR_BYTE(p))) {
-      p->pos++;
+    while (p->pos < p->len) {
+      int ch = CUR_BYTE(p);
+      if (feather_is_varname_char(ch) || ch == ':') {
+        p->pos++;
+      } else {
+        break;
+      }
     }
     name_len = p->pos - name_start;
   }

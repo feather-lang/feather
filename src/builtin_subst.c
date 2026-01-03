@@ -1,6 +1,7 @@
 #include "feather.h"
 #include "host.h"
 #include "internal.h"
+#include "charclass.h"
 
 static FeatherObj append_literal(const FeatherHostOps *ops, FeatherInterp interp,
                                   FeatherObj result, const char *s, size_t len) {
@@ -69,17 +70,6 @@ static FeatherObj build_no_such_variable_error(const FeatherHostOps *ops, Feathe
     ops->string.builder_append_byte(interp, builder, suffix[i]);
   }
   return ops->string.builder_finish(interp, builder);
-}
-
-static int subst_is_hex_digit(int c) {
-  return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
-}
-
-static int subst_hex_value(int c) {
-  if (c >= '0' && c <= '9') return c - '0';
-  if (c >= 'a' && c <= 'f') return 10 + c - 'a';
-  if (c >= 'A' && c <= 'F') return 10 + c - 'A';
-  return 0;
 }
 
 // Encode a Unicode codepoint as UTF-8 bytes
@@ -154,8 +144,8 @@ static FeatherResult process_backslash_subst_obj(const FeatherHostOps *ops, Feat
         size_t i = 1;
         while (i < 3 && pos + i < len) {
           int ch = ops->string.byte_at(interp, str, pos + i);
-          if (!subst_is_hex_digit(ch)) break;
-          val = val * 16 + subst_hex_value(ch);
+          if (!feather_is_hex_digit(ch)) break;
+          val = val * 16 + feather_hex_value(ch);
           i++;
         }
         if (i > 1) {
@@ -176,8 +166,8 @@ static FeatherResult process_backslash_subst_obj(const FeatherHostOps *ops, Feat
       size_t i = 1;
       for (; i <= 4 && pos + i < len; i++) {
         int ch = ops->string.byte_at(interp, str, pos + i);
-        if (!subst_is_hex_digit(ch)) break;
-        codepoint = codepoint * 16 + subst_hex_value(ch);
+        if (!feather_is_hex_digit(ch)) break;
+        codepoint = codepoint * 16 + feather_hex_value(ch);
       }
       if (i != 5) {
         // Didn't get exactly 4 hex digits
@@ -195,8 +185,8 @@ static FeatherResult process_backslash_subst_obj(const FeatherHostOps *ops, Feat
       size_t i = 1;
       for (; i <= 8 && pos + i < len; i++) {
         int ch = ops->string.byte_at(interp, str, pos + i);
-        if (!subst_is_hex_digit(ch)) break;
-        codepoint = codepoint * 16 + subst_hex_value(ch);
+        if (!feather_is_hex_digit(ch)) break;
+        codepoint = codepoint * 16 + feather_hex_value(ch);
       }
       if (i != 9) {
         // Didn't get exactly 8 hex digits
@@ -267,11 +257,6 @@ static size_t find_close_bracket_obj(const FeatherHostOps *ops, FeatherInterp in
     pos++;
   }
   return len; // not found
-}
-
-static int subst_is_varname_char(int c) {
-  return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-         (c >= '0' && c <= '9') || c == '_';
 }
 
 FeatherResult feather_builtin_subst(const FeatherHostOps *ops, FeatherInterp interp,
@@ -377,11 +362,11 @@ FeatherResult feather_builtin_subst(const FeatherHostOps *ops, FeatherInterp int
         result = append_obj(ops, interp, result, value);
         seg_start = pos;
 
-      } else if (subst_is_varname_char(c)) {
+      } else if (feather_is_varname_char(c)) {
         size_t name_start = pos;
         while (pos < len) {
           int ch = ops->string.byte_at(interp, str_obj, pos);
-          if (subst_is_varname_char(ch)) {
+          if (feather_is_varname_char(ch)) {
             pos++;
           } else if (ch == ':' && pos + 1 < len && ops->string.byte_at(interp, str_obj, pos + 1) == ':') {
             pos += 2;
