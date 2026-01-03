@@ -34,10 +34,6 @@ FeatherResult feather_eval_bool_condition(const FeatherHostOps *ops,
   }
 
   // Invalid boolean expression
-  FeatherObj part1 = ops->string.intern(interp, "expected boolean value but got \"", 32);
-  FeatherObj part3 = ops->string.intern(interp, "\"", 1);
-  FeatherObj msg = ops->string.concat(interp, part1, resultObj);
-  msg = ops->string.concat(interp, msg, part3);
-  ops->interp.set_result(interp, msg);
+  feather_error_expected(ops, interp, "boolean value", resultObj);
   return TCL_ERROR;
 }
