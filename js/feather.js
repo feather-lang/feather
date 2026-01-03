@@ -132,7 +132,10 @@ class FeatherInterp {
     if (!obj) return '';
     if (typeof obj === 'string') return obj;
     if (obj.type === 'string') return obj.value;
-    if (obj.type === 'int') return String(obj.value);
+    if (obj.type === 'int') {
+      // Handle BigInt values
+      return typeof obj.value === 'bigint' ? obj.value.toString() : String(obj.value);
+    }
     if (obj.type === 'double') {
       // Format special values to match TCL's format
       if (Number.isNaN(obj.value)) return 'NaN';
@@ -345,7 +348,7 @@ async function createFeather(wasmSource) {
   };
 
   const readI64 = (ptr) => {
-    return Number(new DataView(wasmMemory.buffer).getBigInt64(ptr, true));
+    return new DataView(wasmMemory.buffer).getBigInt64(ptr, true);
   };
 
   const writeF64 = (ptr, value) => {
@@ -950,9 +953,17 @@ async function createFeather(wasmSource) {
     feather_host_rune_range: (interpId, str, first, last) => {
       const interp = interpreters.get(interpId);
       const chars = [...interp.getString(str)];
-      const f = Math.max(0, Number(first));
-      const l = Math.min(chars.length - 1, Number(last));
-      if (f > l) return interp.store({ type: 'string', value: '' });
+      let f = Number(first);
+      let l = Number(last);
+
+      // Match Go implementation: clamp f but not l before comparison
+      if (f < 0) f = 0;
+      if (l >= chars.length) l = chars.length - 1;
+
+      if (f > l || chars.length === 0) {
+        return interp.store({ type: 'string', value: '' });
+      }
+
       return interp.store({ type: 'string', value: chars.slice(f, l + 1).join('') });
     },
     feather_host_rune_to_upper: (interpId, str) => {
@@ -1271,7 +1282,8 @@ async function createFeather(wasmSource) {
     // Integer operations
     feather_host_integer_create: (interpId, val) => {
       const interp = interpreters.get(interpId);
-      return interp.store({ type: 'int', value: Number(val) });
+      // Preserve BigInt for i64 values to avoid precision loss
+      return interp.store({ type: 'int', value: typeof val === 'bigint' ? val : BigInt(val) });
     },
     feather_host_integer_get: (interpId, obj, outPtr) => {
       const interp = interpreters.get(interpId);
@@ -1286,15 +1298,24 @@ async function createFeather(wasmSource) {
         interp.result = interp.store({ type: 'string', value: `expected integer but got "${str}"` });
         return TCL_ERROR;
       }
-      const val = parseInt(str, str.startsWith('0x') || str.startsWith('-0x') ? 16 :
-                           str.startsWith('0o') || str.startsWith('-0o') ? 8 :
-                           str.startsWith('0b') || str.startsWith('-0b') ? 2 : 10);
-      if (isNaN(val)) {
+      // Use BigInt to parse large integers without precision loss
+      try {
+        let val;
+        if (str.startsWith('0x') || str.startsWith('-0x')) {
+          val = BigInt(str);
+        } else if (str.startsWith('0o') || str.startsWith('-0o')) {
+          val = BigInt(str);
+        } else if (str.startsWith('0b') || str.startsWith('-0b')) {
+          val = BigInt(str);
+        } else {
+          val = BigInt(str);
+        }
+        writeI64(outPtr, val);
+        return TCL_OK;
+      } catch (e) {
         interp.result = interp.store({ type: 'string', value: `expected integer but got "${str}"` });
         return TCL_ERROR;
       }
-      writeI64(outPtr, val);
-      return TCL_OK;
     },
 
     // Double operations
