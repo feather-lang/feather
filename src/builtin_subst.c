@@ -181,7 +181,7 @@ static FeatherResult process_backslash_subst_obj(const FeatherHostOps *ops, Feat
       }
       if (i != 5) {
         // Didn't get exactly 4 hex digits
-        FeatherObj msg = ops->string.intern(interp, "missing hexadecimal digits for \\u escape", 42);
+        FeatherObj msg = ops->string.intern(interp, "missing hexadecimal digits for \\u escape", 40);
         ops->interp.set_result(interp, msg);
         return TCL_ERROR;
       }
@@ -200,7 +200,7 @@ static FeatherResult process_backslash_subst_obj(const FeatherHostOps *ops, Feat
       }
       if (i != 9) {
         // Didn't get exactly 8 hex digits
-        FeatherObj msg = ops->string.intern(interp, "missing hexadecimal digits for \\U escape", 42);
+        FeatherObj msg = ops->string.intern(interp, "missing hexadecimal digits for \\U escape", 40);
         ops->interp.set_result(interp, msg);
         return TCL_ERROR;
       }
