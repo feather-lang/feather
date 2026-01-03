@@ -79,6 +79,7 @@ typedef struct {
   char charset[256];
   int charset_negated;
   int charset_len;
+  SizeModifier size_mod;
 } ScanSpec;
 
 // Parse format specifier using object-based byte access
@@ -93,6 +94,7 @@ static int parse_scan_spec_obj(const FeatherHostOps *ops, FeatherInterp interp,
   spec->specifier = 0;
   spec->charset_negated = 0;
   spec->charset_len = 0;
+  spec->size_mod = SIZE_NONE;
   for (int i = 0; i < 256; i++) spec->charset[i] = 0;
 
   if (pos >= fmtLen) return -1;
@@ -130,12 +132,33 @@ static int parse_scan_spec_obj(const FeatherHostOps *ops, FeatherInterp interp,
     pos++;
   }
 
+  // Parse size modifiers (ll, h, l, z, t, L, j, q)
   ch = (pos < fmtLen) ? ops->string.byte_at(interp, fmtObj, pos) : -1;
   if (ch == 'l') {
     pos++;
-    if (pos < fmtLen && ops->string.byte_at(interp, fmtObj, pos) == 'l') pos++;
-  } else if (ch == 'h' || ch == 'z' || ch == 't' ||
-             ch == 'L' || ch == 'j' || ch == 'q') {
+    if (pos < fmtLen && ops->string.byte_at(interp, fmtObj, pos) == 'l') {
+      spec->size_mod = SIZE_LL;
+      pos++;
+    } else {
+      spec->size_mod = SIZE_L;
+    }
+  } else if (ch == 'h') {
+    spec->size_mod = SIZE_H;
+    pos++;
+  } else if (ch == 'L') {
+    spec->size_mod = SIZE_BIG_L;
+    pos++;
+  } else if (ch == 'j') {
+    spec->size_mod = SIZE_J;
+    pos++;
+  } else if (ch == 'z') {
+    spec->size_mod = SIZE_Z;
+    pos++;
+  } else if (ch == 't') {
+    spec->size_mod = SIZE_T;
+    pos++;
+  } else if (ch == 'q') {
+    spec->size_mod = SIZE_Q;
     pos++;
   }
 
@@ -587,36 +610,59 @@ FeatherResult feather_builtin_scan(const FeatherHostOps *ops, FeatherInterp inte
     int success = 0;
 
     switch (spec.specifier) {
-      case 'd':
+      case 'd': {
+        int64_t val;
+        success = scan_integer_obj(ops, interp, strObj, strLen, &strPos, 10, spec.width, &val);
+        if (success) {
+          val = feather_apply_scan_truncation(val, spec.size_mod);
+          scannedVal = ops->integer.create(interp, val);
+        }
+        break;
+      }
       case 'u': {
         int64_t val;
         success = scan_integer_obj(ops, interp, strObj, strLen, &strPos, 10, spec.width, &val);
-        if (success) scannedVal = ops->integer.create(interp, val);
+        if (success) {
+          val = feather_apply_unsigned_conversion(val, spec.size_mod);
+          scannedVal = ops->integer.create(interp, val);
+        }
         break;
       }
       case 'o': {
         int64_t val;
         success = scan_integer_obj(ops, interp, strObj, strLen, &strPos, 8, spec.width, &val);
-        if (success) scannedVal = ops->integer.create(interp, val);
+        if (success) {
+          val = feather_apply_scan_truncation(val, spec.size_mod);
+          scannedVal = ops->integer.create(interp, val);
+        }
         break;
       }
       case 'x':
       case 'X': {
         int64_t val;
         success = scan_integer_obj(ops, interp, strObj, strLen, &strPos, 16, spec.width, &val);
-        if (success) scannedVal = ops->integer.create(interp, val);
+        if (success) {
+          val = feather_apply_scan_truncation(val, spec.size_mod);
+          scannedVal = ops->integer.create(interp, val);
+        }
         break;
       }
       case 'b': {
         int64_t val;
         success = scan_integer_obj(ops, interp, strObj, strLen, &strPos, 2, spec.width, &val);
-        if (success) scannedVal = ops->integer.create(interp, val);
+        if (success) {
+          val = feather_apply_scan_truncation(val, spec.size_mod);
+          scannedVal = ops->integer.create(interp, val);
+        }
         break;
       }
       case 'i': {
         int64_t val;
         success = scan_auto_integer_obj(ops, interp, strObj, strLen, &strPos, spec.width, &val);
-        if (success) scannedVal = ops->integer.create(interp, val);
+        if (success) {
+          val = feather_apply_scan_truncation(val, spec.size_mod);
+          scannedVal = ops->integer.create(interp, val);
+        }
         break;
       }
       case 'c': {

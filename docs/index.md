@@ -44,8 +44,6 @@ These builtins match TCL's documented behavior:
 | `info` | 14+ subcommands (cmdcount, cmdtype, complete, coroutine, class/object introspection) |
 | `namespace` | 9 subcommands (code, ensemble, forget, inscope, origin, path, unknown, upvar, which) |
 | `try` | -during key in exception dictionary |
-| `format` | Size modifier truncation, some # flag behaviors |
-| `scan` | Integer truncation, unsigned conversion |
 | `trace` | Variable creation on trace add |
 | `tailcall` | Uplevel restriction (may not be enforced in TCL 9.0) |
 

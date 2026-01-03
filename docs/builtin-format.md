@@ -51,26 +51,12 @@ Our implementation is in `src/builtin_format.c` and provides a subset of TCL's `
 - **Positional arguments (`%n$`)**: Supported - allows reordering arguments
 - **Field width**: Supported - both literal and `*` from argument
 - **Precision**: Supported - both literal and `*` from argument
-- **Size modifiers**: Recognized but mostly ignored (`ll`, `h`, `l`, `z`, `t`, `L`, `j`, `q`)
+- **Size modifiers**: **Fully Supported** - `h` (16-bit), `l`/`j`/`q` (64-bit), `ll`/`L` (no truncation), `z`/`t` (pointer size), and no modifier (32-bit)
 - **Error on mixing positional and sequential**: Supported
 
 ## TCL Features We Do NOT Support
 
-### Size Modifier Truncation Behavior
-
-TCL specifies precise truncation behavior for size modifiers:
-
-| Modifier | TCL Behavior | Our Behavior |
-|----------|--------------|--------------|
-| `h` | Truncates to 16-bit range | Ignored |
-| `l`, `j`, `q` | Truncates to 64-bit range | Ignored |
-| `z`, `t` | Truncates to pointer size | Ignored |
-| `ll`, `L` | No truncation | Ignored |
-| (none) | Truncates to 32-bit range | No truncation |
-
-**Our implementation always uses the full 64-bit integer value without truncation.**
-
-### Alternate Form (`#`) Differences
+### Alternate Form (`#`) Differences (All Now Supported!)
 
 TCL's `#` flag has specific behavior:
 

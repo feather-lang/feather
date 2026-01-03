@@ -1,0 +1,149 @@
+<test-suite name="format size modifier truncation">
+  <!-- Test %h (16-bit truncation) -->
+
+  <test-case name="format: %hd 16-bit truncation positive">
+    <script>format %hd 65537</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format: %hd 16-bit truncation negative">
+    <script>format %hd 65535</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format: %hd 16-bit truncation overflow">
+    <script>format %hd 32768</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-32768</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Test no modifier (32-bit truncation) -->
+
+  <test-case name="format: %d 32-bit truncation">
+    <script>format %d 4294967296</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format: %d 32-bit truncation positive">
+    <script>format %d 4294967297</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format: %d 32-bit truncation sign bit">
+    <script>format %d 2147483648</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-2147483648</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format: %d 32-bit truncation negative">
+    <script>format %d 4294967295</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Test %l and %ll (64-bit / no truncation) -->
+
+  <test-case name="format: %lld no truncation">
+    <script>format %lld 9223372036854775807</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>9223372036854775807</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format: %ld 64-bit no overflow">
+    <script>format %ld 4294967296</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>4294967296</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Test unsigned formats with truncation -->
+
+  <test-case name="format: %hu 16-bit unsigned truncation">
+    <script>format %hu 65536</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format: %u 32-bit unsigned truncation">
+    <script>format %u 4294967296</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Test hex format with truncation -->
+
+  <test-case name="format: %hx 16-bit hex truncation">
+    <script>format %hx 65537</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format: %x 32-bit hex truncation">
+    <script>format %x 4294967297</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Test octal format with truncation -->
+
+  <test-case name="format: %ho 16-bit octal truncation">
+    <script>format %ho 65537</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format: %o 32-bit octal truncation">
+    <script>format %o 4294967297</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

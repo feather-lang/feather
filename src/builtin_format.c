@@ -99,6 +99,7 @@ typedef struct {
   int precision;          // Precision, -1 if from arg (*), -2 if not specified
   int precision_from_arg; // Precision should come from next arg
   char specifier;         // Conversion specifier (d, s, x, etc.)
+  SizeModifier size_mod;  // Size modifier (h, l, ll, etc.)
 } FormatSpec;
 
 // Parse a format specifier starting after the '%'
@@ -124,6 +125,7 @@ static int parse_format_spec_obj(const FeatherHostOps *ops, FeatherInterp interp
   spec->precision = -2; // Not specified
   spec->precision_from_arg = 0;
   spec->specifier = 0;
+  spec->size_mod = SIZE_NONE;
 
   if (pos >= fmtLen) return -1;
 
@@ -204,13 +206,33 @@ static int parse_format_spec_obj(const FeatherHostOps *ops, FeatherInterp interp
     }
   }
 
-  // Skip size modifiers (ll, h, l, z, t, L)
+  // Parse size modifiers (ll, h, l, z, t, L, j, q)
   ch = (pos < fmtLen) ? ops->string.byte_at(interp, fmtObj, pos) : -1;
   if (ch == 'l') {
     pos++;
-    if (pos < fmtLen && ops->string.byte_at(interp, fmtObj, pos) == 'l') pos++;
-  } else if (ch == 'h' || ch == 'z' || ch == 't' || ch == 'L' ||
-             ch == 'j' || ch == 'q') {
+    if (pos < fmtLen && ops->string.byte_at(interp, fmtObj, pos) == 'l') {
+      spec->size_mod = SIZE_LL;
+      pos++;
+    } else {
+      spec->size_mod = SIZE_L;
+    }
+  } else if (ch == 'h') {
+    spec->size_mod = SIZE_H;
+    pos++;
+  } else if (ch == 'L') {
+    spec->size_mod = SIZE_BIG_L;
+    pos++;
+  } else if (ch == 'j') {
+    spec->size_mod = SIZE_J;
+    pos++;
+  } else if (ch == 'z') {
+    spec->size_mod = SIZE_Z;
+    pos++;
+  } else if (ch == 't') {
+    spec->size_mod = SIZE_T;
+    pos++;
+  } else if (ch == 'q') {
+    spec->size_mod = SIZE_Q;
     pos++;
   }
 
@@ -274,6 +296,9 @@ static FeatherObj format_integer(const FeatherHostOps *ops, FeatherInterp interp
   int base = 10;
   int uppercase = 0;
   int is_unsigned = 0;
+
+  // Apply truncation based on size modifier
+  val = feather_apply_format_truncation(val, spec->size_mod);
 
   switch (spec->specifier) {
     case 'd':

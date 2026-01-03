@@ -1072,4 +1072,95 @@ void feather_unset_var(const FeatherHostOps *ops, FeatherInterp interp,
 int feather_var_exists(const FeatherHostOps *ops, FeatherInterp interp,
                        FeatherObj name);
 
+// ============================================================================
+// Size modifiers for format and scan
+// ============================================================================
+
+// Size modifier types for integer truncation (shared by format and scan)
+typedef enum {
+  SIZE_NONE = 0,    // No modifier - 32-bit truncation for format, 32-bit for scan
+  SIZE_H = 1,       // h - 16-bit for format, 32-bit for scan
+  SIZE_L = 2,       // l - 64-bit truncation
+  SIZE_LL = 3,      // ll - no truncation
+  SIZE_BIG_L = 4,   // L - no truncation for format, 64-bit for scan
+  SIZE_J = 5,       // j - 64-bit truncation
+  SIZE_Z = 6,       // z - pointer size (typically 64-bit)
+  SIZE_T = 7,       // t - pointer size (typically 64-bit)
+  SIZE_Q = 8        // q - 64-bit truncation
+} SizeModifier;
+
+// Apply truncation for format (slightly different from scan for %h)
+static inline int64_t feather_apply_format_truncation(int64_t val, SizeModifier size_mod) {
+  switch (size_mod) {
+    case SIZE_H:
+      // 16-bit truncation: mask to 16 bits and sign-extend
+      val = (int64_t)(int16_t)(val & 0xFFFF);
+      break;
+    case SIZE_NONE:
+      // 32-bit truncation: mask to 32 bits and sign-extend
+      val = (int64_t)(int32_t)(val & 0xFFFFFFFF);
+      break;
+    case SIZE_L:
+    case SIZE_J:
+    case SIZE_Q:
+    case SIZE_Z:
+    case SIZE_T:
+      // 64-bit truncation: already int64_t, no truncation needed
+      break;
+    case SIZE_LL:
+    case SIZE_BIG_L:
+      // No truncation
+      break;
+  }
+  return val;
+}
+
+// Apply truncation for scan (h behaves like no modifier - 32-bit)
+static inline int64_t feather_apply_scan_truncation(int64_t val, SizeModifier size_mod) {
+  switch (size_mod) {
+    case SIZE_H:
+    case SIZE_NONE:
+      // 32-bit truncation: mask to 32 bits and sign-extend
+      val = (int64_t)(int32_t)(val & 0xFFFFFFFF);
+      break;
+    case SIZE_L:
+    case SIZE_BIG_L:
+    case SIZE_J:
+    case SIZE_Q:
+    case SIZE_Z:
+    case SIZE_T:
+      // 64-bit truncation: already int64_t, no truncation needed
+      break;
+    case SIZE_LL:
+      // No truncation
+      break;
+  }
+  return val;
+}
+
+// Apply unsigned conversion: truncate then reinterpret as unsigned
+static inline int64_t feather_apply_unsigned_conversion(int64_t val, SizeModifier size_mod) {
+  switch (size_mod) {
+    case SIZE_H:
+    case SIZE_NONE:
+      // 32-bit unsigned: mask to 32 bits and interpret as unsigned
+      val = (int64_t)(uint32_t)(val & 0xFFFFFFFF);
+      break;
+    case SIZE_L:
+    case SIZE_BIG_L:
+    case SIZE_J:
+    case SIZE_Q:
+    case SIZE_Z:
+    case SIZE_T:
+      // 64-bit unsigned: already uint64_t when cast, no change
+      // (value is already in int64_t, just reinterpret)
+      val = (int64_t)(uint64_t)val;
+      break;
+    case SIZE_LL:
+      // %llu not allowed - should have been caught in parser
+      break;
+  }
+  return val;
+}
+
 #endif

@@ -57,23 +57,6 @@ Key implementation characteristics:
 
 ## TCL Features We Do NOT Support
 
-### Integer Truncation Based on Size Modifiers
-
-TCL performs actual integer truncation based on size modifiers:
-- `%hd` or `%d` (no modifier): Truncates to 32-bit range (max 2147483647)
-- `%ld`, `%qd`, `%jd`: Truncates to 64-bit "wide" range
-- `%lld`, `%Ld`: Unlimited integer range
-- `%zd`, `%td`: Platform-dependent (32 or 64 bit based on pointer size)
-
-**Our implementation**: Size modifiers are parsed and accepted syntactically, but **no truncation is performed**. All integers are stored as 64-bit values without range limiting.
-
-### Unsigned Integer Conversion (`%u`)
-
-TCL's `%u` specifier:
-> "The integer value is truncated as required by the size modifier value, and the corresponding unsigned value for that truncated range is computed and stored in the variable as a decimal string."
-
-**Our implementation**: `%u` is treated identically to `%d`. No unsigned reinterpretation or truncation is performed.
-
 ### Positional Specifier Validation
 
 TCL requires:
@@ -114,6 +97,33 @@ Examples:
 - `scan "👋" "%c"` returns 128075 (U+1F44B)
 
 The input position advances by the number of UTF-8 bytes consumed (1-4 bytes per character).
+
+### Size Modifier Truncation
+
+Our implementation fully supports TCL's size modifier truncation behavior:
+
+**Truncation rules:**
+- `%d`, `%hd` (no modifier or `h`): Truncates to 32-bit signed range
+- `%ld`, `%Ld`, `%jd`, `%qd`, `%zd`, `%td`: Truncates to 64-bit range (no-op for int64_t)
+- `%lld`: No truncation (unlimited range)
+
+**Examples:**
+- `scan "4294967297" %d` → `1` (wraps to 32-bit)
+- `scan "2147483648" %d` → `-2147483648` (sign bit set)
+- `scan "4294967296" %lld` → `4294967296` (no truncation)
+
+### Unsigned Conversion (`%u`)
+
+Our implementation fully supports TCL's unsigned conversion behavior:
+
+The `%u` specifier truncates the value according to the size modifier, then reinterprets it as unsigned:
+
+**Examples:**
+- `scan "-1" %u` → `4294967295` (32-bit unsigned)
+- `scan "-1" %lu` → `-1` (64-bit, effectively no change)
+- `scan "4294967296" %u` → `0` (truncates to 32-bit, then unsigned)
+
+**Note:** `%llu` is not allowed by TCL spec (unsigned conversion requires a bounded range).
 
 ### Hexadecimal Prefix Handling
 
