@@ -75,3 +75,7 @@ harness run --host js/tester.js testcases/
 [tasks."test:all"]
 description = "Run all test suites in parallel"
 depends = ["test", "test:js"]
+
+[tools]
+go = "1.25.5"
+zig = "latest"
