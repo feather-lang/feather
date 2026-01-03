@@ -1,0 +1,145 @@
+<test-suite name="subst Unicode escape sequences">
+  <!-- Test \uNNNN 16-bit Unicode escapes -->
+
+  <test-case name="subst: \\u escape Latin A with acute">
+    <script>subst {Hello \u00C1}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>Hello Á</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subst: \\u escape Greek Omega">
+    <script>subst {\u03A9mega}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>Ωmega</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subst: \\u escape middot">
+    <script>subst {hello\u00B7world}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello·world</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subst: \\u escape Chinese character">
+    <script>subst {\u4F60\u597D}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>你好</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subst: multiple \\u escapes">
+    <script>subst {\u00FCber caf\u00E9}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>über café</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subst: \\u escape zero padding">
+    <script>subst {\u0041}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>A</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subst: \\u escape lowercase hex">
+    <script>subst {\u00e9}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>é</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Test \UNNNNNNNN 32-bit Unicode escapes (TCL 9.0) -->
+
+  <test-case name="subst: \\U escape emoji wave">
+    <script>subst {Hello\U0001F44B}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>Hello👋</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subst: \\U escape emoji with skin tone">
+    <script>subst {\U0001F44D\U0001F3FB}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>👍🏻</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subst: \\U escape BMP character">
+    <script>subst {\U000000A9}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>©</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Test mixed with other escapes -->
+
+  <test-case name="subst: \\u with other backslash escapes">
+    <script>subst {\\u00A9\n\u00A9}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>\\u00A9
+©</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subst: \\u with variable substitution">
+    <script>set x "test"
+subst {\u00A9$x\u00A9}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>©test©</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subst: \\u disabled with -nobackslashes">
+    <script>subst -nobackslashes {\u00A9}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>\u00A9</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Test invalid escapes -->
+
+  <test-case name="subst: \\u with insufficient hex digits">
+    <script>subst {\u12X}</script>
+    <return>TCL_ERROR</return>
+    <error>missing hexadecimal digits for \u escape</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="subst: \\U with insufficient hex digits">
+    <script>subst {\U123}</script>
+    <return>TCL_ERROR</return>
+    <error>missing hexadecimal digits for \U escape</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+</test-suite>

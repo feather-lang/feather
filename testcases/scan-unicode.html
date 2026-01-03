@@ -1,0 +1,134 @@
+<test-suite name="scan %c Unicode codepoint handling">
+  <!-- Test %c with Unicode characters -->
+
+  <test-case name="scan: %c ASCII character">
+    <script>scan "A" %c</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>65</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: %c Latin A with acute">
+    <script>scan "Á" %c</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>193</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: %c German umlaut u">
+    <script>scan "ü" %c</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>252</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: %c Greek Omega">
+    <script>scan "Ω" %c</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>937</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: %c middot">
+    <script>scan "·" %c</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>183</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: %c Chinese character">
+    <script>scan "中" %c</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>20013</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: %c emoji wave">
+    <script>scan "👋" %c</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>128075</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: %c first character from string">
+    <script>scan "über" %c</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>252</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: %c with remaining characters">
+    <script>scan "Ωmega" "%c%s" c rest</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: %c with remaining characters verify values">
+    <script>set count [scan "Ωmega" "%c%s" c rest]
+list $count $c $rest</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2 937 mega</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: multiple %c with Unicode">
+    <script>scan "你好" "%c%c" c1 c2</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: multiple %c with Unicode verify values">
+    <script>set count [scan "你好" "%c%c" c1 c2]
+list $count $c1 $c2</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2 20320 22909</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Test %c inline mode with Unicode -->
+
+  <test-case name="scan: %c inline mode Unicode">
+    <script>scan "中国" "%c%c"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>20013 22269</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: %c inline mode emoji">
+    <script>scan "👋🌍" "%c%c"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>128075 127757</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

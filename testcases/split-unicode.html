@@ -1,0 +1,98 @@
+<test-suite name="split Unicode handling">
+  <!-- Test split with Unicode delimiters -->
+
+  <test-case name="split with Unicode delimiter middot">
+    <script>split "über·café·test" "·"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>über café test</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="split with Unicode delimiter eacute">
+    <script>split "über café" "é "</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>üb {} r {} caf {}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="split with Unicode delimiter chinese">
+    <script>split "hello中world中test" "中"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>hello world test</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Test split into characters with empty delimiter -->
+
+  <test-case name="split into characters German umlaut">
+    <script>split "über" ""</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>ü b e r</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="split into characters Greek">
+    <script>split "Ωmega" ""</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>Ω m e g a</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="split into characters emoji">
+    <script>split "Hello👋World" ""</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>H e l l o 👋 W o r l d</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="split into characters Chinese">
+    <script>split "你好世界" ""</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>你 好 世 界</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="split into characters mixed ASCII and Unicode">
+    <script>split "a中b" ""</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a 中 b</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Test split with Unicode in delimiter set -->
+
+  <test-case name="split with multiple Unicode delimiters">
+    <script>split "über·café中test" "·é中"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>üb {} r {} caf {} {} test</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="split default whitespace with Unicode content">
+    <script>split "über café test"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>über café test</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>
