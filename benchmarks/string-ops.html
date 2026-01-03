@@ -1,0 +1,72 @@
+<benchmark-suite name="String Operations">
+
+<!-- Basic string operations -->
+<benchmark name="string length short" warmup="100" iterations="10000">
+  <script>
+    string length "hello world"
+  </script>
+</benchmark>
+
+<benchmark name="string length long" warmup="100" iterations="5000">
+  <setup>
+    set str "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
+  </setup>
+  <script>
+    string length $str
+  </script>
+</benchmark>
+
+<benchmark name="string toupper" warmup="100" iterations="5000">
+  <script>
+    string toupper "hello world"
+  </script>
+</benchmark>
+
+<benchmark name="string tolower" warmup="100" iterations="5000">
+  <script>
+    string tolower "HELLO WORLD"
+  </script>
+</benchmark>
+
+<benchmark name="string index" warmup="100" iterations="10000">
+  <script>
+    string index "hello world" 6
+  </script>
+</benchmark>
+
+<benchmark name="string range" warmup="100" iterations="10000">
+  <script>
+    string range "hello world" 0 4
+  </script>
+</benchmark>
+
+<benchmark name="string match simple" warmup="100" iterations="5000">
+  <script>
+    string match "hello*" "hello world"
+  </script>
+</benchmark>
+
+<benchmark name="string match complex" warmup="50" iterations="2000">
+  <script>
+    string match "*o w*d" "hello world"
+  </script>
+</benchmark>
+
+<!-- String concatenation -->
+<benchmark name="append short strings" warmup="100" iterations="5000">
+  <setup>
+    set str ""
+  </setup>
+  <script>
+    append str "hello"
+  </script>
+</benchmark>
+
+<!-- String splitting -->
+<benchmark name="split on space" warmup="50" iterations="2000">
+  <script>
+    split "the quick brown fox jumps over the lazy dog" " "
+  </script>
+</benchmark>
+
+</benchmark-suite>

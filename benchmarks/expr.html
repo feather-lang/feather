@@ -1,0 +1,72 @@
+<benchmark-suite name="Expression Evaluation">
+
+<!-- Arithmetic expressions -->
+<benchmark name="expr simple addition" warmup="100" iterations="10000">
+  <script>
+    expr {1 + 2}
+  </script>
+</benchmark>
+
+<benchmark name="expr complex arithmetic" warmup="100" iterations="5000">
+  <script>
+    expr {(10 + 20) * 3 - 15 / 5}
+  </script>
+</benchmark>
+
+<benchmark name="expr with variables" warmup="100" iterations="5000">
+  <setup>
+    set a 10
+    set b 20
+    set c 30
+  </setup>
+  <script>
+    expr {$a + $b * $c}
+  </script>
+</benchmark>
+
+<!-- Comparison expressions -->
+<benchmark name="expr comparison" warmup="100" iterations="10000">
+  <script>
+    expr {10 > 5}
+  </script>
+</benchmark>
+
+<benchmark name="expr logical and" warmup="100" iterations="10000">
+  <script>
+    expr {1 && 1}
+  </script>
+</benchmark>
+
+<!-- Math functions -->
+<benchmark name="expr sqrt" warmup="100" iterations="5000">
+  <script>
+    expr {sqrt(144)}
+  </script>
+</benchmark>
+
+<benchmark name="expr pow" warmup="100" iterations="5000">
+  <script>
+    expr {pow(2, 10)}
+  </script>
+</benchmark>
+
+<benchmark name="expr sin" warmup="100" iterations="5000">
+  <script>
+    expr {sin(3.14159 / 2)}
+  </script>
+</benchmark>
+
+<!-- String operations in expr -->
+<benchmark name="expr string eq" warmup="100" iterations="10000">
+  <script>
+    expr {"hello" eq "hello"}
+  </script>
+</benchmark>
+
+<benchmark name="expr string ne" warmup="100" iterations="10000">
+  <script>
+    expr {"hello" ne "world"}
+  </script>
+</benchmark>
+
+</benchmark-suite>
