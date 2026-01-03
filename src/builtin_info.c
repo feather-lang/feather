@@ -49,11 +49,7 @@ static FeatherResult info_level(const FeatherHostOps *ops, FeatherInterp interp,
   FeatherObj levelObj = ops->list.at(interp, args, 0);
   int64_t levelNum;
   if (ops->integer.get(interp, levelObj, &levelNum) != TCL_OK) {
-    // Build error message
-    FeatherObj msg = ops->string.intern(interp, "expected integer but got \"", 26);
-    msg = ops->string.concat(interp, msg, levelObj);
-    msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\"", 1));
-    ops->interp.set_result(interp, msg);
+    feather_error_expected(ops, interp, "integer", levelObj);
     return TCL_ERROR;
   }
 
@@ -493,10 +489,7 @@ static FeatherResult info_frame(const FeatherHostOps *ops, FeatherInterp interp,
   FeatherObj levelObj = ops->list.at(interp, args, 0);
   int64_t levelNum;
   if (ops->integer.get(interp, levelObj, &levelNum) != TCL_OK) {
-    FeatherObj msg = ops->string.intern(interp, "expected integer but got \"", 26);
-    msg = ops->string.concat(interp, msg, levelObj);
-    msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\"", 1));
-    ops->interp.set_result(interp, msg);
+    feather_error_expected(ops, interp, "integer", levelObj);
     return TCL_ERROR;
   }
 

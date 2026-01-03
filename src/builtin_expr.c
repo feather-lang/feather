@@ -250,13 +250,8 @@ static void set_syntax_error(ExprParser *p) {
 static void set_integer_error_obj(ExprParser *p, FeatherObj value) {
   if (p->has_error) return;
   p->has_error = 1;
-
-  FeatherObj part1 = p->ops->string.intern(p->interp, "expected integer but got \"", 26);
-  FeatherObj part3 = p->ops->string.intern(p->interp, "\"", 1);
-
-  FeatherObj msg = p->ops->string.concat(p->interp, part1, value);
-  msg = p->ops->string.concat(p->interp, msg, part3);
-  p->error_msg = msg;
+  feather_error_expected(p->ops, p->interp, "integer", value);
+  p->error_msg = p->ops->interp.get_result(p->interp);
 }
 
 static void set_bareword_error_obj(ExprParser *p, FeatherObj word) {

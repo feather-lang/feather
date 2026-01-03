@@ -92,22 +92,11 @@ FeatherResult feather_builtin_return(const FeatherHostOps *ops, FeatherInterp in
         argc--;
         int64_t levelVal;
         if (ops->integer.get(interp, levelArg, &levelVal) != TCL_OK) {
-          // Build error with original object
-          FeatherObj msg1 = ops->string.intern(interp, "expected integer but got \"", 26);
-          FeatherObj msg3 = ops->string.intern(interp, "\"", 1);
-          FeatherObj msg = ops->string.concat(interp, msg1, levelArg);
-          msg = ops->string.concat(interp, msg, msg3);
-          ops->interp.set_result(interp, msg);
+          feather_error_expected(ops, interp, "integer", levelArg);
           return TCL_ERROR;
         }
         if (levelVal < 0) {
-          // Build error with original object
-          FeatherObj msg1 = ops->string.intern(interp,
-            "bad -level value: expected non-negative integer but got \"", 57);
-          FeatherObj msg3 = ops->string.intern(interp, "\"", 1);
-          FeatherObj msg = ops->string.concat(interp, msg1, levelArg);
-          msg = ops->string.concat(interp, msg, msg3);
-          ops->interp.set_result(interp, msg);
+          feather_error_expected(ops, interp, "non-negative integer", levelArg);
           return TCL_ERROR;
         }
         level = (int)levelVal;
@@ -175,20 +164,11 @@ FeatherResult feather_builtin_return(const FeatherHostOps *ops, FeatherInterp in
           FeatherObj levelVal = ops->dict.get(interp, optDict, levelKey);
           int64_t levelInt;
           if (ops->integer.get(interp, levelVal, &levelInt) != TCL_OK) {
-            FeatherObj msg1 = ops->string.intern(interp, "expected integer but got \"", 26);
-            FeatherObj msg3 = ops->string.intern(interp, "\"", 1);
-            FeatherObj msg = ops->string.concat(interp, msg1, levelVal);
-            msg = ops->string.concat(interp, msg, msg3);
-            ops->interp.set_result(interp, msg);
+            feather_error_expected(ops, interp, "integer", levelVal);
             return TCL_ERROR;
           }
           if (levelInt < 0) {
-            FeatherObj msg1 = ops->string.intern(interp,
-              "bad -level value: expected non-negative integer but got \"", 57);
-            FeatherObj msg3 = ops->string.intern(interp, "\"", 1);
-            FeatherObj msg = ops->string.concat(interp, msg1, levelVal);
-            msg = ops->string.concat(interp, msg, msg3);
-            ops->interp.set_result(interp, msg);
+            feather_error_expected(ops, interp, "non-negative integer", levelVal);
             return TCL_ERROR;
           }
           level = (int)levelInt;

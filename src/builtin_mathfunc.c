@@ -432,11 +432,7 @@ FeatherResult feather_builtin_mathfunc_bool(const FeatherHostOps *ops, FeatherIn
   }
 
   /* Not a valid boolean */
-  FeatherObj part1 = ops->string.intern(interp, "expected boolean value but got \"", 32);
-  FeatherObj part2 = ops->string.intern(interp, "\"", 1);
-  FeatherObj msg = ops->string.concat(interp, part1, arg);
-  msg = ops->string.concat(interp, msg, part2);
-  ops->interp.set_result(interp, msg);
+  feather_error_expected(ops, interp, "boolean value", arg);
   return TCL_ERROR;
 }
 

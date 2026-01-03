@@ -628,11 +628,7 @@ FeatherResult feather_builtin_format(const FeatherHostOps *ops, FeatherInterp in
       case 'b': {
         int64_t intVal;
         if (ops->integer.get(interp, value, &intVal) != TCL_OK) {
-          FeatherObj msg = ops->string.intern(interp, "expected integer but got \"", 26);
-          msg = ops->string.concat(interp, msg, value);
-          FeatherObj suffix = ops->string.intern(interp, "\"", 1);
-          msg = ops->string.concat(interp, msg, suffix);
-          ops->interp.set_result(interp, msg);
+          feather_error_expected(ops, interp, "integer", value);
           return TCL_ERROR;
         }
         formatted = format_integer(ops, interp, intVal, &spec);
@@ -642,12 +638,7 @@ FeatherResult feather_builtin_format(const FeatherHostOps *ops, FeatherInterp in
       case 'c': {
         int64_t charVal;
         if (ops->integer.get(interp, value, &charVal) != TCL_OK) {
-          FeatherObj msg = ops->string.intern(interp,
-            "expected integer but got \"", 26);
-          msg = ops->string.concat(interp, msg, value);
-          FeatherObj suffix = ops->string.intern(interp, "\"", 1);
-          msg = ops->string.concat(interp, msg, suffix);
-          ops->interp.set_result(interp, msg);
+          feather_error_expected(ops, interp, "integer", value);
           return TCL_ERROR;
         }
         // Convert integer to Unicode character
