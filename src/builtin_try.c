@@ -77,6 +77,46 @@ static int is_fallthrough(const FeatherHostOps *ops, FeatherInterp interp, Feath
   return feather_obj_eq_literal(ops, interp, script, "-");
 }
 
+// Add -during key to current return options
+// duringOptions is the original exception's options dict to be stored under -during
+static void add_during_to_options(const FeatherHostOps *ops, FeatherInterp interp,
+                                   FeatherResult code, FeatherObj duringOptions) {
+  // Get current return options
+  FeatherObj currentOpts = ops->interp.get_return_options(interp, code);
+
+  // Build new options with -during appended
+  FeatherObj newOpts = ops->list.create(interp);
+
+  // Copy existing options if any
+  if (!ops->list.is_nil(interp, currentOpts)) {
+    FeatherObj optsCopy = ops->list.from(interp, currentOpts);
+    size_t optsLen = ops->list.length(interp, optsCopy);
+    for (size_t i = 0; i < optsLen; i++) {
+      FeatherObj elem = ops->list.at(interp, optsCopy, i);
+      newOpts = ops->list.push(interp, newOpts, elem);
+    }
+  } else {
+    // No options exist, add basic -code
+    newOpts = ops->list.push(interp, newOpts, ops->string.intern(interp, S("-code")));
+    newOpts = ops->list.push(interp, newOpts, ops->integer.create(interp, (int64_t)code));
+  }
+
+  // Append -during key and value
+  newOpts = ops->list.push(interp, newOpts, ops->string.intern(interp, S("-during")));
+
+  // duringOptions might be nil for successful body, so provide default
+  FeatherObj duringValue = duringOptions;
+  if (ops->list.is_nil(interp, duringValue)) {
+    duringValue = ops->list.create(interp);
+    duringValue = ops->list.push(interp, duringValue, ops->string.intern(interp, S("-code")));
+    duringValue = ops->list.push(interp, duringValue, ops->integer.create(interp, 0));
+  }
+  newOpts = ops->list.push(interp, newOpts, duringValue);
+
+  // Set the modified options
+  ops->interp.set_return_options(interp, newOpts);
+}
+
 FeatherResult feather_builtin_try(const FeatherHostOps *ops, FeatherInterp interp,
                            FeatherObj cmd, FeatherObj args) {
   (void)cmd;
@@ -261,6 +301,16 @@ FeatherResult feather_builtin_try(const FeatherHostOps *ops, FeatherInterp inter
         // Execute handler script
         handlerResult = feather_script_eval_obj(ops, interp, script, TCL_EVAL_LOCAL);
         handlerResultObj = ops->interp.get_result(interp);
+
+        // If handler raised an exception, add -during key with body's options
+        if (handlerResult != TCL_OK) {
+          add_during_to_options(ops, interp, handlerResult, bodyOptions);
+        } else {
+          // Handler succeeded - clear return options to avoid stale error state
+          FeatherObj emptyOpts = ops->list.create(interp);
+          ops->interp.set_return_options(interp, emptyOpts);
+        }
+
         break; // Handler executed, stop searching
       }
 
@@ -338,6 +388,16 @@ FeatherResult feather_builtin_try(const FeatherHostOps *ops, FeatherInterp inter
         // Execute handler script
         handlerResult = feather_script_eval_obj(ops, interp, script, TCL_EVAL_LOCAL);
         handlerResultObj = ops->interp.get_result(interp);
+
+        // If handler raised an exception, add -during key with body's options
+        if (handlerResult != TCL_OK) {
+          add_during_to_options(ops, interp, handlerResult, bodyOptions);
+        } else {
+          // Handler succeeded - clear return options to avoid stale error state
+          FeatherObj emptyOpts = ops->list.create(interp);
+          ops->interp.set_return_options(interp, emptyOpts);
+        }
+
         break; // Handler executed, stop searching
       }
 
@@ -364,10 +424,22 @@ FeatherResult feather_builtin_try(const FeatherHostOps *ops, FeatherInterp inter
   FeatherObj finalResultObj = handlerResultObj;
 
   if (!ops->list.is_nil(interp, finallyScript) && finallyScript != 0) {
+    // Save the previous result's options before executing finally
+    // This will be either the body's options (if no handler) or handler's result options
+    FeatherObj previousOptions;
+    if (handlerMatched) {
+      // Handler was executed, get its result options
+      previousOptions = ops->interp.get_return_options(interp, handlerResult);
+    } else {
+      // No handler, use body's options
+      previousOptions = bodyOptions;
+    }
+
     FeatherResult finallyCode = feather_script_eval_obj(ops, interp, finallyScript, TCL_EVAL_LOCAL);
 
-    // If finally returns an error, it overrides everything
+    // If finally returns a non-ok result, add -during key
     if (finallyCode != TCL_OK) {
+      add_during_to_options(ops, interp, finallyCode, previousOptions);
       return finallyCode;
     }
     // Otherwise, restore the previous result
