@@ -45,11 +45,9 @@ These builtins match TCL's documented behavior:
 | `namespace` | 9 subcommands (code, ensemble, forget, inscope, origin, path, unknown, upvar, which) |
 | `try` | -during key in exception dictionary |
 | `format` | Size modifier truncation, some # flag behaviors |
-| `scan` | Integer truncation, Unicode %c, unsigned conversion |
-| `subst` | Unicode escapes (\uNNNN) |
+| `scan` | Integer truncation, unsigned conversion |
 | `trace` | Variable creation on trace add |
 | `tailcall` | Uplevel restriction (may not be enforced in TCL 9.0) |
-| `split` | Unicode character handling |
 
 **Note:** TCL arrays are explicitly not supported in Feather. Array-related features in `set`, `unset`, `append`, `lappend`, `incr`, `upvar`, and `trace` are intentionally omitted.
 

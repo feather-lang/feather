@@ -24,10 +24,11 @@ Our implementation supports:
 | Empty delimiter (split into chars) | Supported | `split "abc" {}` returns `{a b c}` |
 | Empty list elements for adjacent delimiters | Supported | Correctly generates empty elements |
 | Empty string input | Supported | Returns empty list |
+| **Unicode character handling** | **Supported** | Full UTF-8 support for delimiters and splitting |
 
 ## TCL Features We Do NOT Support
 
-Based on comparing our implementation with the TCL 9 manual, our implementation appears to be feature-complete for the `split` command. There are no missing features.
+Based on comparing our implementation with the TCL 9 manual, our implementation is feature-complete for the `split` command. There are no missing features.
 
 ## Notes on Implementation Differences
 
@@ -41,24 +42,24 @@ Our implementation defines default whitespace as:
 
 This matches standard TCL behavior for whitespace-based splitting.
 
-### 2. Byte-Level vs Character-Level Splitting
+### 2. Unicode Character Handling
 
-Our implementation operates at the byte level (`ops->string.byte_at`, `ops->string.byte_length`). This means:
+**Our implementation uses rune-level operations** (`ops->rune.at`, `ops->rune.length`, `ops->rune.range`) for full Unicode support:
 
-- ASCII strings work correctly
-- Multi-byte UTF-8 characters may not be handled correctly when:
-  - Used as delimiter characters
-  - Split into individual characters with empty delimiter
+- **Unicode delimiters**: Characters like "·", "中", "é" work correctly as delimiters
+- **Split into characters**: Empty delimiter splits into Unicode characters, not bytes
+  - Example: `split "café" ""` returns `{c a f é}` (4 characters, not 5 bytes)
+- **Multi-byte UTF-8**: Correctly handles all Unicode codepoints U+0000 to U+10FFFF
 
-TCL's `split` command operates on Unicode characters. For full TCL compatibility with international text, character-level operations would be needed instead of byte-level operations.
+This matches TCL's behavior exactly - split operates on Unicode characters, not bytes.
 
 ### 3. Performance Characteristics
 
 Our implementation uses a simple O(n*m) algorithm where:
-- n = length of input string
-- m = length of splitChars
+- n = number of Unicode characters in input string
+- m = number of Unicode characters in splitChars
 
-For each character in the input, we scan through all delimiter characters. TCL implementations may use more optimized lookup structures (like a character set bitmap) for better performance with large delimiter sets.
+For each character in the input, we scan through all delimiter characters using `ops->string.equal()` for comparison. TCL implementations may use more optimized lookup structures (like a character set bitmap) for better performance with large delimiter sets.
 
 ### 4. Memory Management
 

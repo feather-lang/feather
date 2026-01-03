@@ -7,7 +7,7 @@ This document compares feather's `subst` implementation with the TCL 9 reference
 Our `subst` implementation in `src/builtin_subst.c` performs variable, command, and backslash substitutions on a string argument. It supports all three optional flags (`-nobackslashes`, `-nocommands`, `-novariables`) to selectively disable specific substitution types.
 
 Key implementation details:
-- Backslash substitution handles: `\a`, `\b`, `\f`, `\n`, `\r`, `\t`, `\v`, `\\`, `\newline`, `\xNN` (hex), and `\NNN` (octal)
+- Backslash substitution handles: `\a`, `\b`, `\f`, `\n`, `\r`, `\t`, `\v`, `\\`, `\newline`, `\xNN` (hex), `\NNN` (octal), `\uNNNN` (16-bit Unicode), and `\UNNNNNNNN` (32-bit Unicode)
 - Variable substitution handles: `$name`, `${name}`, `$name(index)` (array syntax with index substitution)
 - Command substitution handles: `[command]` with proper bracket nesting, brace escaping, and quote handling
 - Exception handling: `break`, `continue`, `return`, and custom return codes are caught and handled
@@ -36,6 +36,8 @@ Key implementation details:
    - Backslash-newline: `\<newline>` collapses to single space (including trailing whitespace)
    - Hexadecimal: `\xNN` (up to 2 hex digits)
    - Octal: `\NNN` (up to 3 octal digits)
+   - **Unicode 16-bit**: `\uNNNN` (exactly 4 hex digits, e.g., `\u00A9` → ©)
+   - **Unicode 32-bit**: `\UNNNNNNNN` (exactly 8 hex digits, e.g., `\U0001F44B` → 👋)
 
 5. **Exception Handling in Command Substitution**
    - `break` - stops substitution, returns result up to that point
@@ -50,17 +52,12 @@ Key implementation details:
 
 ## TCL Features We Do NOT Support
 
-1. **Unicode Escape Sequences**
-   - TCL supports `\uNNNN` for 16-bit Unicode code points
-   - TCL 9 likely supports `\UNNNNNNNN` for 32-bit Unicode code points
-   - Our implementation only handles `\xNN` (8-bit values)
-
-2. **Variable Substitution Exception Handling**
+1. **Variable Substitution Exception Handling**
    - TCL manual states that `continue` and `break` during variable substitution should be handled similarly to command substitution
    - Our implementation does not support variable read traces that could throw exceptions
    - Variable traces are not implemented, so this is moot for now
 
-3. **Hexadecimal Digit Limit**
+2. **Hexadecimal Digit Limit**
    - TCL allows unlimited hex digits after `\x`, using only the last two
    - Our implementation limits to 2 hex digits after `\x`
 

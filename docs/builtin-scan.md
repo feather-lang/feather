@@ -26,7 +26,7 @@ Key implementation characteristics:
 | `%x`, `%X` | Hexadecimal integer | Supported |
 | `%b` | Binary integer | Supported |
 | `%i` | Auto-detect base integer (C convention) | Supported |
-| `%c` | Single character (as Unicode/byte value) | Supported |
+| `%c` | Single character (as Unicode codepoint value) | Supported |
 | `%s` | Non-whitespace string | Supported |
 | `%f`, `%e`, `%E`, `%g`, `%G` | Floating-point number | Supported |
 | `%[chars]` | Character set matching | Supported |
@@ -67,12 +67,6 @@ TCL performs actual integer truncation based on size modifiers:
 
 **Our implementation**: Size modifiers are parsed and accepted syntactically, but **no truncation is performed**. All integers are stored as 64-bit values without range limiting.
 
-### Unicode Character Handling for `%c`
-
-TCL states that `%c` reads "a single character" and stores "its Unicode value".
-
-**Our implementation**: We read a single **byte** and return its value. This works correctly for ASCII but does not handle multi-byte UTF-8 sequences as a single Unicode codepoint.
-
 ### Unsigned Integer Conversion (`%u`)
 
 TCL's `%u` specifier:
@@ -102,6 +96,24 @@ Our implementation matches TCL's whitespace handling:
 - Whitespace in format matches zero or more whitespace characters in input
 - `%c` and `%[...]` do not skip leading whitespace
 - All other specifiers skip leading whitespace before conversion
+
+### Unicode Character Handling for `%c`
+
+TCL states that `%c` reads "a single character" and stores "its Unicode value".
+
+**Our implementation**: We decode UTF-8 sequences at the current byte position to read a single Unicode codepoint. This correctly handles:
+- ASCII characters (1 byte): Returns values 0-127
+- 2-byte UTF-8 sequences: Returns codepoints U+0080 to U+07FF
+- 3-byte UTF-8 sequences: Returns codepoints U+0800 to U+FFFF
+- 4-byte UTF-8 sequences: Returns codepoints U+10000 to U+10FFFF (including emoji)
+
+Examples:
+- `scan "A" "%c"` returns 65 (U+0041)
+- `scan "é" "%c"` returns 233 (U+00E9)
+- `scan "中" "%c"` returns 20013 (U+4E2D)
+- `scan "👋" "%c"` returns 128075 (U+1F44B)
+
+The input position advances by the number of UTF-8 bytes consumed (1-4 bytes per character).
 
 ### Hexadecimal Prefix Handling
 
