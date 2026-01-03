@@ -13,6 +13,14 @@ static inline int feather_is_whitespace(int ch) {
   return ch == ' ' || ch == '\t';
 }
 
+/* Full whitespace check including all TCL whitespace characters.
+ * Use this for string operations (trim, scan, etc.).
+ * Use feather_is_whitespace() for word separation in parsing. */
+static inline int feather_is_whitespace_full(int ch) {
+  return ch == ' ' || ch == '\t' || ch == '\n' ||
+         ch == '\r' || ch == '\v' || ch == '\f';
+}
+
 static inline int feather_is_newline(int ch) {
   return ch == '\n' || ch == '\r';
 }

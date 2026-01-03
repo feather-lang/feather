@@ -119,6 +119,20 @@ static inline int feather_obj_to_bool_literal(const FeatherHostOps *ops, Feather
 }
 
 /**
+ * feather_eval_bool_condition evaluates an expression and converts to boolean.
+ *
+ * Calls expr builtin, then checks for boolean literals (true/false/yes/no)
+ * or converts integer result to boolean (0 = false, non-zero = true).
+ *
+ * On success, stores 0 or 1 in *result and returns TCL_OK.
+ * On error (invalid boolean), sets error message and returns TCL_ERROR.
+ */
+FeatherResult feather_eval_bool_condition(const FeatherHostOps *ops,
+                                           FeatherInterp interp,
+                                           FeatherObj condition,
+                                           int *result);
+
+/**
  * feather_obj_is_args_param checks if an object equals "args" (variadic param).
  *
  * Uses ops->string.equal() for comparison.

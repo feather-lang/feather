@@ -1,10 +1,6 @@
 #include "feather.h"
 #include "internal.h"
-
-// Helper to check if byte is whitespace
-static int concat_is_whitespace(int ch) {
-  return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r';
-}
+#include "charclass.h"
 
 FeatherResult feather_builtin_concat(const FeatherHostOps *ops, FeatherInterp interp,
                               FeatherObj cmd, FeatherObj args) {
@@ -27,11 +23,11 @@ FeatherResult feather_builtin_concat(const FeatherHostOps *ops, FeatherInterp in
 
     // Trim leading whitespace using byte_at
     size_t start = 0;
-    while (start < len && concat_is_whitespace(ops->string.byte_at(interp, arg, start))) start++;
+    while (start < len && feather_is_whitespace_full(ops->string.byte_at(interp, arg, start))) start++;
 
     // Trim trailing whitespace
     size_t end = len;
-    while (end > start && concat_is_whitespace(ops->string.byte_at(interp, arg, end - 1))) end--;
+    while (end > start && feather_is_whitespace_full(ops->string.byte_at(interp, arg, end - 1))) end--;
 
     // Skip empty segments
     if (start >= end) continue;
