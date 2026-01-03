@@ -1,0 +1,353 @@
+<test-suite name="namespace parity tests">
+
+<!-- ============================================= -->
+<!-- namespace children with pattern              -->
+<!-- ============================================= -->
+
+<test-case name="namespace children with pattern filters results">
+  <script>
+namespace eval foo {}
+namespace eval foo::bar {}
+namespace eval foo::baz {}
+namespace eval foo::qux {}
+namespace children ::foo ::foo::bar*
+  </script>
+  <return>TCL_OK</return>
+  <stdout>::foo::bar</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="namespace children with ba* pattern">
+  <script>
+namespace eval foo {}
+namespace eval foo::bar {}
+namespace eval foo::baz {}
+namespace eval foo::qux {}
+lsort [namespace children ::foo ::foo::ba*]
+  </script>
+  <return>TCL_OK</return>
+  <stdout>::foo::bar ::foo::baz</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="namespace children with no matches returns empty">
+  <script>
+namespace eval foo {}
+namespace eval foo::bar {}
+namespace children ::foo ::foo::xyz*
+  </script>
+  <return>TCL_OK</return>
+  <stdout></stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="namespace children pattern without namespace prefix">
+  <script>
+namespace eval foo {}
+namespace eval foo::bar {}
+namespace eval foo::baz {}
+namespace children ::foo *z
+  </script>
+  <return>TCL_OK</return>
+  <stdout>::foo::baz</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- ============================================= -->
+<!-- namespace import query mode (no args)        -->
+<!-- ============================================= -->
+
+<test-case name="namespace import with no args returns imported commands">
+  <script>
+namespace eval src {
+    proc cmd1 {} { return "cmd1" }
+    proc cmd2 {} { return "cmd2" }
+    namespace export cmd1 cmd2
+}
+namespace eval dest {
+    namespace import ::src::cmd1 ::src::cmd2
+    namespace import
+}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>cmd1 cmd2</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="namespace import with no imports returns empty">
+  <script>
+namespace eval empty {
+    namespace import
+}
+  </script>
+  <return>TCL_OK</return>
+  <stdout></stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- ============================================= -->
+<!-- namespace delete with no args                -->
+<!-- ============================================= -->
+
+<test-case name="namespace delete with no args is no-op">
+  <script>
+namespace eval foo {}
+namespace delete
+namespace exists foo
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- ============================================= -->
+<!-- namespace origin                             -->
+<!-- ============================================= -->
+
+<test-case name="namespace origin returns original command">
+  <script>
+namespace eval src {
+    proc cmd {} { return "src" }
+    namespace export cmd
+}
+namespace eval dest {
+    namespace import ::src::cmd
+    namespace origin cmd
+}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>::src::cmd</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="namespace origin for non-imported command returns itself">
+  <script>
+namespace eval myns {
+    proc localcmd {} {}
+    namespace origin localcmd
+}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>::myns::localcmd</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="namespace origin wrong args">
+  <script>
+namespace origin
+  </script>
+  <return>TCL_ERROR</return>
+  <error>wrong # args: should be "namespace origin name"</error>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="namespace origin unknown command">
+  <script>
+namespace origin nosuchcmd
+  </script>
+  <return>TCL_ERROR</return>
+  <error>invalid command name "nosuchcmd"</error>
+  <exit-code>1</exit-code>
+</test-case>
+
+<!-- ============================================= -->
+<!-- namespace forget                             -->
+<!-- ============================================= -->
+
+<test-case name="namespace forget removes imported command">
+  <script>
+namespace eval src {
+    proc cmd {} { return "src" }
+    namespace export cmd
+}
+namespace eval dest {
+    namespace import ::src::cmd
+    namespace forget ::src::cmd
+    info commands cmd
+}
+  </script>
+  <return>TCL_OK</return>
+  <stdout></stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="namespace forget with wildcard">
+  <script>
+namespace eval src {
+    proc cmd1 {} {}
+    proc cmd2 {} {}
+    namespace export cmd1 cmd2
+}
+namespace eval dest {
+    namespace import ::src::*
+    namespace forget ::src::*
+    info commands cmd*
+}
+  </script>
+  <return>TCL_OK</return>
+  <stdout></stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="namespace forget with no args is no-op">
+  <script>
+namespace eval src {
+    proc cmd {} {}
+    namespace export cmd
+}
+namespace eval dest {
+    namespace import ::src::cmd
+    namespace forget
+    info commands cmd
+}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>cmd</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- ============================================= -->
+<!-- namespace which                              -->
+<!-- ============================================= -->
+
+<test-case name="namespace which -command finds command">
+  <script>
+namespace eval myns {
+    proc myproc {} {}
+}
+namespace which -command ::myns::myproc
+  </script>
+  <return>TCL_OK</return>
+  <stdout>::myns::myproc</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="namespace which -variable finds variable">
+  <script>
+namespace eval myns {
+    variable myvar 123
+}
+namespace which -variable ::myns::myvar
+  </script>
+  <return>TCL_OK</return>
+  <stdout>::myns::myvar</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="namespace which defaults to -command">
+  <script>
+proc globalproc {} {}
+namespace which globalproc
+  </script>
+  <return>TCL_OK</return>
+  <stdout>::globalproc</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="namespace which returns empty for unknown command">
+  <script>
+namespace which nosuchcmd
+  </script>
+  <return>TCL_OK</return>
+  <stdout></stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="namespace which returns empty for unknown variable">
+  <script>
+namespace which -variable nosuchvar
+  </script>
+  <return>TCL_OK</return>
+  <stdout></stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="namespace which wrong args">
+  <script>
+namespace which
+  </script>
+  <return>TCL_ERROR</return>
+  <error>wrong # args: should be "namespace which ?-command? ?-variable? name"</error>
+  <exit-code>1</exit-code>
+</test-case>
+
+<!-- ============================================= -->
+<!-- namespace inscope                            -->
+<!-- ============================================= -->
+
+<test-case name="namespace inscope executes in namespace">
+  <script>
+namespace eval myns {
+    proc getcurrent {} { namespace current }
+}
+namespace inscope ::myns getcurrent
+  </script>
+  <return>TCL_OK</return>
+  <stdout>::myns</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="namespace inscope appends additional args">
+  <script>
+namespace eval myns {
+    proc showargs {args} { return $args }
+}
+namespace inscope ::myns showargs a b c
+  </script>
+  <return>TCL_OK</return>
+  <stdout>a b c</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="namespace inscope wrong args">
+  <script>
+namespace inscope
+  </script>
+  <return>TCL_ERROR</return>
+  <error>wrong # args: should be "namespace inscope name arg ?arg...?"</error>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="namespace inscope nonexistent namespace">
+  <script>
+namespace inscope ::nosuchns somecmd
+  </script>
+  <return>TCL_ERROR</return>
+  <error>namespace "::nosuchns" not found</error>
+  <exit-code>1</exit-code>
+</test-case>
+
+<!-- ============================================= -->
+<!-- namespace code                               -->
+<!-- ============================================= -->
+
+<test-case name="namespace code wraps script">
+  <script>
+namespace eval myns {
+    namespace code {somecmd arg}
+}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>::namespace inscope ::myns {somecmd arg}</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="namespace code in global namespace">
+  <script>
+namespace code {somecmd arg}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>::namespace inscope :: {somecmd arg}</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="namespace code wrong args">
+  <script>
+namespace code
+  </script>
+  <return>TCL_ERROR</return>
+  <error>wrong # args: should be "namespace code arg"</error>
+  <exit-code>1</exit-code>
+</test-case>
+
+</test-suite>
