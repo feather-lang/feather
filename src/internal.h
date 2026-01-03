@@ -133,6 +133,38 @@ FeatherResult feather_eval_bool_condition(const FeatherHostOps *ops,
                                            int *result);
 
 /**
+ * feather_error_expected constructs an error message of the form:
+ * "expected <type> but got \"<value>\""
+ *
+ * Sets the interpreter result to the error message.
+ */
+static inline void feather_error_expected(const FeatherHostOps *ops,
+                                           FeatherInterp interp,
+                                           const char *type,
+                                           FeatherObj got) {
+    // Build "expected <type> but got \""
+    FeatherObj prefix_obj = ops->string.builder_new(interp, 64);
+    const char *p1 = "expected ";
+    while (*p1) {
+        ops->string.builder_append_byte(interp, prefix_obj, *p1++);
+    }
+    const char *t = type;
+    while (*t) {
+        ops->string.builder_append_byte(interp, prefix_obj, *t++);
+    }
+    const char *p2 = " but got \"";
+    while (*p2) {
+        ops->string.builder_append_byte(interp, prefix_obj, *p2++);
+    }
+    FeatherObj prefix = ops->string.builder_finish(interp, prefix_obj);
+
+    FeatherObj suffix = ops->string.intern(interp, "\"", 1);
+    FeatherObj msg = ops->string.concat(interp, prefix, got);
+    msg = ops->string.concat(interp, msg, suffix);
+    ops->interp.set_result(interp, msg);
+}
+
+/**
  * feather_obj_is_args_param checks if an object equals "args" (variadic param).
  *
  * Uses ops->string.equal() for comparison.
