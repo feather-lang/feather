@@ -717,11 +717,14 @@ typedef struct FeatherDoubleOps {
   /**
    * format converts a double to a string object.
    * Handles special values (Inf, -Inf, NaN) and format specifiers.
-   * @param specifier One of 'e', 'f', 'g', 'E', 'G'
+   * @param specifier One of 'e', 'f', 'g', 'E', 'G', 'a', 'A'
    * @param precision Number of decimal places (-1 for default)
+   * @param alternate If non-zero, use alternate form (#):
+   *        - For f/e/E/a/A: guarantee decimal point even with precision 0
+   *        - For g/G: keep trailing zeros (don't strip them)
    */
   FeatherObj (*format)(FeatherInterp interp, double val, char specifier,
-                       int precision);
+                       int precision, int alternate);
 
   /**
    * math computes a transcendental or special math operation.

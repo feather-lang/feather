@@ -1181,7 +1181,7 @@ func goDoubleClassify(val C.double) C.FeatherDoubleClass {
 }
 
 //export goDoubleFormat
-func goDoubleFormat(interp C.FeatherInterp, val C.double, specifier C.char, precision C.int) C.FeatherObj {
+func goDoubleFormat(interp C.FeatherInterp, val C.double, specifier C.char, precision C.int, alternate C.int) C.FeatherObj {
 	i := getInterp(interp)
 	if i == nil {
 		return 0
@@ -1189,6 +1189,7 @@ func goDoubleFormat(interp C.FeatherInterp, val C.double, specifier C.char, prec
 	v := float64(val)
 	spec := byte(specifier)
 	prec := int(precision)
+	alt := int(alternate) != 0
 
 	// Handle special values
 	if math.IsNaN(v) {
@@ -1220,6 +1221,64 @@ func goDoubleFormat(interp C.FeatherInterp, val C.double, specifier C.char, prec
 	}
 
 	result := strconv.FormatFloat(v, format, prec, 64)
+
+	// Handle alternate form (#)
+	if alt {
+		switch spec {
+		case 'f', 'F':
+			// Ensure decimal point is present
+			if !strings.Contains(result, ".") {
+				result = result + "."
+			}
+		case 'g', 'G':
+			// Keep trailing zeros and ensure decimal point
+			if !strings.Contains(result, ".") && !strings.Contains(result, "e") && !strings.Contains(result, "E") {
+				result = result + "."
+			}
+			// For %#g, we need to keep trailing zeros up to precision
+			// strconv.FormatFloat already removes them, so we need to add them back
+			if strings.Contains(result, ".") {
+				// Find the decimal point and count digits after it
+				parts := strings.Split(result, ".")
+				if len(parts) == 2 {
+					// Handle exponent notation
+					expIdx := strings.IndexAny(parts[1], "eE")
+					var mantissa, exponent string
+					if expIdx >= 0 {
+						mantissa = parts[1][:expIdx]
+						exponent = parts[1][expIdx:]
+					} else {
+						mantissa = parts[1]
+						exponent = ""
+					}
+					// Pad with zeros to reach precision (significant figures minus integer part)
+					// For %g, precision is total significant figures
+					intDigits := len(strings.TrimLeft(parts[0], "-"))
+					if intDigits == 0 {
+						intDigits = 1
+					}
+					targetDecimals := prec - intDigits
+					if targetDecimals < 0 {
+						targetDecimals = 0
+					}
+					for len(mantissa) < targetDecimals {
+						mantissa = mantissa + "0"
+					}
+					result = parts[0] + "." + mantissa + exponent
+				}
+			}
+		case 'e', 'E':
+			// Ensure decimal point is present (shouldn't normally happen with 'e')
+			if !strings.Contains(result, ".") {
+				// Find 'e' or 'E' and insert decimal point before it
+				idx := strings.IndexAny(result, "eE")
+				if idx > 0 {
+					result = result[:idx] + "." + result[idx:]
+				}
+			}
+		}
+	}
+
 	return C.FeatherObj(i.internString(result))
 }
 

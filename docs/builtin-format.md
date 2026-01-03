@@ -81,8 +81,8 @@ TCL's `#` flag has specific behavior:
 | `%#b` | Adds `0b` prefix (unless zero) | Adds `0b` prefix (unless zero) - Matches |
 | `%#d` | Adds `0d` prefix (unless zero) | **Implemented** - Matches |
 | `%#0Nd` | Adds `0d` with zero padding | **Implemented** - Matches |
-| `%#f`, `%#e`, etc. | Guarantees decimal point | Not implemented |
-| `%#g`, `%#G` | Keeps trailing zeroes | Not implemented |
+| `%#f`, `%#e`, etc. | Guarantees decimal point | **Implemented** - Matches |
+| `%#g`, `%#G` | Keeps trailing zeroes | **Implemented** - Matches |
 
 ### `%n` Specifier
 

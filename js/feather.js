@@ -1346,10 +1346,11 @@ async function createFeather(wasmSource) {
       if (Math.abs(val) < smallestNormal) return 5;  // FEATHER_DBL_SUBNORMAL
       return 0;                         // FEATHER_DBL_NORMAL
     },
-    feather_host_dbl_format: (interpId, val, specifier, precision) => {
+    feather_host_dbl_format: (interpId, val, specifier, precision, alternate) => {
       const interp = interpreters.get(interpId);
       const spec = String.fromCharCode(specifier);
       const prec = precision < 0 ? 6 : precision;
+      const alt = alternate !== 0;
 
       // Handle special values
       if (Number.isNaN(val)) {
@@ -1389,26 +1390,54 @@ async function createFeather(wasmSource) {
             exponent = Math.floor(Math.log10(absVal));
           }
           const sigfigs = prec > 0 ? prec : 6;
-          
+
           if (exponent < -4 || exponent >= sigfigs) {
             // Use exponential notation
             result = val.toExponential(sigfigs - 1);
-            // Trim trailing zeros before 'e' (TCL %g behavior)
-            result = result.replace(/(\.\d*?)0+(e)/, '$1$2').replace(/\.(e)/, '$1');
+            if (!alt) {
+              // Trim trailing zeros before 'e' (TCL %g behavior)
+              result = result.replace(/(\.\d*?)0+(e)/, '$1$2').replace(/\.(e)/, '$1');
+            }
             result = padExponent(result);
           } else {
             // Use fixed notation with trailing zeros trimmed
             const decimalPlaces = sigfigs - exponent - 1;
             result = val.toFixed(Math.max(0, decimalPlaces));
-            // Remove trailing zeros after decimal point
-            if (result.includes('.')) {
-              result = result.replace(/\.?0+$/, '');
+            if (!alt) {
+              // Remove trailing zeros after decimal point
+              if (result.includes('.')) {
+                result = result.replace(/\.?0+$/, '');
+              }
             }
           }
           if (spec === 'G') result = result.toUpperCase();
           break;
         }
       }
+
+      // Handle alternate form (#) for f/F - ensure decimal point
+      if (alt && (spec === 'f' || spec === 'F')) {
+        if (!result.includes('.')) {
+          result = result + '.';
+        }
+      }
+
+      // Handle alternate form for e/E - ensure decimal point
+      if (alt && (spec === 'e' || spec === 'E')) {
+        // Find 'e' or 'E' and insert decimal point before it if missing
+        const expIdx = result.search(/[eE]/);
+        if (expIdx > 0 && !result.substring(0, expIdx).includes('.')) {
+          result = result.substring(0, expIdx) + '.' + result.substring(expIdx);
+        }
+      }
+
+      // Handle alternate form for g/G - ensure decimal point present
+      if (alt && (spec === 'g' || spec === 'G')) {
+        if (!result.includes('.') && !result.includes('e') && !result.includes('E')) {
+          result = result + '.';
+        }
+      }
+
       return interp.store({ type: 'string', value: result });
     },
     feather_host_dbl_math: (interpId, op, a, b, outPtr) => {

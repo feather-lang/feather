@@ -283,6 +283,64 @@
   </test-case>
 
   <!-- ============================================= -->
+  <!-- # flag with floating point                    -->
+  <!-- ============================================= -->
+
+  <test-case name="format #g keeps trailing zeros">
+    <script>format "%#g" 3.0</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3.00000</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format g strips trailing zeros">
+    <script>format "%g" 3.0</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format #.0f adds decimal point">
+    <script>format "%#.0f" 3.0</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3.</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format .0f no decimal point">
+    <script>format "%.0f" 3.0</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format #.0e adds decimal point">
+    <script>format "%#.0e" 3.0</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3.e+00</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="format .0e no decimal point">
+    <script>format "%.0e" 3.0</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3e+00</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
   <!-- Positional arguments                          -->
   <!-- ============================================= -->
 

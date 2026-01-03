@@ -693,7 +693,7 @@ FeatherResult feather_builtin_format(const FeatherHostOps *ops, FeatherInterp in
         if (precision == -2) precision = 6; // Default
         if (precision == -1) precision = 0;
 
-        formatted = ops->dbl.format(interp, dblVal, spec.specifier, precision);
+        formatted = ops->dbl.format(interp, dblVal, spec.specifier, precision, spec.alternate);
         formatted = apply_width(ops, interp, formatted, spec.width, spec.left_justify, ' ');
         break;
       }

@@ -264,8 +264,8 @@ FeatherDoubleClass feather_host_dbl_classify(double val) {
     return goDoubleClassify(val);
 }
 
-FeatherObj feather_host_dbl_format(FeatherInterp interp, double val, char specifier, int precision) {
-    return goDoubleFormat(interp, val, specifier, precision);
+FeatherObj feather_host_dbl_format(FeatherInterp interp, double val, char specifier, int precision, int alternate) {
+    return goDoubleFormat(interp, val, specifier, precision, alternate);
 }
 
 FeatherResult feather_host_dbl_math(FeatherInterp interp, FeatherMathOp op, double a, double b, double *out) {
