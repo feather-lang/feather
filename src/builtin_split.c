@@ -1,16 +1,17 @@
 #include "feather.h"
 #include "internal.h"
 
-// Default split characters (whitespace)
+// Default split characters (whitespace) - byte-based for ASCII
 static int is_default_split_char(int c) {
   return c == ' ' || c == '\t' || c == '\n' || c == '\r';
 }
 
-// Check if byte c is in splitObj using byte_at()
-static int is_split_char(const FeatherHostOps *ops, FeatherInterp interp,
-                         int c, FeatherObj splitObj, size_t splitLen) {
+// Check if rune (as string obj) is in splitObj by comparing each rune
+static int is_split_rune(const FeatherHostOps *ops, FeatherInterp interp,
+                         FeatherObj runeObj, FeatherObj splitObj, size_t splitLen) {
   for (size_t j = 0; j < splitLen; j++) {
-    if (ops->string.byte_at(interp, splitObj, j) == c) {
+    FeatherObj delimRune = ops->rune.at(interp, splitObj, j);
+    if (ops->string.equal(interp, runeObj, delimRune)) {
       return 1;
     }
   }
@@ -30,7 +31,7 @@ FeatherResult feather_builtin_split(const FeatherHostOps *ops, FeatherInterp int
   }
 
   FeatherObj strObj = ops->list.shift(interp, args);
-  size_t strLen = ops->string.byte_length(interp, strObj);
+  size_t strLen = ops->rune.length(interp, strObj);  // Unicode character count
 
   FeatherObj splitObj = 0;
   size_t splitLen = 0;
@@ -39,9 +40,9 @@ FeatherResult feather_builtin_split(const FeatherHostOps *ops, FeatherInterp int
 
   if (argc == 2) {
     splitObj = ops->list.shift(interp, args);
-    splitLen = ops->string.byte_length(interp, splitObj);
+    splitLen = ops->rune.length(interp, splitObj);  // Unicode character count
     if (splitLen == 0) {
-      emptyDelim = 1;  // Split into individual characters
+      emptyDelim = 1;  // Split into individual Unicode characters
     }
     hasCustomSplit = 1;
   }
@@ -54,34 +55,36 @@ FeatherResult feather_builtin_split(const FeatherHostOps *ops, FeatherInterp int
     return TCL_OK;
   }
 
-  // Split into individual characters
+  // Split into individual Unicode characters
   if (emptyDelim) {
     for (size_t i = 0; i < strLen; i++) {
-      FeatherObj elem = ops->string.slice(interp, strObj, i, i + 1);
+      FeatherObj elem = ops->rune.at(interp, strObj, i);
       result = ops->list.push(interp, result, elem);
     }
     ops->interp.set_result(interp, result);
     return TCL_OK;
   }
 
-  // Split by delimiter characters
+  // Split by delimiter characters (Unicode-aware)
   size_t start = 0;
   for (size_t i = 0; i <= strLen; i++) {
     int isDelim = 0;
     if (i < strLen) {
-      int c = ops->string.byte_at(interp, strObj, i);
+      FeatherObj currentRune = ops->rune.at(interp, strObj, i);
       if (hasCustomSplit) {
-        // Check if current char is in split chars
-        isDelim = is_split_char(ops, interp, c, splitObj, splitLen);
+        // Check if current rune is in split runes
+        isDelim = is_split_rune(ops, interp, currentRune, splitObj, splitLen);
       } else {
-        // Use default whitespace
-        isDelim = is_default_split_char(c);
+        // Use default whitespace (byte-based check for ASCII whitespace)
+        // Since all default split chars are ASCII, we can check the first byte
+        int c = ops->string.byte_at(interp, currentRune, 0);
+        isDelim = (c != -1) && is_default_split_char(c);
       }
     }
 
     if (isDelim || i == strLen) {
-      // End of segment
-      FeatherObj elem = ops->string.slice(interp, strObj, start, i);
+      // End of segment - extract using rune.range
+      FeatherObj elem = ops->rune.range(interp, strObj, (int64_t)start, (int64_t)(i - 1));
       result = ops->list.push(interp, result, elem);
       start = i + 1;
     }

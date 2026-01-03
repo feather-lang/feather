@@ -82,36 +82,71 @@ static int subst_hex_value(int c) {
   return 0;
 }
 
-static size_t process_backslash_subst_obj(const FeatherHostOps *ops, FeatherInterp interp,
+// Encode a Unicode codepoint as UTF-8 bytes
+// Returns the number of bytes written (1-4)
+static size_t encode_utf8(uint32_t codepoint, char *buf) {
+  if (codepoint <= 0x7F) {
+    // 1-byte sequence: 0xxxxxxx
+    buf[0] = (char)codepoint;
+    return 1;
+  } else if (codepoint <= 0x7FF) {
+    // 2-byte sequence: 110xxxxx 10xxxxxx
+    buf[0] = (char)(0xC0 | (codepoint >> 6));
+    buf[1] = (char)(0x80 | (codepoint & 0x3F));
+    return 2;
+  } else if (codepoint <= 0xFFFF) {
+    // 3-byte sequence: 1110xxxx 10xxxxxx 10xxxxxx
+    buf[0] = (char)(0xE0 | (codepoint >> 12));
+    buf[1] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
+    buf[2] = (char)(0x80 | (codepoint & 0x3F));
+    return 3;
+  } else if (codepoint <= 0x10FFFF) {
+    // 4-byte sequence: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+    buf[0] = (char)(0xF0 | (codepoint >> 18));
+    buf[1] = (char)(0x80 | ((codepoint >> 12) & 0x3F));
+    buf[2] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
+    buf[3] = (char)(0x80 | (codepoint & 0x3F));
+    return 4;
+  } else {
+    // Invalid codepoint - return replacement character (U+FFFD)
+    buf[0] = (char)0xEF;
+    buf[1] = (char)0xBF;
+    buf[2] = (char)0xBD;
+    return 3;
+  }
+}
+
+static FeatherResult process_backslash_subst_obj(const FeatherHostOps *ops, FeatherInterp interp,
                                            FeatherObj str, size_t pos, size_t len,
-                                           char *buf, size_t *out_len) {
+                                           char *buf, size_t *out_len, size_t *consumed) {
   if (pos >= len) {
     buf[0] = '\\';
     *out_len = 1;
-    return 0;
+    *consumed = 0;
+    return TCL_OK;
   }
 
   int c = ops->string.byte_at(interp, str, pos);
 
   switch (c) {
-    case 'a': buf[0] = '\a'; *out_len = 1; return 1;
-    case 'b': buf[0] = '\b'; *out_len = 1; return 1;
-    case 'f': buf[0] = '\f'; *out_len = 1; return 1;
-    case 'n': buf[0] = '\n'; *out_len = 1; return 1;
-    case 'r': buf[0] = '\r'; *out_len = 1; return 1;
-    case 't': buf[0] = '\t'; *out_len = 1; return 1;
-    case 'v': buf[0] = '\v'; *out_len = 1; return 1;
-    case '\\': buf[0] = '\\'; *out_len = 1; return 1;
+    case 'a': buf[0] = '\a'; *out_len = 1; *consumed = 1; return TCL_OK;
+    case 'b': buf[0] = '\b'; *out_len = 1; *consumed = 1; return TCL_OK;
+    case 'f': buf[0] = '\f'; *out_len = 1; *consumed = 1; return TCL_OK;
+    case 'n': buf[0] = '\n'; *out_len = 1; *consumed = 1; return TCL_OK;
+    case 'r': buf[0] = '\r'; *out_len = 1; *consumed = 1; return TCL_OK;
+    case 't': buf[0] = '\t'; *out_len = 1; *consumed = 1; return TCL_OK;
+    case 'v': buf[0] = '\v'; *out_len = 1; *consumed = 1; return TCL_OK;
+    case '\\': buf[0] = '\\'; *out_len = 1; *consumed = 1; return TCL_OK;
     case '\n': {
       buf[0] = ' ';
       *out_len = 1;
-      size_t consumed = 1;
-      while (pos + consumed < len) {
-        int ch = ops->string.byte_at(interp, str, pos + consumed);
+      *consumed = 1;
+      while (pos + *consumed < len) {
+        int ch = ops->string.byte_at(interp, str, pos + *consumed);
         if (ch != ' ' && ch != '\t') break;
-        consumed++;
+        (*consumed)++;
       }
-      return consumed;
+      return TCL_OK;
     }
     case 'x': {
       if (pos + 1 < len) {
@@ -126,12 +161,52 @@ static size_t process_backslash_subst_obj(const FeatherHostOps *ops, FeatherInte
         if (i > 1) {
           buf[0] = (char)val;
           *out_len = 1;
-          return i;
+          *consumed = i;
+          return TCL_OK;
         }
       }
       buf[0] = 'x';
       *out_len = 1;
-      return 1;
+      *consumed = 1;
+      return TCL_OK;
+    }
+    case 'u': {
+      // \uNNNN - 16-bit Unicode escape (4 hex digits)
+      uint32_t codepoint = 0;
+      size_t i = 1;
+      for (; i <= 4 && pos + i < len; i++) {
+        int ch = ops->string.byte_at(interp, str, pos + i);
+        if (!subst_is_hex_digit(ch)) break;
+        codepoint = codepoint * 16 + subst_hex_value(ch);
+      }
+      if (i != 5) {
+        // Didn't get exactly 4 hex digits
+        FeatherObj msg = ops->string.intern(interp, "missing hexadecimal digits for \\u escape", 42);
+        ops->interp.set_result(interp, msg);
+        return TCL_ERROR;
+      }
+      *out_len = encode_utf8(codepoint, buf);
+      *consumed = 5; // 'u' + 4 hex digits
+      return TCL_OK;
+    }
+    case 'U': {
+      // \UNNNNNNNN - 32-bit Unicode escape (8 hex digits)
+      uint32_t codepoint = 0;
+      size_t i = 1;
+      for (; i <= 8 && pos + i < len; i++) {
+        int ch = ops->string.byte_at(interp, str, pos + i);
+        if (!subst_is_hex_digit(ch)) break;
+        codepoint = codepoint * 16 + subst_hex_value(ch);
+      }
+      if (i != 9) {
+        // Didn't get exactly 8 hex digits
+        FeatherObj msg = ops->string.intern(interp, "missing hexadecimal digits for \\U escape", 42);
+        ops->interp.set_result(interp, msg);
+        return TCL_ERROR;
+      }
+      *out_len = encode_utf8(codepoint, buf);
+      *consumed = 9; // 'U' + 8 hex digits
+      return TCL_OK;
     }
     default:
       if (c >= '0' && c <= '7') {
@@ -145,11 +220,13 @@ static size_t process_backslash_subst_obj(const FeatherHostOps *ops, FeatherInte
         }
         buf[0] = (char)(val & 0xFF);
         *out_len = 1;
-        return i;
+        *consumed = i;
+        return TCL_OK;
       }
       buf[0] = (char)c;
       *out_len = 1;
-      return 1;
+      *consumed = 1;
+      return TCL_OK;
   }
 }
 
@@ -258,7 +335,11 @@ FeatherResult feather_builtin_subst(const FeatherHostOps *ops, FeatherInterp int
       pos++;
       char escape_buf[4];
       size_t escape_len;
-      size_t consumed = process_backslash_subst_obj(ops, interp, str_obj, pos, len, escape_buf, &escape_len);
+      size_t consumed;
+      FeatherResult res = process_backslash_subst_obj(ops, interp, str_obj, pos, len, escape_buf, &escape_len, &consumed);
+      if (res != TCL_OK) {
+        return res;
+      }
       result = append_literal(ops, interp, result, escape_buf, escape_len);
       pos += consumed;
       seg_start = pos;

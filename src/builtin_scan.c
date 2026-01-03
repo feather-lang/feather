@@ -2,6 +2,55 @@
 #include "internal.h"
 #include "charclass.h"
 
+// Decode a UTF-8 codepoint from a string object starting at a given byte position
+// Returns the codepoint value and sets *bytes_read to the number of bytes consumed
+// Returns -1 on error
+static int64_t decode_utf8_at_pos(const FeatherHostOps *ops, FeatherInterp interp,
+                                   FeatherObj str, size_t pos, size_t len, size_t *bytes_read) {
+  if (pos >= len) return -1;
+
+  int byte0 = ops->string.byte_at(interp, str, pos);
+  if (byte0 < 0) return -1;
+
+  // 1-byte sequence: 0xxxxxxx
+  if ((byte0 & 0x80) == 0) {
+    *bytes_read = 1;
+    return (int64_t)byte0;
+  }
+
+  // 2-byte sequence: 110xxxxx 10xxxxxx
+  if ((byte0 & 0xE0) == 0xC0) {
+    if (pos + 1 >= len) return -1;
+    int byte1 = ops->string.byte_at(interp, str, pos + 1);
+    if ((byte1 & 0xC0) != 0x80) return -1;
+    *bytes_read = 2;
+    return (int64_t)(((byte0 & 0x1F) << 6) | (byte1 & 0x3F));
+  }
+
+  // 3-byte sequence: 1110xxxx 10xxxxxx 10xxxxxx
+  if ((byte0 & 0xF0) == 0xE0) {
+    if (pos + 2 >= len) return -1;
+    int byte1 = ops->string.byte_at(interp, str, pos + 1);
+    int byte2 = ops->string.byte_at(interp, str, pos + 2);
+    if ((byte1 & 0xC0) != 0x80 || (byte2 & 0xC0) != 0x80) return -1;
+    *bytes_read = 3;
+    return (int64_t)(((byte0 & 0x0F) << 12) | ((byte1 & 0x3F) << 6) | (byte2 & 0x3F));
+  }
+
+  // 4-byte sequence: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+  if ((byte0 & 0xF8) == 0xF0) {
+    if (pos + 3 >= len) return -1;
+    int byte1 = ops->string.byte_at(interp, str, pos + 1);
+    int byte2 = ops->string.byte_at(interp, str, pos + 2);
+    int byte3 = ops->string.byte_at(interp, str, pos + 3);
+    if ((byte1 & 0xC0) != 0x80 || (byte2 & 0xC0) != 0x80 || (byte3 & 0xC0) != 0x80) return -1;
+    *bytes_read = 4;
+    return (int64_t)(((byte0 & 0x07) << 18) | ((byte1 & 0x3F) << 12) | ((byte2 & 0x3F) << 6) | (byte3 & 0x3F));
+  }
+
+  return -1; // Invalid UTF-8
+}
+
 static int scan_is_whitespace(int c) {
   return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f';
 }
@@ -571,11 +620,15 @@ FeatherResult feather_builtin_scan(const FeatherHostOps *ops, FeatherInterp inte
         break;
       }
       case 'c': {
+        // Read a Unicode codepoint
         if (strPos < strLen) {
-          int c = ops->string.byte_at(interp, strObj, strPos);
-          strPos++;
-          scannedVal = ops->integer.create(interp, (int64_t)(unsigned char)c);
-          success = 1;
+          size_t bytes_read = 0;
+          int64_t codepoint = decode_utf8_at_pos(ops, interp, strObj, strPos, strLen, &bytes_read);
+          if (codepoint >= 0) {
+            strPos += bytes_read;
+            scannedVal = ops->integer.create(interp, codepoint);
+            success = 1;
+          }
         }
         break;
       }
