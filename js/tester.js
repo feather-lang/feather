@@ -14,6 +14,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 async function main() {
+  // Check for benchmark mode
+  if (process.argv.length > 2 && process.argv[2] === '--benchmark') {
+    await runBenchmarkMode();
+    return;
+  }
+
   const wasmPath = join(__dirname, 'feather.wasm');
   const feather = await createFeather(wasmPath);
   const interp = feather.create();
@@ -224,6 +230,109 @@ function writeHarnessResult(returnCode, result, errorMsg) {
   } catch {
     // fd 3 not available, ignore
   }
+}
+
+async function runBenchmarkMode() {
+  const wasmPath = join(__dirname, 'feather.wasm');
+  const feather = await createFeather(wasmPath);
+  const interp = feather.create();
+
+  registerTestCommands(feather, interp);
+
+  // Read benchmarks from stdin
+  const input = readFileSync(0, 'utf-8');
+  let benchmarks;
+  try {
+    benchmarks = JSON.parse(input);
+  } catch (e) {
+    console.error(`error reading benchmarks: ${e.message}`);
+    process.exit(1);
+  }
+
+  // Run each benchmark
+  for (const b of benchmarks) {
+    const result = runSingleBenchmark(feather, interp, b);
+
+    // Write result as JSON to fd 3
+    const resultJSON = JSON.stringify(result);
+    try {
+      writeSync(3, resultJSON + '\n');
+    } catch {
+      console.error('error: harness channel not available');
+      process.exit(1);
+    }
+  }
+}
+
+function runSingleBenchmark(feather, interp, b) {
+  const result = {
+    Benchmark: b,
+    Success: true,
+    TotalTime: 0,
+    AvgTime: 0,
+    MinTime: 0,
+    MaxTime: 0,
+    Iterations: 0,
+    OpsPerSecond: 0,
+    Error: ''
+  };
+
+  // Run setup if provided
+  if (b.Setup) {
+    try {
+      feather.eval(interp, b.Setup);
+    } catch (e) {
+      result.Success = false;
+      result.Error = `setup failed: ${e.message}`;
+      return result;
+    }
+  }
+
+  // Warmup iterations
+  for (let w = 0; w < (b.Warmup || 0); w++) {
+    try {
+      feather.eval(interp, b.Script);
+    } catch (e) {
+      result.Success = false;
+      result.Error = `warmup failed: ${e.message}`;
+      return result;
+    }
+  }
+
+  // Measured iterations
+  const iterations = b.Iterations || 1000;
+  let totalTime = 0;
+  let minTime = Infinity;
+  let maxTime = 0;
+
+  for (let iter = 0; iter < iterations; iter++) {
+    const start = process.hrtime.bigint();
+    try {
+      feather.eval(interp, b.Script);
+    } catch (e) {
+      result.Success = false;
+      result.Error = `iteration ${iter} failed: ${e.message}`;
+      return result;
+    }
+    const end = process.hrtime.bigint();
+    const elapsed = Number(end - start); // nanoseconds
+
+    totalTime += elapsed;
+    if (elapsed < minTime) minTime = elapsed;
+    if (elapsed > maxTime) maxTime = elapsed;
+    result.Iterations++;
+  }
+
+  // Calculate statistics (convert from nanoseconds to time.Duration format)
+  result.TotalTime = totalTime;
+  result.AvgTime = Math.floor(totalTime / iterations);
+  result.MinTime = minTime;
+  result.MaxTime = maxTime;
+  if (result.AvgTime > 0) {
+    result.OpsPerSecond = 1e9 / result.AvgTime; // 1 billion ns per second
+  }
+
+  return result;
 }
 
 main().catch((e) => {

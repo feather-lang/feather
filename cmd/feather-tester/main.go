@@ -4,9 +4,11 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/feather-lang/feather"
 )
@@ -16,7 +18,35 @@ type Counter struct {
 	value int
 }
 
+// Benchmark represents a benchmark to run (mirrors harness.Benchmark).
+type Benchmark struct {
+	Name       string
+	Setup      string
+	Script     string
+	Warmup     int
+	Iterations int
+}
+
+// BenchmarkResult holds the outcome of running a benchmark (mirrors harness.BenchmarkResult).
+type BenchmarkResult struct {
+	Benchmark    Benchmark
+	Success      bool
+	TotalTime    time.Duration
+	AvgTime      time.Duration
+	MinTime      time.Duration
+	MaxTime      time.Duration
+	Iterations   int
+	OpsPerSecond float64
+	Error        string
+}
+
 func main() {
+	// Check for benchmark mode
+	if len(os.Args) > 1 && os.Args[1] == "--benchmark" {
+		runBenchmarkMode()
+		return
+	}
+
 	i := feather.New()
 	defer i.Close()
 
@@ -219,4 +249,104 @@ func writeHarnessResult(returnCode string, result string, errorMsg string) {
 		fmt.Fprintf(w, "error: %s\n", errorMsg)
 	}
 	w.Flush()
+}
+
+func runBenchmarkMode() {
+	// Read benchmarks from stdin
+	var benchmarks []Benchmark
+	decoder := json.NewDecoder(os.Stdin)
+	if err := decoder.Decode(&benchmarks); err != nil {
+		fmt.Fprintf(os.Stderr, "error reading benchmarks: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Create interpreter once for all benchmarks
+	i := feather.New()
+	defer i.Close()
+
+	// Register test commands (in case benchmarks use them)
+	registerTestCommands(i)
+
+	// Open harness channel
+	f := os.NewFile(3, "harness")
+	if f == nil {
+		fmt.Fprintf(os.Stderr, "error: harness channel not available\n")
+		os.Exit(1)
+	}
+	defer f.Close()
+	w := bufio.NewWriter(f)
+
+	// Run each benchmark
+	for _, b := range benchmarks {
+		result := runSingleBenchmark(i, b)
+
+		// Write result as JSON
+		resultJSON, _ := json.Marshal(result)
+		fmt.Fprintf(w, "%s\n", resultJSON)
+		w.Flush()
+	}
+}
+
+func runSingleBenchmark(i *feather.Interp, b Benchmark) BenchmarkResult {
+	result := BenchmarkResult{
+		Benchmark: b,
+		Success:   true,
+	}
+
+	// Run setup if provided
+	if b.Setup != "" {
+		_, err := i.Eval(b.Setup)
+		if err != nil {
+			result.Success = false
+			result.Error = fmt.Sprintf("setup failed: %s", err.Error())
+			return result
+		}
+	}
+
+	// Warmup iterations
+	for w := 0; w < b.Warmup; w++ {
+		_, err := i.Eval(b.Script)
+		if err != nil {
+			result.Success = false
+			result.Error = fmt.Sprintf("warmup failed: %s", err.Error())
+			return result
+		}
+	}
+
+	// Measured iterations
+	var totalTime time.Duration
+	var minTime time.Duration
+	var maxTime time.Duration
+
+	for iter := 0; iter < b.Iterations; iter++ {
+		start := time.Now()
+		_, err := i.Eval(b.Script)
+		elapsed := time.Since(start)
+
+		if err != nil {
+			result.Success = false
+			result.Error = fmt.Sprintf("iteration %d failed: %s", iter, err.Error())
+			return result
+		}
+
+		totalTime += elapsed
+		if iter == 0 || elapsed < minTime {
+			minTime = elapsed
+		}
+		if elapsed > maxTime {
+			maxTime = elapsed
+		}
+		result.Iterations++
+	}
+
+	// Calculate statistics
+	result.TotalTime = totalTime
+	result.AvgTime = totalTime / time.Duration(b.Iterations)
+	result.MinTime = minTime
+	result.MaxTime = maxTime
+	if result.AvgTime > 0 {
+		result.OpsPerSecond = float64(time.Second) / float64(result.AvgTime)
+	}
+
+	return result
 }

@@ -1,0 +1,15 @@
+<benchmark-suite name="Simple Test">
+
+<benchmark name="simple expr" warmup="10" iterations="100">
+  <script>
+    expr {1 + 2}
+  </script>
+</benchmark>
+
+<benchmark name="list length" warmup="10" iterations="100">
+  <script>
+    llength {a b c d e}
+  </script>
+</benchmark>
+
+</benchmark-suite>

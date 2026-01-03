@@ -1,0 +1,86 @@
+<benchmark-suite name="List Operations">
+
+<!-- Basic list operations -->
+<benchmark name="lindex small list" warmup="100" iterations="10000">
+  <script>
+    lindex {a b c d e} 2
+  </script>
+</benchmark>
+
+<benchmark name="llength small list" warmup="100" iterations="10000">
+  <script>
+    llength {a b c d e f g h i j}
+  </script>
+</benchmark>
+
+<benchmark name="lappend to variable" warmup="100" iterations="5000">
+  <setup>
+    set mylist {}
+  </setup>
+  <script>
+    lappend mylist item
+  </script>
+</benchmark>
+
+<!-- Larger list operations -->
+<benchmark name="lindex large list" warmup="50" iterations="1000">
+  <setup>
+    set items {}
+    for {set i 0} {$i < 1000} {incr i} {
+      lappend items "item$i"
+    }
+  </setup>
+  <script>
+    lindex $items 500
+  </script>
+</benchmark>
+
+<benchmark name="llength large list" warmup="50" iterations="1000">
+  <setup>
+    set items {}
+    for {set i 0} {$i < 1000} {incr i} {
+      lappend items "item$i"
+    }
+  </setup>
+  <script>
+    llength $items
+  </script>
+</benchmark>
+
+<benchmark name="lsort 100 integers" warmup="20" iterations="500">
+  <setup>
+    set items {}
+    for {set i 100} {$i > 0} {incr i -1} {
+      lappend items $i
+    }
+  </setup>
+  <script>
+    lsort -integer $items
+  </script>
+</benchmark>
+
+<benchmark name="lsearch linear 100 items" warmup="50" iterations="1000">
+  <setup>
+    set items {}
+    for {set i 0} {$i < 100} {incr i} {
+      lappend items "item$i"
+    }
+  </setup>
+  <script>
+    lsearch $items "item75"
+  </script>
+</benchmark>
+
+<benchmark name="lreverse 100 items" warmup="50" iterations="1000">
+  <setup>
+    set items {}
+    for {set i 0} {$i < 100} {incr i} {
+      lappend items "item$i"
+    }
+  </setup>
+  <script>
+    lreverse $items
+  </script>
+</benchmark>
+
+</benchmark-suite>

@@ -1,0 +1,98 @@
+<benchmark-suite name="Dictionary Operations">
+
+<!-- Basic dict operations -->
+<benchmark name="dict create small" warmup="100" iterations="10000">
+  <script>
+    dict create a 1 b 2 c 3
+  </script>
+</benchmark>
+
+<benchmark name="dict get" warmup="100" iterations="10000">
+  <setup>
+    set d {a 1 b 2 c 3 d 4 e 5}
+  </setup>
+  <script>
+    dict get $d c
+  </script>
+</benchmark>
+
+<benchmark name="dict set" warmup="100" iterations="5000">
+  <setup>
+    set d {a 1 b 2 c 3}
+  </setup>
+  <script>
+    dict set d x 99
+  </script>
+</benchmark>
+
+<benchmark name="dict exists true" warmup="100" iterations="10000">
+  <setup>
+    set d {a 1 b 2 c 3}
+  </setup>
+  <script>
+    dict exists $d b
+  </script>
+</benchmark>
+
+<benchmark name="dict exists false" warmup="100" iterations="10000">
+  <setup>
+    set d {a 1 b 2 c 3}
+  </setup>
+  <script>
+    dict exists $d z
+  </script>
+</benchmark>
+
+<benchmark name="dict size small" warmup="100" iterations="10000">
+  <setup>
+    set d {a 1 b 2 c 3 d 4 e 5}
+  </setup>
+  <script>
+    dict size $d
+  </script>
+</benchmark>
+
+<benchmark name="dict keys" warmup="100" iterations="5000">
+  <setup>
+    set d {a 1 b 2 c 3 d 4 e 5}
+  </setup>
+  <script>
+    dict keys $d
+  </script>
+</benchmark>
+
+<benchmark name="dict values" warmup="100" iterations="5000">
+  <setup>
+    set d {a 1 b 2 c 3 d 4 e 5}
+  </setup>
+  <script>
+    dict values $d
+  </script>
+</benchmark>
+
+<!-- Larger dictionaries -->
+<benchmark name="dict create large" warmup="20" iterations="500">
+  <setup>
+    set pairs {}
+    for {set i 0} {$i < 100} {incr i} {
+      lappend pairs "key$i" "value$i"
+    }
+  </setup>
+  <script>
+    dict create {*}$pairs
+  </script>
+</benchmark>
+
+<benchmark name="dict get large dict" warmup="50" iterations="1000">
+  <setup>
+    set d {}
+    for {set i 0} {$i < 100} {incr i} {
+      dict set d "key$i" "value$i"
+    }
+  </setup>
+  <script>
+    dict get $d key50
+  </script>
+</benchmark>
+
+</benchmark-suite>

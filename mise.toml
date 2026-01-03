@@ -8,6 +8,13 @@ cd harness
 go build -o $MISE_CONFIG_ROOT/bin/harness ./cmd/harness
 """
 
+[tasks."build:bench"]
+description = "Builds the benchmark runner"
+run = """
+cd harness
+go build -o $MISE_CONFIG_ROOT/bin/bench ./cmd/bench
+"""
+
 [tasks."build:feather-tester"]
 description = "Builds the feather-tester binary"
 run = """
@@ -53,7 +60,7 @@ go build -o $MISE_CONFIG_ROOT/bin/feather-memory-tester ./cmd/feather-memory-tes
 
 [tasks.build]
 description = "build all binaries in bin/"
-depends = ["build:harness", "build:feather-tester"]
+depends = ["build:harness", "build:bench", "build:feather-tester"]
 
 [tasks.test]
 description = "Run the test harness"
@@ -75,6 +82,27 @@ harness run --host js/tester.js testcases/
 [tasks."test:all"]
 description = "Run all test suites in parallel"
 depends = ["test", "test:js"]
+
+[tasks.bench]
+description = "Run benchmarks with the Go host"
+depends = ["build:bench", "build:feather-tester"]
+usage = """
+arg "path" default="benchmarks/"
+"""
+run = """
+bench -host bin/feather-tester $usage_path*.html
+"""
+
+[tasks."bench:js"]
+description = "Run benchmarks with the JavaScript host"
+depends = ["build:bench", "build:wasm"]
+run = """
+bench -host js/tester.js benchmarks/*.html
+"""
+
+[tasks."bench:all"]
+description = "Run all benchmarks in parallel"
+depends = ["bench", "bench:js"]
 
 [tools]
 go = "1.25.5"

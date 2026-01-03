@@ -1,0 +1,86 @@
+<benchmark-suite name="Control Flow">
+
+<!-- Loop benchmarks -->
+<benchmark name="for loop 100 iterations" warmup="50" iterations="1000">
+  <script>
+    for {set i 0} {$i < 100} {incr i} {}
+  </script>
+</benchmark>
+
+<benchmark name="for loop 1000 iterations" warmup="20" iterations="200">
+  <script>
+    for {set i 0} {$i < 1000} {incr i} {}
+  </script>
+</benchmark>
+
+<benchmark name="while loop 100 iterations" warmup="50" iterations="1000">
+  <script>
+    set i 0
+    while {$i < 100} {
+      incr i
+    }
+  </script>
+</benchmark>
+
+<benchmark name="foreach 10 items" warmup="100" iterations="5000">
+  <setup>
+    set items {a b c d e f g h i j}
+  </setup>
+  <script>
+    foreach item $items {}
+  </script>
+</benchmark>
+
+<benchmark name="foreach 100 items" warmup="50" iterations="1000">
+  <setup>
+    set items {}
+    for {set i 0} {$i < 100} {incr i} {
+      lappend items $i
+    }
+  </setup>
+  <script>
+    foreach item $items {}
+  </script>
+</benchmark>
+
+<!-- If/else benchmarks -->
+<benchmark name="if true simple" warmup="100" iterations="10000">
+  <script>
+    if {1} {
+      set x 1
+    }
+  </script>
+</benchmark>
+
+<benchmark name="if false with else" warmup="100" iterations="10000">
+  <script>
+    if {0} {
+      set x 1
+    } else {
+      set x 2
+    }
+  </script>
+</benchmark>
+
+<!-- Switch benchmarks -->
+<benchmark name="switch exact match first" warmup="100" iterations="5000">
+  <script>
+    switch -exact -- "apple" {
+      apple { set x 1 }
+      banana { set x 2 }
+      cherry { set x 3 }
+    }
+  </script>
+</benchmark>
+
+<benchmark name="switch exact match last" warmup="100" iterations="5000">
+  <script>
+    switch -exact -- "cherry" {
+      apple { set x 1 }
+      banana { set x 2 }
+      cherry { set x 3 }
+    }
+  </script>
+</benchmark>
+
+</benchmark-suite>
