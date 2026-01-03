@@ -98,11 +98,11 @@ static FeatherResult ns_exists(const FeatherHostOps *ops, FeatherInterp interp, 
   return TCL_OK;
 }
 
-// namespace children ?ns?
+// namespace children ?ns? ?pattern?
 static FeatherResult ns_children(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
-  if (argc > 1) {
-    FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"namespace children ?name?\"", 51);
+  if (argc > 2) {
+    FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"namespace children ?name? ?pattern?\"", 61);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
   }
@@ -116,6 +116,22 @@ static FeatherResult ns_children(const FeatherHostOps *ops, FeatherInterp interp
   }
 
   FeatherObj children = ops->ns.children(interp, ns_path);
+
+  // If pattern provided, filter the children list
+  if (argc == 2) {
+    FeatherObj pattern = ops->list.at(interp, args, 1);
+    FeatherObj filtered = ops->list.create(interp);
+    size_t num_children = ops->list.length(interp, children);
+
+    for (size_t i = 0; i < num_children; i++) {
+      FeatherObj child = ops->list.at(interp, children, i);
+      if (feather_obj_glob_match(ops, interp, pattern, child)) {
+        filtered = ops->list.push(interp, filtered, child);
+      }
+    }
+    children = filtered;
+  }
+
   ops->interp.set_result(interp, children);
   return TCL_OK;
 }
@@ -160,13 +176,14 @@ static FeatherResult ns_parent(const FeatherHostOps *ops, FeatherInterp interp, 
   return TCL_OK;
 }
 
-// namespace delete ns ?ns ...?
+// namespace delete ?ns ...?
 static FeatherResult ns_delete(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
-  if (argc < 1) {
-    FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"namespace delete ?name name ...?\"", 58);
-    ops->interp.set_result(interp, msg);
-    return TCL_ERROR;
+
+  // No args is a no-op (TCL behavior)
+  if (argc == 0) {
+    ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
+    return TCL_OK;
   }
 
   for (size_t i = 0; i < argc; i++) {
@@ -433,6 +450,191 @@ static FeatherResult ns_import(const FeatherHostOps *ops, FeatherInterp interp, 
   return TCL_OK;
 }
 
+// namespace inscope ns script ?arg ...?
+static FeatherResult ns_inscope(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
+  size_t argc = ops->list.length(interp, args);
+  if (argc < 2) {
+    FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"namespace inscope name arg ?arg...?\"", 61);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  FeatherObj ns_path = ops->list.at(interp, args, 0);
+  FeatherObj abs_path = resolve_ns_path(ops, interp, ns_path);
+
+  // Check if namespace exists
+  if (!ops->ns.exists(interp, abs_path)) {
+    FeatherObj msg = ops->string.intern(interp, "namespace \"", 11);
+    msg = ops->string.concat(interp, msg, abs_path);
+    msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\" not found", 11));
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  // Get the script (first arg after namespace)
+  FeatherObj script = ops->list.at(interp, args, 1);
+
+  // If there are additional args, append them as list elements
+  // TCL inscope appends extra args to the script as list elements
+  if (argc > 2) {
+    // Create a list with the script as first element, then extra args
+    FeatherObj cmdList = ops->list.create(interp);
+    cmdList = ops->list.push(interp, cmdList, script);
+    for (size_t i = 2; i < argc; i++) {
+      cmdList = ops->list.push(interp, cmdList, ops->list.at(interp, args, i));
+    }
+    script = cmdList;
+  }
+
+  // Save current namespace
+  FeatherObj saved_ns = ops->frame.get_namespace(interp);
+
+  // Set current frame's namespace
+  ops->frame.set_namespace(interp, abs_path);
+
+  // Evaluate the script
+  FeatherResult result = feather_script_eval_obj(ops, interp, script, TCL_EVAL_LOCAL);
+
+  // Restore namespace
+  ops->frame.set_namespace(interp, saved_ns);
+
+  return result;
+}
+
+// namespace code script
+static FeatherResult ns_code(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
+  size_t argc = ops->list.length(interp, args);
+  if (argc != 1) {
+    FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"namespace code arg\"", 44);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  FeatherObj script = ops->list.at(interp, args, 0);
+  FeatherObj current = ops->ns.current(interp);
+
+  // Build result: "::namespace inscope <ns> {<script>}"
+  FeatherObj result = ops->string.intern(interp, "::namespace inscope ", 20);
+  result = ops->string.concat(interp, result, current);
+  result = ops->string.concat(interp, result, ops->string.intern(interp, " {", 2));
+  result = ops->string.concat(interp, result, script);
+  result = ops->string.concat(interp, result, ops->string.intern(interp, "}", 1));
+
+  ops->interp.set_result(interp, result);
+  return TCL_OK;
+}
+
+// namespace which ?-command? ?-variable? name
+static FeatherResult ns_which(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj args) {
+  size_t argc = ops->list.length(interp, args);
+  if (argc == 0 || argc > 2) {
+    FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"namespace which ?-command? ?-variable? name\"", 69);
+    ops->interp.set_result(interp, msg);
+    return TCL_ERROR;
+  }
+
+  int is_variable = 0;
+  FeatherObj name;
+
+  if (argc == 1) {
+    // Default to -command
+    name = ops->list.at(interp, args, 0);
+  } else {
+    // argc == 2: option and name
+    FeatherObj option = ops->list.at(interp, args, 0);
+    name = ops->list.at(interp, args, 1);
+    if (feather_obj_eq_literal(ops, interp, option, "-variable")) {
+      is_variable = 1;
+    } else if (!feather_obj_eq_literal(ops, interp, option, "-command")) {
+      FeatherObj msg = ops->string.intern(interp, "wrong # args: should be \"namespace which ?-command? ?-variable? name\"", 69);
+      ops->interp.set_result(interp, msg);
+      return TCL_ERROR;
+    }
+  }
+
+  // Resolve the name to a fully-qualified name
+  FeatherObj current = ops->ns.current(interp);
+
+  if (is_variable) {
+    // Check if name is already absolute
+    size_t name_len = ops->string.byte_length(interp, name);
+    if (name_len >= 2 && ops->string.byte_at(interp, name, 0) == ':' &&
+        ops->string.byte_at(interp, name, 1) == ':') {
+      // Absolute name - extract namespace and variable name
+      long last_sep = feather_obj_find_last_colons(ops, interp, name);
+      FeatherObj ns = (last_sep <= 0) ? ops->string.intern(interp, "::", 2)
+                                      : ops->string.slice(interp, name, 0, (size_t)last_sep);
+      FeatherObj varname = ops->string.slice(interp, name, (size_t)last_sep + 2, name_len);
+      if (ops->ns.var_exists(interp, ns, varname)) {
+        ops->interp.set_result(interp, name);
+      } else {
+        ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
+      }
+    } else {
+      // Relative name - check in current namespace
+      if (ops->ns.var_exists(interp, current, name)) {
+        FeatherObj result;
+        if (feather_obj_is_global_ns(ops, interp, current)) {
+          result = ops->string.intern(interp, "::", 2);
+          result = ops->string.concat(interp, result, name);
+        } else {
+          result = ops->string.concat(interp, current, ops->string.intern(interp, "::", 2));
+          result = ops->string.concat(interp, result, name);
+        }
+        ops->interp.set_result(interp, result);
+      } else {
+        ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
+      }
+    }
+  } else {
+    // Check for command
+    size_t name_len = ops->string.byte_length(interp, name);
+    if (name_len >= 2 && ops->string.byte_at(interp, name, 0) == ':' &&
+        ops->string.byte_at(interp, name, 1) == ':') {
+      // Absolute name - extract namespace and command name
+      long last_sep = feather_obj_find_last_colons(ops, interp, name);
+      FeatherObj ns = (last_sep <= 0) ? ops->string.intern(interp, "::", 2)
+                                      : ops->string.slice(interp, name, 0, (size_t)last_sep);
+      FeatherObj cmdname = ops->string.slice(interp, name, (size_t)last_sep + 2, name_len);
+      FeatherBuiltinCmd fn;
+      FeatherCommandType cmdType = ops->ns.get_command(interp, ns, cmdname, &fn, NULL, NULL);
+      if (cmdType != TCL_CMD_NONE) {
+        ops->interp.set_result(interp, name);
+      } else {
+        ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
+      }
+    } else {
+      // Relative name - search current namespace first, then global
+      FeatherBuiltinCmd fn;
+      FeatherCommandType cmdType = ops->ns.get_command(interp, current, name, &fn, NULL, NULL);
+      if (cmdType != TCL_CMD_NONE) {
+        FeatherObj result;
+        if (feather_obj_is_global_ns(ops, interp, current)) {
+          result = ops->string.intern(interp, "::", 2);
+          result = ops->string.concat(interp, result, name);
+        } else {
+          result = ops->string.concat(interp, current, ops->string.intern(interp, "::", 2));
+          result = ops->string.concat(interp, result, name);
+        }
+        ops->interp.set_result(interp, result);
+      } else {
+        // Try global namespace
+        FeatherObj global = ops->string.intern(interp, "::", 2);
+        cmdType = ops->ns.get_command(interp, global, name, &fn, NULL, NULL);
+        if (cmdType != TCL_CMD_NONE) {
+          FeatherObj result = ops->string.intern(interp, "::", 2);
+          result = ops->string.concat(interp, result, name);
+          ops->interp.set_result(interp, result);
+        } else {
+          ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
+        }
+      }
+    }
+  }
+
+  return TCL_OK;
+}
+
 FeatherResult feather_builtin_namespace(const FeatherHostOps *ops, FeatherInterp interp,
                                  FeatherObj cmd, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
@@ -466,12 +668,18 @@ FeatherResult feather_builtin_namespace(const FeatherHostOps *ops, FeatherInterp
     return ns_qualifiers(ops, interp, args);
   } else if (feather_obj_eq_literal(ops, interp, subcmd, "tail")) {
     return ns_tail(ops, interp, args);
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "inscope")) {
+    return ns_inscope(ops, interp, args);
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "code")) {
+    return ns_code(ops, interp, args);
+  } else if (feather_obj_eq_literal(ops, interp, subcmd, "which")) {
+    return ns_which(ops, interp, args);
   } else {
     FeatherObj msg = ops->string.intern(interp,
       "bad option \"", 12);
     msg = ops->string.concat(interp, msg, subcmd);
     FeatherObj suffix = ops->string.intern(interp,
-      "\": must be children, current, delete, eval, exists, export, import, parent, qualifiers, or tail", 95);
+      "\": must be children, code, current, delete, eval, exists, export, import, inscope, parent, qualifiers, tail, or which", 117);
     msg = ops->string.concat(interp, msg, suffix);
     ops->interp.set_result(interp, msg);
     return TCL_ERROR;
