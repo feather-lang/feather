@@ -228,6 +228,31 @@ static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
 
       result = ops->list.push(interp, result, entry);
 
+    } else if (feather_obj_eq_literal(ops, interp, keyword, "cmd")) {
+      /* cmd "name" { body } - subcommand definition */
+      if (i >= specLen) break;
+
+      FeatherObj cmdName = ops->list.at(interp, specList, i);
+      i++;
+
+      /* Get the body (next element should be braced body) */
+      FeatherObj cmdBody = ops->string.intern(interp, "", 0);
+      if (i < specLen) {
+        cmdBody = ops->list.at(interp, specList, i);
+        i++;
+      }
+
+      /* Recursively parse the subcommand body */
+      FeatherObj subSpec = parse_spec(ops, interp, cmdBody);
+
+      /* Create cmd entry: {cmd name subSpec} */
+      FeatherObj entry = ops->list.create(interp);
+      entry = ops->list.push(interp, entry, ops->string.intern(interp, "cmd", 3));
+      entry = ops->list.push(interp, entry, cmdName);
+      entry = ops->list.push(interp, entry, subSpec);
+
+      result = ops->list.push(interp, result, entry);
+
     } else if (feather_obj_eq_literal(ops, interp, keyword, "flag")) {
       /* flag "-s --long" or flag "-s --long <value>" with options */
       if (i >= specLen) break;
@@ -345,6 +370,7 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
   /* Add flags summary */
   size_t specLen = ops->list.length(interp, parsedSpec);
   int hasFlags = 0;
+  int hasSubcmds = 0;
 
   for (size_t i = 0; i < specLen; i++) {
     FeatherObj entry = ops->list.at(interp, parsedSpec, i);
@@ -357,6 +383,15 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
         hasFlags = 1;
       }
     }
+    if (feather_obj_eq_literal(ops, interp, type, "cmd")) {
+      hasSubcmds = 1;
+    }
+  }
+
+  /* Add subcommand placeholder if any */
+  if (hasSubcmds) {
+    const char *subcmd = " <command>";
+    while (*subcmd) ops->string.builder_append_byte(interp, builder, *subcmd++);
   }
 
   /* Add positional args */
@@ -386,6 +421,26 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
       if (variadic) {
         const char *dots = "...";
         while (*dots) ops->string.builder_append_byte(interp, builder, *dots++);
+      }
+    }
+  }
+
+  /* Add subcommands section */
+  if (hasSubcmds) {
+    const char *nl = "\n\nCommands:";
+    while (*nl) ops->string.builder_append_byte(interp, builder, *nl++);
+
+    for (size_t i = 0; i < specLen; i++) {
+      FeatherObj entry = ops->list.at(interp, parsedSpec, i);
+      FeatherObj type = ops->list.at(interp, entry, 0);
+
+      if (feather_obj_eq_literal(ops, interp, type, "cmd")) {
+        FeatherObj name = ops->list.at(interp, entry, 1);
+
+        ops->string.builder_append_byte(interp, builder, '\n');
+        const char *indent = "  ";
+        while (*indent) ops->string.builder_append_byte(interp, builder, *indent++);
+        ops->string.builder_append_obj(interp, builder, name);
       }
     }
   }
@@ -531,9 +586,208 @@ static FeatherResult usage_for(const FeatherHostOps *ops, FeatherInterp interp,
 }
 
 /**
+ * Check if a parsed spec has any subcommand definitions.
+ */
+static int spec_has_subcommands(const FeatherHostOps *ops, FeatherInterp interp,
+                                 FeatherObj parsedSpec) {
+  size_t specLen = ops->list.length(interp, parsedSpec);
+  for (size_t i = 0; i < specLen; i++) {
+    FeatherObj entry = ops->list.at(interp, parsedSpec, i);
+    FeatherObj type = ops->list.at(interp, entry, 0);
+    if (feather_obj_eq_literal(ops, interp, type, "cmd")) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/**
+ * Build "missing subcommand" error message listing available subcommands.
+ */
+static FeatherObj build_missing_subcmd_error(const FeatherHostOps *ops, FeatherInterp interp,
+                                              FeatherObj parsedSpec) {
+  FeatherObj builder = ops->string.builder_new(interp, 64);
+  const char *prefix = "missing subcommand: must be ";
+  while (*prefix) ops->string.builder_append_byte(interp, builder, *prefix++);
+
+  size_t specLen = ops->list.length(interp, parsedSpec);
+  int first = 1;
+  int count = 0;
+
+  /* Count subcommands first */
+  for (size_t i = 0; i < specLen; i++) {
+    FeatherObj entry = ops->list.at(interp, parsedSpec, i);
+    FeatherObj type = ops->list.at(interp, entry, 0);
+    if (feather_obj_eq_literal(ops, interp, type, "cmd")) {
+      count++;
+    }
+  }
+
+  /* Build list */
+  int idx = 0;
+  for (size_t i = 0; i < specLen; i++) {
+    FeatherObj entry = ops->list.at(interp, parsedSpec, i);
+    FeatherObj type = ops->list.at(interp, entry, 0);
+    if (feather_obj_eq_literal(ops, interp, type, "cmd")) {
+      FeatherObj name = ops->list.at(interp, entry, 1);
+      if (!first) {
+        if (idx == count - 1) {
+          const char *sep = " or ";
+          while (*sep) ops->string.builder_append_byte(interp, builder, *sep++);
+        } else {
+          const char *sep = ", ";
+          while (*sep) ops->string.builder_append_byte(interp, builder, *sep++);
+        }
+      }
+      ops->string.builder_append_obj(interp, builder, name);
+      first = 0;
+      idx++;
+    }
+  }
+
+  return ops->string.builder_finish(interp, builder);
+}
+
+/**
+ * Initialize variables from a spec (flags to defaults, args to empty/defaults).
+ */
+static void init_spec_vars(const FeatherHostOps *ops, FeatherInterp interp,
+                            FeatherObj parsedSpec) {
+  size_t specLen = ops->list.length(interp, parsedSpec);
+
+  for (size_t i = 0; i < specLen; i++) {
+    FeatherObj entry = ops->list.at(interp, parsedSpec, i);
+    FeatherObj type = ops->list.at(interp, entry, 0);
+
+    if (feather_obj_eq_literal(ops, interp, type, "arg")) {
+      FeatherObj name = ops->list.at(interp, entry, 1);
+      FeatherObj defaultVal = ops->list.at(interp, entry, 5);
+      int64_t variadic = 0;
+      ops->integer.get(interp, ops->list.at(interp, entry, 3), &variadic);
+
+      if (variadic) {
+        ops->var.set(interp, name, ops->list.create(interp));
+      } else {
+        ops->var.set(interp, name, defaultVal);
+      }
+    } else if (feather_obj_eq_literal(ops, interp, type, "flag")) {
+      FeatherObj varName = ops->list.at(interp, entry, 5);
+      int64_t hasValue = 0;
+      ops->integer.get(interp, ops->list.at(interp, entry, 3), &hasValue);
+
+      if (hasValue) {
+        ops->var.set(interp, varName, ops->string.intern(interp, "", 0));
+      } else {
+        ops->var.set(interp, varName, ops->integer.create(interp, 0));
+      }
+    } else if (feather_obj_eq_literal(ops, interp, type, "cmd")) {
+      /* Recursively init subcommand vars */
+      FeatherObj subSpec = ops->list.at(interp, entry, 2);
+      init_spec_vars(ops, interp, subSpec);
+    }
+  }
+}
+
+/**
+ * Try to match a flag in a list of specs (for handling flags from multiple levels).
+ * Returns 1 if matched, 0 if not found, -1 on error.
+ * If matched and flag takes a value, *argIdxPtr is advanced.
+ */
+static int try_match_flag(const FeatherHostOps *ops, FeatherInterp interp,
+                           FeatherObj specs[], int numSpecs,
+                           FeatherObj arg, FeatherObj argsListParsed,
+                           size_t *argIdxPtr, size_t argsLen) {
+  size_t argLen = ops->string.byte_length(interp, arg);
+  int isLong = (argLen >= 2 && ops->string.byte_at(interp, arg, 1) == '-');
+
+  for (int s = 0; s < numSpecs; s++) {
+    FeatherObj parsedSpec = specs[s];
+    size_t specLen = ops->list.length(interp, parsedSpec);
+
+    for (size_t i = 0; i < specLen; i++) {
+      FeatherObj entry = ops->list.at(interp, parsedSpec, i);
+      FeatherObj type = ops->list.at(interp, entry, 0);
+
+      if (!feather_obj_eq_literal(ops, interp, type, "flag")) continue;
+
+      FeatherObj shortFlag = ops->list.at(interp, entry, 1);
+      FeatherObj longFlag = ops->list.at(interp, entry, 2);
+      int64_t hasValue = 0;
+      ops->integer.get(interp, ops->list.at(interp, entry, 3), &hasValue);
+      FeatherObj varName = ops->list.at(interp, entry, 5);
+
+      if (isLong) {
+        FeatherObj flagName = ops->string.slice(interp, arg, 2, argLen);
+        size_t flagNameLen = ops->string.byte_length(interp, flagName);
+
+        long eqPos = -1;
+        for (size_t j = 0; j < flagNameLen; j++) {
+          if (ops->string.byte_at(interp, flagName, j) == '=') {
+            eqPos = (long)j;
+            break;
+          }
+        }
+
+        FeatherObj cmpName;
+        FeatherObj inlineValue = 0;
+        if (eqPos >= 0) {
+          cmpName = ops->string.slice(interp, flagName, 0, (size_t)eqPos);
+          inlineValue = ops->string.slice(interp, flagName, (size_t)eqPos + 1, flagNameLen);
+        } else {
+          cmpName = flagName;
+        }
+
+        if (ops->string.equal(interp, cmpName, longFlag)) {
+          if (hasValue) {
+            if (inlineValue) {
+              ops->var.set(interp, varName, inlineValue);
+            } else if (*argIdxPtr + 1 < argsLen) {
+              (*argIdxPtr)++;
+              ops->var.set(interp, varName, ops->list.at(interp, argsListParsed, *argIdxPtr));
+            } else {
+              FeatherObj msg = ops->string.intern(interp, "flag --", 7);
+              msg = ops->string.concat(interp, msg, longFlag);
+              msg = ops->string.concat(interp, msg, ops->string.intern(interp, " requires a value", 17));
+              ops->interp.set_result(interp, msg);
+              return -1;
+            }
+          } else {
+            ops->var.set(interp, varName, ops->integer.create(interp, 1));
+          }
+          return 1;
+        }
+      } else {
+        FeatherObj flagChar = ops->string.slice(interp, arg, 1, argLen);
+
+        if (ops->string.equal(interp, flagChar, shortFlag)) {
+          if (hasValue) {
+            if (*argIdxPtr + 1 < argsLen) {
+              (*argIdxPtr)++;
+              ops->var.set(interp, varName, ops->list.at(interp, argsListParsed, *argIdxPtr));
+            } else {
+              FeatherObj msg = ops->string.intern(interp, "flag -", 6);
+              msg = ops->string.concat(interp, msg, shortFlag);
+              msg = ops->string.concat(interp, msg, ops->string.intern(interp, " requires a value", 17));
+              ops->interp.set_result(interp, msg);
+              return -1;
+            }
+          } else {
+            ops->var.set(interp, varName, ops->integer.create(interp, 1));
+          }
+          return 1;
+        }
+      }
+    }
+  }
+
+  return 0;
+}
+
+/**
  * usage parse command argsList
  *
  * Parse arguments according to the usage spec and create local variables.
+ * Supports nested subcommands up to 8 levels deep.
  */
 static FeatherResult usage_parse(const FeatherHostOps *ops, FeatherInterp interp,
                                   FeatherObj args) {
@@ -566,144 +820,49 @@ static FeatherResult usage_parse(const FeatherHostOps *ops, FeatherInterp interp
   /* Parse the args list */
   FeatherObj argsListParsed = ops->list.from(interp, argsList);
   size_t argsLen = ops->list.length(interp, argsListParsed);
-  size_t specLen = ops->list.length(interp, parsedSpec);
 
-  /* Initialize all variables to defaults first */
-  for (size_t i = 0; i < specLen; i++) {
-    FeatherObj entry = ops->list.at(interp, parsedSpec, i);
-    FeatherObj type = ops->list.at(interp, entry, 0);
+  /* Initialize all variables (including nested subcommand vars) to defaults */
+  init_spec_vars(ops, interp, parsedSpec);
 
-    if (feather_obj_eq_literal(ops, interp, type, "arg")) {
-      FeatherObj name = ops->list.at(interp, entry, 1);
-      FeatherObj defaultVal = ops->list.at(interp, entry, 5);
-      int64_t variadic = 0;
-      ops->integer.get(interp, ops->list.at(interp, entry, 3), &variadic);
+  /* Track spec stack for nested subcommands (up to 8 levels) */
+  FeatherObj specStack[8];
+  int specDepth = 0;
+  specStack[specDepth++] = parsedSpec;
 
-      if (variadic) {
-        /* Variadic args default to empty list */
-        ops->var.set(interp, name, ops->list.create(interp));
-      } else {
-        ops->var.set(interp, name, defaultVal);
-      }
-    } else if (feather_obj_eq_literal(ops, interp, type, "flag")) {
-      FeatherObj varName = ops->list.at(interp, entry, 5);
-      int64_t hasValue = 0;
-      ops->integer.get(interp, ops->list.at(interp, entry, 3), &hasValue);
-
-      if (hasValue) {
-        /* Flag with value defaults to empty string */
-        ops->var.set(interp, varName, ops->string.intern(interp, "", 0));
-      } else {
-        /* Boolean flag defaults to 0 */
-        ops->var.set(interp, varName, ops->integer.create(interp, 0));
-      }
-    }
-  }
+  /* Track subcommand path */
+  FeatherObj subcmdPath = ops->list.create(interp);
 
   /* Process arguments */
   size_t argIdx = 0;
-  size_t posArgIdx = 0;  /* Index into positional args in spec */
-  FeatherObj variadicList = 0;  /* For collecting variadic args */
+  size_t posArgIdx = 0;  /* Index into positional args in current spec */
+  FeatherObj variadicList = 0;
   FeatherObj variadicName = 0;
-  int flagsEnded = 0;  /* Set to 1 after seeing -- */
+  int flagsEnded = 0;
+
+  /* Get current active spec (deepest in stack) */
+  FeatherObj activeSpec = specStack[specDepth - 1];
+  size_t activeSpecLen = ops->list.length(interp, activeSpec);
 
   while (argIdx < argsLen) {
     FeatherObj arg = ops->list.at(interp, argsListParsed, argIdx);
     size_t argLen = ops->string.byte_length(interp, arg);
 
-    /* Check if it's a flag (starts with -) but only if we haven't seen -- */
+    /* Check if it's a flag */
     if (!flagsEnded && argLen >= 1 && ops->string.byte_at(interp, arg, 0) == '-') {
       /* Check for -- (end of flags) */
       if (argLen == 2 && ops->string.byte_at(interp, arg, 1) == '-') {
         argIdx++;
         flagsEnded = 1;
-        /* Continue to next arg, which will be treated as positional */
         continue;
       }
 
-      /* Look for matching flag */
-      int found = 0;
-      int isLong = (argLen >= 2 && ops->string.byte_at(interp, arg, 1) == '-');
-
-      for (size_t i = 0; i < specLen && !found; i++) {
-        FeatherObj entry = ops->list.at(interp, parsedSpec, i);
-        FeatherObj type = ops->list.at(interp, entry, 0);
-
-        if (!feather_obj_eq_literal(ops, interp, type, "flag")) continue;
-
-        FeatherObj shortFlag = ops->list.at(interp, entry, 1);
-        FeatherObj longFlag = ops->list.at(interp, entry, 2);
-        int64_t hasValue = 0;
-        ops->integer.get(interp, ops->list.at(interp, entry, 3), &hasValue);
-        FeatherObj varName = ops->list.at(interp, entry, 5);
-
-        if (isLong) {
-          /* Check long flag: --name or --name=value */
-          FeatherObj flagName = ops->string.slice(interp, arg, 2, argLen);
-          size_t flagNameLen = ops->string.byte_length(interp, flagName);
-
-          /* Check for = in flag (--flag=value) */
-          long eqPos = -1;
-          for (size_t j = 0; j < flagNameLen; j++) {
-            if (ops->string.byte_at(interp, flagName, j) == '=') {
-              eqPos = (long)j;
-              break;
-            }
-          }
-
-          FeatherObj cmpName;
-          FeatherObj inlineValue = 0;
-          if (eqPos >= 0) {
-            cmpName = ops->string.slice(interp, flagName, 0, (size_t)eqPos);
-            inlineValue = ops->string.slice(interp, flagName, (size_t)eqPos + 1, flagNameLen);
-          } else {
-            cmpName = flagName;
-          }
-
-          if (ops->string.equal(interp, cmpName, longFlag)) {
-            found = 1;
-            if (hasValue) {
-              if (inlineValue) {
-                ops->var.set(interp, varName, inlineValue);
-              } else if (argIdx + 1 < argsLen) {
-                argIdx++;
-                ops->var.set(interp, varName, ops->list.at(interp, argsListParsed, argIdx));
-              } else {
-                FeatherObj msg = ops->string.intern(interp, "flag --", 7);
-                msg = ops->string.concat(interp, msg, longFlag);
-                msg = ops->string.concat(interp, msg, ops->string.intern(interp, " requires a value", 17));
-                ops->interp.set_result(interp, msg);
-                return TCL_ERROR;
-              }
-            } else {
-              ops->var.set(interp, varName, ops->integer.create(interp, 1));
-            }
-          }
-        } else {
-          /* Check short flag: -x or -x value */
-          FeatherObj flagChar = ops->string.slice(interp, arg, 1, argLen);
-
-          if (ops->string.equal(interp, flagChar, shortFlag)) {
-            found = 1;
-            if (hasValue) {
-              if (argIdx + 1 < argsLen) {
-                argIdx++;
-                ops->var.set(interp, varName, ops->list.at(interp, argsListParsed, argIdx));
-              } else {
-                FeatherObj msg = ops->string.intern(interp, "flag -", 6);
-                msg = ops->string.concat(interp, msg, shortFlag);
-                msg = ops->string.concat(interp, msg, ops->string.intern(interp, " requires a value", 17));
-                ops->interp.set_result(interp, msg);
-                return TCL_ERROR;
-              }
-            } else {
-              ops->var.set(interp, varName, ops->integer.create(interp, 1));
-            }
-          }
-        }
+      /* Try to match flag in all active spec levels */
+      int result = try_match_flag(ops, interp, specStack, specDepth,
+                                   arg, argsListParsed, &argIdx, argsLen);
+      if (result == -1) {
+        return TCL_ERROR;  /* Error already set */
       }
-
-      if (!found) {
+      if (result == 0) {
         FeatherObj msg = ops->string.intern(interp, "unknown flag \"", 14);
         msg = ops->string.concat(interp, msg, arg);
         msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\"", 1));
@@ -715,10 +874,68 @@ static FeatherResult usage_parse(const FeatherHostOps *ops, FeatherInterp interp
       continue;
     }
 
-    /* Positional argument - find next positional spec */
+    /* Positional argument - first check if it matches a subcommand */
+    int foundSubcmd = 0;
+    if (spec_has_subcommands(ops, interp, activeSpec)) {
+      for (size_t i = 0; i < activeSpecLen; i++) {
+        FeatherObj entry = ops->list.at(interp, activeSpec, i);
+        FeatherObj type = ops->list.at(interp, entry, 0);
+
+        if (!feather_obj_eq_literal(ops, interp, type, "cmd")) continue;
+
+        FeatherObj subcmdName = ops->list.at(interp, entry, 1);
+        if (ops->string.equal(interp, arg, subcmdName)) {
+          /* Found matching subcommand */
+          foundSubcmd = 1;
+          subcmdPath = ops->list.push(interp, subcmdPath, subcmdName);
+
+          /* Descend into subcommand spec */
+          FeatherObj subSpec = ops->list.at(interp, entry, 2);
+          if (specDepth < 8) {
+            specStack[specDepth++] = subSpec;
+          }
+          activeSpec = subSpec;
+          activeSpecLen = ops->list.length(interp, activeSpec);
+          posArgIdx = 0;  /* Reset positional arg index for new spec */
+          variadicList = 0;
+          variadicName = 0;
+
+          argIdx++;
+          break;
+        }
+      }
+
+      if (!foundSubcmd && !flagsEnded) {
+        /* Might still be a flag that looks like a positional, or unknown subcommand */
+        /* Check if there are any args in this spec - if not, it's definitely a subcommand error */
+        int hasArgs = 0;
+        for (size_t i = 0; i < activeSpecLen; i++) {
+          FeatherObj entry = ops->list.at(interp, activeSpec, i);
+          FeatherObj type = ops->list.at(interp, entry, 0);
+          if (feather_obj_eq_literal(ops, interp, type, "arg")) {
+            hasArgs = 1;
+            break;
+          }
+        }
+        if (!hasArgs) {
+          /* No args defined, so this must be an unknown subcommand */
+          FeatherObj msg = ops->string.intern(interp, "unknown subcommand \"", 20);
+          msg = ops->string.concat(interp, msg, arg);
+          msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\"", 1));
+          ops->interp.set_result(interp, msg);
+          return TCL_ERROR;
+        }
+      }
+    }
+
+    if (foundSubcmd) {
+      continue;
+    }
+
+    /* Not a subcommand - treat as positional argument */
     int foundPos = 0;
-    for (size_t i = posArgIdx; i < specLen && !foundPos; i++) {
-      FeatherObj entry = ops->list.at(interp, parsedSpec, i);
+    for (size_t i = posArgIdx; i < activeSpecLen && !foundPos; i++) {
+      FeatherObj entry = ops->list.at(interp, activeSpec, i);
       FeatherObj type = ops->list.at(interp, entry, 0);
 
       if (!feather_obj_eq_literal(ops, interp, type, "arg")) continue;
@@ -731,20 +948,26 @@ static FeatherResult usage_parse(const FeatherHostOps *ops, FeatherInterp interp
       posArgIdx = i + 1;
 
       if (variadic) {
-        /* Start collecting variadic args */
         variadicList = ops->list.create(interp);
         variadicList = ops->list.push(interp, variadicList, arg);
         variadicName = name;
-        posArgIdx = specLen;  /* No more positional specs to consume */
+        posArgIdx = activeSpecLen;
       } else {
         ops->var.set(interp, name, arg);
       }
     }
 
     if (!foundPos && variadicName) {
-      /* Add to variadic list */
       variadicList = ops->list.push(interp, variadicList, arg);
     } else if (!foundPos) {
+      /* Check if this was supposed to be a subcommand */
+      if (spec_has_subcommands(ops, interp, activeSpec)) {
+        FeatherObj msg = ops->string.intern(interp, "unknown subcommand \"", 20);
+        msg = ops->string.concat(interp, msg, arg);
+        msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\"", 1));
+        ops->interp.set_result(interp, msg);
+        return TCL_ERROR;
+      }
       FeatherObj msg = ops->string.intern(interp, "unexpected argument \"", 21);
       msg = ops->string.concat(interp, msg, arg);
       msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\"", 1));
@@ -760,9 +983,34 @@ static FeatherResult usage_parse(const FeatherHostOps *ops, FeatherInterp interp
     ops->var.set(interp, variadicName, variadicList);
   }
 
-  /* Check required args were provided */
-  for (size_t i = 0; i < specLen; i++) {
-    FeatherObj entry = ops->list.at(interp, parsedSpec, i);
+  /* Check if subcommand was required but not provided */
+  if (spec_has_subcommands(ops, interp, activeSpec) && ops->list.length(interp, subcmdPath) == 0) {
+    /* Check if we're at root and subcommands exist */
+    if (specDepth == 1 && spec_has_subcommands(ops, interp, parsedSpec)) {
+      FeatherObj msg = build_missing_subcmd_error(ops, interp, parsedSpec);
+      ops->interp.set_result(interp, msg);
+      return TCL_ERROR;
+    }
+  }
+
+  /* Set $_cmd variable with subcommand path */
+  FeatherObj cmdVar = ops->string.intern(interp, "_cmd", 4);
+  if (ops->list.length(interp, subcmdPath) > 0) {
+    /* Build space-separated subcommand path */
+    FeatherObj pathStr = ops->string.builder_new(interp, 32);
+    size_t pathLen = ops->list.length(interp, subcmdPath);
+    for (size_t i = 0; i < pathLen; i++) {
+      if (i > 0) ops->string.builder_append_byte(interp, pathStr, ' ');
+      ops->string.builder_append_obj(interp, pathStr, ops->list.at(interp, subcmdPath, i));
+    }
+    ops->var.set(interp, cmdVar, ops->string.builder_finish(interp, pathStr));
+  } else {
+    ops->var.set(interp, cmdVar, ops->string.intern(interp, "", 0));
+  }
+
+  /* Check required args were provided (in the active spec) */
+  for (size_t i = 0; i < activeSpecLen; i++) {
+    FeatherObj entry = ops->list.at(interp, activeSpec, i);
     FeatherObj type = ops->list.at(interp, entry, 0);
 
     if (feather_obj_eq_literal(ops, interp, type, "arg")) {
@@ -790,7 +1038,7 @@ static FeatherResult usage_parse(const FeatherHostOps *ops, FeatherInterp interp
         }
         size_t valLen = ops->string.byte_length(interp, value);
         if (!variadic && valLen == 0 && i < posArgIdx) {
-          continue;  /* Value was set */
+          continue;
         }
         if (!variadic && valLen == 0 && i >= posArgIdx) {
           FeatherObj msg = ops->string.intern(interp, "missing required argument \"", 27);
@@ -808,18 +1056,19 @@ static FeatherResult usage_parse(const FeatherHostOps *ops, FeatherInterp interp
 }
 
 /**
- * usage help command
+ * usage help command ?subcommand...?
  *
  * Generate help text for a command based on its usage spec.
+ * Can take optional subcommand path to show help for specific subcommand.
  */
 static FeatherResult usage_help(const FeatherHostOps *ops, FeatherInterp interp,
                                  FeatherObj args) {
   size_t argc = ops->list.length(interp, args);
 
-  if (argc != 1) {
+  if (argc < 1) {
     ops->interp.set_result(
         interp,
-        ops->string.intern(interp, "wrong # args: should be \"usage help command\"", 44));
+        ops->string.intern(interp, "wrong # args: should be \"usage help command ?subcommand...?\"", 60));
     return TCL_ERROR;
   }
 
@@ -838,7 +1087,42 @@ static FeatherResult usage_help(const FeatherHostOps *ops, FeatherInterp interp,
   }
 
   FeatherObj parsedSpec = ops->list.at(interp, specEntry, 1);
-  FeatherObj helpStr = generate_usage_string(ops, interp, cmdName, parsedSpec);
+
+  /* Build full command name and navigate to subcommand spec */
+  FeatherObj fullCmdName = cmdName;
+
+  for (size_t i = 1; i < argc; i++) {
+    FeatherObj subcmdName = ops->list.at(interp, args, i);
+    int found = 0;
+
+    size_t specLen = ops->list.length(interp, parsedSpec);
+    for (size_t j = 0; j < specLen; j++) {
+      FeatherObj entry = ops->list.at(interp, parsedSpec, j);
+      FeatherObj type = ops->list.at(interp, entry, 0);
+
+      if (!feather_obj_eq_literal(ops, interp, type, "cmd")) continue;
+
+      FeatherObj name = ops->list.at(interp, entry, 1);
+      if (ops->string.equal(interp, name, subcmdName)) {
+        /* Found the subcommand - descend into it */
+        parsedSpec = ops->list.at(interp, entry, 2);
+        fullCmdName = ops->string.concat(interp, fullCmdName, ops->string.intern(interp, " ", 1));
+        fullCmdName = ops->string.concat(interp, fullCmdName, subcmdName);
+        found = 1;
+        break;
+      }
+    }
+
+    if (!found) {
+      FeatherObj msg = ops->string.intern(interp, "unknown subcommand \"", 20);
+      msg = ops->string.concat(interp, msg, subcmdName);
+      msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\"", 1));
+      ops->interp.set_result(interp, msg);
+      return TCL_ERROR;
+    }
+  }
+
+  FeatherObj helpStr = generate_usage_string(ops, interp, fullCmdName, parsedSpec);
 
   ops->interp.set_result(interp, helpStr);
   return TCL_OK;
