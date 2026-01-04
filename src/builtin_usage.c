@@ -750,6 +750,56 @@ static void append_str(const FeatherHostOps *ops, FeatherInterp interp,
 }
 
 /**
+ * Append text with word wrapping at specified width.
+ * indent: string to prepend to each new line (e.g., "       " for 7 spaces)
+ * width: max characters per line (not including indent on continuation lines)
+ */
+static void append_wrapped(const FeatherHostOps *ops, FeatherInterp interp,
+                           FeatherObj builder, FeatherObj text,
+                           const char *indent, size_t width) {
+  size_t len = ops->string.byte_length(interp, text);
+  size_t col = 0;
+  size_t i = 0;
+
+  while (i < len) {
+    /* Find end of current word */
+    size_t wordStart = i;
+    int ch;
+    while (i < len) {
+      ch = ops->string.byte_at(interp, text, i);
+      if (ch == ' ' || ch == '\n') break;
+      i++;
+    }
+    size_t wordLen = i - wordStart;
+
+    /* Check if word fits on current line */
+    if (col > 0 && col + 1 + wordLen > width) {
+      /* Wrap to new line */
+      ops->string.builder_append_byte(interp, builder, '\n');
+      append_str(ops, interp, builder, indent);
+      col = 0;
+    } else if (col > 0) {
+      /* Add space before word */
+      ops->string.builder_append_byte(interp, builder, ' ');
+      col++;
+    }
+
+    /* Append the word */
+    for (size_t j = wordStart; j < wordStart + wordLen; j++) {
+      ops->string.builder_append_byte(interp, builder, ops->string.byte_at(interp, text, j));
+    }
+    col += wordLen;
+
+    /* Skip whitespace */
+    while (i < len) {
+      ch = ops->string.byte_at(interp, text, i);
+      if (ch != ' ' && ch != '\n') break;
+      i++;
+    }
+  }
+}
+
+/**
  * Generate usage string for display (--help output)
  * Follows standard Unix manpage format with NAME, SYNOPSIS, DESCRIPTION, etc.
  */
@@ -857,7 +907,7 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
       if (ops->string.byte_length(interp, longHelp) > 0) {
         append_str(ops, interp, builder, "\n\nDESCRIPTION\n       ");
         FeatherObj trimmed = trim_text_block(ops, interp, longHelp);
-        ops->string.builder_append_obj(interp, builder, trimmed);
+        append_wrapped(ops, interp, builder, trimmed, "       ", 65);
         break;
       }
     }
@@ -909,7 +959,7 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
       if (ops->string.byte_length(interp, helpText) > 0) {
         append_str(ops, interp, builder, "\n              ");
         FeatherObj trimmed = trim_text_block(ops, interp, helpText);
-        ops->string.builder_append_obj(interp, builder, trimmed);
+        append_wrapped(ops, interp, builder, trimmed, "              ", 58);
       }
 
       /* Choices on next line, indented */
@@ -959,7 +1009,7 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
         if (ops->string.byte_length(interp, helpText) > 0) {
           append_str(ops, interp, builder, "\n              ");
           FeatherObj trimmed = trim_text_block(ops, interp, helpText);
-          ops->string.builder_append_obj(interp, builder, trimmed);
+          append_wrapped(ops, interp, builder, trimmed, "              ", 58);
         }
 
         if (ops->string.byte_length(interp, choices) > 0) {
@@ -990,7 +1040,7 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
         if (ops->string.byte_length(interp, helpText) > 0) {
           append_str(ops, interp, builder, "\n              ");
           FeatherObj trimmed = trim_text_block(ops, interp, helpText);
-          ops->string.builder_append_obj(interp, builder, trimmed);
+          append_wrapped(ops, interp, builder, trimmed, "              ", 58);
         }
       }
     }
