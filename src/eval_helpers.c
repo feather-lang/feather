@@ -138,7 +138,9 @@ FeatherResult feather_foreach_impl(const FeatherHostOps *ops,
         } else {
           value = emptyStr;
         }
-        ops->var.set(interp, varName, value);
+        if (feather_set_var(ops, interp, varName, value) != TCL_OK) {
+          return TCL_ERROR;
+        }
       }
     }
 

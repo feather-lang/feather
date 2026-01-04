@@ -1,0 +1,155 @@
+<test-suite name="namespace variable handling in builtins">
+
+<!-- ============================================= -->
+<!-- dict set with namespace-qualified variable   -->
+<!-- ============================================= -->
+
+<test-case name="dict set with namespace-qualified variable">
+  <script>
+namespace eval ::test {}
+dict set ::test::mydict hello world
+set ::test::mydict
+  </script>
+  <return>TCL_OK</return>
+  <stdout>hello world</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict append with namespace-qualified variable">
+  <script>
+namespace eval ::test {}
+dict set ::test::d key val
+dict append ::test::d key ue
+dict get [set ::test::d] key
+  </script>
+  <return>TCL_OK</return>
+  <stdout>value</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict incr with namespace-qualified variable">
+  <script>
+namespace eval ::test {}
+dict set ::test::d count 5
+dict incr ::test::d count 3
+dict get [set ::test::d] count
+  </script>
+  <return>TCL_OK</return>
+  <stdout>8</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- ============================================= -->
+<!-- lassign with namespace-qualified variables   -->
+<!-- ============================================= -->
+
+<test-case name="lassign with namespace-qualified variables">
+  <script>
+namespace eval ::test {}
+lassign {a b c} ::test::x ::test::y ::test::z
+list [set ::test::x] [set ::test::y] [set ::test::z]
+  </script>
+  <return>TCL_OK</return>
+  <stdout>a b c</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- ============================================= -->
+<!-- foreach with namespace-qualified variable    -->
+<!-- ============================================= -->
+
+<test-case name="foreach with namespace-qualified loop variable">
+  <script>
+namespace eval ::loop {}
+set result {}
+foreach ::loop::item {1 2 3} {
+    lappend result [set ::loop::item]
+}
+set result
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1 2 3</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- ============================================= -->
+<!-- lmap with namespace-qualified variable       -->
+<!-- ============================================= -->
+
+<test-case name="lmap with namespace-qualified loop variable">
+  <script>
+namespace eval ::loop {}
+lmap ::loop::x {1 2 3} {
+    expr {[set ::loop::x] * 2}
+}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>2 4 6</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- ============================================= -->
+<!-- catch with namespace-qualified variables     -->
+<!-- ============================================= -->
+
+<test-case name="catch stores result in namespace variable">
+  <script>
+namespace eval ::err {}
+catch {error "test error"} ::err::msg
+set ::err::msg
+  </script>
+  <return>TCL_OK</return>
+  <stdout>test error</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- ============================================= -->
+<!-- scan with namespace-qualified variables      -->
+<!-- ============================================= -->
+
+<test-case name="scan with namespace-qualified variable">
+  <script>
+namespace eval ::scn {}
+scan "42" "%d" ::scn::num
+set ::scn::num
+  </script>
+  <return>TCL_OK</return>
+  <stdout>42</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- ============================================= -->
+<!-- lset with namespace-qualified variable       -->
+<!-- ============================================= -->
+
+<test-case name="lset with namespace-qualified variable">
+  <script>
+namespace eval ::ls {}
+set ::ls::mylist {a b c}
+lset ::ls::mylist 1 X
+set ::ls::mylist
+  </script>
+  <return>TCL_OK</return>
+  <stdout>a X c</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- ============================================= -->
+<!-- dict for with namespace-qualified variables  -->
+<!-- ============================================= -->
+
+<test-case name="dict for with namespace-qualified loop variables">
+  <script>
+namespace eval ::d {}
+set result {}
+dict for {::d::k ::d::v} {a 1 b 2} {
+    lappend result [set ::d::k]=[set ::d::v]
+}
+set result
+  </script>
+  <return>TCL_OK</return>
+  <stdout>a=1 b=2</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+</test-suite>

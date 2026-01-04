@@ -321,7 +321,8 @@ FeatherResult feather_builtin_subst(const FeatherHostOps *ops, FeatherInterp int
         }
         FeatherObj name = ops->string.slice(interp, str_obj, name_start, pos);
         pos++;
-        FeatherObj value = ops->var.get(interp, name);
+        FeatherObj value;
+        feather_get_var(ops, interp, name, &value);
         if (ops->list.is_nil(interp, value)) {
           ops->interp.set_result(interp, build_no_such_variable_error(ops, interp, name));
           return TCL_ERROR;
@@ -375,7 +376,8 @@ FeatherResult feather_builtin_subst(const FeatherHostOps *ops, FeatherInterp int
           ops->string.builder_append_byte(interp, builder, ')');
           FeatherObj full_name = ops->string.builder_finish(interp, builder);
 
-          FeatherObj value = ops->var.get(interp, full_name);
+          FeatherObj value;
+          feather_get_var(ops, interp, full_name, &value);
           if (ops->list.is_nil(interp, value)) {
             ops->interp.set_result(interp, build_no_such_variable_error(ops, interp, full_name));
             return TCL_ERROR;
@@ -383,7 +385,8 @@ FeatherResult feather_builtin_subst(const FeatherHostOps *ops, FeatherInterp int
           result = append_obj(ops, interp, result, value);
         } else {
           FeatherObj name = ops->string.slice(interp, str_obj, name_start, pos);
-          FeatherObj value = ops->var.get(interp, name);
+          FeatherObj value;
+          feather_get_var(ops, interp, name, &value);
           if (ops->list.is_nil(interp, value)) {
             ops->interp.set_result(interp, build_no_such_variable_error(ops, interp, name));
             return TCL_ERROR;

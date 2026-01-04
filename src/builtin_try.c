@@ -284,7 +284,9 @@ FeatherResult feather_builtin_try(const FeatherHostOps *ops, FeatherInterp inter
         // Bind variables
         if (useVarListLen >= 1) {
           FeatherObj resultVar = ops->list.at(interp, useVarListParsed, 0);
-          ops->var.set(interp, resultVar, bodyResult);
+          if (feather_set_var(ops, interp, resultVar, bodyResult) != TCL_OK) {
+            return TCL_ERROR;
+          }
         }
         if (useVarListLen >= 2) {
           FeatherObj optsVar = ops->list.at(interp, useVarListParsed, 1);
@@ -292,9 +294,13 @@ FeatherResult feather_builtin_try(const FeatherHostOps *ops, FeatherInterp inter
             FeatherObj defaultOpts = ops->list.create(interp);
             defaultOpts = ops->list.push(interp, defaultOpts, ops->string.intern(interp, S("-code")));
             defaultOpts = ops->list.push(interp, defaultOpts, ops->integer.create(interp, (int64_t)effectiveCode));
-            ops->var.set(interp, optsVar, defaultOpts);
+            if (feather_set_var(ops, interp, optsVar, defaultOpts) != TCL_OK) {
+              return TCL_ERROR;
+            }
           } else {
-            ops->var.set(interp, optsVar, bodyOptions);
+            if (feather_set_var(ops, interp, optsVar, bodyOptions) != TCL_OK) {
+              return TCL_ERROR;
+            }
           }
         }
 
@@ -371,7 +377,9 @@ FeatherResult feather_builtin_try(const FeatherHostOps *ops, FeatherInterp inter
         // Bind variables
         if (useVarListLen >= 1) {
           FeatherObj resultVar = ops->list.at(interp, useVarListParsed, 0);
-          ops->var.set(interp, resultVar, bodyResult);
+          if (feather_set_var(ops, interp, resultVar, bodyResult) != TCL_OK) {
+            return TCL_ERROR;
+          }
         }
         if (useVarListLen >= 2) {
           FeatherObj optsVar = ops->list.at(interp, useVarListParsed, 1);
@@ -379,9 +387,13 @@ FeatherResult feather_builtin_try(const FeatherHostOps *ops, FeatherInterp inter
             FeatherObj defaultOpts = ops->list.create(interp);
             defaultOpts = ops->list.push(interp, defaultOpts, ops->string.intern(interp, S("-code")));
             defaultOpts = ops->list.push(interp, defaultOpts, ops->integer.create(interp, 1));
-            ops->var.set(interp, optsVar, defaultOpts);
+            if (feather_set_var(ops, interp, optsVar, defaultOpts) != TCL_OK) {
+              return TCL_ERROR;
+            }
           } else {
-            ops->var.set(interp, optsVar, bodyOptions);
+            if (feather_set_var(ops, interp, optsVar, bodyOptions) != TCL_OK) {
+              return TCL_ERROR;
+            }
           }
         }
 

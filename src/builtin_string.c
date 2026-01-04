@@ -936,7 +936,9 @@ static FeatherResult string_is(const FeatherHostOps *ops, FeatherInterp interp, 
 
     if (failindexVar && !result) {
       // For value classes, failindex is set to the end of string
-      ops->var.set(interp, failindexVar, ops->integer.create(interp, 0));
+      if (feather_set_var(ops, interp, failindexVar, ops->integer.create(interp, 0)) != TCL_OK) {
+        return TCL_ERROR;
+      }
     }
 
     ops->interp.set_result(interp, ops->integer.create(interp, result ? 1 : 0));
@@ -947,7 +949,9 @@ static FeatherResult string_is(const FeatherHostOps *ops, FeatherInterp interp, 
   // Empty string: true unless -strict
   if (len == 0) {
     if (failindexVar && strict) {
-      ops->var.set(interp, failindexVar, ops->integer.create(interp, 0));
+      if (feather_set_var(ops, interp, failindexVar, ops->integer.create(interp, 0)) != TCL_OK) {
+        return TCL_ERROR;
+      }
     }
     ops->interp.set_result(interp, ops->integer.create(interp, strict ? 0 : 1));
     return TCL_OK;
@@ -960,7 +964,9 @@ static FeatherResult string_is(const FeatherHostOps *ops, FeatherInterp interp, 
     FeatherObj ch = ops->rune.at(interp, str, i);
     if (!ops->rune.is_class(interp, ch, charClass)) {
       if (failindexVar) {
-        ops->var.set(interp, failindexVar, ops->integer.create(interp, (int64_t)i));
+        if (feather_set_var(ops, interp, failindexVar, ops->integer.create(interp, (int64_t)i)) != TCL_OK) {
+          return TCL_ERROR;
+        }
       }
       ops->interp.set_result(interp, ops->integer.create(interp, 0));
       return TCL_OK;
