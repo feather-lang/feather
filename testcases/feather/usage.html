@@ -1428,4 +1428,289 @@ deep1 a b c d final</script>
     <exit-code>0</exit-code>
   </test-case>
 
+  <!-- ============================================= -->
+  <!-- hide feature                                  -->
+  <!-- ============================================= -->
+
+  <test-case name="hidden flag not shown in help">
+    <script>usage for hidecmd1 {
+    flag "-v --verbose" help="Show verbose output"
+    flag "--debug" hide help="Internal debugging"
+}
+set help [usage help hidecmd1]
+expr {[string match "*--verbose*" $help] && ![string match "*--debug*" $help]}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="hidden flag still works when used">
+    <script>usage for hidecmd2 {
+    flag "-v --verbose"
+    flag "--debug" hide
+}
+proc hidecmd2 {args} {
+    usage parse hidecmd2 $args
+    return "v=$verbose:d=$debug"
+}
+hidecmd2 --debug -v</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>v=1:d=1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="hidden arg not shown in help">
+    <script>usage for hidecmd3 {
+    arg "<input>" help="Input file"
+    arg "?internal?" hide help="Internal use only"
+}
+set help [usage help hidecmd3]
+expr {[string match "*input*" $help] && ![string match "*internal*" $help]}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="hidden arg still parsed">
+    <script>usage for hidecmd4 {
+    arg "<visible>"
+    arg "?hidden?" hide
+}
+proc hidecmd4 {args} {
+    usage parse hidecmd4 $args
+    return "$visible|$hidden"
+}
+hidecmd4 first second</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>first|second</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="hidden subcommand not shown in help">
+    <script>usage for hidecmd5 {
+    cmd "public" {} help="Public command"
+    cmd "internal" {} hide help="Internal command"
+}
+set help [usage help hidecmd5]
+expr {[string match "*public*" $help] && ![string match "*internal*" $help]}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="hidden subcommand still works">
+    <script>usage for hidecmd6 {
+    cmd "public" {}
+    cmd "internal" {
+        arg "<secret>"
+    } hide
+}
+proc hidecmd6 {args} {
+    usage parse hidecmd6 $args
+    return "$_cmd:$secret"
+}
+hidecmd6 internal mysecret</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>internal:mysecret</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="all flags hidden shows no options placeholder">
+    <script>usage for hidecmd7 {
+    flag "-v" hide
+    flag "-d" hide
+    arg "<file>"
+}
+set help [usage help hidecmd7]
+expr {![string match "*options*" $help] && [string match "*<file>*" $help]}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- choices feature                               -->
+  <!-- ============================================= -->
+
+  <test-case name="choices shown in flag help">
+    <script>usage for choicecmd1 {
+    flag "-l --level <level>" choices="debug,info,warn,error"
+}
+set help [usage help choicecmd1]
+string match "*choices: debug,info,warn,error*" $help</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="choices shown in arg help">
+    <script>usage for choicecmd2 {
+    arg "<format>" help="output-format" choices="json,xml,csv"
+}
+set help [usage help choicecmd2]
+string match "*choices: json,xml,csv*" $help</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="flag with choices still parses value">
+    <script>usage for choicecmd3 {
+    flag "--format <fmt>" choices="json,xml"
+}
+proc choicecmd3 {args} {
+    usage parse choicecmd3 $args
+    return $format
+}
+choicecmd3 --format json</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>json</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="arg with choices still parses value">
+    <script>usage for choicecmd4 {
+    arg "<mode>" choices="fast,slow"
+}
+proc choicecmd4 {args} {
+    usage parse choicecmd4 $args
+    return $mode
+}
+choicecmd4 fast</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>fast</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="choices with help text">
+    <script>usage for choicecmd5 {
+    flag "-o --output <format>" help="output-format" choices="json,yaml,toml"
+}
+set help [usage help choicecmd5]
+expr {[string match "*output-format*" $help] && [string match "*choices: json,yaml,toml*" $help]}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- long_help feature                             -->
+  <!-- ============================================= -->
+
+  <test-case name="long_help stored in spec">
+    <script>usage for longhcmd1 {
+    arg "<file>" help="input-file" long_help="detailed-description"
+}
+# Just verify it parses without error
+usage for longhcmd1</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>arg "&lt;file>" help="input-file" long_help="detailed-description"</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="flag with long_help parses">
+    <script>usage for longhcmd2 {
+    flag "-v --verbose" help="verbose-output" long_help="detailed-logging"
+}
+proc longhcmd2 {args} {
+    usage parse longhcmd2 $args
+    return $verbose
+}
+longhcmd2 -v</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="cmd with long_help parses">
+    <script>usage for longhcmd3 {
+    cmd "run" {
+        arg "<script>"
+    } help="run-script" long_help="execute-script"
+}
+proc longhcmd3 {args} {
+    usage parse longhcmd3 $args
+    return "$_cmd:$script"
+}
+longhcmd3 run test.tcl</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>run:test.tcl</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Combined features                             -->
+  <!-- ============================================= -->
+
+  <test-case name="hide with choices and help">
+    <script>usage for combcmd1 {
+    flag "--level <l>" help="log-level" choices="debug,info,warn,error"
+    flag "--internal-level <l>" hide choices="trace,debug"
+}
+set help [usage help combcmd1]
+expr {[string match "*--level*" $help] && [string match "*debug,info,warn,error*" $help] && ![string match "*--internal-level*" $help]}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subcommand with help shown in commands list">
+    <script>usage for combcmd2 {
+    cmd "start" {} help="start-service"
+    cmd "stop" {} help="stop-service"
+}
+set help [usage help combcmd2]
+expr {[string match "*start*start-service*" $help] && [string match "*stop*stop-service*" $help]}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="arg with only choices shows in args section">
+    <script>usage for combcmd3 {
+    arg "<type>" choices="a,b,c"
+}
+set help [usage help combcmd3]
+string match "*Arguments:*type*choices: a,b,c*" $help</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
 </test-suite>
