@@ -1396,3 +1396,224 @@ FeatherResult feather_builtin_usage(const FeatherHostOps *ops, FeatherInterp int
   ops->interp.set_result(interp, msg);
   return TCL_ERROR;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Public C API for building usage specs
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Create an argument entry.
+ * Name format: "<name>" (required), "?name?" (optional), with optional "..." suffix for variadic.
+ */
+FeatherObj feather_usage_arg(const FeatherHostOps *ops, FeatherInterp interp,
+                             const char *name) {
+  size_t nameLen = feather_strlen(name);
+  int required = 0;
+  int variadic = 0;
+  const char *cleanStart = name;
+  size_t cleanLen = nameLen;
+
+  /* Check for variadic (...) */
+  if (nameLen >= 3 && name[nameLen - 3] == '.' && name[nameLen - 2] == '.' && name[nameLen - 1] == '.') {
+    variadic = 1;
+    cleanLen -= 3;
+  }
+
+  /* Check for <required> or ?optional? */
+  if (cleanLen >= 2) {
+    char first = name[0];
+    char last = name[cleanLen - 1];
+    if (first == '<' && last == '>') {
+      required = 1;
+      cleanStart = name + 1;
+      cleanLen -= 2;
+    } else if (first == '?' && last == '?') {
+      required = 0;
+      cleanStart = name + 1;
+      cleanLen -= 2;
+    } else {
+      required = 1;  /* bare name treated as required */
+    }
+  } else {
+    required = 1;
+  }
+
+  FeatherObj cleanName = ops->string.intern(interp, cleanStart, cleanLen);
+
+  FeatherObj entry = ops->dict.create(interp);
+  entry = dict_set_str(ops, interp, entry, K_TYPE, ops->string.intern(interp, S(T_ARG)));
+  entry = dict_set_str(ops, interp, entry, K_NAME, cleanName);
+  entry = dict_set_int(ops, interp, entry, K_REQUIRED, required);
+  if (variadic) {
+    entry = dict_set_int(ops, interp, entry, K_VARIADIC, 1);
+  }
+
+  return entry;
+}
+
+/**
+ * Create a flag entry.
+ * short_flag: "-v" or NULL
+ * long_flag: "--verbose" or NULL
+ * value: "<val>" (required), "?val?" (optional), or NULL (boolean)
+ */
+FeatherObj feather_usage_flag(const FeatherHostOps *ops, FeatherInterp interp,
+                              const char *short_flag,
+                              const char *long_flag,
+                              const char *value) {
+  FeatherObj shortObj = ops->string.intern(interp, "", 0);
+  FeatherObj longObj = ops->string.intern(interp, "", 0);
+  int hasValue = 0;
+  int valueRequired = 0;
+
+  /* Parse short flag: skip leading dash */
+  if (short_flag && short_flag[0] == '-' && short_flag[1] != '\0') {
+    shortObj = ops->string.intern(interp, short_flag + 1, feather_strlen(short_flag) - 1);
+  }
+
+  /* Parse long flag: skip leading dashes */
+  if (long_flag && long_flag[0] == '-' && long_flag[1] == '-' && long_flag[2] != '\0') {
+    longObj = ops->string.intern(interp, long_flag + 2, feather_strlen(long_flag) - 2);
+  }
+
+  /* Parse value spec */
+  if (value) {
+    size_t valLen = feather_strlen(value);
+    if (valLen >= 2) {
+      if (value[0] == '<' && value[valLen - 1] == '>') {
+        hasValue = 1;
+        valueRequired = 1;
+      } else if (value[0] == '?' && value[valLen - 1] == '?') {
+        hasValue = 1;
+        valueRequired = 0;
+      }
+    }
+  }
+
+  /* Derive variable name from long flag or short flag */
+  FeatherObj varName;
+  if (ops->string.byte_length(interp, longObj) > 0) {
+    varName = sanitize_var_name(ops, interp, longObj);
+  } else {
+    varName = sanitize_var_name(ops, interp, shortObj);
+  }
+
+  FeatherObj entry = ops->dict.create(interp);
+  entry = dict_set_str(ops, interp, entry, K_TYPE, ops->string.intern(interp, S(T_FLAG)));
+  if (ops->string.byte_length(interp, shortObj) > 0) {
+    entry = dict_set_str(ops, interp, entry, K_SHORT, shortObj);
+  }
+  if (ops->string.byte_length(interp, longObj) > 0) {
+    entry = dict_set_str(ops, interp, entry, K_LONG, longObj);
+  }
+  entry = dict_set_int(ops, interp, entry, K_HAS_VALUE, hasValue);
+  entry = dict_set_int(ops, interp, entry, K_VALUE_REQ, valueRequired);
+  entry = dict_set_str(ops, interp, entry, K_VAR_NAME, varName);
+
+  return entry;
+}
+
+/**
+ * Create a subcommand entry.
+ */
+FeatherObj feather_usage_cmd(const FeatherHostOps *ops, FeatherInterp interp,
+                             const char *name,
+                             FeatherObj subspec) {
+  FeatherObj entry = ops->dict.create(interp);
+  entry = dict_set_str(ops, interp, entry, K_TYPE, ops->string.intern(interp, S(T_CMD)));
+  entry = dict_set_str(ops, interp, entry, K_NAME, ops->string.intern(interp, name, feather_strlen(name)));
+  entry = dict_set_str(ops, interp, entry, K_SPEC, subspec);
+  return entry;
+}
+
+/**
+ * Set help text on an entry.
+ */
+FeatherObj feather_usage_help(const FeatherHostOps *ops, FeatherInterp interp,
+                              FeatherObj entry, const char *text) {
+  return dict_set_str(ops, interp, entry, K_HELP,
+                      ops->string.intern(interp, text, feather_strlen(text)));
+}
+
+/**
+ * Set extended help text on an entry.
+ */
+FeatherObj feather_usage_long_help(const FeatherHostOps *ops, FeatherInterp interp,
+                                   FeatherObj entry, const char *text) {
+  return dict_set_str(ops, interp, entry, K_LONG_HELP,
+                      ops->string.intern(interp, text, feather_strlen(text)));
+}
+
+/**
+ * Set default value on an arg entry.
+ */
+FeatherObj feather_usage_default(const FeatherHostOps *ops, FeatherInterp interp,
+                                 FeatherObj entry, const char *value) {
+  return dict_set_str(ops, interp, entry, K_DEFAULT,
+                      ops->string.intern(interp, value, feather_strlen(value)));
+}
+
+/**
+ * Set valid choices on an entry.
+ */
+FeatherObj feather_usage_choices(const FeatherHostOps *ops, FeatherInterp interp,
+                                 FeatherObj entry, FeatherObj choices) {
+  return dict_set_str(ops, interp, entry, K_CHOICES, choices);
+}
+
+/**
+ * Set value type hint on an entry.
+ */
+FeatherObj feather_usage_type(const FeatherHostOps *ops, FeatherInterp interp,
+                              FeatherObj entry, const char *type) {
+  return dict_set_str(ops, interp, entry, K_VALUE_TYPE,
+                      ops->string.intern(interp, type, feather_strlen(type)));
+}
+
+/**
+ * Mark an entry as hidden from help output.
+ */
+FeatherObj feather_usage_hide(const FeatherHostOps *ops, FeatherInterp interp,
+                              FeatherObj entry) {
+  return dict_set_int(ops, interp, entry, K_HIDE, 1);
+}
+
+/**
+ * Create an empty usage spec.
+ */
+FeatherObj feather_usage_spec(const FeatherHostOps *ops, FeatherInterp interp) {
+  return ops->list.create(interp);
+}
+
+/**
+ * Add an entry to a spec.
+ */
+FeatherObj feather_usage_add(const FeatherHostOps *ops, FeatherInterp interp,
+                             FeatherObj spec, FeatherObj entry) {
+  return ops->list.push(interp, spec, entry);
+}
+
+/**
+ * Register a spec for a command.
+ */
+void feather_usage_register(const FeatherHostOps *ops, FeatherInterp interp,
+                            const char *cmdname, FeatherObj spec) {
+  /* Ensure ::usage namespace exists */
+  FeatherObj usageNs = ops->string.intern(interp, S(USAGE_NS));
+  ops->ns.create(interp, usageNs);
+
+  /* Get existing specs dict */
+  FeatherObj specs = usage_get_specs(ops, interp);
+
+  /* Create {rawSpec parsedSpec} pair - rawSpec is empty for direct API */
+  FeatherObj pair = ops->list.create(interp);
+  pair = ops->list.push(interp, pair, ops->string.intern(interp, "", 0));  /* empty rawSpec */
+  pair = ops->list.push(interp, pair, spec);  /* parsedSpec */
+
+  /* Store under command name */
+  FeatherObj cmdKey = ops->string.intern(interp, cmdname, feather_strlen(cmdname));
+  specs = ops->dict.set(interp, specs, cmdKey, pair);
+
+  /* Save back */
+  usage_set_specs(ops, interp, specs);
+}
