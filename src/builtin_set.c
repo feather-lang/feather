@@ -61,20 +61,22 @@ void feather_register_set_usage(const FeatherHostOps *ops, FeatherInterp interp)
     "Read and write variables",
     "Returns the value of variable varName. If value is specified, then set "
     "the value of varName to value, creating a new variable if one does not "
-    "already exist, and return its value. If varName contains an open "
-    "parenthesis and ends with a close parenthesis, then it refers to an "
-    "array element: the characters before the first open parenthesis are "
-    "the name of the array, and the characters between the parentheses are "
-    "the index within the array. Otherwise varName refers to a scalar "
-    "variable. If varName includes namespace qualifiers (in the array name "
-    "if it refers to an array element), or if varName is unqualified (does "
-    "not include the names of any containing namespaces) but no procedure "
-    "is active, varName refers to a namespace variable resolved according "
-    "to the rules described under NAME RESOLUTION in the namespace manual "
-    "page. If a procedure is active and varName is unqualified, then "
-    "varName refers to a parameter or local variable of the procedure, "
-    "unless varName was declared to resolve differently through one of the "
-    "global, variable or upvar commands.");
+    "already exist, and return its value.\n\n"
+    "If varName contains an open parenthesis and ends with a close "
+    "parenthesis, then it refers to an array element: the characters before "
+    "the first open parenthesis are the name of the array, and the "
+    "characters between the parentheses are the index within the array. "
+    "Otherwise varName refers to a scalar variable.\n\n"
+    "If varName includes namespace qualifiers (in the array name if it "
+    "refers to an array element), or if varName is unqualified (does not "
+    "include the names of any containing namespaces) but no procedure is "
+    "active, varName refers to a namespace variable resolved according to "
+    "the rules described under NAME RESOLUTION in the namespace manual "
+    "page.\n\n"
+    "If a procedure is active and varName is unqualified, then varName "
+    "refers to a parameter or local variable of the procedure, unless "
+    "varName was declared to resolve differently through one of the global, "
+    "variable or upvar commands.");
   spec = feather_usage_add(ops, interp, spec, e);
 
   // Required argument: varName
