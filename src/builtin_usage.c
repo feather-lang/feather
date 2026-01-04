@@ -62,6 +62,7 @@ static const char *K_HAS_VALUE  = "has_value";
 static const char *K_VALUE_REQ  = "value_required";
 static const char *K_VAR_NAME   = "var_name";
 static const char *K_SPEC       = "spec";
+static const char *K_ORIG       = "orig";  /* Original spec string for round-tripping */
 
 /* Entry type values */
 static const char *T_ARG  = "arg";
@@ -1031,7 +1032,7 @@ static FeatherResult usage_for(const FeatherHostOps *ops, FeatherInterp interp,
   FeatherObj specs = usage_get_specs(ops, interp);
 
   if (argc == 1) {
-    /* Get mode: return spec in input format */
+    /* Get mode: return original spec string for round-tripping */
     FeatherObj specEntry = ops->dict.get(interp, specs, cmdName);
     if (ops->list.is_nil(interp, specEntry)) {
       FeatherObj msg = ops->string.intern(interp, "no usage defined for \"", 22);
@@ -1040,18 +1041,24 @@ static FeatherResult usage_for(const FeatherHostOps *ops, FeatherInterp interp,
       ops->interp.set_result(interp, msg);
       return TCL_ERROR;
     }
-    /* Convert parsed spec back to input list format */
-    ops->interp.set_result(interp, spec_to_list(ops, interp, specEntry));
+    /* Return the original spec string (preserves formatting) */
+    FeatherObj origSpec = dict_get_str(ops, interp, specEntry, K_ORIG);
+    ops->interp.set_result(interp, origSpec);
     return TCL_OK;
   }
 
   /* Set mode: store the spec */
   FeatherObj specStr = ops->list.at(interp, args, 1);
 
-  /* Parse the spec into structured form and store it directly */
+  /* Parse the spec into structured form */
   FeatherObj parsed = parse_spec(ops, interp, specStr);
 
-  specs = ops->dict.set(interp, specs, cmdName, parsed);
+  /* Store both original and parsed in a dict for round-tripping */
+  FeatherObj specEntry = ops->dict.create(interp);
+  specEntry = dict_set_str(ops, interp, specEntry, K_ORIG, specStr);
+  specEntry = dict_set_str(ops, interp, specEntry, K_SPEC, parsed);
+
+  specs = ops->dict.set(interp, specs, cmdName, specEntry);
   usage_set_specs(ops, interp, specs);
 
   ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
@@ -1305,7 +1312,8 @@ static FeatherResult usage_parse(const FeatherHostOps *ops, FeatherInterp interp
     return TCL_ERROR;
   }
 
-  FeatherObj parsedSpec = specEntry;
+  /* Extract parsed spec from storage dict */
+  FeatherObj parsedSpec = dict_get_str(ops, interp, specEntry, K_SPEC);
 
   /* Parse the args list */
   FeatherObj argsListParsed = ops->list.from(interp, argsList);
@@ -1605,7 +1613,8 @@ static FeatherResult usage_help(const FeatherHostOps *ops, FeatherInterp interp,
     return TCL_ERROR;
   }
 
-  FeatherObj parsedSpec = specEntry;
+  /* Extract parsed spec from storage dict */
+  FeatherObj parsedSpec = dict_get_str(ops, interp, specEntry, K_SPEC);
 
   /* Build full command name and navigate to subcommand spec */
   FeatherObj fullCmdName = cmdName;
@@ -1837,9 +1846,16 @@ void feather_usage_register(const FeatherHostOps *ops, FeatherInterp interp,
   /* Get existing specs dict */
   FeatherObj specs = usage_get_specs(ops, interp);
 
-  /* Store spec directly under command name */
+  /* Generate string representation for round-tripping */
+  FeatherObj origSpec = spec_to_list(ops, interp, spec);
+
+  /* Store both original (generated) and parsed in a dict */
+  FeatherObj specEntry = ops->dict.create(interp);
+  specEntry = dict_set_str(ops, interp, specEntry, K_ORIG, origSpec);
+  specEntry = dict_set_str(ops, interp, specEntry, K_SPEC, spec);
+
   FeatherObj cmdKey = ops->string.intern(interp, cmdname, feather_strlen(cmdname));
-  specs = ops->dict.set(interp, specs, cmdKey, spec);
+  specs = ops->dict.set(interp, specs, cmdKey, specEntry);
 
   /* Save back */
   usage_set_specs(ops, interp, specs);
