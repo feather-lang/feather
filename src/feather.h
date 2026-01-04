@@ -1569,6 +1569,20 @@ FeatherObj feather_usage_cmd(const FeatherHostOps *ops, FeatherInterp interp,
                              FeatherObj subspec);
 
 /**
+ * Create an example entry.
+ *
+ * code:   The example command to show (e.g., "set x 5")
+ * header: Optional title for the example, or NULL
+ * help:   Optional description of what the example does, or NULL
+ *
+ * Returns a dict entry that can be added to the spec.
+ */
+FeatherObj feather_usage_example(const FeatherHostOps *ops, FeatherInterp interp,
+                                 const char *code,
+                                 const char *header,
+                                 const char *help);
+
+/**
  * Set help text on an entry. Returns modified entry.
  */
 FeatherObj feather_usage_help(const FeatherHostOps *ops, FeatherInterp interp,
