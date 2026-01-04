@@ -792,11 +792,26 @@ static void append_wrapped(const FeatherHostOps *ops, FeatherInterp interp,
     }
     col += wordLen;
 
-    /* Skip whitespace */
+    /* Skip whitespace, but detect paragraph breaks (\n\n) */
+    int newlineCount = 0;
     while (i < len) {
       ch = ops->string.byte_at(interp, text, i);
-      if (ch != ' ' && ch != '\n') break;
-      i++;
+      if (ch == '\n') {
+        newlineCount++;
+        i++;
+      } else if (ch == ' ') {
+        i++;
+      } else {
+        break;
+      }
+    }
+
+    /* If we saw 2+ newlines, insert a paragraph break */
+    if (newlineCount >= 2 && i < len) {
+      ops->string.builder_append_byte(interp, builder, '\n');
+      ops->string.builder_append_byte(interp, builder, '\n');
+      append_str(ops, interp, builder, indent);
+      col = 0;
     }
   }
 }
