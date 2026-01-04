@@ -1962,4 +1962,191 @@ scriptcli2 run $incomplete</script>
     <exit-code>1</exit-code>
   </test-case>
 
+  <!-- ============================================= -->
+  <!-- example entries                               -->
+  <!-- ============================================= -->
+
+  <test-case name="example in help output">
+    <script>usage for examplecmd1 {
+    arg <file>
+    example {examplecmd1 myfile.txt}
+}
+set help [usage help examplecmd1]
+string match "*Examples:*examplecmd1 myfile.txt*" $help</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="example with header">
+    <script>usage for examplecmd2 {
+    arg <file>
+    example {examplecmd2 test.txt} {header {Basic usage}}
+}
+set help [usage help examplecmd2]
+expr {[string match "*Examples:*Basic usage*" $help] && [string match "*examplecmd2 test.txt*" $help]}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="example with help text">
+    <script>usage for examplecmd3 {
+    arg <file>
+    example {examplecmd3 data.csv} {help {Process a CSV file}}
+}
+set help [usage help examplecmd3]
+expr {[string match "*Process a CSV file*" $help] && [string match "*examplecmd3 data.csv*" $help]}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="multiple examples">
+    <script>usage for examplecmd4 {
+    arg <file>
+    flag -v --verbose
+    example {examplecmd4 file.txt}
+    example {examplecmd4 -v file.txt} {help {With verbose output}}
+}
+set help [usage help examplecmd4]
+expr {[string match "*examplecmd4 file.txt*" $help] && [string match "*examplecmd4 -v file.txt*" $help]}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="example round-trips through usage for">
+    <script>usage for examplecmd5 {
+    example {examplecmd5 test.txt} {header {Basic usage}}
+}
+set spec [usage for examplecmd5]
+string match "*example*examplecmd5 test.txt*header*Basic usage*" $spec</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="example does not affect parsing">
+    <script>usage for examplecmd6 {
+    arg <input>
+    example {examplecmd6 sample.txt}
+}
+proc examplecmd6 {args} {
+    usage parse examplecmd6 $args
+    return $input
+}
+examplecmd6 myfile.txt</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>myfile.txt</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- before_help and after_help                    -->
+  <!-- ============================================= -->
+
+  <test-case name="cmd with before_help round-trips">
+    <script>usage for beforecmd1 {
+    cmd run {
+        arg <script>
+    } {
+        help {Run a script}
+        before_help {Note: this requires setup}
+    }
+}
+set spec [usage for beforecmd1]
+string match "*before_help*this requires setup*" $spec</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="cmd with after_help round-trips">
+    <script>usage for aftercmd1 {
+    cmd build {
+        flag -o --output <file>
+    } {
+        help {Build the project}
+        after_help {See also: clean, test}
+    }
+}
+set spec [usage for aftercmd1]
+string match "*after_help*See also*" $spec</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="cmd with all help options">
+    <script>usage for allhelpscmd {
+    cmd deploy {} {
+        help {Deploy the application}
+        long_help {Deploys to production or staging environment}
+        before_help {Prerequisites: build first}
+        after_help {Tip: use --dry-run to preview}
+    }
+}
+set spec [usage for allhelpscmd]
+expr {[string match "*help*Deploy*" $spec] && [string match "*before_help*" $spec] && [string match "*after_help*" $spec]}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Text trimming in help output                  -->
+  <!-- ============================================= -->
+
+  <test-case name="multi-line help text is trimmed">
+    <script>usage for trimcmd1 {
+    arg <file> {
+        help {
+            This is a multi-line help text
+            that should be trimmed
+        }
+    }
+}
+set help [usage help trimcmd1]
+expr {[string match "*This is a multi-line*" $help] && ![string match "*\n            *" $help]}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="example code is trimmed">
+    <script>usage for trimcmd2 {
+    example {
+        trimcmd2 test.txt
+    }
+}
+set help [usage help trimcmd2]
+string match "*$ trimcmd2 test.txt*" $help</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
 </test-suite>
