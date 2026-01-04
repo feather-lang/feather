@@ -2045,6 +2045,25 @@ FeatherObj feather_usage_cmd(const FeatherHostOps *ops, FeatherInterp interp,
 }
 
 /**
+ * Create an example entry.
+ */
+FeatherObj feather_usage_example(const FeatherHostOps *ops, FeatherInterp interp,
+                                 const char *code,
+                                 const char *header,
+                                 const char *help) {
+  FeatherObj codeObj = ops->string.intern(interp, code, feather_strlen(code));
+  FeatherObj headerObj = ops->string.intern(interp, "", 0);
+  FeatherObj helpObj = ops->string.intern(interp, "", 0);
+  if (header) {
+    headerObj = ops->string.intern(interp, header, feather_strlen(header));
+  }
+  if (help) {
+    helpObj = ops->string.intern(interp, help, feather_strlen(help));
+  }
+  return usage_example_from_parts(ops, interp, codeObj, headerObj, helpObj);
+}
+
+/**
  * Set help text on an entry.
  */
 FeatherObj feather_usage_help(const FeatherHostOps *ops, FeatherInterp interp,

@@ -58,12 +58,37 @@ void feather_register_set_usage(const FeatherHostOps *ops, FeatherInterp interp)
 
   // Required argument: varName
   FeatherObj e = feather_usage_arg(ops, interp, "<varName>");
-  e = feather_usage_help(ops, interp, e, "Name of the variable");
+  e = feather_usage_help(ops, interp, e, "Name of the variable to read or write");
+  e = feather_usage_long_help(ops, interp, e,
+    "The variable name. If not fully qualified (starting with ::), "
+    "the variable is looked up first in the current namespace, then in the global namespace.");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  // Optional argument: newValue
-  e = feather_usage_arg(ops, interp, "?newValue?");
-  e = feather_usage_help(ops, interp, e, "New value to assign to the variable");
+  // Optional argument: value
+  e = feather_usage_arg(ops, interp, "?value?");
+  e = feather_usage_help(ops, interp, e, "Value to store in the variable");
+  e = feather_usage_long_help(ops, interp, e,
+    "If provided, assigns this value to the variable and returns it. "
+    "If omitted, returns the current value of the variable.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Examples
+  e = feather_usage_example(ops, interp,
+    "set greeting hello",
+    "Assign a value",
+    "Sets the variable 'greeting' to 'hello' and returns 'hello'.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "set greeting",
+    "Read a value",
+    "Returns the current value of the variable 'greeting'.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "set x [expr {$a + $b}]",
+    "Store computed value",
+    "Evaluates the expression and stores the result in 'x'.");
   spec = feather_usage_add(ops, interp, spec, e);
 
   feather_usage_register(ops, interp, "set", spec);

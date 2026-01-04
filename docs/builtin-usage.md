@@ -298,6 +298,10 @@ FeatherObj feather_usage_flag(const FeatherHostOps *ops, FeatherInterp interp,
 FeatherObj feather_usage_cmd(const FeatherHostOps *ops, FeatherInterp interp,
                              const char *name,
                              FeatherObj subspec);
+FeatherObj feather_usage_example(const FeatherHostOps *ops, FeatherInterp interp,
+                                 const char *code,
+                                 const char *header,
+                                 const char *help);
 
 // Entry modification (all return modified entry)
 FeatherObj feather_usage_help(const FeatherHostOps *ops, FeatherInterp interp,
@@ -362,6 +366,22 @@ subspec = feather_usage_add(ops, interp, subspec,
 FeatherObj cmd = feather_usage_cmd(ops, interp, "add", subspec);
 ```
 
+#### `feather_usage_example`
+
+```c
+// Simple example (code only)
+feather_usage_example(ops, interp, "mytool file.txt", NULL, NULL);
+
+// Example with header
+feather_usage_example(ops, interp, "mytool -v file.txt", "Verbose mode", NULL);
+
+// Example with header and description
+feather_usage_example(ops, interp,
+    "mytool --format json file.txt",
+    "JSON output",
+    "Process the file and output results in JSON format.");
+```
+
 ### Modification Functions
 
 All modification functions return the modified entry, allowing chaining:
@@ -400,6 +420,13 @@ void register_mycommand(const FeatherHostOps *ops, FeatherInterp interp) {
         feather_usage_arg(ops, interp, "<file>"));
     e = feather_usage_cmd(ops, interp, "check", subspec);
     e = feather_usage_help(ops, interp, e, "Check syntax only");
+    spec = feather_usage_add(ops, interp, spec, e);
+
+    // Add example
+    e = feather_usage_example(ops, interp,
+        "mycommand input.txt output.txt",
+        "Basic usage",
+        "Process input.txt and write to output.txt.");
     spec = feather_usage_add(ops, interp, spec, e);
 
     // Register the spec
