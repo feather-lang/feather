@@ -52,3 +52,19 @@ FeatherResult feather_builtin_set(const FeatherHostOps *ops, FeatherInterp inter
   ops->interp.set_result(interp, value);
   return TCL_OK;
 }
+
+void feather_register_set_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  // Required argument: varName
+  FeatherObj e = feather_usage_arg(ops, interp, "<varName>");
+  e = feather_usage_help(ops, interp, e, "Name of the variable");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Optional argument: newValue
+  e = feather_usage_arg(ops, interp, "?newValue?");
+  e = feather_usage_help(ops, interp, e, "New value to assign to the variable");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "set", spec);
+}

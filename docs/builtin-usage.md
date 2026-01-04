@@ -32,11 +32,15 @@ usage for mycommand {
     flag -v --verbose
 }
 
-# Retrieve the raw spec
+# Retrieve the spec (same format as input)
 set spec [usage for mycommand]
+# => arg <input> arg ?output? flag -v --verbose
+
+# Round-trip: copy spec to another command
+usage for anothercommand $spec
 ```
 
-When called with a spec, stores the specification for later use with `parse` and `help`. When called without a spec, returns the original spec string.
+When called with a spec, stores the specification for later use with `parse` and `help`. When called without a spec, returns the spec in the same list format that `usage for` accepts (round-trippable).
 
 ### `usage parse` - Parse Arguments
 
@@ -361,7 +365,7 @@ void register_mycommand(const FeatherHostOps *ops, FeatherInterp interp) {
 
 ## Internal Storage Format
 
-Usage specs are stored in the `::usage::specs` namespace variable as a dict mapping command names to `{rawSpec parsedSpec}` pairs.
+Usage specs are stored in the `::usage::specs` namespace variable as a dict mapping command names to parsed spec lists.
 
 Each entry in the parsed spec is a dict with a `type` key indicating the entry type. Only set keys that are needed (sparse representation).
 

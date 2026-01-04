@@ -171,6 +171,9 @@ void feather_interp_init(const FeatherHostOps *ops, FeatherInterp interp) {
   ops->ns.set_var(interp, errorsNs, infoName, ops->string.intern(interp, "", 0));
   ops->ns.set_var(interp, errorsNs, stackName, ops->list.create(interp));
   ops->ns.set_var(interp, errorsNs, lineName, ops->integer.create(interp, 0));
+
+  // Register usage specs for builtins
+  feather_register_set_usage(ops, interp);
 }
 
 FeatherObj feather_trace_get_dict(const FeatherHostOps *ops, FeatherInterp interp,

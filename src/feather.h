@@ -1478,7 +1478,7 @@ FeatherObj feather_list_parse_obj(const FeatherHostOps *ops, FeatherInterp inter
  * Usage Spec Format (dict-based entries)
  *
  * Usage specs are stored in ::usage::specs as a dict mapping command
- * names to {rawSpec parsedSpec} pairs. Hosts can construct specs directly
+ * names to parsed spec lists. Hosts can construct specs directly
  * using ops->dict operations.
  *
  * Each entry is a dict with a "type" key indicating the entry type.

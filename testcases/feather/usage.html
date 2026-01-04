@@ -52,7 +52,8 @@
 
   <test-case name="usage for defines a spec">
     <script>usage for testcmd {arg <input>}
-string match {arg <input>} [usage for testcmd]</script>
+set spec [usage for testcmd]
+string match {*input*} [lindex $spec 1]</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>1</stdout>
@@ -62,10 +63,11 @@ string match {arg <input>} [usage for testcmd]</script>
 
   <test-case name="usage for without spec retrieves existing">
     <script>usage for testcmd2 {arg <file> arg ?output?}
-string match {arg <file> arg ?output?} [usage for testcmd2]</script>
+set spec [usage for testcmd2]
+list [string match {*file*} [lindex $spec 1]] [string match {*output*} [lindex $spec 3]]</script>
     <return>TCL_OK</return>
     <error></error>
-    <stdout>1</stdout>
+    <stdout>1 1</stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
@@ -1627,11 +1629,12 @@ expr {[string match "*output format*" $help] && [string match "*choices: json ya
     <script>usage for longhcmd1 {
     arg <file> {help {input file} long_help {detailed description}}
 }
-# Just verify it parses without error
-string length [usage for longhcmd1]</script>
+set spec [usage for longhcmd1]
+set opts [lindex $spec 2]
+dict get $opts long_help</script>
     <return>TCL_OK</return>
     <error></error>
-    <stdout>69</stdout>
+    <stdout>detailed description</stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>

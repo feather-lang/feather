@@ -1240,6 +1240,13 @@ FeatherResult feather_foreach_impl(const FeatherHostOps *ops,
                                     void *ctx);
 
 /**
+ * feather_register_set_usage registers the usage spec for the 'set' command.
+ *
+ * Called during interpreter initialization to make usage help available.
+ */
+void feather_register_set_usage(const FeatherHostOps *ops, FeatherInterp interp);
+
+/**
  * feather_builtin_usage implements the TCL 'usage' command.
  *
  * Usage:

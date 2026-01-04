@@ -169,7 +169,7 @@ namespace exists ::foo</script>
     <script>namespace children</script>
     <return>TCL_OK</return>
     <error></error>
-    <stdout>::tcl</stdout>
+    <stdout>::tcl ::usage</stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
@@ -180,7 +180,7 @@ namespace eval bar {}
 namespace children</script>
     <return>TCL_OK</return>
     <error></error>
-    <stdout>::bar ::foo ::tcl</stdout>
+    <stdout>::bar ::foo ::tcl ::usage</stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
