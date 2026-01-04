@@ -638,7 +638,7 @@ extratest one two</script>
   <test-case name="usage help with wrong args errors">
     <script>usage help</script>
     <return>TCL_ERROR</return>
-    <error>wrong # args: should be "usage help command"</error>
+    <error>wrong # args: should be "usage help command ?subcommand...?"</error>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -890,6 +890,540 @@ list [testA alpha] [testB beta]</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>A:alpha B:beta</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Subcommand support                            -->
+  <!-- ============================================= -->
+
+  <test-case name="simple subcommand definition">
+    <script>usage for mycli {
+    cmd "init" {
+        arg "?dir?"
+    }
+    cmd "run" {
+        arg "<script>"
+    }
+}
+proc mycli {args} {
+    usage parse mycli $args
+    return "cmd=$_cmd"
+}
+mycli init</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>cmd=init</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subcommand with args">
+    <script>usage for cli1 {
+    cmd "add" {
+        arg "<file>"
+    }
+}
+proc cli1 {args} {
+    usage parse cli1 $args
+    return "$_cmd:$file"
+}
+cli1 add myfile.txt</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>add:myfile.txt</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subcommand with flags">
+    <script>usage for cli2 {
+    cmd "build" {
+        flag "-v --verbose"
+        flag "-o --output <file>"
+    }
+}
+proc cli2 {args} {
+    usage parse cli2 $args
+    return "$_cmd:v=$verbose:o=$output"
+}
+cli2 build -v -o dist/app</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>build:v=1:o=dist/app</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subcommand with args and flags">
+    <script>usage for cli3 {
+    cmd "copy" {
+        arg "<src>"
+        arg "<dst>"
+        flag "-r --recursive"
+    }
+}
+proc cli3 {args} {
+    usage parse cli3 $args
+    return "$_cmd:$src->$dst:r=$recursive"
+}
+cli3 copy -r /src /dst</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>copy:/src->/dst:r=1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="unknown subcommand errors">
+    <script>usage for cli4 {
+    cmd "known" {}
+}
+proc cli4 {args} {
+    usage parse cli4 $args
+}
+cli4 unknown</script>
+    <return>TCL_ERROR</return>
+    <error>unknown subcommand "unknown"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="missing required subcommand errors">
+    <script>usage for cli5 {
+    cmd "sub1" {}
+    cmd "sub2" {}
+}
+proc cli5 {args} {
+    usage parse cli5 $args
+}
+cli5</script>
+    <return>TCL_ERROR</return>
+    <error>missing subcommand: must be sub1 or sub2</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="global flags before subcommand">
+    <script>usage for cli6 {
+    flag "-v --verbose"
+    cmd "run" {
+        arg "<script>"
+    }
+}
+proc cli6 {args} {
+    usage parse cli6 $args
+    return "v=$verbose:$_cmd:$script"
+}
+cli6 -v run test.tcl</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>v=1:run:test.tcl</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="global flags after subcommand">
+    <script>usage for cli7 {
+    flag "-v --verbose"
+    cmd "run" {
+        arg "<script>"
+    }
+}
+proc cli7 {args} {
+    usage parse cli7 $args
+    return "v=$verbose:$_cmd:$script"
+}
+cli7 run -v test.tcl</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>v=1:run:test.tcl</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Nested subcommands (2 levels)                 -->
+  <!-- ============================================= -->
+
+  <test-case name="nested subcommand 2 levels">
+    <script>usage for git1 {
+    cmd "remote" {
+        cmd "add" {
+            arg "<name>"
+            arg "<url>"
+        }
+        cmd "remove" {
+            arg "<name>"
+        }
+    }
+}
+proc git1 {args} {
+    usage parse git1 $args
+    return "$_cmd:name=$name"
+}
+git1 remote add origin https://example.com</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>remote add:name=origin</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="nested subcommand with url arg">
+    <script>usage for git2 {
+    cmd "remote" {
+        cmd "add" {
+            arg "<name>"
+            arg "<url>"
+        }
+    }
+}
+proc git2 {args} {
+    usage parse git2 $args
+    return "$name|$url"
+}
+git2 remote add origin https://github.com/test/repo</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>origin|https://github.com/test/repo</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="nested subcommand remove">
+    <script>usage for git3 {
+    cmd "remote" {
+        cmd "add" {
+            arg "<name>"
+            arg "<url>"
+        }
+        cmd "remove" {
+            arg "<name>"
+        }
+    }
+}
+proc git3 {args} {
+    usage parse git3 $args
+    return "$_cmd:$name"
+}
+git3 remote remove origin</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>remote remove:origin</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="nested subcommand with flags">
+    <script>usage for docker1 {
+    cmd "container" {
+        cmd "run" {
+            flag "-d --detach"
+            flag "-p --publish <port>"
+            arg "<image>"
+        }
+    }
+}
+proc docker1 {args} {
+    usage parse docker1 $args
+    return "$_cmd:d=$detach:p=$publish:$image"
+}
+docker1 container run -d -p 8080:80 nginx</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>container run:d=1:p=8080:80:nginx</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Nested subcommands (3+ levels)                -->
+  <!-- ============================================= -->
+
+  <test-case name="nested subcommand 3 levels">
+    <script>usage for k8s1 {
+    cmd "config" {
+        cmd "current-context" {}
+        cmd "use-context" {
+            arg "<context>"
+        }
+        cmd "view" {
+            cmd "users" {}
+            cmd "clusters" {}
+        }
+    }
+}
+proc k8s1 {args} {
+    usage parse k8s1 $args
+    return $_cmd
+}
+k8s1 config view clusters</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>config view clusters</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="nested subcommand 3 levels with args">
+    <script>usage for tool1 {
+    cmd "level1" {
+        cmd "level2" {
+            cmd "level3" {
+                arg "<value>"
+            }
+        }
+    }
+}
+proc tool1 {args} {
+    usage parse tool1 $args
+    return "$_cmd:$value"
+}
+tool1 level1 level2 level3 myvalue</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>level1 level2 level3:myvalue</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="nested subcommand unknown at level 2">
+    <script>usage for tool2 {
+    cmd "parent" {
+        cmd "child1" {}
+        cmd "child2" {}
+    }
+}
+proc tool2 {args} {
+    usage parse tool2 $args
+}
+tool2 parent unknown</script>
+    <return>TCL_ERROR</return>
+    <error>unknown subcommand "unknown"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="mixed global and subcommand flags">
+    <script>usage for mix1 {
+    flag "-v --verbose"
+    flag "-q --quiet"
+    cmd "deploy" {
+        flag "-f --force"
+        arg "<target>"
+    }
+}
+proc mix1 {args} {
+    usage parse mix1 $args
+    return "v=$verbose:q=$quiet:f=$force:$target"
+}
+mix1 -v deploy -f production</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>v=1:q=0:f=1:production</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- usage help with subcommands                   -->
+  <!-- ============================================= -->
+
+  <test-case name="usage help shows subcommands">
+    <script>usage for helpsub1 {
+    cmd "start" {}
+    cmd "stop" {}
+    cmd "status" {}
+}
+set help [usage help helpsub1]
+expr {[string match "*start*" $help] && [string match "*stop*" $help] && [string match "*status*" $help]}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="usage help for specific subcommand">
+    <script>usage for helpsub2 {
+    cmd "run" {
+        arg "<script>"
+        flag "-v --verbose"
+    }
+}
+set help [usage help helpsub2 run]
+expr {[string match "*<script>*" $help] && [string match "*--verbose*" $help]}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="usage help for nested subcommand">
+    <script>usage for helpsub3 {
+    cmd "remote" {
+        cmd "add" {
+            arg "<name>"
+            arg "<url>"
+        }
+    }
+}
+set help [usage help helpsub3 remote add]
+expr {[string match "*<name>*" $help] && [string match "*<url>*" $help]}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Complex real-world subcommand scenarios       -->
+  <!-- ============================================= -->
+
+  <test-case name="git-like CLI">
+    <script>usage for mygit {
+    flag "-v --version"
+    flag "-h --help"
+    cmd "init" {
+        arg "?directory?"
+        flag "--bare"
+    }
+    cmd "clone" {
+        arg "<repository>"
+        arg "?directory?"
+        flag "--depth <n>"
+    }
+    cmd "add" {
+        arg "<pathspec>..."
+        flag "-A --all"
+    }
+    cmd "commit" {
+        flag "-m --message <msg>"
+        flag "-a --all"
+    }
+}
+proc mygit {args} {
+    usage parse mygit $args
+    return $_cmd
+}
+mygit commit -m "test"</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>commit</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="git clone with args">
+    <script>usage for mygit2 {
+    cmd "clone" {
+        arg "<repository>"
+        arg "?directory?"
+        flag "--depth <n>"
+    }
+}
+proc mygit2 {args} {
+    usage parse mygit2 $args
+    return "$repository|$directory|$depth"
+}
+mygit2 clone --depth 1 https://github.com/test/repo mydir</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>https://github.com/test/repo|mydir|1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="npm-like CLI">
+    <script>usage for mynpm {
+    cmd "install" {
+        arg "?packages?..."
+        flag "-g --global"
+        flag "-D --save-dev"
+    }
+    cmd "run" {
+        arg "<script>"
+        arg "?args?..."
+    }
+    cmd "init" {
+        flag "-y --yes"
+    }
+}
+proc mynpm {args} {
+    usage parse mynpm $args
+    return "$_cmd:g=$global:D=$save_dev"
+}
+mynpm install -g typescript</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>install:g=1:D=0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="docker-like CLI nested">
+    <script>usage for mydocker {
+    cmd "container" {
+        cmd "ls" {
+            flag "-a --all"
+            flag "-q --quiet"
+        }
+        cmd "run" {
+            flag "-d --detach"
+            flag "-it"
+            flag "--name <name>"
+            arg "<image>"
+            arg "?command?..."
+        }
+        cmd "stop" {
+            arg "<containers>..."
+        }
+    }
+    cmd "image" {
+        cmd "ls" {
+            flag "-a --all"
+        }
+        cmd "pull" {
+            arg "<image>"
+        }
+    }
+}
+proc mydocker {args} {
+    usage parse mydocker $args
+    return $_cmd
+}
+mydocker image pull nginx</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>image pull</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="deep nesting 4 levels">
+    <script>usage for deep1 {
+    cmd "a" {
+        cmd "b" {
+            cmd "c" {
+                cmd "d" {
+                    arg "<value>"
+                }
+            }
+        }
+    }
+}
+proc deep1 {args} {
+    usage parse deep1 $args
+    return "$_cmd:$value"
+}
+deep1 a b c d final</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>a b c d:final</stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
