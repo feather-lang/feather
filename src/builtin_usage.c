@@ -1,6 +1,8 @@
 #include "feather.h"
 #include "internal.h"
 
+#define S(lit) (lit), feather_strlen(lit)
+
 /**
  * builtin_usage.c - Implements the 'usage' command for CLI argument parsing.
  *
@@ -41,7 +43,7 @@
  */
 
 /* Storage namespace for usage specs: ::usage */
-#define USAGE_NS "::usage"
+static const char *USAGE_NS = "::usage";
 
 /* Dict keys - interned once per use for efficiency */
 #define K_TYPE       "type"
@@ -159,7 +161,7 @@ static FeatherObj sanitize_var_name(const FeatherHostOps *ops, FeatherInterp int
  * Get the usage specs dictionary from ::usage::specs
  */
 static FeatherObj usage_get_specs(const FeatherHostOps *ops, FeatherInterp interp) {
-  FeatherObj ns = ops->string.intern(interp, USAGE_NS, 7);
+  FeatherObj ns = ops->string.intern(interp, S(USAGE_NS));
   FeatherObj varName = ops->string.intern(interp, "specs", 5);
   FeatherObj specs = ops->ns.get_var(interp, ns, varName);
   if (ops->list.is_nil(interp, specs)) {
@@ -172,7 +174,7 @@ static FeatherObj usage_get_specs(const FeatherHostOps *ops, FeatherInterp inter
  * Store the usage specs dictionary
  */
 static void usage_set_specs(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj specs) {
-  FeatherObj ns = ops->string.intern(interp, USAGE_NS, 7);
+  FeatherObj ns = ops->string.intern(interp, S(USAGE_NS));
   FeatherObj varName = ops->string.intern(interp, "specs", 5);
   ops->ns.set_var(interp, ns, varName, specs);
 }
@@ -1370,7 +1372,7 @@ FeatherResult feather_builtin_usage(const FeatherHostOps *ops, FeatherInterp int
   }
 
   /* Ensure ::usage namespace exists */
-  FeatherObj usageNs = ops->string.intern(interp, USAGE_NS, 7);
+  FeatherObj usageNs = ops->string.intern(interp, S(USAGE_NS));
   ops->ns.create(interp, usageNs);
 
   FeatherObj subcmd = ops->list.shift(interp, args);
