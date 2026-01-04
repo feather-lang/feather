@@ -81,7 +81,7 @@ puts [usage help mycommand]
 
 ## Spec Format
 
-The spec uses a TCL-native block syntax with three entry types: `arg`, `flag`, and `cmd`.
+The spec uses a TCL-native block syntax with four entry types: `arg`, `flag`, `cmd`, and `example`.
 
 ### Arguments (`arg`)
 
@@ -128,6 +128,27 @@ usage for git {
 
 When parsing, the `$subcommand` variable is set to a list of matched subcommand names.
 
+### Examples (`example`)
+
+```tcl
+usage for mytool {
+    arg <file>
+    flag -v --verbose
+    example {mytool myfile.txt}
+    example {mytool -v myfile.txt} {
+        header {Verbose mode}
+        help {Process a file with verbose output}
+    }
+}
+```
+
+Examples are shown in the `usage help` output in a dedicated "Examples:" section. Each example consists of a code snippet and optional options:
+
+| Option | Description |
+|--------|-------------|
+| `header` | A title for the example |
+| `help` | A description of what the example does |
+
 ### Options Blocks
 
 Each entry can have an options block with additional configuration:
@@ -154,6 +175,8 @@ cmd subcommand {
     # subcommand body
 } {
     help {Description of subcommand}
+    before_help {Prerequisites: setup required}
+    after_help {See also: other commands}
     hide
 }
 ```
@@ -166,6 +189,27 @@ cmd subcommand {
 | `choices` | `arg`, `flag` | Space-separated list of valid values |
 | `type` | `arg`, `flag` | Type hint for validation (e.g., `script`) |
 | `hide` | All | Hide from help output |
+| `before_help` | `cmd` | Text shown before the help content |
+| `after_help` | `cmd` | Text shown after the help content |
+| `before_long_help` | `cmd` | Text shown before extended help |
+| `after_long_help` | `cmd` | Text shown after extended help |
+
+### Text Trimming
+
+Multi-line text in `help`, `long_help`, and `example` entries is automatically trimmed:
+- Leading and trailing newlines are removed
+- Common leading whitespace (indentation) is dedented
+
+This allows clean formatting in specs while producing proper output:
+
+```tcl
+arg <file> {
+    help {
+        This is a multi-line description
+        that will be dedented properly
+    }
+}
+```
 
 ### Type Validation
 
@@ -410,6 +454,19 @@ Each entry in the parsed spec is a dict with a `type` key indicating the entry t
 | `help` | string | Short help text |
 | `long_help` | string | Extended help text |
 | `hide` | int | `1` to hide from help |
+| `before_help` | string | Text shown before help content |
+| `after_help` | string | Text shown after help content |
+| `before_long_help` | string | Text shown before extended help |
+| `after_long_help` | string | Text shown after extended help |
+
+### Example Entry Keys
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `type` | string | Always `"example"` |
+| `code` | string | The example command to show |
+| `header` | string | Title for the example |
+| `help` | string | Description of what the example does |
 
 ## Notes on Implementation
 

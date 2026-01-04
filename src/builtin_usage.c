@@ -64,10 +64,22 @@ static const char *K_VAR_NAME   = "var_name";
 static const char *K_SPEC       = "spec";
 static const char *K_ORIG       = "orig";  /* Original spec string for round-tripping */
 
+/* Example entry keys */
+static const char *K_CODE       = "code";
+static const char *K_HEADER     = "header";
+static const char *K_EXAMPLES   = "examples";
+
+/* Before/after help keys */
+static const char *K_BEFORE_HELP      = "before_help";
+static const char *K_AFTER_HELP       = "after_help";
+static const char *K_BEFORE_LONG_HELP = "before_long_help";
+static const char *K_AFTER_LONG_HELP  = "after_long_help";
+
 /* Entry type values */
-static const char *T_ARG  = "arg";
-static const char *T_FLAG = "flag";
-static const char *T_CMD  = "cmd";
+static const char *T_ARG     = "arg";
+static const char *T_FLAG    = "flag";
+static const char *T_CMD     = "cmd";
+static const char *T_EXAMPLE = "example";
 
 /**
  * Helper to get a string key from a dict, returning empty string if not found.
@@ -181,12 +193,98 @@ static void usage_set_specs(const FeatherHostOps *ops, FeatherInterp interp, Fea
 }
 
 /**
- * Check if a token is a keyword (arg, flag, cmd).
+ * Trim leading/trailing newlines and dedent: remove common leading whitespace from each line.
+ * This normalizes multi-line help text, long_help, and example bodies for consistent display.
+ */
+static FeatherObj trim_text_block(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj text) {
+  size_t len = ops->string.byte_length(interp, text);
+  if (len == 0) return text;
+
+  /* Find first non-newline character */
+  size_t start = 0;
+  while (start < len) {
+    int c = ops->string.byte_at(interp, text, start);
+    if (c != '\n' && c != '\r') break;
+    start++;
+  }
+
+  /* Find last non-newline character */
+  size_t end = len;
+  while (end > start) {
+    int c = ops->string.byte_at(interp, text, end - 1);
+    if (c != '\n' && c != '\r') break;
+    end--;
+  }
+
+  if (start >= end) {
+    return ops->string.intern(interp, "", 0);
+  }
+
+  /* Find minimum indentation (spaces/tabs at start of non-empty lines) */
+  size_t min_indent = (size_t)-1;  /* Large value */
+  size_t line_start = start;
+  int at_line_start = 1;
+  size_t current_indent = 0;
+
+  for (size_t i = start; i < end; i++) {
+    int c = ops->string.byte_at(interp, text, i);
+    if (c == '\n') {
+      /* End of line - only count if line had content */
+      if (!at_line_start && current_indent < min_indent) {
+        min_indent = current_indent;
+      }
+      line_start = i + 1;
+      at_line_start = 1;
+      current_indent = 0;
+    } else if (at_line_start && (c == ' ' || c == '\t')) {
+      current_indent++;
+    } else if (at_line_start) {
+      /* First non-whitespace character on line */
+      if (current_indent < min_indent) {
+        min_indent = current_indent;
+      }
+      at_line_start = 0;
+    }
+  }
+  /* Handle last line if no trailing newline */
+  if (!at_line_start && current_indent < min_indent) {
+    min_indent = current_indent;
+  }
+
+  if (min_indent == (size_t)-1) {
+    min_indent = 0;
+  }
+
+  /* Build dedented string */
+  FeatherObj builder = ops->string.builder_new(interp, end - start);
+  at_line_start = 1;
+  size_t skip_count = 0;
+
+  for (size_t i = start; i < end; i++) {
+    int c = ops->string.byte_at(interp, text, i);
+    if (c == '\n') {
+      ops->string.builder_append_byte(interp, builder, (char)c);
+      at_line_start = 1;
+      skip_count = 0;
+    } else if (at_line_start && skip_count < min_indent && (c == ' ' || c == '\t')) {
+      skip_count++;
+    } else {
+      at_line_start = 0;
+      ops->string.builder_append_byte(interp, builder, (char)c);
+    }
+  }
+
+  return ops->string.builder_finish(interp, builder);
+}
+
+/**
+ * Check if a token is a keyword (arg, flag, cmd, example).
  */
 static int is_keyword(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj token) {
   return feather_obj_eq_literal(ops, interp, token, "flag") ||
          feather_obj_eq_literal(ops, interp, token, "arg") ||
-         feather_obj_eq_literal(ops, interp, token, "cmd");
+         feather_obj_eq_literal(ops, interp, token, "cmd") ||
+         feather_obj_eq_literal(ops, interp, token, "example");
 }
 
 /**
@@ -208,12 +306,18 @@ static int is_flag_part(const FeatherHostOps *ops, FeatherInterp interp, Feather
  *   default {value}  (for arg only)
  *   type {typename}  (e.g., script, file, dir)
  *   hide
+ *   before_help {text}      (for top-level/cmd specs)
+ *   after_help {text}
+ *   before_long_help {text}
+ *   after_long_help {text}
  */
 static void parse_options_block(const FeatherHostOps *ops, FeatherInterp interp,
                                  FeatherObj block,
                                  FeatherObj *helpOut, FeatherObj *longHelpOut,
                                  FeatherObj *choicesOut, FeatherObj *defaultOut,
-                                 FeatherObj *typeOut, int *hideOut) {
+                                 FeatherObj *typeOut, int *hideOut,
+                                 FeatherObj *beforeHelpOut, FeatherObj *afterHelpOut,
+                                 FeatherObj *beforeLongHelpOut, FeatherObj *afterLongHelpOut) {
   FeatherObj optsList = feather_list_parse_obj(ops, interp, block);
   size_t optsLen = ops->list.length(interp, optsList);
 
@@ -241,10 +345,35 @@ static void parse_options_block(const FeatherHostOps *ops, FeatherInterp interp,
       *defaultOut = value;
     } else if (typeOut && feather_obj_eq_literal(ops, interp, key, "type")) {
       *typeOut = value;
+    } else if (beforeHelpOut && feather_obj_eq_literal(ops, interp, key, "before_help")) {
+      *beforeHelpOut = value;
+    } else if (afterHelpOut && feather_obj_eq_literal(ops, interp, key, "after_help")) {
+      *afterHelpOut = value;
+    } else if (beforeLongHelpOut && feather_obj_eq_literal(ops, interp, key, "before_long_help")) {
+      *beforeLongHelpOut = value;
+    } else if (afterLongHelpOut && feather_obj_eq_literal(ops, interp, key, "after_long_help")) {
+      *afterLongHelpOut = value;
     }
 
     i += 2;
   }
+}
+
+/**
+ * Create an example entry from parsed parts.
+ */
+static FeatherObj usage_example_from_parts(const FeatherHostOps *ops, FeatherInterp interp,
+                                            FeatherObj code, FeatherObj header, FeatherObj help) {
+  FeatherObj entry = ops->dict.create(interp);
+  entry = dict_set_str(ops, interp, entry, K_TYPE, ops->string.intern(interp, S(T_EXAMPLE)));
+  entry = dict_set_str(ops, interp, entry, K_CODE, code);
+  if (ops->string.byte_length(interp, header) > 0) {
+    entry = dict_set_str(ops, interp, entry, K_HEADER, header);
+  }
+  if (ops->string.byte_length(interp, help) > 0) {
+    entry = dict_set_str(ops, interp, entry, K_HELP, help);
+  }
+  return entry;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -419,8 +548,9 @@ static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
       if (i < specLen) {
         FeatherObj next = ops->list.at(interp, specList, i);
         if (!is_keyword(ops, interp, next)) {
-          /* This is the options block */
-          parse_options_block(ops, interp, next, &helpText, &longHelp, &choices, &defaultVal, &typeVal, &hide);
+          /* This is the options block - arg doesn't use before/after help */
+          parse_options_block(ops, interp, next, &helpText, &longHelp, &choices, &defaultVal, &typeVal, &hide,
+                              NULL, NULL, NULL, NULL);
           i++;
         }
       }
@@ -455,16 +585,21 @@ static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
         i++;
       }
 
-      /* Check for options block */
+      /* Check for options block - cmd supports before/after help */
       FeatherObj helpText = ops->string.intern(interp, "", 0);
       FeatherObj longHelp = ops->string.intern(interp, "", 0);
+      FeatherObj beforeHelp = ops->string.intern(interp, "", 0);
+      FeatherObj afterHelp = ops->string.intern(interp, "", 0);
+      FeatherObj beforeLongHelp = ops->string.intern(interp, "", 0);
+      FeatherObj afterLongHelp = ops->string.intern(interp, "", 0);
       int hide = 0;
 
       if (i < specLen) {
         FeatherObj next = ops->list.at(interp, specList, i);
         if (!is_keyword(ops, interp, next)) {
           /* This is the options block */
-          parse_options_block(ops, interp, next, &helpText, &longHelp, NULL, NULL, NULL, &hide);
+          parse_options_block(ops, interp, next, &helpText, &longHelp, NULL, NULL, NULL, &hide,
+                              &beforeHelp, &afterHelp, &beforeLongHelp, &afterLongHelp);
           i++;
         }
       }
@@ -482,6 +617,14 @@ static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
         entry = usage_set_long_help(ops, interp, entry, longHelp);
       if (hide)
         entry = usage_set_hide(ops, interp, entry);
+      if (ops->string.byte_length(interp, beforeHelp) > 0)
+        entry = dict_set_str(ops, interp, entry, K_BEFORE_HELP, beforeHelp);
+      if (ops->string.byte_length(interp, afterHelp) > 0)
+        entry = dict_set_str(ops, interp, entry, K_AFTER_HELP, afterHelp);
+      if (ops->string.byte_length(interp, beforeLongHelp) > 0)
+        entry = dict_set_str(ops, interp, entry, K_BEFORE_LONG_HELP, beforeLongHelp);
+      if (ops->string.byte_length(interp, afterLongHelp) > 0)
+        entry = dict_set_str(ops, interp, entry, K_AFTER_LONG_HELP, afterLongHelp);
 
       result = ops->list.push(interp, result, entry);
 
@@ -525,7 +668,7 @@ static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
       /* Build flag entry using internal API */
       FeatherObj entry = usage_flag_from_parts(ops, interp, shortFlag, longFlag, hasValue, valueRequired);
 
-      /* Check for options block */
+      /* Check for options block - flag doesn't use before/after help */
       FeatherObj helpText = ops->string.intern(interp, "", 0);
       FeatherObj longHelp = ops->string.intern(interp, "", 0);
       FeatherObj choices = ops->string.intern(interp, "", 0);
@@ -536,7 +679,8 @@ static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
         FeatherObj next = ops->list.at(interp, specList, i);
         if (!is_keyword(ops, interp, next)) {
           /* This is the options block */
-          parse_options_block(ops, interp, next, &helpText, &longHelp, &choices, NULL, &typeVal, &hide);
+          parse_options_block(ops, interp, next, &helpText, &longHelp, &choices, NULL, &typeVal, &hide,
+                              NULL, NULL, NULL, NULL);
           i++;
         }
       }
@@ -554,6 +698,43 @@ static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
         entry = usage_set_type(ops, interp, entry, typeVal);
 
       result = ops->list.push(interp, result, entry);
+
+    } else if (feather_obj_eq_literal(ops, interp, keyword, "example")) {
+      /* example <code> { options } */
+      if (i >= specLen) break;
+
+      FeatherObj code = ops->list.at(interp, specList, i);
+      i++;
+
+      /* Check for options block */
+      FeatherObj header = ops->string.intern(interp, "", 0);
+      FeatherObj helpText = ops->string.intern(interp, "", 0);
+
+      if (i < specLen) {
+        FeatherObj next = ops->list.at(interp, specList, i);
+        if (!is_keyword(ops, interp, next)) {
+          /* This is the options block - parse header and help */
+          FeatherObj optsList = feather_list_parse_obj(ops, interp, next);
+          size_t optsLen = ops->list.length(interp, optsList);
+          size_t j = 0;
+          while (j < optsLen) {
+            FeatherObj key = ops->list.at(interp, optsList, j);
+            if (j + 1 >= optsLen) break;
+            FeatherObj value = ops->list.at(interp, optsList, j + 1);
+            if (feather_obj_eq_literal(ops, interp, key, "header")) {
+              header = value;
+            } else if (feather_obj_eq_literal(ops, interp, key, "help")) {
+              helpText = value;
+            }
+            j += 2;
+          }
+          i++;
+        }
+      }
+
+      /* Create example entry */
+      FeatherObj entry = usage_example_from_parts(ops, interp, code, header, helpText);
+      result = ops->list.push(interp, result, entry);
     }
   }
 
@@ -561,46 +742,55 @@ static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
 }
 
 /**
+ * Helper to append a string literal to a builder.
+ */
+static void append_str(const FeatherHostOps *ops, FeatherInterp interp,
+                       FeatherObj builder, const char *s) {
+  while (*s) ops->string.builder_append_byte(interp, builder, *s++);
+}
+
+/**
  * Generate usage string for display (--help output)
+ * Follows manpage format: SYNOPSIS, DESCRIPTION, COMMANDS, OPTIONS, ARGUMENTS, EXAMPLES
  */
 static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp interp,
                                          FeatherObj cmdName, FeatherObj parsedSpec) {
   FeatherObj builder = ops->string.builder_new(interp, 256);
-
-  /* Usage: cmdname */
-  const char *usage = "Usage: ";
-  while (*usage) ops->string.builder_append_byte(interp, builder, *usage++);
-  ops->string.builder_append_obj(interp, builder, cmdName);
-
-  /* Add flags summary */
   size_t specLen = ops->list.length(interp, parsedSpec);
+
+  /* Check for features in spec */
   int hasFlags = 0;
   int hasSubcmds = 0;
+  int hasExamples = 0;
 
   for (size_t i = 0; i < specLen; i++) {
     FeatherObj entry = ops->list.at(interp, parsedSpec, i);
-
     if (entry_is_type(ops, interp, entry, T_FLAG)) {
       int64_t hide = dict_get_int(ops, interp, entry, K_HIDE);
-      if (!hide && !hasFlags) {
-        const char *opts = " ?options?";
-        while (*opts) ops->string.builder_append_byte(interp, builder, *opts++);
-        hasFlags = 1;
-      }
+      if (!hide) hasFlags = 1;
     }
     if (entry_is_type(ops, interp, entry, T_CMD)) {
       int64_t hide = dict_get_int(ops, interp, entry, K_HIDE);
       if (!hide) hasSubcmds = 1;
     }
+    if (entry_is_type(ops, interp, entry, T_EXAMPLE)) {
+      hasExamples = 1;
+    }
   }
 
-  /* Add subcommand placeholder if any */
+  /* === Usage/Synopsis line === */
+  append_str(ops, interp, builder, "Usage: ");
+  ops->string.builder_append_obj(interp, builder, cmdName);
+
+  if (hasFlags) {
+    append_str(ops, interp, builder, " ?options?");
+  }
+
   if (hasSubcmds) {
-    const char *subcmd = " <command>";
-    while (*subcmd) ops->string.builder_append_byte(interp, builder, *subcmd++);
+    append_str(ops, interp, builder, " <command>");
   }
 
-  /* Add positional args */
+  /* Add positional args to synopsis */
   for (size_t i = 0; i < specLen; i++) {
     FeatherObj entry = ops->list.at(interp, parsedSpec, i);
 
@@ -625,16 +815,14 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
       }
 
       if (variadic) {
-        const char *dots = "...";
-        while (*dots) ops->string.builder_append_byte(interp, builder, *dots++);
+        append_str(ops, interp, builder, "...");
       }
     }
   }
 
-  /* Add subcommands section */
+  /* === Commands section === */
   if (hasSubcmds) {
-    const char *nl = "\n\nCommands:";
-    while (*nl) ops->string.builder_append_byte(interp, builder, *nl++);
+    append_str(ops, interp, builder, "\n\nCommands:");
 
     for (size_t i = 0; i < specLen; i++) {
       FeatherObj entry = ops->list.at(interp, parsedSpec, i);
@@ -646,22 +834,19 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
         FeatherObj name = dict_get_str(ops, interp, entry, K_NAME);
         FeatherObj helpText = dict_get_str(ops, interp, entry, K_HELP);
 
-        ops->string.builder_append_byte(interp, builder, '\n');
-        const char *indent = "  ";
-        while (*indent) ops->string.builder_append_byte(interp, builder, *indent++);
+        append_str(ops, interp, builder, "\n  ");
         ops->string.builder_append_obj(interp, builder, name);
 
-        /* Show help text for subcommand if present */
         if (ops->string.byte_length(interp, helpText) > 0) {
-          const char *sep = "  ";
-          while (*sep) ops->string.builder_append_byte(interp, builder, *sep++);
-          ops->string.builder_append_obj(interp, builder, helpText);
+          append_str(ops, interp, builder, "  ");
+          FeatherObj trimmed = trim_text_block(ops, interp, helpText);
+          ops->string.builder_append_obj(interp, builder, trimmed);
         }
       }
     }
   }
 
-  /* Add newlines and details for flags */
+  /* === Options section === */
   int flagsShown = 0;
   for (size_t i = 0; i < specLen; i++) {
     FeatherObj entry = ops->list.at(interp, parsedSpec, i);
@@ -671,14 +856,11 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
       if (hide) continue;
 
       if (!flagsShown) {
-        const char *nl = "\n\nOptions:";
-        while (*nl) ops->string.builder_append_byte(interp, builder, *nl++);
+        append_str(ops, interp, builder, "\n\nOptions:");
         flagsShown = 1;
       }
 
-      ops->string.builder_append_byte(interp, builder, '\n');
-      const char *indent = "  ";
-      while (*indent) ops->string.builder_append_byte(interp, builder, *indent++);
+      append_str(ops, interp, builder, "\n  ");
 
       FeatherObj shortFlag = dict_get_str(ops, interp, entry, K_SHORT);
       FeatherObj longFlag = dict_get_str(ops, interp, entry, K_LONG);
@@ -691,41 +873,36 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
         ops->string.builder_append_byte(interp, builder, '-');
         ops->string.builder_append_obj(interp, builder, shortFlag);
         if (ops->string.byte_length(interp, longFlag) > 0) {
-          const char *sep = ", ";
-          while (*sep) ops->string.builder_append_byte(interp, builder, *sep++);
+          append_str(ops, interp, builder, ", ");
         }
       }
 
       if (ops->string.byte_length(interp, longFlag) > 0) {
-        const char *dd = "--";
-        while (*dd) ops->string.builder_append_byte(interp, builder, *dd++);
+        append_str(ops, interp, builder, "--");
         ops->string.builder_append_obj(interp, builder, longFlag);
       }
 
       if (hasValue) {
-        ops->string.builder_append_byte(interp, builder, ' ');
-        ops->string.builder_append_byte(interp, builder, '<');
+        append_str(ops, interp, builder, " <");
         ops->string.builder_append_obj(interp, builder, varName);
         ops->string.builder_append_byte(interp, builder, '>');
       }
 
       if (ops->string.byte_length(interp, helpText) > 0) {
-        const char *sep = "  ";
-        while (*sep) ops->string.builder_append_byte(interp, builder, *sep++);
-        ops->string.builder_append_obj(interp, builder, helpText);
+        append_str(ops, interp, builder, "  ");
+        FeatherObj trimmed = trim_text_block(ops, interp, helpText);
+        ops->string.builder_append_obj(interp, builder, trimmed);
       }
 
-      /* Show choices if present */
       if (ops->string.byte_length(interp, choices) > 0) {
-        const char *ch = " [choices: ";
-        while (*ch) ops->string.builder_append_byte(interp, builder, *ch++);
+        append_str(ops, interp, builder, " [choices: ");
         ops->string.builder_append_obj(interp, builder, choices);
         ops->string.builder_append_byte(interp, builder, ']');
       }
     }
   }
 
-  /* Add details for args */
+  /* === Arguments section === */
   int argsShown = 0;
   for (size_t i = 0; i < specLen; i++) {
     FeatherObj entry = ops->list.at(interp, parsedSpec, i);
@@ -741,30 +918,60 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
       if (ops->string.byte_length(interp, helpText) > 0 ||
           ops->string.byte_length(interp, choices) > 0) {
         if (!argsShown) {
-          const char *nl = "\n\nArguments:";
-          while (*nl) ops->string.builder_append_byte(interp, builder, *nl++);
+          append_str(ops, interp, builder, "\n\nArguments:");
           argsShown = 1;
         }
 
-        ops->string.builder_append_byte(interp, builder, '\n');
-        const char *indent = "  ";
-        while (*indent) ops->string.builder_append_byte(interp, builder, *indent++);
+        append_str(ops, interp, builder, "\n  ");
 
         FeatherObj name = dict_get_str(ops, interp, entry, K_NAME);
         ops->string.builder_append_obj(interp, builder, name);
 
         if (ops->string.byte_length(interp, helpText) > 0) {
-          const char *sep = "  ";
-          while (*sep) ops->string.builder_append_byte(interp, builder, *sep++);
-          ops->string.builder_append_obj(interp, builder, helpText);
+          append_str(ops, interp, builder, "  ");
+          FeatherObj trimmed = trim_text_block(ops, interp, helpText);
+          ops->string.builder_append_obj(interp, builder, trimmed);
         }
 
-        /* Show choices if present */
         if (ops->string.byte_length(interp, choices) > 0) {
-          const char *ch = " [choices: ";
-          while (*ch) ops->string.builder_append_byte(interp, builder, *ch++);
+          append_str(ops, interp, builder, " [choices: ");
           ops->string.builder_append_obj(interp, builder, choices);
           ops->string.builder_append_byte(interp, builder, ']');
+        }
+      }
+    }
+  }
+
+  /* === Examples section === */
+  if (hasExamples) {
+    append_str(ops, interp, builder, "\n\nExamples:");
+
+    for (size_t i = 0; i < specLen; i++) {
+      FeatherObj entry = ops->list.at(interp, parsedSpec, i);
+
+      if (entry_is_type(ops, interp, entry, T_EXAMPLE)) {
+        FeatherObj code = dict_get_str(ops, interp, entry, K_CODE);
+        FeatherObj header = dict_get_str(ops, interp, entry, K_HEADER);
+        FeatherObj helpText = dict_get_str(ops, interp, entry, K_HELP);
+
+        /* Header or help description before code */
+        if (ops->string.byte_length(interp, header) > 0) {
+          append_str(ops, interp, builder, "\n  ");
+          FeatherObj trimmed = trim_text_block(ops, interp, header);
+          ops->string.builder_append_obj(interp, builder, trimmed);
+        }
+
+        if (ops->string.byte_length(interp, helpText) > 0) {
+          append_str(ops, interp, builder, "\n  ");
+          FeatherObj trimmed = trim_text_block(ops, interp, helpText);
+          ops->string.builder_append_obj(interp, builder, trimmed);
+        }
+
+        /* The example code, indented */
+        if (ops->string.byte_length(interp, code) > 0) {
+          append_str(ops, interp, builder, "\n    $ ");
+          FeatherObj trimmed = trim_text_block(ops, interp, code);
+          ops->string.builder_append_obj(interp, builder, trimmed);
         }
       }
     }
@@ -948,7 +1155,7 @@ static FeatherObj cmd_to_list(const FeatherHostOps *ops, FeatherInterp interp,
     result = ops->list.push(interp, result, ops->list.create(interp));
   }
 
-  /* Options block if any (cmd supports help, long_help, hide) */
+  /* Options block if any (cmd supports help, long_help, hide, before/after help) */
   FeatherObj opts = ops->list.create(interp);
   int has_opts = 0;
 
@@ -968,6 +1175,74 @@ static FeatherObj cmd_to_list(const FeatherHostOps *ops, FeatherInterp interp,
 
   if (dict_get_int(ops, interp, entry, K_HIDE)) {
     opts = ops->list.push(interp, opts, ops->string.intern(interp, S(K_HIDE)));
+    has_opts = 1;
+  }
+
+  /* before/after help */
+  FeatherObj before_help = dict_get_str(ops, interp, entry, K_BEFORE_HELP);
+  if (ops->string.byte_length(interp, before_help) > 0) {
+    opts = ops->list.push(interp, opts, ops->string.intern(interp, S(K_BEFORE_HELP)));
+    opts = ops->list.push(interp, opts, before_help);
+    has_opts = 1;
+  }
+
+  FeatherObj after_help = dict_get_str(ops, interp, entry, K_AFTER_HELP);
+  if (ops->string.byte_length(interp, after_help) > 0) {
+    opts = ops->list.push(interp, opts, ops->string.intern(interp, S(K_AFTER_HELP)));
+    opts = ops->list.push(interp, opts, after_help);
+    has_opts = 1;
+  }
+
+  FeatherObj before_long_help = dict_get_str(ops, interp, entry, K_BEFORE_LONG_HELP);
+  if (ops->string.byte_length(interp, before_long_help) > 0) {
+    opts = ops->list.push(interp, opts, ops->string.intern(interp, S(K_BEFORE_LONG_HELP)));
+    opts = ops->list.push(interp, opts, before_long_help);
+    has_opts = 1;
+  }
+
+  FeatherObj after_long_help = dict_get_str(ops, interp, entry, K_AFTER_LONG_HELP);
+  if (ops->string.byte_length(interp, after_long_help) > 0) {
+    opts = ops->list.push(interp, opts, ops->string.intern(interp, S(K_AFTER_LONG_HELP)));
+    opts = ops->list.push(interp, opts, after_long_help);
+    has_opts = 1;
+  }
+
+  if (has_opts) {
+    result = ops->list.push(interp, result, opts);
+  }
+
+  return result;
+}
+
+/**
+ * Convert a parsed example entry back to list format: {example <code> ?{options}?}
+ */
+static FeatherObj example_to_list(const FeatherHostOps *ops, FeatherInterp interp,
+                                   FeatherObj entry) {
+  FeatherObj result = ops->list.create(interp);
+
+  /* "example" keyword */
+  result = ops->list.push(interp, result, ops->string.intern(interp, S(T_EXAMPLE)));
+
+  /* Code */
+  FeatherObj code = dict_get_str(ops, interp, entry, K_CODE);
+  result = ops->list.push(interp, result, code);
+
+  /* Options block if header or help is present */
+  FeatherObj opts = ops->list.create(interp);
+  int has_opts = 0;
+
+  FeatherObj header = dict_get_str(ops, interp, entry, K_HEADER);
+  if (ops->string.byte_length(interp, header) > 0) {
+    opts = ops->list.push(interp, opts, ops->string.intern(interp, S(K_HEADER)));
+    opts = ops->list.push(interp, opts, header);
+    has_opts = 1;
+  }
+
+  FeatherObj help = dict_get_str(ops, interp, entry, K_HELP);
+  if (ops->string.byte_length(interp, help) > 0) {
+    opts = ops->list.push(interp, opts, ops->string.intern(interp, S(K_HELP)));
+    opts = ops->list.push(interp, opts, help);
     has_opts = 1;
   }
 
@@ -997,6 +1272,8 @@ static FeatherObj spec_to_list(const FeatherHostOps *ops, FeatherInterp interp,
       entryList = flag_to_list(ops, interp, entry);
     } else if (feather_obj_eq_literal(ops, interp, typeVal, T_CMD)) {
       entryList = cmd_to_list(ops, interp, entry);
+    } else if (feather_obj_eq_literal(ops, interp, typeVal, T_EXAMPLE)) {
+      entryList = example_to_list(ops, interp, entry);
     } else {
       continue;  /* Unknown entry type, skip */
     }
