@@ -1373,3 +1373,93 @@ FeatherResult feather_builtin_usage(const FeatherHostOps *ops, FeatherInterp int
   ops->interp.set_result(interp, msg);
   return TCL_ERROR;
 }
+
+/* =========================================================================
+ * Public API for direct spec construction (bypasses string parsing)
+ * ========================================================================= */
+
+/**
+ * Helper to intern a string or return empty string for NULL.
+ */
+static FeatherObj intern_or_empty(const FeatherHostOps *ops, FeatherInterp interp,
+                                   const char *s) {
+  if (s && *s) {
+    return ops->string.intern(interp, s, -1);
+  }
+  return ops->string.intern(interp, "", 0);
+}
+
+FeatherObj feather_usage_arg(const FeatherHostOps *ops, FeatherInterp interp,
+                              const char *name, int required, int variadic,
+                              const char *help, const char *defaultVal,
+                              const char *longHelp, const char *choices,
+                              int hide, const char *type) {
+  FeatherObj entry = ops->list.create(interp);
+  entry = ops->list.push(interp, entry, ops->string.intern(interp, "arg", 3));
+  entry = ops->list.push(interp, entry, intern_or_empty(ops, interp, name));
+  entry = ops->list.push(interp, entry, ops->integer.create(interp, required));
+  entry = ops->list.push(interp, entry, ops->integer.create(interp, variadic));
+  entry = ops->list.push(interp, entry, intern_or_empty(ops, interp, help));
+  entry = ops->list.push(interp, entry, intern_or_empty(ops, interp, defaultVal));
+  entry = ops->list.push(interp, entry, intern_or_empty(ops, interp, longHelp));
+  entry = ops->list.push(interp, entry, intern_or_empty(ops, interp, choices));
+  entry = ops->list.push(interp, entry, ops->integer.create(interp, hide));
+  entry = ops->list.push(interp, entry, intern_or_empty(ops, interp, type));
+  return entry;
+}
+
+FeatherObj feather_usage_flag(const FeatherHostOps *ops, FeatherInterp interp,
+                               const char *shortFlag, const char *longFlag,
+                               int hasValue, int valueRequired,
+                               const char *help, const char *longHelp,
+                               const char *choices, int hide, const char *type) {
+  /* Derive variable name from long flag or short flag */
+  const char *varSource = (longFlag && *longFlag) ? longFlag : shortFlag;
+  FeatherObj varName = intern_or_empty(ops, interp, varSource);
+  varName = sanitize_var_name(ops, interp, varName);
+
+  FeatherObj entry = ops->list.create(interp);
+  entry = ops->list.push(interp, entry, ops->string.intern(interp, "flag", 4));
+  entry = ops->list.push(interp, entry, intern_or_empty(ops, interp, shortFlag));
+  entry = ops->list.push(interp, entry, intern_or_empty(ops, interp, longFlag));
+  entry = ops->list.push(interp, entry, ops->integer.create(interp, hasValue));
+  entry = ops->list.push(interp, entry, ops->integer.create(interp, valueRequired));
+  entry = ops->list.push(interp, entry, varName);
+  entry = ops->list.push(interp, entry, intern_or_empty(ops, interp, help));
+  entry = ops->list.push(interp, entry, intern_or_empty(ops, interp, longHelp));
+  entry = ops->list.push(interp, entry, intern_or_empty(ops, interp, choices));
+  entry = ops->list.push(interp, entry, ops->integer.create(interp, hide));
+  entry = ops->list.push(interp, entry, intern_or_empty(ops, interp, type));
+  return entry;
+}
+
+FeatherObj feather_usage_cmd(const FeatherHostOps *ops, FeatherInterp interp,
+                              const char *name, FeatherObj subSpec,
+                              const char *help, const char *longHelp, int hide) {
+  FeatherObj entry = ops->list.create(interp);
+  entry = ops->list.push(interp, entry, ops->string.intern(interp, "cmd", 3));
+  entry = ops->list.push(interp, entry, intern_or_empty(ops, interp, name));
+  entry = ops->list.push(interp, entry, subSpec);
+  entry = ops->list.push(interp, entry, intern_or_empty(ops, interp, help));
+  entry = ops->list.push(interp, entry, intern_or_empty(ops, interp, longHelp));
+  entry = ops->list.push(interp, entry, ops->integer.create(interp, hide));
+  return entry;
+}
+
+void feather_usage_register(const FeatherHostOps *ops, FeatherInterp interp,
+                             const char *cmdName, FeatherObj spec) {
+  /* Ensure ::tcl::usage namespace exists */
+  FeatherObj usageNs = ops->string.intern(interp, USAGE_NS, 12);
+  ops->ns.create(interp, usageNs);
+
+  FeatherObj specs = usage_get_specs(ops, interp);
+  FeatherObj name = ops->string.intern(interp, cmdName, -1);
+
+  /* Store with empty rawSpec - direct registration has no source string */
+  FeatherObj entry = ops->list.create(interp);
+  entry = ops->list.push(interp, entry, ops->string.intern(interp, "", 0));
+  entry = ops->list.push(interp, entry, spec);
+
+  specs = ops->dict.set(interp, specs, name, entry);
+  usage_set_specs(ops, interp, specs);
+}

@@ -1474,4 +1474,89 @@ int feather_glob_match(const char *pattern, size_t pattern_len,
 FeatherObj feather_list_parse_obj(const FeatherHostOps *ops, FeatherInterp interp,
                                    FeatherObj s);
 
+/**
+ * Usage Spec Construction API
+ *
+ * These functions allow hosts and builtins to construct usage specifications
+ * programmatically, bypassing the string-based spec parsing. This is more
+ * efficient and type-safe for built-in commands.
+ *
+ * Usage specs are stored in ::tcl::usage::specs as a dict mapping command
+ * names to {description entries} pairs.
+ *
+ * Entry formats:
+ * - arg: {arg name required variadic help default long_help choices hide type}
+ * - flag: {flag short long hasValue valueRequired varName help long_help choices hide type}
+ * - cmd: {cmd name subSpec help long_help hide}
+ */
+
+/**
+ * feather_usage_arg creates an argument entry for a usage spec.
+ *
+ * @param name      The argument name (displayed in help)
+ * @param required  1 if the argument is required, 0 if optional
+ * @param variadic  1 if this argument accepts multiple values
+ * @param help      Short help text (NULL for none)
+ * @param defaultVal Default value when omitted (NULL for none)
+ * @param longHelp  Extended help text (NULL for none)
+ * @param choices   Space-separated list of valid choices (NULL for any)
+ * @param hide      1 to hide from help output
+ * @param type      Type hint for validation, e.g., "script" (NULL for none)
+ *
+ * @return A list object representing the arg entry
+ */
+FeatherObj feather_usage_arg(const FeatherHostOps *ops, FeatherInterp interp,
+                              const char *name, int required, int variadic,
+                              const char *help, const char *defaultVal,
+                              const char *longHelp, const char *choices,
+                              int hide, const char *type);
+
+/**
+ * feather_usage_flag creates a flag entry for a usage spec.
+ *
+ * @param shortFlag Single-character flag, e.g., "-v" (NULL for none)
+ * @param longFlag  Long flag name, e.g., "--verbose" (NULL for none)
+ * @param hasValue  1 if the flag takes a value
+ * @param valueRequired 1 if the value is required when flag is present
+ * @param help      Short help text (NULL for none)
+ * @param longHelp  Extended help text (NULL for none)
+ * @param choices   Space-separated list of valid values (NULL for any)
+ * @param hide      1 to hide from help output
+ * @param type      Type hint for validation (NULL for none)
+ *
+ * @return A list object representing the flag entry
+ */
+FeatherObj feather_usage_flag(const FeatherHostOps *ops, FeatherInterp interp,
+                               const char *shortFlag, const char *longFlag,
+                               int hasValue, int valueRequired,
+                               const char *help, const char *longHelp,
+                               const char *choices, int hide, const char *type);
+
+/**
+ * feather_usage_cmd creates a subcommand entry for a usage spec.
+ *
+ * @param name      The subcommand name
+ * @param subSpec   The spec for this subcommand (list of entries)
+ * @param help      Short help text (NULL for none)
+ * @param longHelp  Extended help text (NULL for none)
+ * @param hide      1 to hide from help output
+ *
+ * @return A list object representing the cmd entry
+ */
+FeatherObj feather_usage_cmd(const FeatherHostOps *ops, FeatherInterp interp,
+                              const char *name, FeatherObj subSpec,
+                              const char *help, const char *longHelp, int hide);
+
+/**
+ * feather_usage_register registers a pre-built usage spec for a command.
+ *
+ * This stores the spec in ::tcl::usage::specs, making it available for
+ * usage help, usage parse, and usage complete operations.
+ *
+ * @param cmdName   The fully-qualified command name
+ * @param spec      List of entries (args, flags, cmds) built with the above functions
+ */
+void feather_usage_register(const FeatherHostOps *ops, FeatherInterp interp,
+                             const char *cmdName, FeatherObj spec);
+
 #endif
