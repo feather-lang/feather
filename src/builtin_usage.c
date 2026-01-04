@@ -25,8 +25,13 @@
  *     long_help {extended description}
  *     choices {a b c}
  *     default {value}           (arg only)
+ *     type {typename}           (e.g., script, file, dir)
  *     hide
  *   }
+ *
+ * Type "script" indicates the value should be a syntactically complete
+ * TCL script. This is validated during parsing (balanced braces, quotes, etc.)
+ * and can be used by editors for autocompletion.
  *
  * Subcommand format:
  *   cmd name { body } { options }
@@ -141,13 +146,14 @@ static int is_flag_part(const FeatherHostOps *ops, FeatherInterp interp, Feather
  *   long_help {text}
  *   choices {a b c}
  *   default {value}  (for arg only)
+ *   type {typename}  (e.g., script, file, dir)
  *   hide
  */
 static void parse_options_block(const FeatherHostOps *ops, FeatherInterp interp,
                                  FeatherObj block,
                                  FeatherObj *helpOut, FeatherObj *longHelpOut,
                                  FeatherObj *choicesOut, FeatherObj *defaultOut,
-                                 int *hideOut) {
+                                 FeatherObj *typeOut, int *hideOut) {
   FeatherObj optsList = feather_list_parse_obj(ops, interp, block);
   size_t optsLen = ops->list.length(interp, optsList);
 
@@ -173,6 +179,8 @@ static void parse_options_block(const FeatherHostOps *ops, FeatherInterp interp,
       *choicesOut = value;
     } else if (defaultOut && feather_obj_eq_literal(ops, interp, key, "default")) {
       *defaultOut = value;
+    } else if (typeOut && feather_obj_eq_literal(ops, interp, key, "type")) {
+      *typeOut = value;
     }
 
     i += 2;
@@ -188,8 +196,8 @@ static void parse_options_block(const FeatherHostOps *ops, FeatherInterp interp,
  *   cmd name { body } { options }
  *
  * Entry formats:
- *   arg:  {arg name required variadic help default long_help choices hide}
- *   flag: {flag short long hasValue valueRequired varName help long_help choices hide}
+ *   arg:  {arg name required variadic help default long_help choices hide type}
+ *   flag: {flag short long hasValue valueRequired varName help long_help choices hide type}
  *   cmd:  {cmd name subSpec help long_help hide}
  */
 static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
@@ -262,13 +270,14 @@ static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
       FeatherObj defaultVal = ops->string.intern(interp, "", 0);
       FeatherObj longHelp = ops->string.intern(interp, "", 0);
       FeatherObj choices = ops->string.intern(interp, "", 0);
+      FeatherObj typeVal = ops->string.intern(interp, "", 0);
       int hide = 0;
 
       if (i < specLen) {
         FeatherObj next = ops->list.at(interp, specList, i);
         if (!is_keyword(ops, interp, next)) {
           /* This is the options block */
-          parse_options_block(ops, interp, next, &helpText, &longHelp, &choices, &defaultVal, &hide);
+          parse_options_block(ops, interp, next, &helpText, &longHelp, &choices, &defaultVal, &typeVal, &hide);
           i++;
         }
       }
@@ -278,6 +287,7 @@ static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
       entry = ops->list.push(interp, entry, longHelp);
       entry = ops->list.push(interp, entry, choices);
       entry = ops->list.push(interp, entry, ops->integer.create(interp, hide));
+      entry = ops->list.push(interp, entry, typeVal);
 
       result = ops->list.push(interp, result, entry);
 
@@ -304,7 +314,7 @@ static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
         FeatherObj next = ops->list.at(interp, specList, i);
         if (!is_keyword(ops, interp, next)) {
           /* This is the options block */
-          parse_options_block(ops, interp, next, &helpText, &longHelp, NULL, NULL, &hide);
+          parse_options_block(ops, interp, next, &helpText, &longHelp, NULL, NULL, NULL, &hide);
           i++;
         }
       }
@@ -375,13 +385,14 @@ static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
       FeatherObj helpText = ops->string.intern(interp, "", 0);
       FeatherObj longHelp = ops->string.intern(interp, "", 0);
       FeatherObj choices = ops->string.intern(interp, "", 0);
+      FeatherObj typeVal = ops->string.intern(interp, "", 0);
       int hide = 0;
 
       if (i < specLen) {
         FeatherObj next = ops->list.at(interp, specList, i);
         if (!is_keyword(ops, interp, next)) {
           /* This is the options block */
-          parse_options_block(ops, interp, next, &helpText, &longHelp, &choices, NULL, &hide);
+          parse_options_block(ops, interp, next, &helpText, &longHelp, &choices, NULL, &typeVal, &hide);
           i++;
         }
       }
@@ -398,6 +409,7 @@ static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
       entry = ops->list.push(interp, entry, longHelp);
       entry = ops->list.push(interp, entry, choices);
       entry = ops->list.push(interp, entry, ops->integer.create(interp, hide));
+      entry = ops->list.push(interp, entry, typeVal);
 
       result = ops->list.push(interp, result, entry);
     }
@@ -410,8 +422,8 @@ static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
  * Generate usage string for display (--help output)
  *
  * Entry indices:
- *   arg:  {arg(0) name(1) required(2) variadic(3) help(4) default(5) long_help(6) choices(7) hide(8)}
- *   flag: {flag(0) short(1) long(2) hasValue(3) valueRequired(4) varName(5) help(6) long_help(7) choices(8) hide(9)}
+ *   arg:  {arg(0) name(1) required(2) variadic(3) help(4) default(5) long_help(6) choices(7) hide(8) type(9)}
+ *   flag: {flag(0) short(1) long(2) hasValue(3) valueRequired(4) varName(5) help(6) long_help(7) choices(8) hide(9) type(10)}
  *   cmd:  {cmd(0) name(1) subSpec(2) help(3) long_help(4) hide(5)}
  */
 static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp interp,
@@ -897,10 +909,35 @@ static int try_match_flag(const FeatherHostOps *ops, FeatherInterp interp,
 }
 
 /**
+ * Check if a string is a syntactically complete TCL script.
+ * A script is complete when all braces, brackets, and quotes are balanced.
+ * Returns 1 if complete, 0 if incomplete.
+ */
+static int is_script_complete(const FeatherHostOps *ops, FeatherInterp interp,
+                               FeatherObj script) {
+  size_t len = ops->string.byte_length(interp, script);
+  if (len == 0) return 1;  /* Empty script is complete */
+
+  FeatherParseContextObj ctx;
+  feather_parse_init_obj(&ctx, script, len);
+
+  FeatherParseStatus status;
+  while ((status = feather_parse_command_obj(ops, interp, &ctx)) == TCL_PARSE_OK) {
+    /* Continue parsing commands */
+  }
+
+  /* TCL_PARSE_DONE means we successfully reached the end of the script */
+  /* TCL_PARSE_INCOMPLETE means unbalanced braces/quotes */
+  /* TCL_PARSE_ERROR means syntax error */
+  return status == TCL_PARSE_DONE;
+}
+
+/**
  * usage parse command argsList
  *
  * Parse arguments according to the usage spec and create local variables.
  * Supports nested subcommands up to 8 levels deep.
+ * Validates type constraints (e.g., type script requires complete TCL script).
  */
 static FeatherResult usage_parse(const FeatherHostOps *ops, FeatherInterp interp,
                                   FeatherObj args) {
@@ -1157,6 +1194,56 @@ static FeatherResult usage_parse(const FeatherHostOps *ops, FeatherInterp interp
           FeatherObj msg = ops->string.intern(interp, "missing required argument \"", 27);
           msg = ops->string.concat(interp, msg, name);
           msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\"", 1));
+          ops->interp.set_result(interp, msg);
+          return TCL_ERROR;
+        }
+      }
+    }
+  }
+
+  /* Validate type constraints (e.g., type script requires complete TCL script) */
+  for (size_t i = 0; i < activeSpecLen; i++) {
+    FeatherObj entry = ops->list.at(interp, activeSpec, i);
+    FeatherObj entryType = ops->list.at(interp, entry, 0);
+
+    if (feather_obj_eq_literal(ops, interp, entryType, "arg")) {
+      /* arg type is at index 9 */
+      FeatherObj argType = ops->list.at(interp, entry, 9);
+      if (ops->string.byte_length(interp, argType) > 0 &&
+          feather_obj_eq_literal(ops, interp, argType, "script")) {
+        FeatherObj name = ops->list.at(interp, entry, 1);
+        FeatherObj value = ops->var.get(interp, name);
+        if (!ops->list.is_nil(interp, value) &&
+            ops->string.byte_length(interp, value) > 0 &&
+            !is_script_complete(ops, interp, value)) {
+          FeatherObj msg = ops->string.intern(interp, "argument \"", 10);
+          msg = ops->string.concat(interp, msg, name);
+          msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\" must be a complete script", 27));
+          ops->interp.set_result(interp, msg);
+          return TCL_ERROR;
+        }
+      }
+    } else if (feather_obj_eq_literal(ops, interp, entryType, "flag")) {
+      /* flag type is at index 10 */
+      FeatherObj flagType = ops->list.at(interp, entry, 10);
+      if (ops->string.byte_length(interp, flagType) > 0 &&
+          feather_obj_eq_literal(ops, interp, flagType, "script")) {
+        FeatherObj varName = ops->list.at(interp, entry, 5);
+        FeatherObj value = ops->var.get(interp, varName);
+        if (!ops->list.is_nil(interp, value) &&
+            ops->string.byte_length(interp, value) > 0 &&
+            !is_script_complete(ops, interp, value)) {
+          FeatherObj longFlag = ops->list.at(interp, entry, 2);
+          FeatherObj shortFlag = ops->list.at(interp, entry, 1);
+          FeatherObj flagName = ops->string.byte_length(interp, longFlag) > 0 ? longFlag : shortFlag;
+          FeatherObj msg = ops->string.intern(interp, "flag ", 5);
+          if (ops->string.byte_length(interp, longFlag) > 0) {
+            msg = ops->string.concat(interp, msg, ops->string.intern(interp, "--", 2));
+          } else {
+            msg = ops->string.concat(interp, msg, ops->string.intern(interp, "-", 1));
+          }
+          msg = ops->string.concat(interp, msg, flagName);
+          msg = ops->string.concat(interp, msg, ops->string.intern(interp, " value must be a complete script", 32));
           ops->interp.set_result(interp, msg);
           return TCL_ERROR;
         }
