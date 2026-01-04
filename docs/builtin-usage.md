@@ -58,7 +58,7 @@ The `parse` subcommand:
 4. Returns an error if required arguments are missing or invalid
 
 Special variables created:
-- `$_cmd` - Set to the matched subcommand name when using subcommands
+- `$subcommand` - A list containing the path of matched subcommands (e.g., `{remote add}` for nested commands)
 
 ### `usage help` - Generate Help Text
 
@@ -122,7 +122,7 @@ usage for git {
 }
 ```
 
-When parsing, the `$_cmd` variable is set to the matched subcommand name.
+When parsing, the `$subcommand` variable is set to a list of matched subcommand names.
 
 ### Options Blocks
 
@@ -209,7 +209,7 @@ usage for compiler {
 proc compiler {args} {
     usage parse compiler $args
 
-    if {[info exists _cmd] && $_cmd eq "check"} {
+    if {[llength $subcommand] > 0 && [lindex $subcommand 0] eq "check"} {
         puts "Checking $file (strict=$strict)"
         return
     }

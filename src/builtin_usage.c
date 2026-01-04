@@ -1247,20 +1247,9 @@ static FeatherResult usage_parse(const FeatherHostOps *ops, FeatherInterp interp
     }
   }
 
-  /* Set $_cmd variable with subcommand path */
-  FeatherObj cmdVar = ops->string.intern(interp, "_cmd", 4);
-  if (ops->list.length(interp, subcmdPath) > 0) {
-    /* Build space-separated subcommand path */
-    FeatherObj pathStr = ops->string.builder_new(interp, 32);
-    size_t pathLen = ops->list.length(interp, subcmdPath);
-    for (size_t i = 0; i < pathLen; i++) {
-      if (i > 0) ops->string.builder_append_byte(interp, pathStr, ' ');
-      ops->string.builder_append_obj(interp, pathStr, ops->list.at(interp, subcmdPath, i));
-    }
-    ops->var.set(interp, cmdVar, ops->string.builder_finish(interp, pathStr));
-  } else {
-    ops->var.set(interp, cmdVar, ops->string.intern(interp, "", 0));
-  }
+  /* Set $subcommand variable with subcommand path as a list */
+  FeatherObj subcmdVar = ops->string.intern(interp, "subcommand", 10);
+  ops->var.set(interp, subcmdVar, subcmdPath);
 
   /* Check required args were provided (in the active spec) */
   for (size_t i = 0; i < activeSpecLen; i++) {

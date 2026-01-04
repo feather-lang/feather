@@ -911,7 +911,7 @@ list [testA alpha] [testB beta]</script>
 }
 proc mycli {args} {
     usage parse mycli $args
-    return "cmd=$_cmd"
+    return "cmd=$subcommand"
 }
 mycli init</script>
     <return>TCL_OK</return>
@@ -929,7 +929,7 @@ mycli init</script>
 }
 proc cli1 {args} {
     usage parse cli1 $args
-    return "$_cmd:$file"
+    return "$subcommand:$file"
 }
 cli1 add myfile.txt</script>
     <return>TCL_OK</return>
@@ -948,7 +948,7 @@ cli1 add myfile.txt</script>
 }
 proc cli2 {args} {
     usage parse cli2 $args
-    return "$_cmd:v=$verbose:o=$output"
+    return "$subcommand:v=$verbose:o=$output"
 }
 cli2 build -v -o dist/app</script>
     <return>TCL_OK</return>
@@ -968,7 +968,7 @@ cli2 build -v -o dist/app</script>
 }
 proc cli3 {args} {
     usage parse cli3 $args
-    return "$_cmd:$src->$dst:r=$recursive"
+    return "$subcommand:$src->$dst:r=$recursive"
 }
 cli3 copy -r /src /dst</script>
     <return>TCL_OK</return>
@@ -1016,7 +1016,7 @@ cli5</script>
 }
 proc cli6 {args} {
     usage parse cli6 $args
-    return "v=$verbose:$_cmd:$script"
+    return "v=$verbose:$subcommand:$script"
 }
 cli6 -v run test.tcl</script>
     <return>TCL_OK</return>
@@ -1035,7 +1035,7 @@ cli6 -v run test.tcl</script>
 }
 proc cli7 {args} {
     usage parse cli7 $args
-    return "v=$verbose:$_cmd:$script"
+    return "v=$verbose:$subcommand:$script"
 }
 cli7 run -v test.tcl</script>
     <return>TCL_OK</return>
@@ -1063,7 +1063,7 @@ cli7 run -v test.tcl</script>
 }
 proc git1 {args} {
     usage parse git1 $args
-    return "$_cmd:name=$name"
+    return "$subcommand:name=$name"
 }
 git1 remote add origin https://example.com</script>
     <return>TCL_OK</return>
@@ -1108,7 +1108,7 @@ git2 remote add origin https://github.com/test/repo</script>
 }
 proc git3 {args} {
     usage parse git3 $args
-    return "$_cmd:$name"
+    return "$subcommand:$name"
 }
 git3 remote remove origin</script>
     <return>TCL_OK</return>
@@ -1130,7 +1130,7 @@ git3 remote remove origin</script>
 }
 proc docker1 {args} {
     usage parse docker1 $args
-    return "$_cmd:d=$detach:p=$publish:$image"
+    return "$subcommand:d=$detach:p=$publish:$image"
 }
 docker1 container run -d -p 8080:80 nginx</script>
     <return>TCL_OK</return>
@@ -1159,7 +1159,7 @@ docker1 container run -d -p 8080:80 nginx</script>
 }
 proc k8s1 {args} {
     usage parse k8s1 $args
-    return $_cmd
+    return $subcommand
 }
 k8s1 config view clusters</script>
     <return>TCL_OK</return>
@@ -1181,7 +1181,7 @@ k8s1 config view clusters</script>
 }
 proc tool1 {args} {
     usage parse tool1 $args
-    return "$_cmd:$value"
+    return "$subcommand:$value"
 }
 tool1 level1 level2 level3 myvalue</script>
     <return>TCL_OK</return>
@@ -1310,7 +1310,7 @@ expr {[string match "*<name>*" $help] && [string match "*<url>*" $help]}</script
 }
 proc mygit {args} {
     usage parse mygit $args
-    return $_cmd
+    return $subcommand
 }
 mygit commit -m "test"</script>
     <return>TCL_OK</return>
@@ -1357,7 +1357,7 @@ mygit2 clone --depth 1 https://github.com/test/repo mydir</script>
 }
 proc mynpm {args} {
     usage parse mynpm $args
-    return "$_cmd:g=$global:D=$save_dev"
+    return "$subcommand:g=$global:D=$save_dev"
 }
 mynpm install -g typescript</script>
     <return>TCL_OK</return>
@@ -1396,7 +1396,7 @@ mynpm install -g typescript</script>
 }
 proc mydocker {args} {
     usage parse mydocker $args
-    return $_cmd
+    return $subcommand
 }
 mydocker image pull nginx</script>
     <return>TCL_OK</return>
@@ -1420,7 +1420,7 @@ mydocker image pull nginx</script>
 }
 proc deep1 {args} {
     usage parse deep1 $args
-    return "$_cmd:$value"
+    return "$subcommand:$value"
 }
 deep1 a b c d final</script>
     <return>TCL_OK</return>
@@ -1519,7 +1519,7 @@ expr {[string match "*public*" $help] && ![string match "*internal*" $help]}</sc
 }
 proc hidecmd6 {args} {
     usage parse hidecmd6 $args
-    return "$_cmd:$secret"
+    return "$subcommand:$secret"
 }
 hidecmd6 internal mysecret</script>
     <return>TCL_OK</return>
@@ -1660,7 +1660,7 @@ longhcmd2 -v</script>
 }
 proc longhcmd3 {args} {
     usage parse longhcmd3 $args
-    return "$_cmd:$script"
+    return "$subcommand:$script"
 }
 longhcmd3 run test.tcl</script>
     <return>TCL_OK</return>
@@ -1930,7 +1930,7 @@ string match "*TCL code to execute*" $help</script>
 }
 proc scriptcli {args} {
     usage parse scriptcli $args
-    return "$_cmd:$code"
+    return "$subcommand:$code"
 }
 scriptcli eval {expr {1 + 2}}</script>
     <return>TCL_OK</return>
