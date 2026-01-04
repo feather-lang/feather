@@ -10,25 +10,41 @@
  *   usage for $command ?spec?   - Define or get usage spec for a command
  *   usage parse $command $args  - Parse args list and create local variables
  *
- * Spec Format (TCL-friendly KDL-inspired):
- *   arg "<name>"                - Required positional argument
- *   arg "?name?"                - Optional positional argument
- *   arg "<name>..."             - Variadic required (1 or more)
- *   arg "?name?..."             - Variadic optional (0 or more)
- *   flag "-s --long"            - Boolean flag (short and/or long)
- *   flag "-s --long <value>"    - Flag with required value
- *   flag "-s --long ?value?"    - Flag with optional value
+ * Spec Format (TCL-native block syntax):
+ *   arg <name>                  - Required positional argument
+ *   arg ?name?                  - Optional positional argument
+ *   arg <name>...               - Variadic required (1 or more)
+ *   arg ?name?...               - Variadic optional (0 or more)
+ *   flag -s --long              - Boolean flag (short and/or long)
+ *   flag -s --long <value>      - Flag with required value
+ *   flag -s --long ?value?      - Flag with optional value
  *
- * Options on arg/flag:
- *   help="description"          - Help text
- *   default="value"             - Default value
+ * Options block for arg/flag (follows the declaration):
+ *   {
+ *     help {description}
+ *     long_help {extended description}
+ *     choices {a b c}
+ *     default {value}           (arg only)
+ *     hide
+ *   }
+ *
+ * Subcommand format:
+ *   cmd name { body } { options }
  *
  * Example:
  *   usage for mycommand {
- *     arg "<input>" help="input file"
- *     arg "?output?" default="out.txt"
- *     flag "-v --verbose" help="verbose output"
- *     flag "-n --count <num>" help="repeat count"
+ *     arg <input> {
+ *       help {input file}
+ *     }
+ *     arg ?output? {
+ *       default {out.txt}
+ *     }
+ *     flag -v --verbose {
+ *       help {verbose output}
+ *     }
+ *     flag -n --count <num> {
+ *       help {repeat count}
+ *     }
  *   }
  *
  *   proc mycommand {args} {
@@ -100,40 +116,76 @@ static void usage_set_specs(const FeatherHostOps *ops, FeatherInterp interp, Fea
 }
 
 /**
- * Helper to check if an option string starts with a prefix and extract value.
- * Returns the value (with quotes or braces stripped) or NULL if no match.
- * Supports: key="value", key={value}, key=value
+ * Check if a token is a keyword (arg, flag, cmd).
  */
-static FeatherObj parse_option_value(const FeatherHostOps *ops, FeatherInterp interp,
-                                      FeatherObj opt, const char *prefix, size_t prefixLen) {
-  size_t optLen = ops->string.byte_length(interp, opt);
-  if (optLen <= prefixLen) return 0;
+static int is_keyword(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj token) {
+  return feather_obj_eq_literal(ops, interp, token, "flag") ||
+         feather_obj_eq_literal(ops, interp, token, "arg") ||
+         feather_obj_eq_literal(ops, interp, token, "cmd");
+}
 
-  for (size_t k = 0; k < prefixLen; k++) {
-    if (ops->string.byte_at(interp, opt, k) != prefix[k]) return 0;
-  }
+/**
+ * Check if a token is a flag part (-x, --long, <value>, ?value?).
+ */
+static int is_flag_part(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj token) {
+  size_t len = ops->string.byte_length(interp, token);
+  if (len == 0) return 0;
+  int c = ops->string.byte_at(interp, token, 0);
+  return (c == '-' || c == '<' || c == '?');
+}
 
-  FeatherObj val = ops->string.slice(interp, opt, prefixLen, optLen);
-  size_t valLen = ops->string.byte_length(interp, val);
+/**
+ * Parse an options block for arg/flag/cmd.
+ * Block format:
+ *   help {text}
+ *   long_help {text}
+ *   choices {a b c}
+ *   default {value}  (for arg only)
+ *   hide
+ */
+static void parse_options_block(const FeatherHostOps *ops, FeatherInterp interp,
+                                 FeatherObj block,
+                                 FeatherObj *helpOut, FeatherObj *longHelpOut,
+                                 FeatherObj *choicesOut, FeatherObj *defaultOut,
+                                 int *hideOut) {
+  FeatherObj optsList = feather_list_parse_obj(ops, interp, block);
+  size_t optsLen = ops->list.length(interp, optsList);
 
-  /* Strip quotes if present */
-  if (valLen >= 2 && ops->string.byte_at(interp, val, 0) == '"' &&
-      ops->string.byte_at(interp, val, valLen - 1) == '"') {
-    return ops->string.slice(interp, val, 1, valLen - 1);
+  size_t i = 0;
+  while (i < optsLen) {
+    FeatherObj key = ops->list.at(interp, optsList, i);
+
+    if (feather_obj_eq_literal(ops, interp, key, "hide")) {
+      *hideOut = 1;
+      i++;
+      continue;
+    }
+
+    /* Other options need a value */
+    if (i + 1 >= optsLen) break;
+    FeatherObj value = ops->list.at(interp, optsList, i + 1);
+
+    if (feather_obj_eq_literal(ops, interp, key, "help")) {
+      *helpOut = value;
+    } else if (feather_obj_eq_literal(ops, interp, key, "long_help")) {
+      *longHelpOut = value;
+    } else if (feather_obj_eq_literal(ops, interp, key, "choices")) {
+      *choicesOut = value;
+    } else if (defaultOut && feather_obj_eq_literal(ops, interp, key, "default")) {
+      *defaultOut = value;
+    }
+
+    i += 2;
   }
-  /* Strip braces if present */
-  if (valLen >= 2 && ops->string.byte_at(interp, val, 0) == '{' &&
-      ops->string.byte_at(interp, val, valLen - 1) == '}') {
-    return ops->string.slice(interp, val, 1, valLen - 1);
-  }
-  return val;
 }
 
 /**
  * Parse a spec string into a structured representation.
  *
- * The spec is a script-like format with 'arg' and 'flag' declarations.
- * Returns a list of {type details...} entries.
+ * New block-based format:
+ *   flag -s --long <value> { options }
+ *   arg <name> { options }
+ *   cmd name { body } { options }
  *
  * Entry formats:
  *   arg:  {arg name required variadic help default long_help choices hide}
@@ -154,13 +206,13 @@ static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
     i++;
 
     if (feather_obj_eq_literal(ops, interp, keyword, "arg")) {
-      /* arg "<name>" or arg "?name?" with options */
+      /* arg <name> or arg ?name? with optional options block */
       if (i >= specLen) break;
 
       FeatherObj argName = ops->list.at(interp, specList, i);
       i++;
 
-      /* Create arg entry: {arg name required variadic help default} */
+      /* Create arg entry */
       FeatherObj entry = ops->list.create(interp);
       entry = ops->list.push(interp, entry, ops->string.intern(interp, "arg", 3));
 
@@ -205,54 +257,20 @@ static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
       entry = ops->list.push(interp, entry, ops->integer.create(interp, required));
       entry = ops->list.push(interp, entry, ops->integer.create(interp, variadic));
 
-      /* Look for options: help, default, long_help, choices, hide */
+      /* Check for options block */
       FeatherObj helpText = ops->string.intern(interp, "", 0);
       FeatherObj defaultVal = ops->string.intern(interp, "", 0);
       FeatherObj longHelp = ops->string.intern(interp, "", 0);
       FeatherObj choices = ops->string.intern(interp, "", 0);
       int hide = 0;
 
-      while (i < specLen) {
-        FeatherObj opt = ops->list.at(interp, specList, i);
-        FeatherObj val;
-
-        /* Check for help="..." */
-        if ((val = parse_option_value(ops, interp, opt, "help=", 5))) {
-          helpText = val;
+      if (i < specLen) {
+        FeatherObj next = ops->list.at(interp, specList, i);
+        if (!is_keyword(ops, interp, next)) {
+          /* This is the options block */
+          parse_options_block(ops, interp, next, &helpText, &longHelp, &choices, &defaultVal, &hide);
           i++;
-          continue;
         }
-
-        /* Check for default="..." */
-        if ((val = parse_option_value(ops, interp, opt, "default=", 8))) {
-          defaultVal = val;
-          i++;
-          continue;
-        }
-
-        /* Check for long_help="..." */
-        if ((val = parse_option_value(ops, interp, opt, "long_help=", 10))) {
-          longHelp = val;
-          i++;
-          continue;
-        }
-
-        /* Check for choices="..." or choices={...} */
-        if ((val = parse_option_value(ops, interp, opt, "choices=", 8))) {
-          choices = val;
-          i++;
-          continue;
-        }
-
-        /* Check for hide (boolean keyword) */
-        if (feather_obj_eq_literal(ops, interp, opt, "hide")) {
-          hide = 1;
-          i++;
-          continue;
-        }
-
-        /* Not an option, break out */
-        break;
       }
 
       entry = ops->list.push(interp, entry, helpText);
@@ -264,50 +282,37 @@ static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
       result = ops->list.push(interp, result, entry);
 
     } else if (feather_obj_eq_literal(ops, interp, keyword, "cmd")) {
-      /* cmd "name" { body } - subcommand definition */
+      /* cmd name { body } { options } */
       if (i >= specLen) break;
 
       FeatherObj cmdName = ops->list.at(interp, specList, i);
       i++;
 
-      /* Get the body (next element should be braced body) */
+      /* Get the body */
       FeatherObj cmdBody = ops->string.intern(interp, "", 0);
       if (i < specLen) {
         cmdBody = ops->list.at(interp, specList, i);
         i++;
       }
 
-      /* Look for options: help, long_help, hide */
+      /* Check for options block */
       FeatherObj helpText = ops->string.intern(interp, "", 0);
       FeatherObj longHelp = ops->string.intern(interp, "", 0);
       int hide = 0;
 
-      while (i < specLen) {
-        FeatherObj opt = ops->list.at(interp, specList, i);
-        FeatherObj val;
-
-        if ((val = parse_option_value(ops, interp, opt, "help=", 5))) {
-          helpText = val;
+      if (i < specLen) {
+        FeatherObj next = ops->list.at(interp, specList, i);
+        if (!is_keyword(ops, interp, next)) {
+          /* This is the options block */
+          parse_options_block(ops, interp, next, &helpText, &longHelp, NULL, NULL, &hide);
           i++;
-          continue;
         }
-        if ((val = parse_option_value(ops, interp, opt, "long_help=", 10))) {
-          longHelp = val;
-          i++;
-          continue;
-        }
-        if (feather_obj_eq_literal(ops, interp, opt, "hide")) {
-          hide = 1;
-          i++;
-          continue;
-        }
-        break;
       }
 
       /* Recursively parse the subcommand body */
       FeatherObj subSpec = parse_spec(ops, interp, cmdBody);
 
-      /* Create cmd entry: {cmd name subSpec help long_help hide} */
+      /* Create cmd entry */
       FeatherObj entry = ops->list.create(interp);
       entry = ops->list.push(interp, entry, ops->string.intern(interp, "cmd", 3));
       entry = ops->list.push(interp, entry, cmdName);
@@ -319,58 +324,46 @@ static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
       result = ops->list.push(interp, result, entry);
 
     } else if (feather_obj_eq_literal(ops, interp, keyword, "flag")) {
-      /* flag "-s --long" or flag "-s --long <value>" with options */
-      if (i >= specLen) break;
-
-      FeatherObj flagSpec = ops->list.at(interp, specList, i);
-      i++;
-
-      /* Create flag entry: {flag short long hasValue valueRequired varName help} */
-      FeatherObj entry = ops->list.create(interp);
-      entry = ops->list.push(interp, entry, ops->string.intern(interp, "flag", 4));
-
-      /* Parse flag spec: "-s", "--long", "-s --long", "-s --long <value>" */
-      FeatherObj flagParts = feather_list_parse_obj(ops, interp, flagSpec);
-      size_t partsLen = ops->list.length(interp, flagParts);
-
+      /* flag -s --long <value> { options } */
+      /* Collect flag parts until we hit a non-flag-part or keyword */
       FeatherObj shortFlag = ops->string.intern(interp, "", 0);
       FeatherObj longFlag = ops->string.intern(interp, "", 0);
       FeatherObj valueName = ops->string.intern(interp, "", 0);
       int hasValue = 0;
       int valueRequired = 0;
 
-      for (size_t j = 0; j < partsLen; j++) {
-        FeatherObj part = ops->list.at(interp, flagParts, j);
+      while (i < specLen) {
+        FeatherObj part = ops->list.at(interp, specList, i);
+        if (!is_flag_part(ops, interp, part)) break;
+
         size_t partLen = ops->string.byte_length(interp, part);
+        int c0 = ops->string.byte_at(interp, part, 0);
 
-        if (partLen >= 1) {
-          int c0 = ops->string.byte_at(interp, part, 0);
-
-          if (c0 == '-' && partLen >= 2) {
-            int c1 = ops->string.byte_at(interp, part, 1);
-            if (c1 == '-' && partLen > 2) {
-              /* Long flag: --name */
-              longFlag = ops->string.slice(interp, part, 2, partLen);
-            } else if (c1 != '-') {
-              /* Short flag: -x */
-              shortFlag = ops->string.slice(interp, part, 1, partLen);
-            }
-          } else if (c0 == '<' && partLen >= 2) {
-            /* Required value: <name> */
-            hasValue = 1;
-            valueRequired = 1;
-            valueName = ops->string.slice(interp, part, 1, partLen - 1);
-          } else if (c0 == '?' && partLen >= 2) {
-            /* Optional value: ?name? */
-            hasValue = 1;
-            valueRequired = 0;
-            valueName = ops->string.slice(interp, part, 1, partLen - 1);
+        if (c0 == '-' && partLen >= 2) {
+          int c1 = ops->string.byte_at(interp, part, 1);
+          if (c1 == '-' && partLen > 2) {
+            /* Long flag: --name */
+            longFlag = ops->string.slice(interp, part, 2, partLen);
+          } else if (c1 != '-') {
+            /* Short flag: -x */
+            shortFlag = ops->string.slice(interp, part, 1, partLen);
           }
+        } else if (c0 == '<' && partLen >= 2) {
+          /* Required value: <name> */
+          hasValue = 1;
+          valueRequired = 1;
+          valueName = ops->string.slice(interp, part, 1, partLen - 1);
+        } else if (c0 == '?' && partLen >= 2) {
+          /* Optional value: ?name? */
+          hasValue = 1;
+          valueRequired = 0;
+          valueName = ops->string.slice(interp, part, 1, partLen - 1);
         }
+
+        i++;
       }
 
       /* Derive variable name from long flag or short flag */
-      /* Convert hyphens to underscores for valid TCL variable names */
       FeatherObj varName;
       if (ops->string.byte_length(interp, longFlag) > 0) {
         varName = sanitize_var_name(ops, interp, longFlag);
@@ -378,46 +371,29 @@ static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
         varName = sanitize_var_name(ops, interp, shortFlag);
       }
 
-      entry = ops->list.push(interp, entry, shortFlag);
-      entry = ops->list.push(interp, entry, longFlag);
-      entry = ops->list.push(interp, entry, ops->integer.create(interp, hasValue));
-      entry = ops->list.push(interp, entry, ops->integer.create(interp, valueRequired));
-      entry = ops->list.push(interp, entry, varName);
-
-      /* Look for options: help, long_help, choices, hide */
+      /* Check for options block */
       FeatherObj helpText = ops->string.intern(interp, "", 0);
       FeatherObj longHelp = ops->string.intern(interp, "", 0);
       FeatherObj choices = ops->string.intern(interp, "", 0);
       int hide = 0;
 
-      while (i < specLen) {
-        FeatherObj opt = ops->list.at(interp, specList, i);
-        FeatherObj val;
-
-        if ((val = parse_option_value(ops, interp, opt, "help=", 5))) {
-          helpText = val;
+      if (i < specLen) {
+        FeatherObj next = ops->list.at(interp, specList, i);
+        if (!is_keyword(ops, interp, next)) {
+          /* This is the options block */
+          parse_options_block(ops, interp, next, &helpText, &longHelp, &choices, NULL, &hide);
           i++;
-          continue;
         }
-        if ((val = parse_option_value(ops, interp, opt, "long_help=", 10))) {
-          longHelp = val;
-          i++;
-          continue;
-        }
-        if ((val = parse_option_value(ops, interp, opt, "choices=", 8))) {
-          choices = val;
-          i++;
-          continue;
-        }
-        if (feather_obj_eq_literal(ops, interp, opt, "hide")) {
-          hide = 1;
-          i++;
-          continue;
-        }
-
-        break;
       }
 
+      /* Create flag entry */
+      FeatherObj entry = ops->list.create(interp);
+      entry = ops->list.push(interp, entry, ops->string.intern(interp, "flag", 4));
+      entry = ops->list.push(interp, entry, shortFlag);
+      entry = ops->list.push(interp, entry, longFlag);
+      entry = ops->list.push(interp, entry, ops->integer.create(interp, hasValue));
+      entry = ops->list.push(interp, entry, ops->integer.create(interp, valueRequired));
+      entry = ops->list.push(interp, entry, varName);
       entry = ops->list.push(interp, entry, helpText);
       entry = ops->list.push(interp, entry, longHelp);
       entry = ops->list.push(interp, entry, choices);
