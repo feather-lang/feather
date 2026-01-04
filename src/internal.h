@@ -1239,4 +1239,18 @@ FeatherResult feather_foreach_impl(const FeatherHostOps *ops,
                                     FeatherIterCallback callback,
                                     void *ctx);
 
+/**
+ * feather_builtin_usage implements the TCL 'usage' command.
+ *
+ * Usage:
+ *   usage for command ?spec?   - Define or get usage spec for a command
+ *   usage parse command args   - Parse args list and create local variables
+ *   usage help command         - Generate help text
+ *
+ * Implements the usage specification from https://usage.jdx.dev
+ * Uses ?arg? instead of [arg] for optional args (TCL compatibility).
+ */
+FeatherResult feather_builtin_usage(const FeatherHostOps *ops, FeatherInterp interp,
+                                    FeatherObj cmd, FeatherObj args);
+
 #endif
