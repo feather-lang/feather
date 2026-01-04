@@ -73,6 +73,7 @@
 #include "./src/builtin_trace.c"
 #include "./src/builtin_try.c"
 #include "./src/builtin_unset.c"
+#include "./src/builtin_usage.c"
 #include "./src/builtin_uplevel.c"
 #include "./src/builtin_upvar.c"
 #include "./src/builtin_variable.c"
