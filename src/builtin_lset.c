@@ -100,7 +100,8 @@ FeatherResult feather_builtin_lset(const FeatherHostOps *ops, FeatherInterp inte
   FeatherObj newValue = ops->list.at(interp, args, argc - 1);
 
   // Get current value - error if variable doesn't exist
-  FeatherObj current = ops->var.get(interp, varName);
+  FeatherObj current;
+  feather_get_var(ops, interp, varName, &current);
   if (ops->list.is_nil(interp, current)) {
     FeatherObj msg = ops->string.intern(interp, "can't read \"", 12);
     msg = ops->string.concat(interp, msg, varName);
@@ -112,7 +113,9 @@ FeatherResult feather_builtin_lset(const FeatherHostOps *ops, FeatherInterp inte
 
   // Case 1: argc == 2 - lset varName newValue (replace entire variable)
   if (argc == 2) {
-    ops->var.set(interp, varName, newValue);
+    if (feather_set_var(ops, interp, varName, newValue) != TCL_OK) {
+      return TCL_ERROR;
+    }
     ops->interp.set_result(interp, newValue);
     return TCL_OK;
   }
@@ -132,7 +135,9 @@ FeatherResult feather_builtin_lset(const FeatherHostOps *ops, FeatherInterp inte
 
     if (indexListLen == 0) {
       // Empty index list - replace entire variable
-      ops->var.set(interp, varName, newValue);
+      if (feather_set_var(ops, interp, varName, newValue) != TCL_OK) {
+        return TCL_ERROR;
+      }
       ops->interp.set_result(interp, newValue);
       return TCL_OK;
     }
@@ -156,7 +161,9 @@ FeatherResult feather_builtin_lset(const FeatherHostOps *ops, FeatherInterp inte
   }
 
   // Store back in variable
-  ops->var.set(interp, varName, result);
+  if (feather_set_var(ops, interp, varName, result) != TCL_OK) {
+    return TCL_ERROR;
+  }
   ops->interp.set_result(interp, result);
   return TCL_OK;
 }

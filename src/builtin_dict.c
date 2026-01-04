@@ -72,7 +72,8 @@ static FeatherResult dict_set(const FeatherHostOps *ops, FeatherInterp interp, F
   FeatherObj varName = ops->list.shift(interp, args);
 
   // Get the current dict from the variable (or empty if doesn't exist)
-  FeatherObj dict = ops->var.get(interp, varName);
+  FeatherObj dict;
+  feather_get_var(ops, interp, varName, &dict);
   if (ops->list.is_nil(interp, dict)) {
     dict = ops->dict.create(interp);
   }
@@ -122,7 +123,9 @@ static FeatherResult dict_set(const FeatherHostOps *ops, FeatherInterp interp, F
     dict = dicts[0];
   }
 
-  ops->var.set(interp, varName, dict);
+  if (feather_set_var(ops, interp, varName, dict) != TCL_OK) {
+    return TCL_ERROR;
+  }
   ops->interp.set_result(interp, dict);
   return TCL_OK;
 }
@@ -315,7 +318,8 @@ static FeatherResult dict_append(const FeatherHostOps *ops, FeatherInterp interp
   FeatherObj key = ops->list.shift(interp, args);
 
   // Get current dict
-  FeatherObj dict = ops->var.get(interp, varName);
+  FeatherObj dict;
+  feather_get_var(ops, interp, varName, &dict);
   if (ops->list.is_nil(interp, dict)) {
     dict = ops->dict.create(interp);
   }
@@ -333,7 +337,9 @@ static FeatherResult dict_append(const FeatherHostOps *ops, FeatherInterp interp
   }
 
   dict = ops->dict.set(interp, dict, key, val);
-  ops->var.set(interp, varName, dict);
+  if (feather_set_var(ops, interp, varName, dict) != TCL_OK) {
+    return TCL_ERROR;
+  }
   ops->interp.set_result(interp, dict);
   return TCL_OK;
 }
@@ -361,7 +367,8 @@ static FeatherResult dict_incr(const FeatherHostOps *ops, FeatherInterp interp, 
   }
 
   // Get current dict
-  FeatherObj dict = ops->var.get(interp, varName);
+  FeatherObj dict;
+  feather_get_var(ops, interp, varName, &dict);
   if (ops->list.is_nil(interp, dict)) {
     dict = ops->dict.create(interp);
   }
@@ -379,7 +386,9 @@ static FeatherResult dict_incr(const FeatherHostOps *ops, FeatherInterp interp, 
   current += increment;
   FeatherObj newVal = ops->integer.create(interp, current);
   dict = ops->dict.set(interp, dict, key, newVal);
-  ops->var.set(interp, varName, dict);
+  if (feather_set_var(ops, interp, varName, dict) != TCL_OK) {
+    return TCL_ERROR;
+  }
   ops->interp.set_result(interp, dict);
   return TCL_OK;
 }
@@ -398,7 +407,8 @@ static FeatherResult dict_lappend(const FeatherHostOps *ops, FeatherInterp inter
   FeatherObj key = ops->list.shift(interp, args);
 
   // Get current dict
-  FeatherObj dict = ops->var.get(interp, varName);
+  FeatherObj dict;
+  feather_get_var(ops, interp, varName, &dict);
   if (ops->list.is_nil(interp, dict)) {
     dict = ops->dict.create(interp);
   }
@@ -419,7 +429,9 @@ static FeatherResult dict_lappend(const FeatherHostOps *ops, FeatherInterp inter
   }
 
   dict = ops->dict.set(interp, dict, key, val);
-  ops->var.set(interp, varName, dict);
+  if (feather_set_var(ops, interp, varName, dict) != TCL_OK) {
+    return TCL_ERROR;
+  }
   ops->interp.set_result(interp, dict);
   return TCL_OK;
 }
@@ -437,7 +449,8 @@ static FeatherResult dict_unset(const FeatherHostOps *ops, FeatherInterp interp,
   FeatherObj varName = ops->list.shift(interp, args);
 
   // Get current dict
-  FeatherObj dict = ops->var.get(interp, varName);
+  FeatherObj dict;
+  feather_get_var(ops, interp, varName, &dict);
   if (ops->list.is_nil(interp, dict)) {
     dict = ops->dict.create(interp);
   }
@@ -469,7 +482,9 @@ static FeatherResult dict_unset(const FeatherHostOps *ops, FeatherInterp interp,
       FeatherObj nested = ops->dict.get(interp, dicts[i], key);
       if (ops->list.is_nil(interp, nested)) {
         // Key doesn't exist, nothing to unset
-        ops->var.set(interp, varName, dict);
+        if (feather_set_var(ops, interp, varName, dict) != TCL_OK) {
+          return TCL_ERROR;
+        }
         ops->interp.set_result(interp, dict);
         return TCL_OK;
       }
@@ -488,7 +503,9 @@ static FeatherResult dict_unset(const FeatherHostOps *ops, FeatherInterp interp,
     dict = dicts[0];
   }
 
-  ops->var.set(interp, varName, dict);
+  if (feather_set_var(ops, interp, varName, dict) != TCL_OK) {
+    return TCL_ERROR;
+  }
   ops->interp.set_result(interp, dict);
   return TCL_OK;
 }
@@ -524,8 +541,12 @@ static FeatherResult dict_for(const FeatherHostOps *ops, FeatherInterp interp, F
     FeatherObj key = ops->list.at(interp, keys, i);
     FeatherObj val = ops->dict.get(interp, dict, key);
 
-    ops->var.set(interp, keyVar, key);
-    ops->var.set(interp, valVar, val);
+    if (feather_set_var(ops, interp, keyVar, key) != TCL_OK) {
+      return TCL_ERROR;
+    }
+    if (feather_set_var(ops, interp, valVar, val) != TCL_OK) {
+      return TCL_ERROR;
+    }
 
     FeatherResult res = feather_script_eval_obj(ops, interp, body, TCL_EVAL_LOCAL);
     if (res == TCL_BREAK) {
@@ -697,8 +718,12 @@ static FeatherResult dict_filter(const FeatherHostOps *ops, FeatherInterp interp
       FeatherObj key = ops->list.at(interp, keys, i);
       FeatherObj val = ops->dict.get(interp, dict, key);
 
-      ops->var.set(interp, keyVar, key);
-      ops->var.set(interp, valVar, val);
+      if (feather_set_var(ops, interp, keyVar, key) != TCL_OK) {
+        return TCL_ERROR;
+      }
+      if (feather_set_var(ops, interp, valVar, val) != TCL_OK) {
+        return TCL_ERROR;
+      }
 
       FeatherResult res = feather_script_eval_obj(ops, interp, script, TCL_EVAL_LOCAL);
       if (res == TCL_BREAK) {
@@ -768,8 +793,12 @@ static FeatherResult dict_map(const FeatherHostOps *ops, FeatherInterp interp, F
     FeatherObj key = ops->list.at(interp, keys, i);
     FeatherObj val = ops->dict.get(interp, dict, key);
 
-    ops->var.set(interp, keyVar, key);
-    ops->var.set(interp, valVar, val);
+    if (feather_set_var(ops, interp, keyVar, key) != TCL_OK) {
+      return TCL_ERROR;
+    }
+    if (feather_set_var(ops, interp, valVar, val) != TCL_OK) {
+      return TCL_ERROR;
+    }
 
     FeatherResult res = feather_script_eval_obj(ops, interp, script, TCL_EVAL_LOCAL);
     if (res == TCL_BREAK) {
@@ -806,7 +835,8 @@ static FeatherResult dict_update(const FeatherHostOps *ops, FeatherInterp interp
   FeatherObj script = ops->list.pop(interp, args);
 
   // Get current dict
-  FeatherObj dict = ops->var.get(interp, dictVarName);
+  FeatherObj dict;
+  feather_get_var(ops, interp, dictVarName, &dict);
   if (ops->list.is_nil(interp, dict)) {
     dict = ops->dict.create(interp);
   }
@@ -828,7 +858,9 @@ static FeatherResult dict_update(const FeatherHostOps *ops, FeatherInterp interp
     // Set variable to dict value (or leave unset if key doesn't exist)
     FeatherObj val = ops->dict.get(interp, dict, dictKeys[i]);
     if (!ops->list.is_nil(interp, val)) {
-      ops->var.set(interp, varNames[i], val);
+      if (feather_set_var(ops, interp, varNames[i], val) != TCL_OK) {
+        return TCL_ERROR;
+      }
     }
   }
 
@@ -838,7 +870,8 @@ static FeatherResult dict_update(const FeatherHostOps *ops, FeatherInterp interp
 
   // Update dict from variables
   for (size_t i = 0; i < numPairs; i++) {
-    FeatherObj val = ops->var.get(interp, varNames[i]);
+    FeatherObj val;
+    feather_get_var(ops, interp, varNames[i], &val);
     if (ops->list.is_nil(interp, val)) {
       // Variable was unset - remove key from dict
       dict = ops->dict.remove(interp, dict, dictKeys[i]);
@@ -849,7 +882,9 @@ static FeatherResult dict_update(const FeatherHostOps *ops, FeatherInterp interp
   }
 
   // Store updated dict
-  ops->var.set(interp, dictVarName, dict);
+  if (feather_set_var(ops, interp, dictVarName, dict) != TCL_OK) {
+    return TCL_ERROR;
+  }
 
   if (res != TCL_OK) {
     return res;
@@ -873,7 +908,8 @@ static FeatherResult dict_with(const FeatherHostOps *ops, FeatherInterp interp, 
   FeatherObj script = ops->list.pop(interp, args);
 
   // Get current dict
-  FeatherObj dict = ops->var.get(interp, dictVarName);
+  FeatherObj dict;
+  feather_get_var(ops, interp, dictVarName, &dict);
   if (ops->list.is_nil(interp, dict)) {
     dict = ops->dict.create(interp);
   }
@@ -898,7 +934,9 @@ static FeatherResult dict_with(const FeatherHostOps *ops, FeatherInterp interp, 
   for (size_t i = 0; i < numKeys; i++) {
     FeatherObj key = ops->list.at(interp, keys, i);
     FeatherObj val = ops->dict.get(interp, dict, key);
-    ops->var.set(interp, key, val);
+    if (feather_set_var(ops, interp, key, val) != TCL_OK) {
+      return TCL_ERROR;
+    }
   }
 
   // Execute script
@@ -908,7 +946,8 @@ static FeatherResult dict_with(const FeatherHostOps *ops, FeatherInterp interp, 
   // Update dict from variables (only for keys that existed in original dict)
   for (size_t i = 0; i < numKeys; i++) {
     FeatherObj key = ops->list.at(interp, keys, i);
-    FeatherObj val = ops->var.get(interp, key);
+    FeatherObj val;
+    feather_get_var(ops, interp, key, &val);
     if (ops->list.is_nil(interp, val)) {
       // Variable was unset - remove key from dict
       dict = ops->dict.remove(interp, dict, key);
@@ -922,7 +961,8 @@ static FeatherResult dict_with(const FeatherHostOps *ops, FeatherInterp interp, 
   size_t numNestedKeys = ops->list.length(interp, nestedKeys);
   if (numNestedKeys > 0) {
     // Need to rebuild the nested structure
-    FeatherObj rootDict = ops->var.get(interp, dictVarName);
+    FeatherObj rootDict;
+    feather_get_var(ops, interp, dictVarName, &rootDict);
     if (ops->list.is_nil(interp, rootDict)) {
       rootDict = ops->dict.create(interp);
     }
@@ -951,7 +991,9 @@ static FeatherResult dict_with(const FeatherHostOps *ops, FeatherInterp interp, 
   }
 
   // Store updated dict
-  ops->var.set(interp, dictVarName, dict);
+  if (feather_set_var(ops, interp, dictVarName, dict) != TCL_OK) {
+    return TCL_ERROR;
+  }
 
   if (res != TCL_OK) {
     return res;

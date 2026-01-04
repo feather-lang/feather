@@ -31,7 +31,9 @@ FeatherResult feather_builtin_lassign(const FeatherHostOps *ops, FeatherInterp i
     } else {
       value = emptyStr;
     }
-    ops->var.set(interp, varName, value);
+    if (feather_set_var(ops, interp, varName, value) != TCL_OK) {
+      return TCL_ERROR;
+    }
   }
 
   if (numVars >= listLen) {

@@ -575,7 +575,9 @@ FeatherResult feather_builtin_scan(const FeatherHostOps *ops, FeatherInterp inte
         if (varMode) {
           if (varIndex < numVars) {
             FeatherObj varName = ops->list.at(interp, args, 2 + varIndex);
-            ops->var.set(interp, varName, val);
+            if (feather_set_var(ops, interp, varName, val) != TCL_OK) {
+              return TCL_ERROR;
+            }
             varIndex++;
             conversions++;
           }
@@ -710,7 +712,9 @@ FeatherResult feather_builtin_scan(const FeatherHostOps *ops, FeatherInterp inte
       if (varMode) {
         if (varIndex < numVars) {
           FeatherObj varName = ops->list.at(interp, args, 2 + varIndex);
-          ops->var.set(interp, varName, scannedVal);
+          if (feather_set_var(ops, interp, varName, scannedVal) != TCL_OK) {
+            return TCL_ERROR;
+          }
           varIndex++;
           conversions++;
         }
@@ -726,7 +730,9 @@ FeatherResult feather_builtin_scan(const FeatherHostOps *ops, FeatherInterp inte
       for (size_t i = 0; i < numVars && i < 64; i++) {
         if (positions[i] >= 0) {
           FeatherObj varName = ops->list.at(interp, args, 2 + i);
-          ops->var.set(interp, varName, results[positions[i]]);
+          if (feather_set_var(ops, interp, varName, results[positions[i]]) != TCL_OK) {
+            return TCL_ERROR;
+          }
           conversions++;
         }
       }

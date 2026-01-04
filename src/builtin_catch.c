@@ -98,7 +98,9 @@ FeatherResult feather_builtin_catch(const FeatherHostOps *ops, FeatherInterp int
   // If resultVar is provided, store the result in it
   if (argc >= 2) {
     FeatherObj varName = ops->list.at(interp, args, 1);
-    ops->var.set(interp, varName, result);
+    if (feather_set_var(ops, interp, varName, result) != TCL_OK) {
+      return TCL_ERROR;
+    }
   }
 
   // If optionsVar is provided, store the return options in it
@@ -115,7 +117,9 @@ FeatherResult feather_builtin_catch(const FeatherHostOps *ops, FeatherInterp int
       options = ops->list.push(interp, options, ops->integer.create(interp, 0));
     }
 
-    ops->var.set(interp, optionsVar, options);
+    if (feather_set_var(ops, interp, optionsVar, options) != TCL_OK) {
+      return TCL_ERROR;
+    }
   }
 
   // Return the code as an integer result
