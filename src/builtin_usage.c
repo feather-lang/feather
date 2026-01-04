@@ -45,28 +45,28 @@
 /* Storage namespace for usage specs: ::usage */
 static const char *USAGE_NS = "::usage";
 
-/* Dict keys - interned once per use for efficiency */
-#define K_TYPE       "type"
-#define K_NAME       "name"
-#define K_REQUIRED   "required"
-#define K_VARIADIC   "variadic"
-#define K_HELP       "help"
-#define K_DEFAULT    "default"
-#define K_LONG_HELP  "long_help"
-#define K_CHOICES    "choices"
-#define K_HIDE       "hide"
-#define K_VALUE_TYPE "value_type"
-#define K_SHORT      "short"
-#define K_LONG       "long"
-#define K_HAS_VALUE  "has_value"
-#define K_VALUE_REQ  "value_required"
-#define K_VAR_NAME   "var_name"
-#define K_SPEC       "spec"
+/* Dict keys */
+static const char *K_TYPE       = "type";
+static const char *K_NAME       = "name";
+static const char *K_REQUIRED   = "required";
+static const char *K_VARIADIC   = "variadic";
+static const char *K_HELP       = "help";
+static const char *K_DEFAULT    = "default";
+static const char *K_LONG_HELP  = "long_help";
+static const char *K_CHOICES    = "choices";
+static const char *K_HIDE       = "hide";
+static const char *K_VALUE_TYPE = "value_type";
+static const char *K_SHORT      = "short";
+static const char *K_LONG       = "long";
+static const char *K_HAS_VALUE  = "has_value";
+static const char *K_VALUE_REQ  = "value_required";
+static const char *K_VAR_NAME   = "var_name";
+static const char *K_SPEC       = "spec";
 
 /* Entry type values */
-#define T_ARG  "arg"
-#define T_FLAG "flag"
-#define T_CMD  "cmd"
+static const char *T_ARG  = "arg";
+static const char *T_FLAG = "flag";
+static const char *T_CMD  = "cmd";
 
 /**
  * Helper to get a string key from a dict, returning empty string if not found.
