@@ -100,9 +100,16 @@ run = """
 bench -host js/tester.js benchmarks/*.html
 """
 
+[tasks."bench:oracle"]
+description = "Run benchmarks with the TCL Oracle (reference TCL interpreter)"
+depends = ["build:bench", "build:oracle"]
+run = """
+bench -host bin/oracle benchmarks/*.html
+"""
+
 [tasks."bench:all"]
 description = "Run all benchmarks in parallel"
-depends = ["bench", "bench:js"]
+depends = ["bench", "bench:js", "bench:oracle"]
 
 [tools]
 go = "1.25.5"
