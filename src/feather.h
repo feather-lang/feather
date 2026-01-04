@@ -1477,7 +1477,7 @@ FeatherObj feather_list_parse_obj(const FeatherHostOps *ops, FeatherInterp inter
 /**
  * Usage Spec Format (dict-based entries)
  *
- * Usage specs are stored in ::tcl::usage::specs as a dict mapping command
+ * Usage specs are stored in ::usage::specs as a dict mapping command
  * names to {rawSpec parsedSpec} pairs. Hosts can construct specs directly
  * using ops->dict operations.
  *
@@ -1533,7 +1533,7 @@ FeatherObj feather_list_parse_obj(const FeatherHostOps *ops, FeatherInterp inter
  *   FeatherObj spec = ops->list.create(interp);
  *   spec = ops->list.push(interp, spec, entry);
  *
- * To register a spec, store it in ::tcl::usage::specs namespace variable
+ * To register a spec, store it in ::usage::specs namespace variable
  * as a {rawSpec parsedSpec} pair where rawSpec can be empty for direct specs.
  */
 
