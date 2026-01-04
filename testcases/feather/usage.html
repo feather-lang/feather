@@ -1793,4 +1793,170 @@ blockcmd4</script>
     <exit-code>0</exit-code>
   </test-case>
 
+  <!-- ============================================= -->
+  <!-- type script feature                           -->
+  <!-- ============================================= -->
+
+  <test-case name="arg with type script accepts complete script">
+    <script>usage for scriptcmd1 {
+    arg <code> {type script}
+}
+proc scriptcmd1 {args} {
+    usage parse scriptcmd1 $args
+    return $code
+}
+scriptcmd1 {puts hello; set x 1}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>puts hello; set x 1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="arg with type script rejects incomplete script">
+    <script>usage for scriptcmd2 {
+    arg <code> {type script}
+}
+proc scriptcmd2 {args} {
+    usage parse scriptcmd2 $args
+    return $code
+}
+scriptcmd2 {puts [list}</script>
+    <return>TCL_ERROR</return>
+    <error>argument "code" must be a complete script</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="arg with type script rejects unbalanced quotes">
+    <script>usage for scriptcmd3 {
+    arg <code> {type script}
+}
+proc scriptcmd3 {args} {
+    usage parse scriptcmd3 $args
+    return $code
+}
+scriptcmd3 {puts "hello}</script>
+    <return>TCL_ERROR</return>
+    <error>argument "code" must be a complete script</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="flag with type script accepts complete script">
+    <script>usage for scriptcmd4 {
+    flag -c --code <script> {type script}
+}
+proc scriptcmd4 {args} {
+    usage parse scriptcmd4 $args
+    return $code
+}
+scriptcmd4 --code {foreach x {1 2 3} {puts $x}}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>foreach x {1 2 3} {puts $x}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="flag with type script rejects incomplete script">
+    <script>usage for scriptcmd5 {
+    flag --eval <script> {type script}
+}
+proc scriptcmd5 {args} {
+    usage parse scriptcmd5 $args
+    return $eval
+}
+# Create incomplete script using escaped brace
+set incomplete "if \{condition"
+scriptcmd5 --eval $incomplete</script>
+    <return>TCL_ERROR</return>
+    <error>flag --eval value must be a complete script</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="short flag with type script rejects incomplete">
+    <script>usage for scriptcmd6 {
+    flag -e <script> {type script}
+}
+proc scriptcmd6 {args} {
+    usage parse scriptcmd6 $args
+    return $e
+}
+# Create incomplete script using escaped brace
+set incomplete "while \{1"
+scriptcmd6 -e $incomplete</script>
+    <return>TCL_ERROR</return>
+    <error>flag -e value must be a complete script</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="type script accepts empty string">
+    <script>usage for scriptcmd7 {
+    arg ?code? {type script}
+}
+proc scriptcmd7 {args} {
+    usage parse scriptcmd7 $args
+    return "len:[string length $code]"
+}
+scriptcmd7</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>len:0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="type script with help text">
+    <script>usage for scriptcmd8 {
+    arg <code> {type script help {TCL code to execute}}
+}
+set help [usage help scriptcmd8]
+string match "*TCL code to execute*" $help</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="type script in subcommand">
+    <script>usage for scriptcli {
+    cmd eval {
+        arg <code> {type script}
+    }
+}
+proc scriptcli {args} {
+    usage parse scriptcli $args
+    return "$_cmd:$code"
+}
+scriptcli eval {expr {1 + 2}}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>eval:expr {1 + 2}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="type script in subcommand rejects incomplete">
+    <script>usage for scriptcli2 {
+    cmd run {
+        arg <script> {type script}
+    }
+}
+proc scriptcli2 {args} {
+    usage parse scriptcli2 $args
+    return $script
+}
+# Create incomplete script using escaped brace
+set incomplete "proc foo \{"
+scriptcli2 run $incomplete</script>
+    <return>TCL_ERROR</return>
+    <error>argument "script" must be a complete script</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
 </test-suite>
