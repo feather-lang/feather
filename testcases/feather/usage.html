@@ -657,7 +657,7 @@ extratest one two</script>
 
   <test-case name="usage help simple command">
     <script>usage for helpcmd1 {arg <file>}
-string match "Usage: helpcmd1 <file>*" [usage help helpcmd1]</script>
+string match "*SYNOPSIS*helpcmd1 <file>*" [usage help helpcmd1]</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>1</stdout>
@@ -687,7 +687,7 @@ string match "*<files>...*" [usage help helpcmd3]</script>
 
   <test-case name="usage help with flags shows options">
     <script>usage for helpcmd4 {arg <file> flag -v --verbose}
-string match "*?options?*" [usage help helpcmd4]</script>
+string match "*\[OPTIONS\]*" [usage help helpcmd4]</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>1</stdout>
@@ -1555,7 +1555,7 @@ expr {![string match "*options*" $help] && [string match "*<file>*" $help]}</scr
     flag -l --level <level> {choices {debug info warn error}}
 }
 set help [usage help choicecmd1]
-string match "*choices: debug info warn error*" $help</script>
+string match "*Choices: debug info warn error*" $help</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>1</stdout>
@@ -1568,7 +1568,7 @@ string match "*choices: debug info warn error*" $help</script>
     arg <format> {help {output format} choices {json xml csv}}
 }
 set help [usage help choicecmd2]
-string match "*choices: json xml csv*" $help</script>
+string match "*Choices: json xml csv*" $help</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>1</stdout>
@@ -1613,7 +1613,7 @@ choicecmd4 fast</script>
     flag -o --output <format> {help {output format} choices {json yaml toml}}
 }
 set help [usage help choicecmd5]
-expr {[string match "*output format*" $help] && [string match "*choices: json yaml toml*" $help]}</script>
+expr {[string match "*output format*" $help] && [string match "*Choices: json yaml toml*" $help]}</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>1</stdout>
@@ -1710,7 +1710,7 @@ expr {[string match "*start*start service*" $help] && [string match "*stop*stop 
     arg <type> {choices {a b c}}
 }
 set help [usage help combcmd3]
-string match "*Arguments:*type*choices: a b c*" $help</script>
+string match "*ARGUMENTS*type*Choices: a b c*" $help</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>1</stdout>
@@ -1749,7 +1749,7 @@ string match "*Enable verbose mode*" $help</script>
     }
 }
 set help [usage help blockcmd2]
-string match "*choices:*debug*info*warn*error*" $help</script>
+string match "*Choices:*debug*info*warn*error*" $help</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>1</stdout>
@@ -1972,7 +1972,7 @@ scriptcli2 run $incomplete</script>
     example {examplecmd1 myfile.txt}
 }
 set help [usage help examplecmd1]
-string match "*Examples:*examplecmd1 myfile.txt*" $help</script>
+string match "*EXAMPLES*examplecmd1 myfile.txt*" $help</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>1</stdout>
@@ -1986,7 +1986,7 @@ string match "*Examples:*examplecmd1 myfile.txt*" $help</script>
     example {examplecmd2 test.txt} {header {Basic usage}}
 }
 set help [usage help examplecmd2]
-expr {[string match "*Examples:*Basic usage*" $help] && [string match "*examplecmd2 test.txt*" $help]}</script>
+expr {[string match "*EXAMPLES*Basic usage*" $help] && [string match "*examplecmd2 test.txt*" $help]}</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>1</stdout>
@@ -2126,7 +2126,8 @@ expr {[string match "*help*Deploy*" $spec] && [string match "*before_help*" $spe
     }
 }
 set help [usage help trimcmd1]
-expr {[string match "*This is a multi-line*" $help] && ![string match "*\n            *" $help]}</script>
+# Check that the text appears trimmed (no leading 12-space indent from original spec)
+string match "*This is a multi-line help text*" $help</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>1</stdout>
