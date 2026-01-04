@@ -954,22 +954,23 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
         FeatherObj header = dict_get_str(ops, interp, entry, K_HEADER);
         FeatherObj helpText = dict_get_str(ops, interp, entry, K_HELP);
 
-        /* Header or help description before code */
-        if (ops->string.byte_length(interp, header) > 0) {
-          append_str(ops, interp, builder, "\n  ");
-          FeatherObj trimmed = trim_text_block(ops, interp, header);
-          ops->string.builder_append_obj(interp, builder, trimmed);
+        /* Build description: prefer header, fallback to help */
+        FeatherObj description = header;
+        if (ops->string.byte_length(interp, header) == 0) {
+          description = helpText;
         }
 
-        if (ops->string.byte_length(interp, helpText) > 0) {
+        /* Description followed by colon */
+        if (ops->string.byte_length(interp, description) > 0) {
           append_str(ops, interp, builder, "\n  ");
-          FeatherObj trimmed = trim_text_block(ops, interp, helpText);
+          FeatherObj trimmed = trim_text_block(ops, interp, description);
           ops->string.builder_append_obj(interp, builder, trimmed);
+          ops->string.builder_append_byte(interp, builder, ':');
         }
 
-        /* The example code, indented */
+        /* The example code, indented on new line */
         if (ops->string.byte_length(interp, code) > 0) {
-          append_str(ops, interp, builder, "\n    $ ");
+          append_str(ops, interp, builder, "\n      ");
           FeatherObj trimmed = trim_text_block(ops, interp, code);
           ops->string.builder_append_obj(interp, builder, trimmed);
         }
