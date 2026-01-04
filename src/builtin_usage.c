@@ -63,6 +63,7 @@ static const char *K_VALUE_REQ  = "value_required";
 static const char *K_VAR_NAME   = "var_name";
 static const char *K_SPEC       = "spec";
 static const char *K_ORIG       = "orig";  /* Original spec string for round-tripping */
+static const char *K_ABOUT      = "about"; /* Short description for NAME section */
 
 /* Example entry keys */
 static const char *K_CODE       = "code";
@@ -80,6 +81,7 @@ static const char *T_ARG     = "arg";
 static const char *T_FLAG    = "flag";
 static const char *T_CMD     = "cmd";
 static const char *T_EXAMPLE = "example";
+static const char *T_META    = "meta"; /* Spec-level metadata (about, description) */
 
 /**
  * Helper to get a string key from a dict, returning empty string if not found.
@@ -808,28 +810,27 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
   FeatherObj builder = ops->string.builder_new(interp, 512);
   size_t specLen = ops->list.length(interp, parsedSpec);
 
-  /* Check for features in spec */
+  /* Check for features in spec and find meta entry */
   int hasFlags = 0;
   int hasArgs = 0;
   int hasSubcmds = 0;
   int hasExamples = 0;
-  FeatherObj firstArgHelp = ops->string.intern(interp, "", 0);
+  FeatherObj aboutText = ops->string.intern(interp, "", 0);
+  FeatherObj descriptionText = ops->string.intern(interp, "", 0);
 
   for (size_t i = 0; i < specLen; i++) {
     FeatherObj entry = ops->list.at(interp, parsedSpec, i);
+    if (entry_is_type(ops, interp, entry, T_META)) {
+      aboutText = dict_get_str(ops, interp, entry, K_ABOUT);
+      descriptionText = dict_get_str(ops, interp, entry, K_LONG_HELP);
+    }
     if (entry_is_type(ops, interp, entry, T_FLAG)) {
       int64_t hide = dict_get_int(ops, interp, entry, K_HIDE);
       if (!hide) hasFlags = 1;
     }
     if (entry_is_type(ops, interp, entry, T_ARG)) {
       int64_t hide = dict_get_int(ops, interp, entry, K_HIDE);
-      if (!hide) {
-        if (!hasArgs) {
-          /* Capture first arg's help for NAME section */
-          firstArgHelp = dict_get_str(ops, interp, entry, K_HELP);
-        }
-        hasArgs = 1;
-      }
+      if (!hide) hasArgs = 1;
     }
     if (entry_is_type(ops, interp, entry, T_CMD)) {
       int64_t hide = dict_get_int(ops, interp, entry, K_HIDE);
@@ -851,9 +852,9 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
   /* === NAME section === */
   append_str(ops, interp, builder, "\n\nNAME\n       ");
   ops->string.builder_append_obj(interp, builder, cmdName);
-  if (ops->string.byte_length(interp, firstArgHelp) > 0) {
+  if (ops->string.byte_length(interp, aboutText) > 0) {
     append_str(ops, interp, builder, " - ");
-    FeatherObj trimmed = trim_text_block(ops, interp, firstArgHelp);
+    FeatherObj trimmed = trim_text_block(ops, interp, aboutText);
     ops->string.builder_append_obj(interp, builder, trimmed);
   }
 
@@ -899,18 +900,11 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
     }
   }
 
-  /* === DESCRIPTION section (uses long_help from first arg if available) === */
-  for (size_t i = 0; i < specLen; i++) {
-    FeatherObj entry = ops->list.at(interp, parsedSpec, i);
-    if (entry_is_type(ops, interp, entry, T_ARG)) {
-      FeatherObj longHelp = dict_get_str(ops, interp, entry, K_LONG_HELP);
-      if (ops->string.byte_length(interp, longHelp) > 0) {
-        append_str(ops, interp, builder, "\n\nDESCRIPTION\n       ");
-        FeatherObj trimmed = trim_text_block(ops, interp, longHelp);
-        append_wrapped(ops, interp, builder, trimmed, "       ", 65);
-        break;
-      }
-    }
+  /* === DESCRIPTION section (uses long_help from meta entry) === */
+  if (ops->string.byte_length(interp, descriptionText) > 0) {
+    append_str(ops, interp, builder, "\n\nDESCRIPTION\n       ");
+    FeatherObj trimmed = trim_text_block(ops, interp, descriptionText);
+    append_wrapped(ops, interp, builder, trimmed, "       ", 65);
   }
 
   /* === OPTIONS section === */
@@ -2242,6 +2236,26 @@ FeatherObj feather_usage_spec(const FeatherHostOps *ops, FeatherInterp interp) {
 FeatherObj feather_usage_add(const FeatherHostOps *ops, FeatherInterp interp,
                              FeatherObj spec, FeatherObj entry) {
   return ops->list.push(interp, spec, entry);
+}
+
+/**
+ * Create a meta entry with command description.
+ * about: Short description for NAME section (e.g., "Read and write variables")
+ * description: Detailed description for DESCRIPTION section
+ */
+FeatherObj feather_usage_about(const FeatherHostOps *ops, FeatherInterp interp,
+                               const char *about, const char *description) {
+  FeatherObj entry = ops->dict.create(interp);
+  entry = dict_set_str(ops, interp, entry, K_TYPE, ops->string.intern(interp, S(T_META)));
+  if (about) {
+    entry = dict_set_str(ops, interp, entry, K_ABOUT,
+                         ops->string.intern(interp, about, feather_strlen(about)));
+  }
+  if (description) {
+    entry = dict_set_str(ops, interp, entry, K_LONG_HELP,
+                         ops->string.intern(interp, description, feather_strlen(description)));
+  }
+  return entry;
 }
 
 /**
