@@ -44,6 +44,40 @@
 #define USAGE_NS "::tcl::usage"
 
 /**
+ * Convert hyphens to underscores in a string for valid TCL variable names.
+ * E.g., "ignore-case" becomes "ignore_case"
+ */
+static FeatherObj sanitize_var_name(const FeatherHostOps *ops, FeatherInterp interp,
+                                     FeatherObj name) {
+  size_t len = ops->string.byte_length(interp, name);
+  int hasHyphen = 0;
+
+  /* Check if we need to convert */
+  for (size_t i = 0; i < len; i++) {
+    if (ops->string.byte_at(interp, name, i) == '-') {
+      hasHyphen = 1;
+      break;
+    }
+  }
+
+  if (!hasHyphen) {
+    return name;
+  }
+
+  /* Build new string with hyphens replaced */
+  FeatherObj builder = ops->string.builder_new(interp, len);
+  for (size_t i = 0; i < len; i++) {
+    int c = ops->string.byte_at(interp, name, i);
+    if (c == '-') {
+      ops->string.builder_append_byte(interp, builder, '_');
+    } else {
+      ops->string.builder_append_byte(interp, builder, (char)c);
+    }
+  }
+  return ops->string.builder_finish(interp, builder);
+}
+
+/**
  * Get the usage specs dictionary from ::tcl::usage::specs
  */
 static FeatherObj usage_get_specs(const FeatherHostOps *ops, FeatherInterp interp) {
@@ -246,11 +280,12 @@ static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
       }
 
       /* Derive variable name from long flag or short flag */
+      /* Convert hyphens to underscores for valid TCL variable names */
       FeatherObj varName;
       if (ops->string.byte_length(interp, longFlag) > 0) {
-        varName = longFlag;
+        varName = sanitize_var_name(ops, interp, longFlag);
       } else {
-        varName = shortFlag;
+        varName = sanitize_var_name(ops, interp, shortFlag);
       }
 
       entry = ops->list.push(interp, entry, shortFlag);
@@ -462,16 +497,18 @@ static FeatherResult usage_for(const FeatherHostOps *ops, FeatherInterp interp,
   FeatherObj specs = usage_get_specs(ops, interp);
 
   if (argc == 1) {
-    /* Get mode: return the spec for this command */
-    FeatherObj spec = ops->dict.get(interp, specs, cmdName);
-    if (ops->list.is_nil(interp, spec)) {
+    /* Get mode: return the raw spec string for this command */
+    FeatherObj specEntry = ops->dict.get(interp, specs, cmdName);
+    if (ops->list.is_nil(interp, specEntry)) {
       FeatherObj msg = ops->string.intern(interp, "no usage defined for \"", 22);
       msg = ops->string.concat(interp, msg, cmdName);
       msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\"", 1));
       ops->interp.set_result(interp, msg);
       return TCL_ERROR;
     }
-    ops->interp.set_result(interp, spec);
+    /* Return just the original spec string, not the parsed form */
+    FeatherObj rawSpec = ops->list.at(interp, specEntry, 0);
+    ops->interp.set_result(interp, rawSpec);
     return TCL_OK;
   }
 
@@ -568,17 +605,19 @@ static FeatherResult usage_parse(const FeatherHostOps *ops, FeatherInterp interp
   size_t posArgIdx = 0;  /* Index into positional args in spec */
   FeatherObj variadicList = 0;  /* For collecting variadic args */
   FeatherObj variadicName = 0;
+  int flagsEnded = 0;  /* Set to 1 after seeing -- */
 
   while (argIdx < argsLen) {
     FeatherObj arg = ops->list.at(interp, argsListParsed, argIdx);
     size_t argLen = ops->string.byte_length(interp, arg);
 
-    /* Check if it's a flag (starts with -) */
-    if (argLen >= 1 && ops->string.byte_at(interp, arg, 0) == '-') {
+    /* Check if it's a flag (starts with -) but only if we haven't seen -- */
+    if (!flagsEnded && argLen >= 1 && ops->string.byte_at(interp, arg, 0) == '-') {
       /* Check for -- (end of flags) */
       if (argLen == 2 && ops->string.byte_at(interp, arg, 1) == '-') {
         argIdx++;
-        /* Remaining args are all positional */
+        flagsEnded = 1;
+        /* Continue to next arg, which will be treated as positional */
         continue;
       }
 
@@ -780,7 +819,7 @@ static FeatherResult usage_help(const FeatherHostOps *ops, FeatherInterp interp,
   if (argc != 1) {
     ops->interp.set_result(
         interp,
-        ops->string.intern(interp, "wrong # args: should be \"usage help command\"", 45));
+        ops->string.intern(interp, "wrong # args: should be \"usage help command\"", 44));
     return TCL_ERROR;
   }
 
