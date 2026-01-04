@@ -1475,88 +1475,66 @@ FeatherObj feather_list_parse_obj(const FeatherHostOps *ops, FeatherInterp inter
                                    FeatherObj s);
 
 /**
- * Usage Spec Construction API
- *
- * These functions allow hosts and builtins to construct usage specifications
- * programmatically, bypassing the string-based spec parsing. This is more
- * efficient and type-safe for built-in commands.
+ * Usage Spec Format (dict-based entries)
  *
  * Usage specs are stored in ::tcl::usage::specs as a dict mapping command
- * names to {description entries} pairs.
+ * names to {rawSpec parsedSpec} pairs. Hosts can construct specs directly
+ * using ops->dict operations.
  *
- * Entry formats:
- * - arg: {arg name required variadic help default long_help choices hide type}
- * - flag: {flag short long hasValue valueRequired varName help long_help choices hide type}
- * - cmd: {cmd name subSpec help long_help hide}
+ * Each entry is a dict with a "type" key indicating the entry type.
+ * Only set keys that are needed (sparse representation).
+ *
+ * Arg entry keys:
+ *   type        = "arg" (required)
+ *   name        = argument name (required)
+ *   required    = 1 if required, 0 if optional (default: 0)
+ *   variadic    = 1 if accepts multiple values (default: 0)
+ *   help        = short help text
+ *   default     = default value when omitted
+ *   long_help   = extended help text
+ *   choices     = space-separated list of valid values
+ *   hide        = 1 to hide from help output
+ *   value_type  = type hint (e.g., "script" for TCL completeness validation)
+ *
+ * Flag entry keys:
+ *   type           = "flag" (required)
+ *   short          = short flag without dash (e.g., "v")
+ *   long           = long flag without dashes (e.g., "verbose")
+ *   has_value      = 1 if flag takes a value (default: 0)
+ *   value_required = 1 if value is required when flag present (default: 0)
+ *   var_name       = variable name (auto-derived from long/short if not set)
+ *   help           = short help text
+ *   long_help      = extended help text
+ *   choices        = space-separated list of valid values
+ *   hide           = 1 to hide from help output
+ *   value_type     = type hint for validation
+ *
+ * Cmd entry keys:
+ *   type      = "cmd" (required)
+ *   name      = subcommand name (required)
+ *   spec      = list of entries for this subcommand (required)
+ *   help      = short help text
+ *   long_help = extended help text
+ *   hide      = 1 to hide from help output
+ *
+ * Example (building a spec in C):
+ *
+ *   FeatherObj entry = ops->dict.create(interp);
+ *   entry = ops->dict.set(interp, entry,
+ *       ops->string.intern(interp, "type", 4),
+ *       ops->string.intern(interp, "arg", 3));
+ *   entry = ops->dict.set(interp, entry,
+ *       ops->string.intern(interp, "name", 4),
+ *       ops->string.intern(interp, "input", 5));
+ *   entry = ops->dict.set(interp, entry,
+ *       ops->string.intern(interp, "required", 8),
+ *       ops->integer.create(interp, 1));
+ *
+ *   FeatherObj spec = ops->list.create(interp);
+ *   spec = ops->list.push(interp, spec, entry);
+ *
+ * To register a spec, store it in ::tcl::usage::specs namespace variable
+ * as a {rawSpec parsedSpec} pair where rawSpec can be empty for direct specs.
  */
-
-/**
- * feather_usage_arg creates an argument entry for a usage spec.
- *
- * @param name      The argument name (displayed in help)
- * @param required  1 if the argument is required, 0 if optional
- * @param variadic  1 if this argument accepts multiple values
- * @param help      Short help text (NULL for none)
- * @param defaultVal Default value when omitted (NULL for none)
- * @param longHelp  Extended help text (NULL for none)
- * @param choices   Space-separated list of valid choices (NULL for any)
- * @param hide      1 to hide from help output
- * @param type      Type hint for validation, e.g., "script" (NULL for none)
- *
- * @return A list object representing the arg entry
- */
-FeatherObj feather_usage_arg(const FeatherHostOps *ops, FeatherInterp interp,
-                              const char *name, int required, int variadic,
-                              const char *help, const char *defaultVal,
-                              const char *longHelp, const char *choices,
-                              int hide, const char *type);
-
-/**
- * feather_usage_flag creates a flag entry for a usage spec.
- *
- * @param shortFlag Single-character flag, e.g., "-v" (NULL for none)
- * @param longFlag  Long flag name, e.g., "--verbose" (NULL for none)
- * @param hasValue  1 if the flag takes a value
- * @param valueRequired 1 if the value is required when flag is present
- * @param help      Short help text (NULL for none)
- * @param longHelp  Extended help text (NULL for none)
- * @param choices   Space-separated list of valid values (NULL for any)
- * @param hide      1 to hide from help output
- * @param type      Type hint for validation (NULL for none)
- *
- * @return A list object representing the flag entry
- */
-FeatherObj feather_usage_flag(const FeatherHostOps *ops, FeatherInterp interp,
-                               const char *shortFlag, const char *longFlag,
-                               int hasValue, int valueRequired,
-                               const char *help, const char *longHelp,
-                               const char *choices, int hide, const char *type);
-
-/**
- * feather_usage_cmd creates a subcommand entry for a usage spec.
- *
- * @param name      The subcommand name
- * @param subSpec   The spec for this subcommand (list of entries)
- * @param help      Short help text (NULL for none)
- * @param longHelp  Extended help text (NULL for none)
- * @param hide      1 to hide from help output
- *
- * @return A list object representing the cmd entry
- */
-FeatherObj feather_usage_cmd(const FeatherHostOps *ops, FeatherInterp interp,
-                              const char *name, FeatherObj subSpec,
-                              const char *help, const char *longHelp, int hide);
-
-/**
- * feather_usage_register registers a pre-built usage spec for a command.
- *
- * This stores the spec in ::tcl::usage::specs, making it available for
- * usage help, usage parse, and usage complete operations.
- *
- * @param cmdName   The fully-qualified command name
- * @param spec      List of entries (args, flags, cmds) built with the above functions
- */
-void feather_usage_register(const FeatherHostOps *ops, FeatherInterp interp,
-                             const char *cmdName, FeatherObj spec);
 
 #endif
