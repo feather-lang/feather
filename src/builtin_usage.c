@@ -67,20 +67,11 @@
 #define T_CMD  "cmd"
 
 /**
- * Helper to compute string length (stdlib-less).
- */
-static size_t cstrlen(const char *s) {
-  size_t len = 0;
-  while (s[len]) len++;
-  return len;
-}
-
-/**
  * Helper to get a string key from a dict, returning empty string if not found.
  */
 static FeatherObj dict_get_str(const FeatherHostOps *ops, FeatherInterp interp,
                                 FeatherObj dict, const char *key) {
-  FeatherObj k = ops->string.intern(interp, key, cstrlen(key));
+  FeatherObj k = ops->string.intern(interp, key, feather_strlen(key));
   FeatherObj v = ops->dict.get(interp, dict, k);
   if (ops->list.is_nil(interp, v)) {
     return ops->string.intern(interp, "", 0);
@@ -93,7 +84,7 @@ static FeatherObj dict_get_str(const FeatherHostOps *ops, FeatherInterp interp,
  */
 static int64_t dict_get_int(const FeatherHostOps *ops, FeatherInterp interp,
                              FeatherObj dict, const char *key) {
-  FeatherObj k = ops->string.intern(interp, key, cstrlen(key));
+  FeatherObj k = ops->string.intern(interp, key, feather_strlen(key));
   FeatherObj v = ops->dict.get(interp, dict, k);
   if (ops->list.is_nil(interp, v)) {
     return 0;
@@ -108,7 +99,7 @@ static int64_t dict_get_int(const FeatherHostOps *ops, FeatherInterp interp,
  */
 static FeatherObj dict_set_str(const FeatherHostOps *ops, FeatherInterp interp,
                                 FeatherObj dict, const char *key, FeatherObj value) {
-  FeatherObj k = ops->string.intern(interp, key, cstrlen(key));
+  FeatherObj k = ops->string.intern(interp, key, feather_strlen(key));
   return ops->dict.set(interp, dict, k, value);
 }
 
@@ -117,7 +108,7 @@ static FeatherObj dict_set_str(const FeatherHostOps *ops, FeatherInterp interp,
  */
 static FeatherObj dict_set_int(const FeatherHostOps *ops, FeatherInterp interp,
                                 FeatherObj dict, const char *key, int64_t value) {
-  FeatherObj k = ops->string.intern(interp, key, cstrlen(key));
+  FeatherObj k = ops->string.intern(interp, key, feather_strlen(key));
   return ops->dict.set(interp, dict, k, ops->integer.create(interp, value));
 }
 
