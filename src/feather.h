@@ -1516,25 +1516,112 @@ FeatherObj feather_list_parse_obj(const FeatherHostOps *ops, FeatherInterp inter
  *   help      = short help text
  *   long_help = extended help text
  *   hide      = 1 to hide from help output
- *
- * Example (building a spec in C):
- *
- *   FeatherObj entry = ops->dict.create(interp);
- *   entry = ops->dict.set(interp, entry,
- *       ops->string.intern(interp, "type", 4),
- *       ops->string.intern(interp, "arg", 3));
- *   entry = ops->dict.set(interp, entry,
- *       ops->string.intern(interp, "name", 4),
- *       ops->string.intern(interp, "input", 5));
- *   entry = ops->dict.set(interp, entry,
- *       ops->string.intern(interp, "required", 8),
- *       ops->integer.create(interp, 1));
- *
- *   FeatherObj spec = ops->list.create(interp);
- *   spec = ops->list.push(interp, spec, entry);
- *
- * To register a spec, store it in ::usage::specs namespace variable
- * as a {rawSpec parsedSpec} pair where rawSpec can be empty for direct specs.
  */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Usage Spec Public API
+ *
+ * Function-based API for building usage specs from C. Create entries with
+ * minimal parameters, modify with setter functions, assemble into specs.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Create an argument entry.
+ *
+ * Name format determines required/optional/variadic:
+ *   "<name>"    = required argument
+ *   "?name?"    = optional argument
+ *   "<name>..." = required variadic (1 or more)
+ *   "?name?..." = optional variadic (0 or more)
+ *
+ * Returns a dict entry that can be modified with setter functions.
+ */
+FeatherObj feather_usage_arg(const FeatherHostOps *ops, FeatherInterp interp,
+                             const char *name);
+
+/**
+ * Create a flag entry.
+ *
+ * short_flag: Short form like "-v", or NULL if none
+ * long_flag:  Long form like "--verbose", or NULL if none
+ * value:      Value spec, or NULL for boolean flag
+ *             "<val>"  = required value
+ *             "?val?"  = optional value
+ *
+ * At least one of short_flag or long_flag must be provided.
+ * Returns a dict entry that can be modified with setter functions.
+ */
+FeatherObj feather_usage_flag(const FeatherHostOps *ops, FeatherInterp interp,
+                              const char *short_flag,
+                              const char *long_flag,
+                              const char *value);
+
+/**
+ * Create a subcommand entry.
+ *
+ * name:    Subcommand name (e.g., "add", "remove")
+ * subspec: Nested spec list for this subcommand's arguments
+ *
+ * Returns a dict entry that can be modified with setter functions.
+ */
+FeatherObj feather_usage_cmd(const FeatherHostOps *ops, FeatherInterp interp,
+                             const char *name,
+                             FeatherObj subspec);
+
+/**
+ * Set help text on an entry. Returns modified entry.
+ */
+FeatherObj feather_usage_help(const FeatherHostOps *ops, FeatherInterp interp,
+                              FeatherObj entry, const char *text);
+
+/**
+ * Set extended help text on an entry. Returns modified entry.
+ */
+FeatherObj feather_usage_long_help(const FeatherHostOps *ops, FeatherInterp interp,
+                                   FeatherObj entry, const char *text);
+
+/**
+ * Set default value on an arg entry. Returns modified entry.
+ */
+FeatherObj feather_usage_default(const FeatherHostOps *ops, FeatherInterp interp,
+                                 FeatherObj entry, const char *value);
+
+/**
+ * Set valid choices on an entry. Returns modified entry.
+ * choices: A list object of valid values
+ */
+FeatherObj feather_usage_choices(const FeatherHostOps *ops, FeatherInterp interp,
+                                 FeatherObj entry, FeatherObj choices);
+
+/**
+ * Set value type hint on an entry. Returns modified entry.
+ * type: Type name like "script", "file", "dir"
+ */
+FeatherObj feather_usage_type(const FeatherHostOps *ops, FeatherInterp interp,
+                              FeatherObj entry, const char *type);
+
+/**
+ * Mark an entry as hidden from help output. Returns modified entry.
+ */
+FeatherObj feather_usage_hide(const FeatherHostOps *ops, FeatherInterp interp,
+                              FeatherObj entry);
+
+/**
+ * Create an empty usage spec (list).
+ */
+FeatherObj feather_usage_spec(const FeatherHostOps *ops, FeatherInterp interp);
+
+/**
+ * Add an entry to a spec. Returns modified spec.
+ */
+FeatherObj feather_usage_add(const FeatherHostOps *ops, FeatherInterp interp,
+                             FeatherObj spec, FeatherObj entry);
+
+/**
+ * Register a spec for a command.
+ * Stores the spec in ::usage::specs so it can be used by `usage parse`.
+ */
+void feather_usage_register(const FeatherHostOps *ops, FeatherInterp interp,
+                            const char *cmdname, FeatherObj spec);
 
 #endif
