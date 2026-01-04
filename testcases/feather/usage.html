@@ -6,6 +6,8 @@
     based on the usage specification from https://usage.jdx.dev
 
     Uses ?arg? instead of [arg] for optional arguments (TCL compatibility).
+    Uses block-based format for options:
+      flag -v --verbose { help {description} }
   -->
 
   <!-- ============================================= -->
@@ -49,8 +51,8 @@
   </test-case>
 
   <test-case name="usage for defines a spec">
-    <script>usage for testcmd {arg "<input>"}
-string match {arg "<input>"} [usage for testcmd]</script>
+    <script>usage for testcmd {arg <input>}
+string match {arg <input>} [usage for testcmd]</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>1</stdout>
@@ -59,8 +61,8 @@ string match {arg "<input>"} [usage for testcmd]</script>
   </test-case>
 
   <test-case name="usage for without spec retrieves existing">
-    <script>usage for testcmd2 {arg "<file>" arg "?output?"}
-string match {arg "<file>" arg "?output?"} [usage for testcmd2]</script>
+    <script>usage for testcmd2 {arg <file> arg ?output?}
+string match {arg <file> arg ?output?} [usage for testcmd2]</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>1</stdout>
@@ -105,7 +107,7 @@ string match {arg "<file>" arg "?output?"} [usage for testcmd2]</script>
   </test-case>
 
   <test-case name="usage parse required arg">
-    <script>usage for mycmd1 {arg "<input>"}
+    <script>usage for mycmd1 {arg <input>}
 proc test1 {args} {
     usage parse mycmd1 $args
     return $input
@@ -119,7 +121,7 @@ test1 hello.txt</script>
   </test-case>
 
   <test-case name="usage parse missing required arg errors">
-    <script>usage for mycmd2 {arg "<input>"}
+    <script>usage for mycmd2 {arg <input>}
 proc test2 {args} {
     usage parse mycmd2 $args
     return $input
@@ -132,7 +134,7 @@ test2</script>
   </test-case>
 
   <test-case name="usage parse optional arg with value">
-    <script>usage for mycmd3 {arg "?output?"}
+    <script>usage for mycmd3 {arg ?output?}
 proc test3 {args} {
     usage parse mycmd3 $args
     return $output
@@ -146,7 +148,7 @@ test3 result.txt</script>
   </test-case>
 
   <test-case name="usage parse optional arg without value">
-    <script>usage for mycmd4 {arg "?output?"}
+    <script>usage for mycmd4 {arg ?output?}
 proc test4 {args} {
     usage parse mycmd4 $args
     return "got:$output"
@@ -160,7 +162,7 @@ test4</script>
   </test-case>
 
   <test-case name="usage parse multiple positional args">
-    <script>usage for mycmd5 {arg "<src>" arg "<dst>"}
+    <script>usage for mycmd5 {arg <src> arg <dst>}
 proc test5 {args} {
     usage parse mycmd5 $args
     return "$src -> $dst"
@@ -174,7 +176,7 @@ test5 input.txt output.txt</script>
   </test-case>
 
   <test-case name="usage parse mixed required and optional">
-    <script>usage for mycmd6 {arg "<input>" arg "?output?"}
+    <script>usage for mycmd6 {arg <input> arg ?output?}
 proc test6 {args} {
     usage parse mycmd6 $args
     return "$input|$output"
@@ -188,7 +190,7 @@ test6 in.txt</script>
   </test-case>
 
   <test-case name="usage parse mixed with both provided">
-    <script>usage for mycmd7 {arg "<input>" arg "?output?"}
+    <script>usage for mycmd7 {arg <input> arg ?output?}
 proc test7 {args} {
     usage parse mycmd7 $args
     return "$input|$output"
@@ -206,7 +208,7 @@ test7 in.txt out.txt</script>
   <!-- ============================================= -->
 
   <test-case name="usage parse optional arg with default">
-    <script>usage for defcmd1 {arg "?output?" default="default.txt"}
+    <script>usage for defcmd1 {arg ?output? {default {default.txt}}}
 proc deftest1 {args} {
     usage parse defcmd1 $args
     return $output
@@ -220,7 +222,7 @@ deftest1</script>
   </test-case>
 
   <test-case name="usage parse override default with value">
-    <script>usage for defcmd2 {arg "?output?" default="default.txt"}
+    <script>usage for defcmd2 {arg ?output? {default {default.txt}}}
 proc deftest2 {args} {
     usage parse defcmd2 $args
     return $output
@@ -238,7 +240,7 @@ deftest2 custom.txt</script>
   <!-- ============================================= -->
 
   <test-case name="usage parse short flag">
-    <script>usage for flagcmd1 {flag "-v"}
+    <script>usage for flagcmd1 {flag -v}
 proc flagtest1 {args} {
     usage parse flagcmd1 $args
     return $v
@@ -252,7 +254,7 @@ flagtest1 -v</script>
   </test-case>
 
   <test-case name="usage parse short flag not provided">
-    <script>usage for flagcmd2 {flag "-v"}
+    <script>usage for flagcmd2 {flag -v}
 proc flagtest2 {args} {
     usage parse flagcmd2 $args
     return $v
@@ -266,7 +268,7 @@ flagtest2</script>
   </test-case>
 
   <test-case name="usage parse long flag">
-    <script>usage for flagcmd3 {flag "--verbose"}
+    <script>usage for flagcmd3 {flag --verbose}
 proc flagtest3 {args} {
     usage parse flagcmd3 $args
     return $verbose
@@ -280,7 +282,7 @@ flagtest3 --verbose</script>
   </test-case>
 
   <test-case name="usage parse long flag not provided">
-    <script>usage for flagcmd4 {flag "--verbose"}
+    <script>usage for flagcmd4 {flag --verbose}
 proc flagtest4 {args} {
     usage parse flagcmd4 $args
     return $verbose
@@ -294,7 +296,7 @@ flagtest4</script>
   </test-case>
 
   <test-case name="usage parse short and long flag - use short">
-    <script>usage for flagcmd5 {flag "-v --verbose"}
+    <script>usage for flagcmd5 {flag -v --verbose}
 proc flagtest5 {args} {
     usage parse flagcmd5 $args
     return $verbose
@@ -308,7 +310,7 @@ flagtest5 -v</script>
   </test-case>
 
   <test-case name="usage parse short and long flag - use long">
-    <script>usage for flagcmd6 {flag "-v --verbose"}
+    <script>usage for flagcmd6 {flag -v --verbose}
 proc flagtest6 {args} {
     usage parse flagcmd6 $args
     return $verbose
@@ -322,7 +324,7 @@ flagtest6 --verbose</script>
   </test-case>
 
   <test-case name="usage parse multiple flags">
-    <script>usage for flagcmd7 {flag "-v --verbose" flag "-q --quiet"}
+    <script>usage for flagcmd7 {flag -v --verbose flag -q --quiet}
 proc flagtest7 {args} {
     usage parse flagcmd7 $args
     return "$verbose|$quiet"
@@ -336,7 +338,7 @@ flagtest7 -v -q</script>
   </test-case>
 
   <test-case name="usage parse some flags">
-    <script>usage for flagcmd8 {flag "-v --verbose" flag "-q --quiet" flag "-d --debug"}
+    <script>usage for flagcmd8 {flag -v --verbose flag -q --quiet flag -d --debug}
 proc flagtest8 {args} {
     usage parse flagcmd8 $args
     return "$verbose|$quiet|$debug"
@@ -354,7 +356,7 @@ flagtest8 --debug</script>
   <!-- ============================================= -->
 
   <test-case name="usage parse flag with required value">
-    <script>usage for valflag1 {flag "-n --count <num>"}
+    <script>usage for valflag1 {flag -n --count <num>}
 proc valtest1 {args} {
     usage parse valflag1 $args
     return $count
@@ -368,7 +370,7 @@ valtest1 -n 5</script>
   </test-case>
 
   <test-case name="usage parse flag with value using long form">
-    <script>usage for valflag2 {flag "-n --count <num>"}
+    <script>usage for valflag2 {flag -n --count <num>}
 proc valtest2 {args} {
     usage parse valflag2 $args
     return $count
@@ -382,7 +384,7 @@ valtest2 --count 10</script>
   </test-case>
 
   <test-case name="usage parse flag with value using equals">
-    <script>usage for valflag3 {flag "--count <num>"}
+    <script>usage for valflag3 {flag --count <num>}
 proc valtest3 {args} {
     usage parse valflag3 $args
     return $count
@@ -396,7 +398,7 @@ valtest3 --count=42</script>
   </test-case>
 
   <test-case name="usage parse flag with value not provided">
-    <script>usage for valflag4 {flag "-n --count <num>"}
+    <script>usage for valflag4 {flag -n --count <num>}
 proc valtest4 {args} {
     usage parse valflag4 $args
     return "count:$count"
@@ -410,7 +412,7 @@ valtest4</script>
   </test-case>
 
   <test-case name="usage parse flag missing required value errors">
-    <script>usage for valflag5 {flag "-n --count <num>"}
+    <script>usage for valflag5 {flag -n --count <num>}
 proc valtest5 {args} {
     usage parse valflag5 $args
     return $count
@@ -423,7 +425,7 @@ valtest5 -n</script>
   </test-case>
 
   <test-case name="usage parse long flag missing required value errors">
-    <script>usage for valflag6 {flag "--count <num>"}
+    <script>usage for valflag6 {flag --count <num>}
 proc valtest6 {args} {
     usage parse valflag6 $args
     return $count
@@ -440,7 +442,7 @@ valtest6 --count</script>
   <!-- ============================================= -->
 
   <test-case name="usage parse args and flags mixed">
-    <script>usage for mixcmd1 {arg "<input>" flag "-v --verbose" arg "?output?"}
+    <script>usage for mixcmd1 {arg <input> flag -v --verbose arg ?output?}
 proc mixtest1 {args} {
     usage parse mixcmd1 $args
     return "$input|$verbose|$output"
@@ -454,7 +456,7 @@ mixtest1 -v input.txt</script>
   </test-case>
 
   <test-case name="usage parse flags between args">
-    <script>usage for mixcmd2 {arg "<src>" arg "<dst>" flag "-f --force"}
+    <script>usage for mixcmd2 {arg <src> arg <dst> flag -f --force}
 proc mixtest2 {args} {
     usage parse mixcmd2 $args
     return "$src|$dst|$force"
@@ -468,7 +470,7 @@ mixtest2 a.txt -f b.txt</script>
   </test-case>
 
   <test-case name="usage parse flags with values and args">
-    <script>usage for mixcmd3 {arg "<file>" flag "-n --count <num>" flag "-v"}
+    <script>usage for mixcmd3 {arg <file> flag -n --count <num> flag -v}
 proc mixtest3 {args} {
     usage parse mixcmd3 $args
     return "$file|$count|$v"
@@ -486,7 +488,7 @@ mixtest3 data.txt -n 3 -v</script>
   <!-- ============================================= -->
 
   <test-case name="usage parse double dash ends flag parsing">
-    <script>usage for ddcmd1 {arg "<file>" flag "-v"}
+    <script>usage for ddcmd1 {arg <file> flag -v}
 proc ddtest1 {args} {
     usage parse ddcmd1 $args
     return "$file|$v"
@@ -500,7 +502,7 @@ ddtest1 -- -v</script>
   </test-case>
 
   <test-case name="usage parse double dash with flags before">
-    <script>usage for ddcmd2 {arg "<file>" flag "-v"}
+    <script>usage for ddcmd2 {arg <file> flag -v}
 proc ddtest2 {args} {
     usage parse ddcmd2 $args
     return "$file|$v"
@@ -518,7 +520,7 @@ ddtest2 -v -- --not-a-flag</script>
   <!-- ============================================= -->
 
   <test-case name="usage parse unknown short flag errors">
-    <script>usage for unkcmd1 {flag "-v"}
+    <script>usage for unkcmd1 {flag -v}
 proc unktest1 {args} {
     usage parse unkcmd1 $args
 }
@@ -530,7 +532,7 @@ unktest1 -x</script>
   </test-case>
 
   <test-case name="usage parse unknown long flag errors">
-    <script>usage for unkcmd2 {flag "--verbose"}
+    <script>usage for unkcmd2 {flag --verbose}
 proc unktest2 {args} {
     usage parse unkcmd2 $args
 }
@@ -546,7 +548,7 @@ unktest2 --unknown</script>
   <!-- ============================================= -->
 
   <test-case name="usage parse variadic required arg">
-    <script>usage for varcmd1 {arg "<files>..."}
+    <script>usage for varcmd1 {arg <files>...}
 proc vartest1 {args} {
     usage parse varcmd1 $args
     return $files
@@ -560,7 +562,7 @@ vartest1 a.txt b.txt c.txt</script>
   </test-case>
 
   <test-case name="usage parse variadic optional arg">
-    <script>usage for varcmd2 {arg "?files?..."}
+    <script>usage for varcmd2 {arg ?files?...}
 proc vartest2 {args} {
     usage parse varcmd2 $args
     return "count:[llength $files]"
@@ -574,7 +576,7 @@ vartest2</script>
   </test-case>
 
   <test-case name="usage parse variadic optional arg with values">
-    <script>usage for varcmd3 {arg "?files?..."}
+    <script>usage for varcmd3 {arg ?files?...}
 proc vartest3 {args} {
     usage parse varcmd3 $args
     return $files
@@ -588,7 +590,7 @@ vartest3 x.txt y.txt</script>
   </test-case>
 
   <test-case name="usage parse required arg then variadic">
-    <script>usage for varcmd4 {arg "<output>" arg "?inputs?..."}
+    <script>usage for varcmd4 {arg <output> arg ?inputs?...}
 proc vartest4 {args} {
     usage parse varcmd4 $args
     return "$output|$inputs"
@@ -602,7 +604,7 @@ vartest4 out.txt a.txt b.txt</script>
   </test-case>
 
   <test-case name="usage parse variadic with flags">
-    <script>usage for varcmd5 {flag "-v" arg "<files>..."}
+    <script>usage for varcmd5 {flag -v arg <files>...}
 proc vartest5 {args} {
     usage parse varcmd5 $args
     return "$v|$files"
@@ -620,7 +622,7 @@ vartest5 -v one.txt two.txt</script>
   <!-- ============================================= -->
 
   <test-case name="usage parse too many args errors">
-    <script>usage for extracmd {arg "<one>"}
+    <script>usage for extracmd {arg <one>}
 proc extratest {args} {
     usage parse extracmd $args
 }
@@ -652,7 +654,7 @@ extratest one two</script>
   </test-case>
 
   <test-case name="usage help simple command">
-    <script>usage for helpcmd1 {arg "<file>"}
+    <script>usage for helpcmd1 {arg <file>}
 string match "Usage: helpcmd1 <file>*" [usage help helpcmd1]</script>
     <return>TCL_OK</return>
     <error></error>
@@ -662,7 +664,7 @@ string match "Usage: helpcmd1 <file>*" [usage help helpcmd1]</script>
   </test-case>
 
   <test-case name="usage help with optional arg">
-    <script>usage for helpcmd2 {arg "<file>" arg "?output?"}
+    <script>usage for helpcmd2 {arg <file> arg ?output?}
 string match "*<file> ?output?*" [usage help helpcmd2]</script>
     <return>TCL_OK</return>
     <error></error>
@@ -672,7 +674,7 @@ string match "*<file> ?output?*" [usage help helpcmd2]</script>
   </test-case>
 
   <test-case name="usage help with variadic arg">
-    <script>usage for helpcmd3 {arg "<files>..."}
+    <script>usage for helpcmd3 {arg <files>...}
 string match "*<files>...*" [usage help helpcmd3]</script>
     <return>TCL_OK</return>
     <error></error>
@@ -682,7 +684,7 @@ string match "*<files>...*" [usage help helpcmd3]</script>
   </test-case>
 
   <test-case name="usage help with flags shows options">
-    <script>usage for helpcmd4 {arg "<file>" flag "-v --verbose"}
+    <script>usage for helpcmd4 {arg <file> flag -v --verbose}
 string match "*?options?*" [usage help helpcmd4]</script>
     <return>TCL_OK</return>
     <error></error>
@@ -692,7 +694,7 @@ string match "*?options?*" [usage help helpcmd4]</script>
   </test-case>
 
   <test-case name="usage help shows flag details">
-    <script>usage for helpcmd5 {flag "-v --verbose"}
+    <script>usage for helpcmd5 {flag -v --verbose}
 string match "*--verbose*" [usage help helpcmd5]</script>
     <return>TCL_OK</return>
     <error></error>
@@ -707,11 +709,11 @@ string match "*--verbose*" [usage help helpcmd5]</script>
 
   <test-case name="cp-like command">
     <script>usage for mycp {
-    arg "<source>"
-    arg "<dest>"
-    flag "-r --recursive"
-    flag "-f --force"
-    flag "-v --verbose"
+    arg <source>
+    arg <dest>
+    flag -r --recursive
+    flag -f --force
+    flag -v --verbose
 }
 proc mycp {args} {
     usage parse mycp $args
@@ -727,11 +729,11 @@ mycp -r -v src/ dst/</script>
 
   <test-case name="grep-like command">
     <script>usage for mygrep {
-    arg "<pattern>"
-    arg "?files?..."
-    flag "-i --ignore-case"
-    flag "-n --line-number"
-    flag "-c --count"
+    arg <pattern>
+    arg ?files?...
+    flag -i --ignore-case
+    flag -n --line-number
+    flag -c --count
 }
 proc mygrep {args} {
     usage parse mygrep $args
@@ -747,11 +749,11 @@ mygrep -i -n "hello" file1.txt file2.txt</script>
 
   <test-case name="curl-like command with value flags">
     <script>usage for mycurl {
-    arg "<url>"
-    flag "-o --output <file>"
-    flag "-H --header <header>"
-    flag "-X --request <method>"
-    flag "-v --verbose"
+    arg <url>
+    flag -o --output <file>
+    flag -H --header <header>
+    flag -X --request <method>
+    flag -v --verbose
 }
 proc mycurl {args} {
     usage parse mycurl $args
@@ -767,12 +769,12 @@ mycurl -X POST -o response.json https://api.example.com</script>
 
   <test-case name="tar-like command">
     <script>usage for mytar {
-    arg "<archive>"
-    arg "?files?..."
-    flag "-c --create"
-    flag "-x --extract"
-    flag "-v --verbose"
-    flag "-f --file <name>"
+    arg <archive>
+    arg ?files?...
+    flag -c --create
+    flag -x --extract
+    flag -v --verbose
+    flag -f --file <name>
 }
 proc mytar {args} {
     usage parse mytar $args
@@ -791,7 +793,7 @@ mytar -c -v archive.tar file1 file2 file3</script>
   <!-- ============================================= -->
 
   <test-case name="empty args list">
-    <script>usage for emptycmd {flag "-v"}
+    <script>usage for emptycmd {flag -v}
 proc emptytest {args} {
     usage parse emptycmd $args
     return "v=$v"
@@ -805,7 +807,7 @@ emptytest</script>
   </test-case>
 
   <test-case name="arg value looks like flag but after double dash">
-    <script>usage for edgecmd1 {arg "<value>"}
+    <script>usage for edgecmd1 {arg <value>}
 proc edgetest1 {args} {
     usage parse edgecmd1 $args
     return $value
@@ -819,7 +821,7 @@ edgetest1 -- --looks-like-flag</script>
   </test-case>
 
   <test-case name="flag value with spaces">
-    <script>usage for edgecmd2 {flag "-m --message <msg>"}
+    <script>usage for edgecmd2 {flag -m --message <msg>}
 proc edgetest2 {args} {
     usage parse edgecmd2 $args
     return $message
@@ -833,7 +835,7 @@ edgetest2 -m "hello world"</script>
   </test-case>
 
   <test-case name="flag value with equals in value">
-    <script>usage for edgecmd3 {flag "--key <val>"}
+    <script>usage for edgecmd3 {flag --key <val>}
 proc edgetest3 {args} {
     usage parse edgecmd3 $args
     return $key
@@ -848,11 +850,11 @@ edgetest3 --key=a=b=c</script>
 
   <test-case name="spec with help text">
     <script>usage for helptextcmd {
-    arg "<file>" help="input-file"
-    flag "-v" help="verbose"
+    arg <file> {help {input file}}
+    flag -v {help {verbose mode}}
 }
 set help [usage help helptextcmd]
-expr {[string match "*input-file*" $help] && [string match "*verbose*" $help]}</script>
+expr {[string match "*input file*" $help] && [string match "*verbose*" $help]}</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>1</stdout>
@@ -861,8 +863,8 @@ expr {[string match "*input-file*" $help] && [string match "*verbose*" $help]}</
   </test-case>
 
   <test-case name="redefining spec overwrites">
-    <script>usage for redefcmd {arg "<old>"}
-usage for redefcmd {arg "<new>"}
+    <script>usage for redefcmd {arg <old>}
+usage for redefcmd {arg <new>}
 proc redeftest {args} {
     usage parse redefcmd $args
     return $new
@@ -876,8 +878,8 @@ redeftest hello</script>
   </test-case>
 
   <test-case name="multiple commands independent">
-    <script>usage for cmdA {arg "<a>"}
-usage for cmdB {arg "<b>"}
+    <script>usage for cmdA {arg <a>}
+usage for cmdB {arg <b>}
 proc testA {args} {
     usage parse cmdA $args
     return "A:$a"
@@ -900,11 +902,11 @@ list [testA alpha] [testB beta]</script>
 
   <test-case name="simple subcommand definition">
     <script>usage for mycli {
-    cmd "init" {
-        arg "?dir?"
+    cmd init {
+        arg ?dir?
     }
-    cmd "run" {
-        arg "<script>"
+    cmd run {
+        arg <script>
     }
 }
 proc mycli {args} {
@@ -921,8 +923,8 @@ mycli init</script>
 
   <test-case name="subcommand with args">
     <script>usage for cli1 {
-    cmd "add" {
-        arg "<file>"
+    cmd add {
+        arg <file>
     }
 }
 proc cli1 {args} {
@@ -939,9 +941,9 @@ cli1 add myfile.txt</script>
 
   <test-case name="subcommand with flags">
     <script>usage for cli2 {
-    cmd "build" {
-        flag "-v --verbose"
-        flag "-o --output <file>"
+    cmd build {
+        flag -v --verbose
+        flag -o --output <file>
     }
 }
 proc cli2 {args} {
@@ -958,10 +960,10 @@ cli2 build -v -o dist/app</script>
 
   <test-case name="subcommand with args and flags">
     <script>usage for cli3 {
-    cmd "copy" {
-        arg "<src>"
-        arg "<dst>"
-        flag "-r --recursive"
+    cmd copy {
+        arg <src>
+        arg <dst>
+        flag -r --recursive
     }
 }
 proc cli3 {args} {
@@ -978,7 +980,7 @@ cli3 copy -r /src /dst</script>
 
   <test-case name="unknown subcommand errors">
     <script>usage for cli4 {
-    cmd "known" {}
+    cmd known {}
 }
 proc cli4 {args} {
     usage parse cli4 $args
@@ -992,8 +994,8 @@ cli4 unknown</script>
 
   <test-case name="missing required subcommand errors">
     <script>usage for cli5 {
-    cmd "sub1" {}
-    cmd "sub2" {}
+    cmd sub1 {}
+    cmd sub2 {}
 }
 proc cli5 {args} {
     usage parse cli5 $args
@@ -1007,9 +1009,9 @@ cli5</script>
 
   <test-case name="global flags before subcommand">
     <script>usage for cli6 {
-    flag "-v --verbose"
-    cmd "run" {
-        arg "<script>"
+    flag -v --verbose
+    cmd run {
+        arg <script>
     }
 }
 proc cli6 {args} {
@@ -1026,9 +1028,9 @@ cli6 -v run test.tcl</script>
 
   <test-case name="global flags after subcommand">
     <script>usage for cli7 {
-    flag "-v --verbose"
-    cmd "run" {
-        arg "<script>"
+    flag -v --verbose
+    cmd run {
+        arg <script>
     }
 }
 proc cli7 {args} {
@@ -1049,13 +1051,13 @@ cli7 run -v test.tcl</script>
 
   <test-case name="nested subcommand 2 levels">
     <script>usage for git1 {
-    cmd "remote" {
-        cmd "add" {
-            arg "<name>"
-            arg "<url>"
+    cmd remote {
+        cmd add {
+            arg <name>
+            arg <url>
         }
-        cmd "remove" {
-            arg "<name>"
+        cmd remove {
+            arg <name>
         }
     }
 }
@@ -1073,10 +1075,10 @@ git1 remote add origin https://example.com</script>
 
   <test-case name="nested subcommand with url arg">
     <script>usage for git2 {
-    cmd "remote" {
-        cmd "add" {
-            arg "<name>"
-            arg "<url>"
+    cmd remote {
+        cmd add {
+            arg <name>
+            arg <url>
         }
     }
 }
@@ -1094,13 +1096,13 @@ git2 remote add origin https://github.com/test/repo</script>
 
   <test-case name="nested subcommand remove">
     <script>usage for git3 {
-    cmd "remote" {
-        cmd "add" {
-            arg "<name>"
-            arg "<url>"
+    cmd remote {
+        cmd add {
+            arg <name>
+            arg <url>
         }
-        cmd "remove" {
-            arg "<name>"
+        cmd remove {
+            arg <name>
         }
     }
 }
@@ -1118,11 +1120,11 @@ git3 remote remove origin</script>
 
   <test-case name="nested subcommand with flags">
     <script>usage for docker1 {
-    cmd "container" {
-        cmd "run" {
-            flag "-d --detach"
-            flag "-p --publish <port>"
-            arg "<image>"
+    cmd container {
+        cmd run {
+            flag -d --detach
+            flag -p --publish <port>
+            arg <image>
         }
     }
 }
@@ -1144,14 +1146,14 @@ docker1 container run -d -p 8080:80 nginx</script>
 
   <test-case name="nested subcommand 3 levels">
     <script>usage for k8s1 {
-    cmd "config" {
-        cmd "current-context" {}
-        cmd "use-context" {
-            arg "<context>"
+    cmd config {
+        cmd current-context {}
+        cmd use-context {
+            arg <context>
         }
-        cmd "view" {
-            cmd "users" {}
-            cmd "clusters" {}
+        cmd view {
+            cmd users {}
+            cmd clusters {}
         }
     }
 }
@@ -1169,10 +1171,10 @@ k8s1 config view clusters</script>
 
   <test-case name="nested subcommand 3 levels with args">
     <script>usage for tool1 {
-    cmd "level1" {
-        cmd "level2" {
-            cmd "level3" {
-                arg "<value>"
+    cmd level1 {
+        cmd level2 {
+            cmd level3 {
+                arg <value>
             }
         }
     }
@@ -1191,9 +1193,9 @@ tool1 level1 level2 level3 myvalue</script>
 
   <test-case name="nested subcommand unknown at level 2">
     <script>usage for tool2 {
-    cmd "parent" {
-        cmd "child1" {}
-        cmd "child2" {}
+    cmd parent {
+        cmd child1 {}
+        cmd child2 {}
     }
 }
 proc tool2 {args} {
@@ -1208,11 +1210,11 @@ tool2 parent unknown</script>
 
   <test-case name="mixed global and subcommand flags">
     <script>usage for mix1 {
-    flag "-v --verbose"
-    flag "-q --quiet"
-    cmd "deploy" {
-        flag "-f --force"
-        arg "<target>"
+    flag -v --verbose
+    flag -q --quiet
+    cmd deploy {
+        flag -f --force
+        arg <target>
     }
 }
 proc mix1 {args} {
@@ -1233,9 +1235,9 @@ mix1 -v deploy -f production</script>
 
   <test-case name="usage help shows subcommands">
     <script>usage for helpsub1 {
-    cmd "start" {}
-    cmd "stop" {}
-    cmd "status" {}
+    cmd start {}
+    cmd stop {}
+    cmd status {}
 }
 set help [usage help helpsub1]
 expr {[string match "*start*" $help] && [string match "*stop*" $help] && [string match "*status*" $help]}</script>
@@ -1248,9 +1250,9 @@ expr {[string match "*start*" $help] && [string match "*stop*" $help] && [string
 
   <test-case name="usage help for specific subcommand">
     <script>usage for helpsub2 {
-    cmd "run" {
-        arg "<script>"
-        flag "-v --verbose"
+    cmd run {
+        arg <script>
+        flag -v --verbose
     }
 }
 set help [usage help helpsub2 run]
@@ -1264,10 +1266,10 @@ expr {[string match "*<script>*" $help] && [string match "*--verbose*" $help]}</
 
   <test-case name="usage help for nested subcommand">
     <script>usage for helpsub3 {
-    cmd "remote" {
-        cmd "add" {
-            arg "<name>"
-            arg "<url>"
+    cmd remote {
+        cmd add {
+            arg <name>
+            arg <url>
         }
     }
 }
@@ -1286,24 +1288,24 @@ expr {[string match "*<name>*" $help] && [string match "*<url>*" $help]}</script
 
   <test-case name="git-like CLI">
     <script>usage for mygit {
-    flag "-v --version"
-    flag "-h --help"
-    cmd "init" {
-        arg "?directory?"
-        flag "--bare"
+    flag -v --version
+    flag -h --help
+    cmd init {
+        arg ?directory?
+        flag --bare
     }
-    cmd "clone" {
-        arg "<repository>"
-        arg "?directory?"
-        flag "--depth <n>"
+    cmd clone {
+        arg <repository>
+        arg ?directory?
+        flag --depth <n>
     }
-    cmd "add" {
-        arg "<pathspec>..."
-        flag "-A --all"
+    cmd add {
+        arg <pathspec>...
+        flag -A --all
     }
-    cmd "commit" {
-        flag "-m --message <msg>"
-        flag "-a --all"
+    cmd commit {
+        flag -m --message <msg>
+        flag -a --all
     }
 }
 proc mygit {args} {
@@ -1320,10 +1322,10 @@ mygit commit -m "test"</script>
 
   <test-case name="git clone with args">
     <script>usage for mygit2 {
-    cmd "clone" {
-        arg "<repository>"
-        arg "?directory?"
-        flag "--depth <n>"
+    cmd clone {
+        arg <repository>
+        arg ?directory?
+        flag --depth <n>
     }
 }
 proc mygit2 {args} {
@@ -1340,17 +1342,17 @@ mygit2 clone --depth 1 https://github.com/test/repo mydir</script>
 
   <test-case name="npm-like CLI">
     <script>usage for mynpm {
-    cmd "install" {
-        arg "?packages?..."
-        flag "-g --global"
-        flag "-D --save-dev"
+    cmd install {
+        arg ?packages?...
+        flag -g --global
+        flag -D --save-dev
     }
-    cmd "run" {
-        arg "<script>"
-        arg "?args?..."
+    cmd run {
+        arg <script>
+        arg ?args?...
     }
-    cmd "init" {
-        flag "-y --yes"
+    cmd init {
+        flag -y --yes
     }
 }
 proc mynpm {args} {
@@ -1367,28 +1369,28 @@ mynpm install -g typescript</script>
 
   <test-case name="docker-like CLI nested">
     <script>usage for mydocker {
-    cmd "container" {
-        cmd "ls" {
-            flag "-a --all"
-            flag "-q --quiet"
+    cmd container {
+        cmd ls {
+            flag -a --all
+            flag -q --quiet
         }
-        cmd "run" {
-            flag "-d --detach"
-            flag "-it"
-            flag "--name <name>"
-            arg "<image>"
-            arg "?command?..."
+        cmd run {
+            flag -d --detach
+            flag -it
+            flag --name <name>
+            arg <image>
+            arg ?command?...
         }
-        cmd "stop" {
-            arg "<containers>..."
+        cmd stop {
+            arg <containers>...
         }
     }
-    cmd "image" {
-        cmd "ls" {
-            flag "-a --all"
+    cmd image {
+        cmd ls {
+            flag -a --all
         }
-        cmd "pull" {
-            arg "<image>"
+        cmd pull {
+            arg <image>
         }
     }
 }
@@ -1406,11 +1408,11 @@ mydocker image pull nginx</script>
 
   <test-case name="deep nesting 4 levels">
     <script>usage for deep1 {
-    cmd "a" {
-        cmd "b" {
-            cmd "c" {
-                cmd "d" {
-                    arg "<value>"
+    cmd a {
+        cmd b {
+            cmd c {
+                cmd d {
+                    arg <value>
                 }
             }
         }
@@ -1434,8 +1436,8 @@ deep1 a b c d final</script>
 
   <test-case name="hidden flag not shown in help">
     <script>usage for hidecmd1 {
-    flag "-v --verbose" help="Show verbose output"
-    flag "--debug" hide help="Internal debugging"
+    flag -v --verbose {help {Show verbose output}}
+    flag --debug {hide help {Internal debugging}}
 }
 set help [usage help hidecmd1]
 expr {[string match "*--verbose*" $help] && ![string match "*--debug*" $help]}</script>
@@ -1448,8 +1450,8 @@ expr {[string match "*--verbose*" $help] && ![string match "*--debug*" $help]}</
 
   <test-case name="hidden flag still works when used">
     <script>usage for hidecmd2 {
-    flag "-v --verbose"
-    flag "--debug" hide
+    flag -v --verbose
+    flag --debug {hide}
 }
 proc hidecmd2 {args} {
     usage parse hidecmd2 $args
@@ -1465,8 +1467,8 @@ hidecmd2 --debug -v</script>
 
   <test-case name="hidden arg not shown in help">
     <script>usage for hidecmd3 {
-    arg "<input>" help="Input file"
-    arg "?internal?" hide help="Internal use only"
+    arg <input> {help {Input file}}
+    arg ?internal? {hide help {Internal use only}}
 }
 set help [usage help hidecmd3]
 expr {[string match "*input*" $help] && ![string match "*internal*" $help]}</script>
@@ -1479,8 +1481,8 @@ expr {[string match "*input*" $help] && ![string match "*internal*" $help]}</scr
 
   <test-case name="hidden arg still parsed">
     <script>usage for hidecmd4 {
-    arg "<visible>"
-    arg "?hidden?" hide
+    arg <visible>
+    arg ?hidden? {hide}
 }
 proc hidecmd4 {args} {
     usage parse hidecmd4 $args
@@ -1496,8 +1498,8 @@ hidecmd4 first second</script>
 
   <test-case name="hidden subcommand not shown in help">
     <script>usage for hidecmd5 {
-    cmd "public" {} help="Public command"
-    cmd "internal" {} hide help="Internal command"
+    cmd public {} {help {Public command}}
+    cmd internal {} {hide help {Internal command}}
 }
 set help [usage help hidecmd5]
 expr {[string match "*public*" $help] && ![string match "*internal*" $help]}</script>
@@ -1510,10 +1512,10 @@ expr {[string match "*public*" $help] && ![string match "*internal*" $help]}</sc
 
   <test-case name="hidden subcommand still works">
     <script>usage for hidecmd6 {
-    cmd "public" {}
-    cmd "internal" {
-        arg "<secret>"
-    } hide
+    cmd public {}
+    cmd internal {
+        arg <secret>
+    } {hide}
 }
 proc hidecmd6 {args} {
     usage parse hidecmd6 $args
@@ -1529,9 +1531,9 @@ hidecmd6 internal mysecret</script>
 
   <test-case name="all flags hidden shows no options placeholder">
     <script>usage for hidecmd7 {
-    flag "-v" hide
-    flag "-d" hide
-    arg "<file>"
+    flag -v {hide}
+    flag -d {hide}
+    arg <file>
 }
 set help [usage help hidecmd7]
 expr {![string match "*options*" $help] && [string match "*<file>*" $help]}</script>
@@ -1548,10 +1550,10 @@ expr {![string match "*options*" $help] && [string match "*<file>*" $help]}</scr
 
   <test-case name="choices shown in flag help">
     <script>usage for choicecmd1 {
-    flag "-l --level <level>" choices="debug,info,warn,error"
+    flag -l --level <level> {choices {debug info warn error}}
 }
 set help [usage help choicecmd1]
-string match "*choices: debug,info,warn,error*" $help</script>
+string match "*choices: debug info warn error*" $help</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>1</stdout>
@@ -1561,10 +1563,10 @@ string match "*choices: debug,info,warn,error*" $help</script>
 
   <test-case name="choices shown in arg help">
     <script>usage for choicecmd2 {
-    arg "<format>" help="output-format" choices="json,xml,csv"
+    arg <format> {help {output format} choices {json xml csv}}
 }
 set help [usage help choicecmd2]
-string match "*choices: json,xml,csv*" $help</script>
+string match "*choices: json xml csv*" $help</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>1</stdout>
@@ -1574,7 +1576,7 @@ string match "*choices: json,xml,csv*" $help</script>
 
   <test-case name="flag with choices still parses value">
     <script>usage for choicecmd3 {
-    flag "--format <fmt>" choices="json,xml"
+    flag --format <fmt> {choices {json xml}}
 }
 proc choicecmd3 {args} {
     usage parse choicecmd3 $args
@@ -1590,7 +1592,7 @@ choicecmd3 --format json</script>
 
   <test-case name="arg with choices still parses value">
     <script>usage for choicecmd4 {
-    arg "<mode>" choices="fast,slow"
+    arg <mode> {choices {fast slow}}
 }
 proc choicecmd4 {args} {
     usage parse choicecmd4 $args
@@ -1606,10 +1608,10 @@ choicecmd4 fast</script>
 
   <test-case name="choices with help text">
     <script>usage for choicecmd5 {
-    flag "-o --output <format>" help="output-format" choices="json,yaml,toml"
+    flag -o --output <format> {help {output format} choices {json yaml toml}}
 }
 set help [usage help choicecmd5]
-expr {[string match "*output-format*" $help] && [string match "*choices: json,yaml,toml*" $help]}</script>
+expr {[string match "*output format*" $help] && [string match "*choices: json yaml toml*" $help]}</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>1</stdout>
@@ -1623,20 +1625,20 @@ expr {[string match "*output-format*" $help] && [string match "*choices: json,ya
 
   <test-case name="long_help stored in spec">
     <script>usage for longhcmd1 {
-    arg "<file>" help="input-file" long_help="detailed-description"
+    arg <file> {help {input file} long_help {detailed description}}
 }
 # Just verify it parses without error
-usage for longhcmd1</script>
+string length [usage for longhcmd1]</script>
     <return>TCL_OK</return>
     <error></error>
-    <stdout>arg "&lt;file>" help="input-file" long_help="detailed-description"</stdout>
+    <stdout>69</stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
 
   <test-case name="flag with long_help parses">
     <script>usage for longhcmd2 {
-    flag "-v --verbose" help="verbose-output" long_help="detailed-logging"
+    flag -v --verbose {help {verbose output} long_help {detailed logging}}
 }
 proc longhcmd2 {args} {
     usage parse longhcmd2 $args
@@ -1652,9 +1654,9 @@ longhcmd2 -v</script>
 
   <test-case name="cmd with long_help parses">
     <script>usage for longhcmd3 {
-    cmd "run" {
-        arg "<script>"
-    } help="run-script" long_help="execute-script"
+    cmd run {
+        arg <script>
+    } {help {run script} long_help {execute script file}}
 }
 proc longhcmd3 {args} {
     usage parse longhcmd3 $args
@@ -1674,11 +1676,11 @@ longhcmd3 run test.tcl</script>
 
   <test-case name="hide with choices and help">
     <script>usage for combcmd1 {
-    flag "--level <l>" help="log-level" choices="debug,info,warn,error"
-    flag "--internal-level <l>" hide choices="trace,debug"
+    flag --level <l> {help {log level} choices {debug info warn error}}
+    flag --internal-level <l> {hide choices {trace debug}}
 }
 set help [usage help combcmd1]
-expr {[string match "*--level*" $help] && [string match "*debug,info,warn,error*" $help] && ![string match "*--internal-level*" $help]}</script>
+expr {[string match "*--level*" $help] && [string match "*debug info warn error*" $help] && ![string match "*--internal-level*" $help]}</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>1</stdout>
@@ -1688,11 +1690,11 @@ expr {[string match "*--level*" $help] && [string match "*debug,info,warn,error*
 
   <test-case name="subcommand with help shown in commands list">
     <script>usage for combcmd2 {
-    cmd "start" {} help="start-service"
-    cmd "stop" {} help="stop-service"
+    cmd start {} {help {start service}}
+    cmd stop {} {help {stop service}}
 }
 set help [usage help combcmd2]
-expr {[string match "*start*start-service*" $help] && [string match "*stop*stop-service*" $help]}</script>
+expr {[string match "*start*start service*" $help] && [string match "*stop*stop service*" $help]}</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>1</stdout>
@@ -1702,13 +1704,91 @@ expr {[string match "*start*start-service*" $help] && [string match "*stop*stop-
 
   <test-case name="arg with only choices shows in args section">
     <script>usage for combcmd3 {
-    arg "<type>" choices="a,b,c"
+    arg <type> {choices {a b c}}
 }
 set help [usage help combcmd3]
-string match "*Arguments:*type*choices: a,b,c*" $help</script>
+string match "*Arguments:*type*choices: a b c*" $help</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- New block-based format tests                  -->
+  <!-- ============================================= -->
+
+  <test-case name="multi-line help text in flag">
+    <script>usage for blockcmd1 {
+    flag -v --verbose {
+        help {Enable verbose mode with detailed output}
+    }
+}
+set help [usage help blockcmd1]
+string match "*Enable verbose mode*" $help</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="multi-line choices list">
+    <script>usage for blockcmd2 {
+    flag -l --level <level> {
+        choices {
+            debug
+            info
+            warn
+            error
+        }
+    }
+}
+set help [usage help blockcmd2]
+string match "*choices:*debug*info*warn*error*" $help</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="flag with all options in block">
+    <script>usage for blockcmd3 {
+    flag -o --output <file> {
+        help {Output file path}
+        long_help {The path where output will be written}
+        choices {stdout file.txt file.json}
+    }
+}
+proc blockcmd3 {args} {
+    usage parse blockcmd3 $args
+    return $output
+}
+blockcmd3 -o file.json</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>file.json</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="arg with default and help in block">
+    <script>usage for blockcmd4 {
+    arg ?config? {
+        default {config.json}
+        help {Configuration file}
+    }
+}
+proc blockcmd4 {args} {
+    usage parse blockcmd4 $args
+    return $config
+}
+blockcmd4</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>config.json</stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
