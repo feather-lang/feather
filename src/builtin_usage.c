@@ -40,8 +40,8 @@
  * triggers command substitution in TCL.
  */
 
-/* Storage namespace for usage specs: ::tcl::usage */
-#define USAGE_NS "::tcl::usage"
+/* Storage namespace for usage specs: ::usage */
+#define USAGE_NS "::usage"
 
 /* Dict keys - interned once per use for efficiency */
 #define K_TYPE       "type"
@@ -156,10 +156,10 @@ static FeatherObj sanitize_var_name(const FeatherHostOps *ops, FeatherInterp int
 }
 
 /**
- * Get the usage specs dictionary from ::tcl::usage::specs
+ * Get the usage specs dictionary from ::usage::specs
  */
 static FeatherObj usage_get_specs(const FeatherHostOps *ops, FeatherInterp interp) {
-  FeatherObj ns = ops->string.intern(interp, USAGE_NS, 12);
+  FeatherObj ns = ops->string.intern(interp, USAGE_NS, 7);
   FeatherObj varName = ops->string.intern(interp, "specs", 5);
   FeatherObj specs = ops->ns.get_var(interp, ns, varName);
   if (ops->list.is_nil(interp, specs)) {
@@ -172,7 +172,7 @@ static FeatherObj usage_get_specs(const FeatherHostOps *ops, FeatherInterp inter
  * Store the usage specs dictionary
  */
 static void usage_set_specs(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj specs) {
-  FeatherObj ns = ops->string.intern(interp, USAGE_NS, 12);
+  FeatherObj ns = ops->string.intern(interp, USAGE_NS, 7);
   FeatherObj varName = ops->string.intern(interp, "specs", 5);
   ops->ns.set_var(interp, ns, varName, specs);
 }
@@ -1369,8 +1369,8 @@ FeatherResult feather_builtin_usage(const FeatherHostOps *ops, FeatherInterp int
     return TCL_ERROR;
   }
 
-  /* Ensure ::tcl::usage namespace exists */
-  FeatherObj usageNs = ops->string.intern(interp, USAGE_NS, 12);
+  /* Ensure ::usage namespace exists */
+  FeatherObj usageNs = ops->string.intern(interp, USAGE_NS, 7);
   ops->ns.create(interp, usageNs);
 
   FeatherObj subcmd = ops->list.shift(interp, args);
