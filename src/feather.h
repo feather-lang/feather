@@ -1632,6 +1632,17 @@ FeatherObj feather_usage_add(const FeatherHostOps *ops, FeatherInterp interp,
                              FeatherObj spec, FeatherObj entry);
 
 /**
+ * Create a meta entry with command description.
+ *
+ * about:       Short description for NAME section (e.g., "Read and write variables")
+ * description: Detailed description for DESCRIPTION section, or NULL
+ *
+ * Add this entry to the spec to set the command's documentation.
+ */
+FeatherObj feather_usage_about(const FeatherHostOps *ops, FeatherInterp interp,
+                               const char *about, const char *description);
+
+/**
  * Register a spec for a command.
  * Stores the spec in ::usage::specs so it can be used by `usage parse`.
  */

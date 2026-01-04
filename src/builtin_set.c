@@ -56,39 +56,48 @@ FeatherResult feather_builtin_set(const FeatherHostOps *ops, FeatherInterp inter
 void feather_register_set_usage(const FeatherHostOps *ops, FeatherInterp interp) {
   FeatherObj spec = feather_usage_spec(ops, interp);
 
+  // Command description (for NAME and DESCRIPTION sections)
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Read and write variables",
+    "Returns the value of variable varName. If value is specified, then set "
+    "the value of varName to value, creating a new variable if one does not "
+    "already exist, and return its value. If varName contains an open "
+    "parenthesis and ends with a close parenthesis, then it refers to an "
+    "array element: the characters before the first open parenthesis are "
+    "the name of the array, and the characters between the parentheses are "
+    "the index within the array. Otherwise varName refers to a scalar "
+    "variable. If varName includes namespace qualifiers (in the array name "
+    "if it refers to an array element), or if varName is unqualified (does "
+    "not include the names of any containing namespaces) but no procedure "
+    "is active, varName refers to a namespace variable resolved according "
+    "to the rules described under NAME RESOLUTION in the namespace manual "
+    "page. If a procedure is active and varName is unqualified, then "
+    "varName refers to a parameter or local variable of the procedure, "
+    "unless varName was declared to resolve differently through one of the "
+    "global, variable or upvar commands.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
   // Required argument: varName
-  FeatherObj e = feather_usage_arg(ops, interp, "<varName>");
-  e = feather_usage_help(ops, interp, e, "Name of the variable to read or write");
-  e = feather_usage_long_help(ops, interp, e,
-    "The variable name. If not fully qualified (starting with ::), "
-    "the variable is looked up first in the current namespace, then in the global namespace.");
+  e = feather_usage_arg(ops, interp, "<varName>");
+  e = feather_usage_help(ops, interp, e, "Name of the variable");
   spec = feather_usage_add(ops, interp, spec, e);
 
   // Optional argument: value
   e = feather_usage_arg(ops, interp, "?value?");
-  e = feather_usage_help(ops, interp, e, "Value to store in the variable");
-  e = feather_usage_long_help(ops, interp, e,
-    "If provided, assigns this value to the variable and returns it. "
-    "If omitted, returns the current value of the variable.");
+  e = feather_usage_help(ops, interp, e, "If specified, the new value for the variable");
   spec = feather_usage_add(ops, interp, spec, e);
 
   // Examples
   e = feather_usage_example(ops, interp,
-    "set greeting hello",
-    "Assign a value",
-    "Sets the variable 'greeting' to 'hello' and returns 'hello'.");
+    "set myVariable 5",
+    "Store a value in a variable",
+    NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
-    "set greeting",
-    "Read a value",
-    "Returns the current value of the variable 'greeting'.");
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  e = feather_usage_example(ops, interp,
-    "set x [expr {$a + $b}]",
-    "Store computed value",
-    "Evaluates the expression and stores the result in 'x'.");
+    "set myVariable",
+    "Read a variable's value",
+    NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
   feather_usage_register(ops, interp, "set", spec);

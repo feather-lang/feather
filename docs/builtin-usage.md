@@ -321,6 +321,8 @@ FeatherObj feather_usage_hide(const FeatherHostOps *ops, FeatherInterp interp,
 FeatherObj feather_usage_spec(const FeatherHostOps *ops, FeatherInterp interp);
 FeatherObj feather_usage_add(const FeatherHostOps *ops, FeatherInterp interp,
                              FeatherObj spec, FeatherObj entry);
+FeatherObj feather_usage_about(const FeatherHostOps *ops, FeatherInterp interp,
+                               const char *about, const char *description);
 void feather_usage_register(const FeatherHostOps *ops, FeatherInterp interp,
                             const char *cmdname, FeatherObj spec);
 ```
@@ -382,6 +384,23 @@ feather_usage_example(ops, interp,
     "Process the file and output results in JSON format.");
 ```
 
+#### `feather_usage_about`
+
+Creates a meta entry for the command's NAME and DESCRIPTION sections in manpage output:
+
+```c
+// Short description only (shown in NAME section)
+feather_usage_about(ops, interp, "Process files", NULL);
+
+// Short description and detailed description
+feather_usage_about(ops, interp,
+    "Process files",
+    "Reads input files and processes them according to the specified options. "
+    "The output can be written to stdout or to a file specified with --output.");
+```
+
+The `about` parameter provides a one-line description shown in the NAME section. The `description` parameter provides detailed text shown in the DESCRIPTION section (with automatic word wrapping).
+
 ### Modification Functions
 
 All modification functions return the modified entry, allowing chaining:
@@ -398,8 +417,15 @@ e = feather_usage_default(ops, interp, e, "stdin");
 void register_mycommand(const FeatherHostOps *ops, FeatherInterp interp) {
     FeatherObj spec = feather_usage_spec(ops, interp);
 
+    // Add command description (for NAME and DESCRIPTION sections)
+    FeatherObj e = feather_usage_about(ops, interp,
+        "Process input files",
+        "Reads the input file and processes it according to the specified "
+        "options. Output is written to the specified destination or stdout.");
+    spec = feather_usage_add(ops, interp, spec, e);
+
     // Add required input argument with help
-    FeatherObj e = feather_usage_arg(ops, interp, "<input>");
+    e = feather_usage_arg(ops, interp, "<input>");
     e = feather_usage_help(ops, interp, e, "Input file to process");
     spec = feather_usage_add(ops, interp, spec, e);
 
@@ -494,6 +520,14 @@ Each entry in the parsed spec is a dict with a `type` key indicating the entry t
 | `code` | string | The example command to show |
 | `header` | string | Title for the example |
 | `help` | string | Description of what the example does |
+
+### Meta Entry Keys
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `type` | string | Always `"meta"` |
+| `about` | string | One-line description for the NAME section |
+| `long_help` | string | Detailed description for the DESCRIPTION section |
 
 ## Notes on Implementation
 
