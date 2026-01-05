@@ -125,6 +125,21 @@ static int counter_new(void *userData, int argc, char **argv, char **result, cha
     return 0;
 }
 
+// Helper to parse integer with validation
+static int parse_int(const char *s, int argNum, int *out, char **error) {
+    char *endptr;
+    long val = strtol(s, &endptr, 10);
+    // Check for conversion errors
+    if (endptr == s || *endptr != '\0') {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "argument %d: expected integer but got \"%s\"", argNum, s);
+        *error = strdup(buf);
+        return 0;
+    }
+    *out = (int)val;
+    return 1;
+}
+
 // Counter methods - userData is the Counter pointer
 static int counter_get(void *userData, int argc, char **argv, char **result, char **error) {
     (void)argc; (void)argv; (void)error;
@@ -137,11 +152,17 @@ static int counter_get(void *userData, int argc, char **argv, char **result, cha
 
 static int counter_set(void *userData, int argc, char **argv, char **result, char **error) {
     Counter *c = (Counter*)userData;
-    if (argc < 1) {
-        *error = strdup("wrong # args: should be \"$counter set value\"");
+    if (argc != 1) {
+        char buf[64];
+        snprintf(buf, sizeof(buf), "wrong # args: expected 1, got %d", argc);
+        *error = strdup(buf);
         return 1;
     }
-    c->value = atoi(argv[0]);
+    int val;
+    if (!parse_int(argv[0], 1, &val, error)) {
+        return 1;
+    }
+    c->value = val;
     *result = strdup("");
     return 0;
 }
@@ -158,11 +179,17 @@ static int counter_incr(void *userData, int argc, char **argv, char **result, ch
 
 static int counter_add(void *userData, int argc, char **argv, char **result, char **error) {
     Counter *c = (Counter*)userData;
-    if (argc < 1) {
-        *error = strdup("wrong # args: should be \"$counter add amount\"");
+    if (argc != 1) {
+        char buf[64];
+        snprintf(buf, sizeof(buf), "wrong # args: expected 1, got %d", argc);
+        *error = strdup(buf);
         return 1;
     }
-    c->value += atoi(argv[0]);
+    int val;
+    if (!parse_int(argv[0], 1, &val, error)) {
+        return 1;
+    }
+    c->value += val;
     char buf[32];
     snprintf(buf, sizeof(buf), "%d", c->value);
     *result = strdup(buf);
@@ -300,7 +327,7 @@ static void run_script(GoUintptr interp) {
     // Check for parse errors
     int status = FeatherParse(interp, script, (int)script_len);
     if (status == 1) { // ParseIncomplete
-        char *result = FeatherEvalResult(interp);
+        char *result = FeatherParseResult(interp);
         write_harness_result("TCL_OK", result ? result : "", "");
         FeatherFreeString(result);
         free(script);
@@ -308,7 +335,7 @@ static void run_script(GoUintptr interp) {
     }
     if (status == 2) { // ParseError
         char *msg = FeatherParseMessage(interp);
-        char *result = FeatherEvalResult(interp);
+        char *result = FeatherParseResult(interp);
         write_harness_result("TCL_ERROR", result ? result : "", msg ? msg : "");
         FeatherFreeString(msg);
         FeatherFreeString(result);

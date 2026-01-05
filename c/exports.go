@@ -34,6 +34,7 @@ type interpState struct {
 	// Parse state
 	parseStatus  int
 	parseMessage string
+	parseResult  string // Structured result like "{INCOMPLETE 5 19}"
 }
 
 var (
@@ -170,9 +171,13 @@ func FeatherParse(id uintptr, script *C.char, scriptLen C.int) C.int {
 	goScript := C.GoStringN(script, scriptLen)
 	result := state.interp.Parse(goScript)
 
+	// Also get the internal parse result for structured output
+	internalResult := state.interp.ParseInternal(goScript)
+
 	mu.Lock()
 	state.parseStatus = int(result.Status)
 	state.parseMessage = result.Message
+	state.parseResult = internalResult.Result
 	mu.Unlock()
 
 	return C.int(result.Status)
@@ -188,6 +193,18 @@ func FeatherParseMessage(id uintptr) *C.char {
 	msg := state.parseMessage
 	mu.Unlock()
 	return C.CString(msg)
+}
+
+//export FeatherParseResult
+func FeatherParseResult(id uintptr) *C.char {
+	state := getInterp(id)
+	if state == nil {
+		return C.CString("")
+	}
+	mu.Lock()
+	result := state.parseResult
+	mu.Unlock()
+	return C.CString(result)
 }
 
 // -----------------------------------------------------------------------------
