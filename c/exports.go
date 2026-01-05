@@ -74,6 +74,7 @@ func FeatherClose(id uintptr) {
 	if state, ok := interps[id]; ok {
 		state.interp.Close()
 		delete(interps, id)
+		cleanupRegistry(id)
 	}
 }
 
