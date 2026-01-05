@@ -198,6 +198,7 @@ Implemented comprehensive usage documentation including:
 | `feather_usage_arg()` | Add argument (use `<name>` for required, `?name?` for optional) |
 | `feather_usage_flag()` | Add flag (use `-short` for TCL-style single-dash flags) |
 | `feather_usage_cmd()` | Add subcommand with its own nested spec |
+| `feather_usage_section()` | Add custom section (e.g., "String Indices") |
 | `feather_usage_help()` | Add short help text to previous element |
 | `feather_usage_long_help()` | Add detailed description (1-2 paragraphs) to previous element |
 | `feather_usage_example()` | Add code example with description |
@@ -258,15 +259,77 @@ COMMANDS
               returns only the names that match the glob-style pattern.
 ```
 
-### Multi-paragraph Descriptions
+#### Subcommand Help Behavior
 
-Use `\n\n` to separate paragraphs:
+When users request help for a specific subcommand (e.g., `usage help string match`), the system automatically:
+
+1. **Extracts the description** from the subcommand's `long_help` and displays it in the DESCRIPTION section
+2. **Includes any flags** defined in the subcommand's spec with their help text
+3. **Adds a SEE ALSO section** referencing the parent command
+
+This means you don't need to duplicate descriptions - the `long_help` you provide with `feather_usage_cmd()` serves double duty for both the parent's COMMANDS section and the subcommand's own help page.
+
+### Flags
+
+Use `feather_usage_flag()` to add command-line style flags. The function requires 5 arguments:
 
 ```c
+FeatherObj feather_usage_flag(ops, interp, short_flag, long_flag, value);
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `short_flag` | Single-dash flag like `"-nocase"` (required) |
+| `long_flag` | Double-dash alternative (use `NULL` if none) |
+| `value` | Value placeholder like `"<len>"` (use `NULL` for boolean flags) |
+
+**IMPORTANT**: Always add help text to flags with `feather_usage_help()`.
+
+```c
+// Boolean flag (no value)
+e = feather_usage_flag(ops, interp, "-nocase", NULL, NULL);
+e = feather_usage_help(ops, interp, e, "Causes the comparison to be done in a case-insensitive manner");
+spec = feather_usage_add(ops, interp, spec, e);
+
+// Flag with value
+e = feather_usage_flag(ops, interp, "-length", NULL, "<len>");
+e = feather_usage_help(ops, interp, e, "Only compare the first <len> characters");
+spec = feather_usage_add(ops, interp, spec, e);
+```
+
+### Custom Sections
+
+Use `feather_usage_section()` to add custom sections like "String Indices" that appear after DESCRIPTION:
+
+```c
+e = feather_usage_section(ops, interp, "String Indices",
+    "When referring to indices into a string, the following forms are recognized:\n\n"
+    "integer    The character at the specified integral index\n\n"
+    "end        The last character of the string\n\n"
+    "end-N      The character N characters before the last character");
+spec = feather_usage_add(ops, interp, spec, e);
+```
+
+**Special behavior**: Sections named "See Also" (case-insensitive) are automatically rendered last, after EXAMPLES.
+
+### Multi-paragraph Descriptions and Lists
+
+Use `\n\n` (double newline) to separate paragraphs and list items. This ensures proper formatting in the rendered output:
+
+```c
+// Paragraphs
 "First paragraph about basic functionality.\n\n"
 "Second paragraph about special cases.\n\n"
 "Third paragraph about edge cases."
+
+// Formatted lists (each item gets its own paragraph)
+"The following special sequences may appear in pattern:\n\n"
+"*          Matches any sequence of characters, including empty\n\n"
+"?          Matches any single character\n\n"
+"[chars]    Matches any character in the given set"
 ```
+
+**WARNING**: Using single `\n` between list items causes them to render as a single wrapped paragraph. Always use `\n\n` for visual separation.
 
 ## Common Patterns
 
@@ -330,6 +393,35 @@ e = feather_usage_help(ops, interp, e, "Index of last element");
 spec = feather_usage_add(ops, interp, spec, e);
 ```
 
+### Subcommand with Flags
+
+```c
+// Define subcommand spec with flags and arguments
+FeatherObj matchSpec = feather_usage_spec(ops, interp);
+
+// Add flags first (they appear in OPTIONS section)
+e = feather_usage_flag(ops, interp, "-nocase", NULL, NULL);
+e = feather_usage_help(ops, interp, e, "Case-insensitive matching");
+matchSpec = feather_usage_add(ops, interp, matchSpec, e);
+
+// Add arguments
+e = feather_usage_arg(ops, interp, "<pattern>");
+matchSpec = feather_usage_add(ops, interp, matchSpec, e);
+e = feather_usage_arg(ops, interp, "<string>");
+matchSpec = feather_usage_add(ops, interp, matchSpec, e);
+
+// Register subcommand with detailed description
+e = feather_usage_cmd(ops, interp, "match", matchSpec);
+e = feather_usage_long_help(ops, interp, e,
+    "See if pattern matches string; returns 1 if it does, 0 if it "
+    "does not.\n\n"
+    "The following special sequences may appear in pattern:\n\n"
+    "*          Matches any sequence of characters\n\n"
+    "?          Matches any single character\n\n"
+    "[chars]    Matches any character in the given set");
+spec = feather_usage_add(ops, interp, spec, e);
+```
+
 ## Key Files
 
 | File | Purpose |
@@ -344,10 +436,13 @@ spec = feather_usage_add(ops, interp, spec, e);
 1. **Do not copy TCL docs verbatim** - Feather has significant differences
 2. **Explicitly note array limitations** - Arrays are not supported
 3. **Verify cross-references** - Only reference commands that exist/will exist
-4. **Use paragraph breaks** - `\n\n` for readable multi-paragraph help
+4. **Use paragraph breaks** - `\n\n` for readable multi-paragraph help (single `\n` causes word-wrapping into one paragraph)
 5. **Test the output** - Always view the rendered help before committing
 6. **Keep it accurate** - Help must match actual Feather behavior
 7. **Structurally define subcommands** - Use `feather_usage_cmd()` for each subcommand; do NOT just list them in help text
+8. **Always add help to flags** - Every flag needs `feather_usage_help()` to explain its purpose
+9. **Flag function has 5 arguments** - `feather_usage_flag(ops, interp, short, long, value)` - use `NULL` for unused parameters
+10. **SEE ALSO sections render last** - Custom sections named "See Also" automatically appear after EXAMPLES
 
 ## Example Session
 

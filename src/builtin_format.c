@@ -748,35 +748,89 @@ void feather_register_format_usage(const FeatherHostOps *ops, FeatherInterp inte
   FeatherObj spec = feather_usage_spec(ops, interp);
 
   FeatherObj e = feather_usage_about(ops, interp,
-    "Format a string using conversion specifiers",
-    "Returns a formatted string by replacing conversion specifiers in formatString "
-    "with the corresponding arguments. This command provides functionality similar to "
-    "C's sprintf, with extensions for TCL-specific needs.\n\n"
-    "The formatString contains literal text and conversion specifiers. Each specifier "
-    "starts with % and follows the pattern: %[position$][flags][width][.precision][size]type\n\n"
-    "Conversion types: %d/%i (signed integer), %u (unsigned integer), %o (octal), "
-    "%x/%X (hexadecimal lowercase/uppercase), %b (binary), %c (Unicode character from code point), "
-    "%s (string), %f (float), %e/%E (scientific notation), %g/%G (shorter of %e/%E or %f), "
-    "%a/%A (hexadecimal float), %p (pointer), %% (literal %).\n\n"
-    "Flags: - (left-justify), + (always show sign), space (space before positive numbers), "
-    "0 (zero-pad numbers), # (alternate form: adds 0x, 0o, 0b, or 0d prefixes).\n\n"
-    "Width and precision can be literal numbers or * to use next argument. Width specifies "
-    "minimum field width. Precision specifies minimum digits for integers, maximum characters "
-    "for strings, or decimal places for floats.\n\n"
-    "Positional arguments using %n$ syntax allow reordering arguments. Cannot mix positional "
-    "(%n$) and sequential (%) specifiers in the same format string.\n\n"
-    "Size modifiers: h (16-bit), l/j/q (64-bit), ll/L (no truncation), z/t (pointer size), "
-    "or none (32-bit default).");
+    "Format a string in the style of sprintf",
+    "Generates a formatted string in a fashion similar to the ANSI C sprintf "
+    "procedure. formatString indicates how to format the result, using % "
+    "conversion specifiers, and the additional arguments provide values to be "
+    "substituted into the result.\n\n"
+    "Each conversion specifier may contain up to six different parts: an XPG3 "
+    "position specifier, a set of flags, a minimum field width, a precision, "
+    "a size modifier, and a conversion character. The fields must appear in "
+    "this order: %[position$][flags][width][.precision][size]type");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_arg(ops, interp, "<formatString>");
   e = feather_usage_help(ops, interp, e,
-    "Template string containing literal text and conversion specifiers (%)");
+    "Template string containing literal text and conversion specifiers");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_arg(ops, interp, "?arg?...");
   e = feather_usage_help(ops, interp, e,
-    "Values to substitute for conversion specifiers in the format string");
+    "Values to substitute for conversion specifiers");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* Positional Specifiers section */
+  e = feather_usage_section(ops, interp, "Positional Specifiers",
+    "If the % is followed by a decimal number and a $, as in \"%2$d\", then the "
+    "value to convert is taken from the argument indicated by the number, where "
+    "1 corresponds to the first arg.\n\n"
+    "If there are any positional specifiers in formatString then all specifiers "
+    "must be positional. Cannot mix positional (%n$) and sequential (%) specifiers.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* Flags section */
+  e = feather_usage_section(ops, interp, "Flags",
+    "-          Left-justify the converted argument in its field\n\n"
+    "+          Always print a number with a sign, even if positive\n\n"
+    "space      Add a space before positive numbers if no sign\n\n"
+    "0          Pad with zeroes on the left instead of spaces\n\n"
+    "#          Alternate form: adds 0x for hex, 0o for octal, 0b for binary, "
+    "0d for decimal (with 0 flag). For floats, guarantees decimal point. "
+    "For %g/%G, keeps trailing zeroes.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* Field Width section */
+  e = feather_usage_section(ops, interp, "Field Width",
+    "A decimal number giving a minimum field width. If the converted argument "
+    "contains fewer characters, it will be padded. Padding occurs on the left "
+    "with spaces by default, but - pads on the right and 0 pads with zeroes.\n\n"
+    "If width is * instead of a number, the next argument determines the width.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* Precision section */
+  e = feather_usage_section(ops, interp, "Precision",
+    "A period followed by a number, used differently for different conversions:\n\n"
+    "e, E, f    Number of digits after the decimal point (default: 6)\n\n"
+    "g, G       Total number of significant digits\n\n"
+    "d, i, u, o, x, X, b    Minimum number of digits (zero-padded if needed)\n\n"
+    "s          Maximum number of characters to print (truncates if longer)\n\n"
+    "If precision is * instead of a number, the next argument determines it.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* Size Modifiers section */
+  e = feather_usage_section(ops, interp, "Size Modifiers",
+    "h          Truncate integer to 16-bit range\n\n"
+    "l, j, q    Truncate integer to 64-bit range\n\n"
+    "ll, L      No truncation (full precision)\n\n"
+    "z, t       Truncate to pointer size\n\n"
+    "(none)     Truncate integer to 32-bit range (default)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* Conversion Types section */
+  e = feather_usage_section(ops, interp, "Conversion Types",
+    "d, i       Signed decimal integer\n\n"
+    "u          Unsigned decimal integer\n\n"
+    "o          Unsigned octal integer\n\n"
+    "x, X       Unsigned hexadecimal (lowercase/uppercase)\n\n"
+    "b          Unsigned binary integer\n\n"
+    "c          Unicode character from integer code point\n\n"
+    "s          String (no conversion)\n\n"
+    "f          Floating-point decimal notation (x.yyy)\n\n"
+    "e, E       Scientific notation (x.yyyez or x.yyyEz)\n\n"
+    "g, G       Shorter of %e/%E or %f, trailing zeroes omitted\n\n"
+    "a, A       Hexadecimal floating-point (0x1.yyyp+z)\n\n"
+    "p          Pointer (equivalent to 0x%zx)\n\n"
+    "%%         Literal percent sign");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
@@ -787,7 +841,7 @@ void feather_register_format_usage(const FeatherHostOps *ops, FeatherInterp inte
 
   e = feather_usage_example(ops, interp,
     "format \"Integer: %d, Hex: %#x, Binary: %#b\" 42 42 42",
-    "Multiple integer formats with alternate form:",
+    "Multiple formats with alternate form:",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
@@ -799,25 +853,25 @@ void feather_register_format_usage(const FeatherHostOps *ops, FeatherInterp inte
 
   e = feather_usage_example(ops, interp,
     "format \"%.2f\" 3.14159",
-    "Floating-point with 2 decimal places:",
+    "Float with 2 decimal places:",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
     "format \"%2\\$s %1\\$s\" \"World\" \"Hello\"",
-    "Positional arguments (reordering):",
+    "Positional arguments:",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
     "format \"%-10s %10d\" \"left\" 123",
-    "Left-justified string and right-justified integer:",
+    "Alignment control:",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
     "format \"%c%c%c\" 72 105 33",
-    "Unicode characters from code points:",
+    "Characters from code points:",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
