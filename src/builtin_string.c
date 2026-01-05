@@ -1029,197 +1029,396 @@ static FeatherResult string_replace(const FeatherHostOps *ops, FeatherInterp int
 
 void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp interp) {
   FeatherObj spec = feather_usage_spec(ops, interp);
+  FeatherObj subspec;
+  FeatherObj e;
 
-  FeatherObj e = feather_usage_about(ops, interp,
-    "Perform string operations",
+  e = feather_usage_about(ops, interp,
+    "Manipulate strings",
     "Performs one of several string operations, depending on subcommand. "
     "The legal subcommands are: cat, compare, equal, first, index, insert, is, "
     "last, length, map, match, range, repeat, replace, reverse, tolower, totitle, "
-    "toupper, trim, trimleft, and trimright.");
+    "toupper, trim, trimleft, and trimright.\n\n"
+    "STRING INDICES\n\n"
+    "When referring to indices into a string (e.g., for string index or string "
+    "range) the following formats are supported:\n\n"
+    "  integer   The character at the specified integral index (0 = first char)\n"
+    "  end       The last character of the string\n"
+    "  end-N     The last character minus offset N\n"
+    "  end+N     The last character plus offset N (e.g., end+-1)\n"
+    "  M+N       The character at index M plus N\n"
+    "  M-N       The character at index M minus N");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_arg(ops, interp, "<subcommand>");
-  e = feather_usage_help(ops, interp, e, "The string operation to perform");
+  // --- Subcommand: cat ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "?string?...");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "cat", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Concatenate the given strings just like placing them directly next to each "
+    "other and return the resulting compound string. If no strings are present, "
+    "the result is an empty string.\n\n"
+    "This primitive is occasionally handier than juxtaposition of strings when "
+    "mixed quoting is wanted, or when the aim is to return the result of a "
+    "concatenation without resorting to return -level 0.");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_arg(ops, interp, "?arg?...");
-  e = feather_usage_help(ops, interp, e, "Arguments specific to the subcommand");
+  // --- Subcommand: compare ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_flag(ops, interp, "-nocase", NULL, NULL);
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_flag(ops, interp, "-length", NULL, "<len>");
+  e = feather_usage_help(ops, interp, e, "Compare only first N characters");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<string1>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<string2>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "compare", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Perform a character-by-character comparison of strings string1 and string2. "
+    "Returns -1, 0, or 1, depending on whether string1 is lexicographically less "
+    "than, equal to, or greater than string2.\n\n"
+    "If -length is specified, then only the first length characters are used in "
+    "the comparison. If -length is negative, it is ignored. If -nocase is "
+    "specified, then the strings are compared in a case-insensitive manner.");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  // string cat
+  // --- Subcommand: equal ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_flag(ops, interp, "-nocase", NULL, NULL);
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_flag(ops, interp, "-length", NULL, "<len>");
+  e = feather_usage_help(ops, interp, e, "Compare only first N characters");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<string1>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<string2>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "equal", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Perform a character-by-character comparison of strings string1 and string2. "
+    "Returns 1 if string1 and string2 are identical, or 0 when not.\n\n"
+    "If -length is specified, then only the first length characters are used in "
+    "the comparison. If -length is negative, it is ignored. If -nocase is "
+    "specified, then the strings are compared in a case-insensitive manner.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: first ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<needleString>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<haystackString>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?startIndex?");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "first", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Search haystackString for a sequence of characters that exactly match the "
+    "characters in needleString. If found, return the index of the first "
+    "character in the first such match within haystackString. If not found, "
+    "return -1.\n\n"
+    "If startIndex is specified (in any of the forms described in STRING INDICES), "
+    "then the search is constrained to start with the character in haystackString "
+    "specified by the index.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: index ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<string>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<charIndex>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "index", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns the charIndex'th character of the string argument. A charIndex of 0 "
+    "corresponds to the first character of the string. charIndex may be specified "
+    "as described in the STRING INDICES section.\n\n"
+    "If charIndex is less than 0 or greater than or equal to the length of the "
+    "string then this command returns an empty string.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: insert ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<string>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<index>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<insertString>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "insert", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns a copy of string with insertString inserted at the index'th "
+    "character. The index may be specified as described in the STRING INDICES "
+    "section.\n\n"
+    "If index is at or before the start of string (e.g., index is 0), insertString "
+    "is prepended to string. If index is at or after the end of string (e.g., "
+    "index is end), insertString is appended to string.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: is ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<class>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_flag(ops, interp, "-strict", NULL, NULL);
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_flag(ops, interp, "-failindex", NULL, "<varname>");
+  e = feather_usage_help(ops, interp, e, "Variable to store failing index");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<string>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "is", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns 1 if string is a valid member of the specified character class, "
+    "otherwise returns 0. If -strict is specified, then an empty string returns "
+    "0, otherwise an empty string will return 1 on any class. If -failindex is "
+    "specified, then if the function returns 0, the index in the string where "
+    "the class was no longer valid will be stored in the variable named varname.\n\n"
+    "Character classes: alnum, alpha, ascii, control, digit, graph, lower, print, "
+    "punct, space, upper, wordchar, xdigit.\n\n"
+    "Value classes: boolean, true, false, integer, double, list, dict.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: last ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<needleString>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<haystackString>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?lastIndex?");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "last", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Search haystackString for a sequence of characters that exactly match the "
+    "characters in needleString. If found, return the index of the first "
+    "character in the last such match within haystackString. If there is no "
+    "match, then return -1.\n\n"
+    "If lastIndex is specified (in any of the forms described in STRING INDICES), "
+    "then only the characters in haystackString at or before the specified "
+    "lastIndex will be considered by the search.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: length ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<string>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "length", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns a decimal string giving the number of characters in string. Note "
+    "that this is not necessarily the same as the number of bytes used to store "
+    "the string.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: map ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_flag(ops, interp, "-nocase", NULL, NULL);
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<mapping>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<string>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "map", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Replaces substrings in string based on the key-value pairs in mapping. "
+    "mapping is a list of key value key value ... pairs. Each instance of a key "
+    "in the string will be replaced with its corresponding value. If -nocase is "
+    "specified, then matching is done without regard to case differences.\n\n"
+    "Replacement is done in an ordered manner, so the key appearing first in the "
+    "list will be checked first. string is only iterated over once, so earlier "
+    "key replacements will have no effect for later key matches.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: match ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_flag(ops, interp, "-nocase", NULL, NULL);
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<pattern>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<string>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "match", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "See if pattern matches string; return 1 if it does, 0 if it does not. If "
+    "-nocase is specified, then the pattern attempts to match against the string "
+    "in a case insensitive manner.\n\n"
+    "The following special sequences may appear in pattern:\n"
+    "  *        Matches any sequence of characters, including empty\n"
+    "  ?        Matches any single character\n"
+    "  [chars]  Matches any character in the set, including ranges like a-z\n"
+    "  \\x       Matches the single character x literally");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: range ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<string>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<first>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<last>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "range", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns a range of consecutive characters from string, starting with the "
+    "character whose index is first and ending with the character whose index is "
+    "last. An index of 0 refers to the first character of the string; an index of "
+    "end refers to the last character. first and last may be specified as "
+    "described in STRING INDICES.\n\n"
+    "If first is less than zero then it is treated as if it were zero, and if "
+    "last is greater than or equal to the length of the string then it is treated "
+    "as if it were end. If first is greater than last then an empty string is "
+    "returned.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: repeat ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<string>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<count>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "repeat", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns a string consisting of string concatenated with itself count times. "
+    "If count is 0, the empty string will be returned.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: replace ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<string>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<first>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<last>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?newstring?");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "replace", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Removes a range of consecutive characters from string, starting with the "
+    "character whose index is first and ending with the character whose index is "
+    "last. An index of 0 refers to the first character of the string. first and "
+    "last may be specified as described in STRING INDICES.\n\n"
+    "If newstring is specified, then it is placed in the removed character range. "
+    "The initial string is returned untouched if first is greater than last, or "
+    "if first is equal to or greater than the length of the initial string, or "
+    "last is less than 0.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: reverse ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<string>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "reverse", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns a string that is the same length as string but with its characters "
+    "in the reverse order.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: tolower ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<string>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?first?");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?last?");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "tolower", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns a value equal to string except that all upper (or title) case "
+    "letters have been converted to lower case.\n\n"
+    "Note: In Feather, the optional first and last arguments are accepted for "
+    "compatibility but are currently ignored. The entire string is always "
+    "converted.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: totitle ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<string>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?first?");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?last?");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "totitle", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns a value equal to string except that the first character in string "
+    "(or the range specified by first and last) is converted to its Unicode "
+    "title case variant (or upper case if there is no title case variant) and "
+    "the rest of the string is converted to lower case.\n\n"
+    "If first is specified, it refers to the first char index in the string to "
+    "start modifying. If last is specified, it refers to the char index in the "
+    "string to stop at (inclusive). first and last may be specified using the "
+    "forms described in STRING INDICES.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: toupper ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<string>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?first?");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?last?");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "toupper", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns a value equal to string except that all lower (or title) case "
+    "letters have been converted to upper case.\n\n"
+    "Note: In Feather, the optional first and last arguments are accepted for "
+    "compatibility but are currently ignored. The entire string is always "
+    "converted.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: trim ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<string>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?chars?");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "trim", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns a value equal to string except that any leading or trailing "
+    "characters present in the string given by chars are removed. If chars is "
+    "not specified then white space is removed (space, tab, newline, carriage "
+    "return, vertical tab, form feed).");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: trimleft ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<string>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?chars?");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "trimleft", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns a value equal to string except that any leading characters present "
+    "in the string given by chars are removed. If chars is not specified then "
+    "white space is removed (space, tab, newline, carriage return, vertical tab, "
+    "form feed).");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: trimright ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<string>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?chars?");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "trimright", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns a value equal to string except that any trailing characters present "
+    "in the string given by chars are removed. If chars is not specified then "
+    "white space is removed (space, tab, newline, carriage return, vertical tab, "
+    "form feed).");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Examples ---
   e = feather_usage_example(ops, interp,
-    "string cat \"Hello\" \" \" \"World\"",
-    "Concatenate multiple strings together:",
+    "string first a 0a23456789abcdef 5",
+    "Find 'a' starting at index 5 (returns 10):",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
-  // string compare
   e = feather_usage_example(ops, interp,
-    "string compare abc abd",
-    "Compare two strings lexicographically (returns -1, 0, or 1):",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  e = feather_usage_example(ops, interp,
-    "string compare -nocase ABC abc",
-    "Case-insensitive comparison:",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  e = feather_usage_example(ops, interp,
-    "string compare -length 3 abcde abcfg",
-    "Compare only first 3 characters:",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  // string equal
-  e = feather_usage_example(ops, interp,
-    "string equal hello hello",
-    "Test string equality (returns 0 or 1):",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  // string first
-  e = feather_usage_example(ops, interp,
-    "string first \"ll\" \"hello world\"",
-    "Find first occurrence of substring (returns index or -1):",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  // string index
-  e = feather_usage_example(ops, interp,
-    "string index hello 1",
-    "Get character at index 1:",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  e = feather_usage_example(ops, interp,
-    "string index hello end",
-    "Get last character:",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  // string insert
-  e = feather_usage_example(ops, interp,
-    "string insert hello 2 XX",
-    "Insert 'XX' at index 2:",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  // string is
-  e = feather_usage_example(ops, interp,
-    "string is integer 123",
-    "Test if string is a valid integer:",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  e = feather_usage_example(ops, interp,
-    "string is alpha -strict xyz",
-    "Test if all characters are alphabetic (strict mode requires non-empty):",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  // string last
-  e = feather_usage_example(ops, interp,
-    "string last \"o\" \"hello world\"",
-    "Find last occurrence of substring:",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  // string length
-  e = feather_usage_example(ops, interp,
-    "string length \"hello\"",
-    "Get character count of string:",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  // string map
-  e = feather_usage_example(ops, interp,
-    "string map {a 1 b 2} \"abc\"",
-    "Replace substrings using a mapping dictionary:",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  // string match
-  e = feather_usage_example(ops, interp,
-    "string match h*o hello",
-    "Test if string matches glob pattern:",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  // string range
-  e = feather_usage_example(ops, interp,
-    "string range hello 1 3",
-    "Extract substring from index 1 to 3:",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  // string repeat
-  e = feather_usage_example(ops, interp,
-    "string repeat ab 3",
-    "Repeat string 3 times:",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  // string replace
-  e = feather_usage_example(ops, interp,
-    "string replace hello 1 3 XXX",
-    "Replace characters from index 1 to 3 with 'XXX':",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  // string reverse
-  e = feather_usage_example(ops, interp,
-    "string reverse hello",
-    "Reverse character order:",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  // string tolower
-  e = feather_usage_example(ops, interp,
-    "string tolower \"HELLO\"",
-    "Convert to lowercase:",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  // string totitle
-  e = feather_usage_example(ops, interp,
-    "string totitle \"hELLO wORLD\"",
-    "Convert to title case (first char upper, rest lower):",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  // string toupper
-  e = feather_usage_example(ops, interp,
-    "string toupper \"hello\"",
-    "Convert to uppercase:",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  // string trim
-  e = feather_usage_example(ops, interp,
-    "string trim \"  hello  \"",
-    "Remove leading and trailing whitespace:",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  e = feather_usage_example(ops, interp,
-    "string trim \"xxhelloxx\" x",
-    "Remove leading and trailing 'x' characters:",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  // string trimleft
-  e = feather_usage_example(ops, interp,
-    "string trimleft \"  hello\"",
-    "Remove leading whitespace only:",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  // string trimright
-  e = feather_usage_example(ops, interp,
-    "string trimright \"hello  \"",
-    "Remove trailing whitespace only:",
+    "string map {abc 1 ab 2 a 3 1 0} 1abcaababcababc",
+    "Apply string substitutions (returns 01teleprinter22211):",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
