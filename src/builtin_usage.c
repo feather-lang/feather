@@ -200,6 +200,106 @@ static void usage_set_specs(const FeatherHostOps *ops, FeatherInterp interp, Fea
 }
 
 /**
+ * Lazy usage registration - dispatch table mapping command names to registration functions.
+ */
+typedef void (*UsageRegistrationFunc)(const FeatherHostOps*, FeatherInterp);
+
+typedef struct {
+  const char *name;
+  UsageRegistrationFunc register_fn;
+} UsageRegistration;
+
+static const UsageRegistration usage_registrations[] = {
+  {"set", feather_register_set_usage},
+  {"expr", feather_register_expr_usage},
+  {"proc", feather_register_proc_usage},
+  {"if", feather_register_if_usage},
+  {"while", feather_register_while_usage},
+  {"for", feather_register_for_usage},
+  {"foreach", feather_register_foreach_usage},
+  {"lmap", feather_register_lmap_usage},
+  {"lassign", feather_register_lassign_usage},
+  {"linsert", feather_register_linsert_usage},
+  {"switch", feather_register_switch_usage},
+  {"tailcall", feather_register_tailcall_usage},
+  {"break", feather_register_break_usage},
+  {"continue", feather_register_continue_usage},
+  {"incr", feather_register_incr_usage},
+  {"llength", feather_register_llength_usage},
+  {"lindex", feather_register_lindex_usage},
+  {"lreplace", feather_register_lreplace_usage},
+  {"return", feather_register_return_usage},
+  {"error", feather_register_error_usage},
+  {"catch", feather_register_catch_usage},
+  {"info", feather_register_info_usage},
+  {"upvar", feather_register_upvar_usage},
+  {"uplevel", feather_register_uplevel_usage},
+  {"rename", feather_register_rename_usage},
+  {"namespace", feather_register_namespace_usage},
+  {"variable", feather_register_variable_usage},
+  {"global", feather_register_global_usage},
+  {"apply", feather_register_apply_usage},
+  {"throw", feather_register_throw_usage},
+  {"try", feather_register_try_usage},
+  {"trace", feather_register_trace_usage},
+  {"list", feather_register_list_usage},
+  {"lrange", feather_register_lrange_usage},
+  {"lappend", feather_register_lappend_usage},
+  {"lset", feather_register_lset_usage},
+  {"lreverse", feather_register_lreverse_usage},
+  {"lrepeat", feather_register_lrepeat_usage},
+  {"lsort", feather_register_lsort_usage},
+  {"lsearch", feather_register_lsearch_usage},
+  {"string", feather_register_string_usage},
+  {"split", feather_register_split_usage},
+  {"join", feather_register_join_usage},
+  {"concat", feather_register_concat_usage},
+  {"append", feather_register_append_usage},
+  {"unset", feather_register_unset_usage},
+  {"dict", feather_register_dict_usage},
+  {"format", feather_register_format_usage},
+  {"scan", feather_register_scan_usage},
+  {"subst", feather_register_subst_usage},
+  {"eval", feather_register_eval_usage},
+  {NULL, NULL}
+};
+
+/**
+ * Ensure a command's usage spec is registered (lazy loading).
+ * Called before looking up a spec to register it on-demand.
+ */
+static void ensure_usage_registered(const FeatherHostOps *ops, FeatherInterp interp,
+                                    FeatherObj cmdName) {
+  /* Ensure ::usage namespace exists */
+  FeatherObj usageNs = ops->string.intern(interp, S(USAGE_NS));
+  ops->ns.create(interp, usageNs);
+
+  /* Check if already registered */
+  FeatherObj specs = usage_get_specs(ops, interp);
+  if (!ops->list.is_nil(interp, ops->dict.get(interp, specs, cmdName))) {
+    return; /* Already registered */
+  }
+
+  /* Extract command name as C string for lookup */
+  size_t len = ops->string.byte_length(interp, cmdName);
+  char namebuf[64];
+  if (len >= sizeof(namebuf)) return; /* Name too long */
+
+  for (size_t i = 0; i < len; i++) {
+    namebuf[i] = (char)ops->string.byte_at(interp, cmdName, i);
+  }
+  namebuf[len] = '\0';
+
+  /* Look up and call registration function */
+  for (const UsageRegistration *r = usage_registrations; r->name != NULL; r++) {
+    if (feather_str_eq(namebuf, len, r->name)) {
+      r->register_fn(ops, interp);
+      return;
+    }
+  }
+}
+
+/**
  * Trim leading/trailing newlines and dedent: remove common leading whitespace from each line.
  * This normalizes multi-line help text, long_help, and example bodies for consistent display.
  */
@@ -1556,10 +1656,11 @@ static FeatherResult usage_for(const FeatherHostOps *ops, FeatherInterp interp,
   }
 
   FeatherObj cmdName = ops->list.at(interp, args, 0);
-  FeatherObj specs = usage_get_specs(ops, interp);
 
   if (argc == 1) {
-    /* Get mode: return original spec string for round-tripping */
+    /* Get mode: lazy-load and return original spec string for round-tripping */
+    ensure_usage_registered(ops, interp, cmdName);
+    FeatherObj specs = usage_get_specs(ops, interp);
     FeatherObj specEntry = ops->dict.get(interp, specs, cmdName);
     if (ops->list.is_nil(interp, specEntry)) {
       FeatherObj msg = ops->string.intern(interp, "no usage defined for \"", 22);
@@ -1585,6 +1686,7 @@ static FeatherResult usage_for(const FeatherHostOps *ops, FeatherInterp interp,
   specEntry = dict_set_str(ops, interp, specEntry, K_ORIG, specStr);
   specEntry = dict_set_str(ops, interp, specEntry, K_SPEC, parsed);
 
+  FeatherObj specs = usage_get_specs(ops, interp);
   specs = ops->dict.set(interp, specs, cmdName, specEntry);
   usage_set_specs(ops, interp, specs);
 
@@ -1826,6 +1928,9 @@ static FeatherResult usage_parse(const FeatherHostOps *ops, FeatherInterp interp
 
   FeatherObj cmdName = ops->list.at(interp, args, 0);
   FeatherObj argsList = ops->list.at(interp, args, 1);
+
+  /* Lazy-load the usage spec if not already registered */
+  ensure_usage_registered(ops, interp, cmdName);
 
   /* Get the spec */
   FeatherObj specs = usage_get_specs(ops, interp);
@@ -2127,6 +2232,9 @@ static FeatherResult usage_help(const FeatherHostOps *ops, FeatherInterp interp,
   }
 
   FeatherObj cmdName = ops->list.at(interp, args, 0);
+
+  /* Lazy-load the usage spec if not already registered */
+  ensure_usage_registered(ops, interp, cmdName);
 
   /* Get the spec */
   FeatherObj specs = usage_get_specs(ops, interp);

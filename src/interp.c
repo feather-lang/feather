@@ -172,60 +172,9 @@ void feather_interp_init(const FeatherHostOps *ops, FeatherInterp interp) {
   ops->ns.set_var(interp, errorsNs, stackName, ops->list.create(interp));
   ops->ns.set_var(interp, errorsNs, lineName, ops->integer.create(interp, 0));
 
-  // Register usage specs for builtins
-  feather_register_set_usage(ops, interp);
-  feather_register_expr_usage(ops, interp);
-  feather_register_proc_usage(ops, interp);
-  feather_register_if_usage(ops, interp);
-  feather_register_while_usage(ops, interp);
-  feather_register_for_usage(ops, interp);
-  feather_register_foreach_usage(ops, interp);
-  feather_register_lmap_usage(ops, interp);
-  feather_register_lassign_usage(ops, interp);
-  feather_register_linsert_usage(ops, interp);
-  feather_register_switch_usage(ops, interp);
-  feather_register_tailcall_usage(ops, interp);
-  feather_register_break_usage(ops, interp);
-  feather_register_continue_usage(ops, interp);
-  feather_register_incr_usage(ops, interp);
-  feather_register_llength_usage(ops, interp);
-  feather_register_lindex_usage(ops, interp);
-  feather_register_lreplace_usage(ops, interp);
-  feather_register_return_usage(ops, interp);
-  feather_register_mathfunc_usage(ops, interp);
-  feather_register_error_usage(ops, interp);
-  feather_register_catch_usage(ops, interp);
-  feather_register_info_usage(ops, interp);
-  feather_register_upvar_usage(ops, interp);
-  feather_register_uplevel_usage(ops, interp);
-  feather_register_rename_usage(ops, interp);
-  feather_register_namespace_usage(ops, interp);
-  feather_register_variable_usage(ops, interp);
-  feather_register_global_usage(ops, interp);
-  feather_register_apply_usage(ops, interp);
-  feather_register_throw_usage(ops, interp);
-  feather_register_try_usage(ops, interp);
-  feather_register_trace_usage(ops, interp);
-  feather_register_list_usage(ops, interp);
-  feather_register_lrange_usage(ops, interp);
-  feather_register_lappend_usage(ops, interp);
-  feather_register_lset_usage(ops, interp);
-  // feather_register_lreplace_usage(ops, interp);
-  feather_register_lreverse_usage(ops, interp);
-  feather_register_lrepeat_usage(ops, interp);
-  feather_register_lsort_usage(ops, interp);
-  feather_register_lsearch_usage(ops, interp);
-  feather_register_string_usage(ops, interp);
-  feather_register_split_usage(ops, interp);
-  feather_register_join_usage(ops, interp);
-  feather_register_concat_usage(ops, interp);
-  feather_register_append_usage(ops, interp);
-  feather_register_unset_usage(ops, interp);
-  feather_register_dict_usage(ops, interp);
-  feather_register_format_usage(ops, interp);
-  feather_register_scan_usage(ops, interp);
-  feather_register_subst_usage(ops, interp);
-  feather_register_eval_usage(ops, interp);
+  // Create ::usage namespace (specs are lazily registered on first access)
+  FeatherObj usageNs = ops->string.intern(interp, "::usage", 7);
+  ops->ns.create(interp, usageNs);
 }
 
 FeatherObj feather_trace_get_dict(const FeatherHostOps *ops, FeatherInterp interp,
