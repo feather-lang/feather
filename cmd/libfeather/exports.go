@@ -38,6 +38,7 @@ static inline void callForeignDestroy(FeatherForeignDestroyFunc fn, void *instan
 import "C"
 
 import (
+	"strings"
 	"sync"
 	"unsafe"
 )
@@ -76,6 +77,7 @@ type cForeignTypeInfo struct {
 	destroyFn C.FeatherForeignDestroyFunc
 	userData  unsafe.Pointer
 	counter   int
+	methods   []string // method names for info methods
 }
 
 // cForeignInstance stores info about a C foreign instance
@@ -192,8 +194,66 @@ func FeatherClose(interp C.size_t) {
 }
 
 // =============================================================================
-// Evaluation (2 functions)
+// Parsing and Evaluation (4 functions)
 // =============================================================================
+
+// Parse status constants (matching Go's feather.ParseStatus)
+const (
+	parseOK         = 0
+	parseIncomplete = 1
+	parseError      = 2
+)
+
+//export FeatherParse
+func FeatherParse(interp C.size_t, script *C.char, length C.size_t) C.int {
+	state := getExportState(uint64(interp))
+	if state == nil {
+		return parseError
+	}
+
+	goScript := C.GoStringN(script, C.int(length))
+	pr := state.interp.Parse(goScript)
+
+	switch pr.Status {
+	case feather.ParseOK:
+		return parseOK
+	case feather.ParseIncomplete:
+		return parseIncomplete
+	default:
+		return parseError
+	}
+}
+
+//export FeatherParseResult
+func FeatherParseResult(interp C.size_t, script *C.char, length C.size_t, result *C.size_t, errorMsg **C.char) C.int {
+	state := getExportState(uint64(interp))
+	if state == nil {
+		return parseError
+	}
+
+	goScript := C.GoStringN(script, C.int(length))
+	pr := state.interp.ParseInternal(goScript)
+
+	// Store the result string (e.g., "{INCOMPLETE 5 17}" or "{ERROR 0 10 {message}}")
+	if result != nil && pr.Result != "" {
+		resultObj := state.interp.String(pr.Result)
+		*result = C.size_t(state.storeObj(resultObj))
+	}
+
+	// Return error message for parse errors
+	if errorMsg != nil && pr.ErrorMessage != "" {
+		*errorMsg = C.CString(pr.ErrorMessage)
+	}
+
+	switch pr.Status {
+	case feather.InternalParseOK:
+		return parseOK
+	case feather.InternalParseIncomplete:
+		return parseIncomplete
+	default:
+		return parseError
+	}
+}
 
 //export FeatherEval
 func FeatherEval(interp C.size_t, script *C.char, length C.size_t, result *C.size_t) C.int {
@@ -990,6 +1050,31 @@ func FeatherRegisterCommand(interp C.size_t, name *C.char, callback C.FeatherCom
 // Foreign Type Registration (1 function)
 // =============================================================================
 
+//export FeatherRegisterForeignMethod
+func FeatherRegisterForeignMethod(interp C.size_t, typeName *C.char, methodName *C.char) C.int {
+	state := getExportState(uint64(interp))
+	if state == nil {
+		return 1
+	}
+
+	goTypeName := C.GoString(typeName)
+	goMethodName := C.GoString(methodName)
+
+	state.mu.Lock()
+	info, ok := state.foreignTypes[goTypeName]
+	if !ok {
+		state.mu.Unlock()
+		return 1 // Type not registered
+	}
+	info.methods = append(info.methods, goMethodName)
+	state.mu.Unlock()
+
+	// Update the Go ForeignRegistry
+	state.interp.RegisterCForeignType(goTypeName, info.methods)
+
+	return 0
+}
+
 //export FeatherRegisterForeign
 func FeatherRegisterForeign(interp C.size_t, typeName *C.char,
 	newFn C.FeatherForeignNewFunc, invokeFn C.FeatherForeignInvokeFunc,
@@ -1009,6 +1094,7 @@ func FeatherRegisterForeign(interp C.size_t, typeName *C.char,
 		destroyFn: destroyFn,
 		userData:  userData,
 		counter:   0,
+		methods:   nil, // will be populated by FeatherRegisterForeignMethod
 	}
 	state.mu.Lock()
 	state.foreignTypes[goTypeName] = info
@@ -1017,12 +1103,12 @@ func FeatherRegisterForeign(interp C.size_t, typeName *C.char,
 	// Register constructor command: TypeName new -> creates instance
 	state.interp.RegisterCommand(goTypeName, func(i *feather.Interp, cmd *feather.Obj, args []*feather.Obj) feather.Result {
 		if len(args) < 1 {
-			return feather.Error("wrong # args: should be \"" + goTypeName + " new\"")
+			return feather.Error("wrong # args: should be \"" + goTypeName + " subcommand ?arg ...?\"")
 		}
 
 		method := args[0].String()
 		if method != "new" {
-			return feather.Error("unknown method \"" + method + "\": should be \"new\"")
+			return feather.Error("unknown subcommand \"" + method + "\": must be new")
 		}
 
 		// Create new instance via C callback
@@ -1031,16 +1117,22 @@ func FeatherRegisterForeign(interp C.size_t, typeName *C.char,
 			return feather.Error("failed to create " + goTypeName + " instance")
 		}
 
-		// Generate unique instance ID
+		// Generate unique instance ID and handle name (lowercase like Go version)
 		state.mu.Lock()
 		info.counter++
 		instanceID := info.counter
 		state.mu.Unlock()
 
-		// Create instance command
-		instanceName := goTypeName + "_" + itoa(instanceID)
+		// Use lowercase handle name like Go version (e.g., "counter1" for first instance)
+		instanceName := strings.ToLower(goTypeName) + itoa(instanceID)
 
-		// Store instance info
+		// Create a proper foreign object with ForeignType intrep and custom handle name
+		foreignObj, foreignHandle := i.NewForeignHandleNamed(goTypeName, instanceName, nil)
+
+		// Register instance in ForeignRegistry for info commands
+		i.RegisterCForeignInstance(instanceName, goTypeName, foreignHandle)
+
+		// Store instance info for C callbacks
 		instanceInfo := &cForeignInstance{
 			typeName: goTypeName,
 			instance: instance,
@@ -1057,7 +1149,8 @@ func FeatherRegisterForeign(interp C.size_t, typeName *C.char,
 			// Handle destroy method
 			if methodName == "destroy" {
 				C.callForeignDestroy(info.destroyFn, instanceInfo.instance)
-				// Note: we don't unregister the command in Feather (would need API support)
+				// Unregister the command so subsequent calls fail
+				i.UnregisterCommand(instanceName)
 				return feather.OK(i.String(""))
 			}
 
@@ -1108,7 +1201,8 @@ func FeatherRegisterForeign(interp C.size_t, typeName *C.char,
 			return feather.OK(i.String(resultStr))
 		})
 
-		return feather.OK(i.String(instanceName))
+		// Return the foreign object (not a string)
+		return feather.OK(foreignObj)
 	})
 
 	return 0

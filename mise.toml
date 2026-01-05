@@ -39,8 +39,9 @@ run = "mise run build"
 [tasks."build:c-shared"]
 description = "Builds libfeather shared library from Go package"
 run = """
-cd c
-go build -buildmode=c-shared -o $MISE_PROJECT_ROOT/bin/libfeather.so .
+go build -buildmode=c-shared -o $MISE_PROJECT_ROOT/bin/libfeather.so ./cmd/libfeather
+# Move generated header to bin/ for C compilation
+mv libfeather.h $MISE_PROJECT_ROOT/bin/ 2>/dev/null || true
 # On macOS, fix the install name to use @rpath
 if [ "$(uname)" = "Darwin" ]; then
   install_name_tool -id @rpath/libfeather.so $MISE_PROJECT_ROOT/bin/libfeather.so

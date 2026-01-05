@@ -495,6 +495,19 @@ func (i *Interp) NewForeignHandle(typeName string, value any) FeatherObj {
 	return id
 }
 
+// NewForeignHandleNamed creates a new foreign object with a custom string representation.
+// This is used by the C API to create foreign objects with specific handle names.
+// Returns the *Obj pointer for use in feather.OK() and the FeatherObj handle.
+func (i *Interp) NewForeignHandleNamed(typeName, handleName string, value any) (*Obj, FeatherObj) {
+	obj := &Obj{intrep: &ForeignType{TypeName: typeName, Value: value}, interp: i}
+	obj.bytes = handleName
+	// Store in permanent storage
+	id := i.nextID
+	i.nextID++
+	i.objects[id] = obj
+	return obj, id
+}
+
 // IsForeignHandle returns true if the object is a foreign object.
 // Also checks if the string representation is a foreign handle name.
 func (i *Interp) IsForeignHandle(h FeatherObj) bool {

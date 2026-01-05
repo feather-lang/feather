@@ -614,3 +614,45 @@ func (i *Interp) newForeignObj(typeName string, value any) FeatherObj {
 	return i.registerObj(obj)
 }
 
+// RegisterCForeignType registers a C-style foreign type with explicit method names.
+// This is used by the C API to make info type and info methods work correctly.
+// The methods parameter should include all method names except "destroy" (which is automatic).
+func (i *Interp) RegisterCForeignType(typeName string, methods []string) {
+	if i.ForeignRegistry == nil {
+		i.ForeignRegistry = newForeignRegistry()
+	}
+
+	// Create a foreignTypeInfo with dummy method values
+	info := &foreignTypeInfo{
+		name:    typeName,
+		methods: make(map[string]reflect.Value),
+	}
+	for _, m := range methods {
+		info.methods[m] = reflect.Value{} // dummy value, only key matters for info methods
+	}
+
+	i.ForeignRegistry.mu.Lock()
+	i.ForeignRegistry.types[typeName] = info
+	i.ForeignRegistry.mu.Unlock()
+}
+
+// RegisterCForeignInstance registers a C-style foreign instance in the registry.
+// This makes the handle discoverable by info commands.
+func (i *Interp) RegisterCForeignInstance(handleName, typeName string, objHandle FeatherObj) {
+	if i.ForeignRegistry == nil {
+		i.ForeignRegistry = newForeignRegistry()
+	}
+
+	instance := &foreignInstance{
+		typeName:   typeName,
+		handleName: handleName,
+		objHandle:  objHandle,
+		value:      nil, // C instances don't have a Go value
+	}
+
+	i.ForeignRegistry.mu.Lock()
+	i.ForeignRegistry.instances[handleName] = instance
+	i.ForeignRegistry.handleToType[objHandle] = instance
+	i.ForeignRegistry.mu.Unlock()
+}
+

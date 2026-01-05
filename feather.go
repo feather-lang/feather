@@ -541,6 +541,15 @@ func (i *Interp) RegisterCommand(name string, fn CommandFunc) {
 	})
 }
 
+// UnregisterCommand removes a previously registered command.
+// This is used by destroy methods to make the command unavailable.
+func (i *Interp) UnregisterCommand(name string) {
+	delete(i.Commands, name)
+	if i.globalNamespace != nil {
+		delete(i.globalNamespace.commands, name)
+	}
+}
+
 // Register adds a command with automatic argument conversion.
 //
 // The function's signature determines how arguments are converted:
