@@ -36,6 +36,34 @@ description = "Builds feather.wasm for JavaScript/browser embedding"
 dir = "js"
 run = "mise run build"
 
+[tasks."build:c-shared"]
+description = "Builds libfeather shared library from Go package"
+run = """
+cd c
+go build -buildmode=c-shared -o $MISE_PROJECT_ROOT/bin/libfeather.so .
+# On macOS, fix the install name to use @rpath
+if [ "$(uname)" = "Darwin" ]; then
+  install_name_tool -id @rpath/libfeather.so $MISE_PROJECT_ROOT/bin/libfeather.so
+fi
+"""
+
+[tasks."build:feather-c"]
+description = "Builds the feather-c binary (C host)"
+depends = ["build:c-shared"]
+run = """
+if [ "$(uname)" = "Darwin" ]; then
+  RPATH_FLAG="-Wl,-rpath,@executable_path"
+else
+  RPATH_FLAG='-Wl,-rpath,$ORIGIN'
+fi
+cc -o $MISE_PROJECT_ROOT/bin/feather-c \
+  -I$MISE_PROJECT_ROOT/bin \
+  -L$MISE_PROJECT_ROOT/bin \
+  $RPATH_FLAG \
+  c/host/tester.c \
+  -lfeather
+"""
+
 [tasks."test:wasm-memory"]
 description = "Run the WASM memory test checking for leaks"
 dir = "js"
@@ -79,9 +107,19 @@ run = """
 harness run --host js/tester.js testcases/
 """
 
+[tasks."test:c"]
+description = "Run the test harness with the C host"
+depends = ["build:harness", "build:feather-c"]
+usage = """
+arg "path" default="testcases/"
+"""
+run = """
+harness run --host bin/feather-c $usage_path
+"""
+
 [tasks."test:all"]
 description = "Run all test suites in parallel"
-depends = ["test", "test:js"]
+depends = ["test", "test:js", "test:c"]
 
 [tasks.bench]
 description = "Run benchmarks with the Go host"
@@ -107,9 +145,16 @@ run = """
 bench -host bin/oracle benchmarks/*.html
 """
 
+[tasks."bench:c"]
+description = "Run benchmarks with the C host"
+depends = ["build:bench", "build:feather-c"]
+run = """
+bench -host bin/feather-c benchmarks/*.html
+"""
+
 [tasks."bench:all"]
 description = "Run all benchmarks in parallel"
-depends = ["bench", "bench:js", "bench:oracle"]
+depends = ["bench", "bench:js", "bench:oracle", "bench:c"]
 
 [tools]
 go = "1.25.5"
