@@ -105,3 +105,51 @@ FeatherResult feather_builtin_rename(const FeatherHostOps *ops, FeatherInterp in
 
   return result;
 }
+
+void feather_register_rename_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Rename or delete a command",
+    "Renames a command from oldName to newName. The command can be invoked using "
+    "the new name after the rename operation completes.\n\n"
+    "If newName is an empty string, the command is deleted instead of renamed. "
+    "This provides a way to remove commands from the interpreter.\n\n"
+    "Both oldName and newName can be namespace-qualified (e.g., ::ns::cmd). "
+    "If unqualified, oldName is resolved relative to the current namespace, "
+    "and newName is created in the current namespace.\n\n"
+    "The rename command fires command traces after a successful operation, "
+    "with operation \"rename\" for normal renames or \"delete\" for deletions.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<oldName>");
+  e = feather_usage_help(ops, interp, e,
+    "The current name of the command to rename. The command must exist.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<newName>");
+  e = feather_usage_help(ops, interp, e,
+    "The new name for the command. Use an empty string to delete the command. "
+    "If non-empty, a command with this name must not already exist.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "rename puts write",
+    "Rename the puts command to write",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "rename myproc \"\"",
+    "Delete the myproc command",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "rename ::ns::cmd ::other::newcmd",
+    "Rename a command from one namespace to another",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "rename", spec);
+}

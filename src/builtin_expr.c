@@ -1839,3 +1839,69 @@ FeatherResult feather_builtin_expr(const FeatherHostOps *ops, FeatherInterp inte
   ops->interp.set_result(interp, result_obj);
   return TCL_OK;
 }
+
+void feather_register_expr_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Evaluate mathematical expression",
+    "Concatenates all arguments with spaces, parses the result as a mathematical "
+    "expression, and returns the computed value.\n\n"
+    "Supports arithmetic operations (+, -, *, /, %, **), comparison operators "
+    "(<, >, <=, >=, ==, !=, eq, ne, lt, le, gt, ge), logical operators "
+    "(&&, ||, !, ?:), bitwise operators (&, |, ^, ~, <<, >>), list membership "
+    "(in, ni), variable substitution ($var, ${var}), command substitution ([cmd]), "
+    "and math functions via tcl::mathfunc:: namespace.\n\n"
+    "Operands can be integers (decimal, hex 0x, binary 0b, octal 0o), "
+    "floating-point numbers (3.14, 1e10, .5), boolean literals "
+    "(true, false, yes, no, on, off), variables, command results, "
+    "or parenthesized subexpressions. Comments starting with # are supported.\n\n"
+    "Math functions include: abs, acos, asin, atan, atan2, bool, ceil, cos, cosh, "
+    "double, entier, exp, floor, fmod, hypot, int, isfinite, isinf, isnan, "
+    "isnormal, issubnormal, isunordered, log, log10, max, min, pow, round, sin, "
+    "sinh, sqrt, tan, tanh, wide. Use as: expr {funcname(args)}.\n\n"
+    "Short-circuit evaluation applies to &&, ||, and ?:. Integer division "
+    "truncates toward zero (may differ from TCL which uses floor division). "
+    "NaN results produce domain errors.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<arg>");
+  e = feather_usage_help(ops, interp, e, "Expression component");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?arg?...");
+  e = feather_usage_help(ops, interp, e, "Additional expression components (concatenated with spaces)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "expr {2 + 2}",
+    "Simple arithmetic",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "expr {$x > 10 ? \"big\" : \"small\"}",
+    "Ternary conditional operator",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "expr {5 in {1 3 5 7}}",
+    "List membership test",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "expr {sqrt(pow($a, 2) + pow($b, 2))}",
+    "Math functions for Pythagorean theorem",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "expr {0xff & 0b1111}",
+    "Bitwise AND with hex and binary literals",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "expr", spec);
+}

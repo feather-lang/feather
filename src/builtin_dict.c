@@ -1003,6 +1003,79 @@ static FeatherResult dict_with(const FeatherHostOps *ops, FeatherInterp interp, 
   return TCL_OK;
 }
 
+void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Manipulate dictionaries",
+    "Performs one of several operations on dictionary values or variables "
+    "containing dictionary values (see lindex for details on dictionary "
+    "notation). The subcommand argument determines what action is carried out "
+    "by the command.\n\n"
+    "Dictionaries are order-preserving key-value mappings. Keys and values can "
+    "be arbitrary strings. Many subcommands support nested dictionary access "
+    "by providing multiple key arguments to navigate through dictionary levels.\n\n"
+    "Note: Maximum nesting depth is 64 levels for nested operations.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<subcommand>");
+  e = feather_usage_help(ops, interp, e,
+    "The dict operation to perform. Must be one of: append, create, exists, "
+    "filter, for, get, getdef, getwithdefault, incr, info, keys, lappend, map, "
+    "merge, remove, replace, set, size, unset, update, values, or with.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?arg?...");
+  e = feather_usage_help(ops, interp, e,
+    "Arguments specific to the subcommand");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Examples for common subcommands
+  e = feather_usage_example(ops, interp,
+    "dict create a 1 b 2 c 3",
+    "Create a dictionary with three key-value pairs",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "dict get $mydict key",
+    "Retrieve the value for \"key\" from the dictionary",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "dict set myvar outer inner value",
+    "Set a nested dictionary value (creates nested structure if needed)",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "dict keys $mydict pattern*",
+    "Get all keys matching a glob pattern",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "dict for {k v} $mydict { puts \"$k = $v\" }",
+    "Iterate over all key-value pairs in the dictionary",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "dict filter $mydict key a* b*",
+    "Filter dictionary to only keys matching patterns \"a*\" or \"b*\"",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "dict merge $dict1 $dict2 $dict3",
+    "Merge multiple dictionaries (later values override earlier)",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "dict", spec);
+}
+
 // Main dict command dispatcher
 FeatherResult feather_builtin_dict(const FeatherHostOps *ops, FeatherInterp interp,
                            FeatherObj cmd, FeatherObj args) {

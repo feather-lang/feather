@@ -850,6 +850,91 @@ static FeatherResult ns_which(const FeatherHostOps *ops, FeatherInterp interp, F
   return TCL_OK;
 }
 
+void feather_register_namespace_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Create and manipulate namespaces",
+    "Provides commands for creating, deleting, and manipulating namespaces. "
+    "Namespaces provide isolated command and variable scopes, allowing better "
+    "organization and encapsulation in larger programs.\n\n"
+    "Namespaces are hierarchical and can be nested. The global namespace is "
+    "represented by \"::\" and all other namespaces are its descendants. "
+    "Namespace names starting with \"::\" are absolute, while others are "
+    "relative to the current namespace.\n\n"
+    "The namespace command provides 15 subcommands for different operations.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<subcommand>");
+  e = feather_usage_help(ops, interp, e,
+    "The operation to perform. Must be one of: children, code, current, "
+    "delete, eval, exists, export, forget, import, inscope, origin, parent, "
+    "qualifiers, tail, or which.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?arg?...");
+  e = feather_usage_help(ops, interp, e, "Arguments specific to the subcommand");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Example: namespace current
+  e = feather_usage_example(ops, interp,
+    "namespace current",
+    "Get the current namespace (returns \"::\" if in global namespace)",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Example: namespace eval
+  e = feather_usage_example(ops, interp,
+    "namespace eval ::math { proc double {x} { expr {$x * 2} } }",
+    "Create a namespace and define a procedure in it",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Example: namespace exists
+  e = feather_usage_example(ops, interp,
+    "namespace exists ::math",
+    "Check if a namespace exists (returns 1 or 0)",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Example: namespace export/import
+  e = feather_usage_example(ops, interp,
+    "namespace eval ::math {\n"
+    "    proc add {a b} { expr {$a + $b} }\n"
+    "    namespace export add\n"
+    "}\n"
+    "namespace import ::math::add",
+    "Export a command from a namespace and import it into the current namespace",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Example: namespace children
+  e = feather_usage_example(ops, interp,
+    "namespace children :: m*",
+    "List child namespaces of global namespace matching pattern \"m*\"",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Example: namespace qualifiers/tail
+  e = feather_usage_example(ops, interp,
+    "namespace qualifiers ::math::trig::sin\nnamespace tail ::math::trig::sin",
+    "Split a qualified name: qualifiers returns \"::math::trig\", tail returns \"sin\"",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Example: namespace code
+  e = feather_usage_example(ops, interp,
+    "namespace eval ::foo {\n"
+    "    variable x 42\n"
+    "    set callback [namespace code {set x}]\n"
+    "}",
+    "Create a callback that preserves namespace context for later execution",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "namespace", spec);
+}
+
 FeatherResult feather_builtin_namespace(const FeatherHostOps *ops, FeatherInterp interp,
                                  FeatherObj cmd, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);

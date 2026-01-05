@@ -344,3 +344,91 @@ FeatherResult feather_invoke_proc(const FeatherHostOps *ops, FeatherInterp inter
 
   return result;
 }
+
+void feather_register_proc_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Create a TCL procedure",
+    "Creates a new procedure named name. When name is invoked, the list of "
+    "arguments provided will be matched with the parameter list args, and the "
+    "body script will be evaluated in the new procedure's context.\n\n"
+    "The name may be a simple name or a namespace-qualified name (e.g., ::ns::proc). "
+    "If the name contains namespace qualifiers, the necessary namespaces are created "
+    "automatically if they do not exist.\n\n"
+    "The args parameter is a list of argument specifiers. Each specifier is either "
+    "a parameter name or a two-element list {name default} specifying a parameter "
+    "with a default value. Parameters with defaults are optional if no required "
+    "parameters follow them.\n\n"
+    "If the last parameter is named args, the procedure becomes variadic and any "
+    "extra arguments are collected into the args parameter as a list.\n\n"
+    "The body is evaluated as a TCL script when the procedure is called. The return "
+    "value is the result of the last command in the body, or the value specified by "
+    "an explicit return command.\n\n"
+    "Defining a procedure with the same name as an existing command (builtin or "
+    "user-defined) replaces that command.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<name>");
+  e = feather_usage_help(ops, interp, e,
+    "Name of the procedure. May be namespace-qualified (e.g., ::ns::myproc)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<args>");
+  e = feather_usage_help(ops, interp, e,
+    "List of parameter specifiers. Each element is either a parameter name or "
+    "{name default} for optional parameters");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<body>");
+  e = feather_usage_help(ops, interp, e,
+    "Script to execute when the procedure is called");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "proc greet {name} {\n"
+    "    return \"Hello, $name!\"\n"
+    "}",
+    "Define a simple procedure with one parameter:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "proc add {a b} {\n"
+    "    expr {$a + $b}\n"
+    "}",
+    "Procedure that returns result of last command:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "proc greet {{name \"World\"}} {\n"
+    "    return \"Hello, $name!\"\n"
+    "}",
+    "Parameter with default value:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "proc sum {args} {\n"
+    "    set total 0\n"
+    "    foreach n $args {\n"
+    "        set total [expr {$total + $n}]\n"
+    "    }\n"
+    "    return $total\n"
+    "}",
+    "Variadic procedure using args parameter:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "proc ::counter::incr {varName {amount 1}} {\n"
+    "    upvar 1 $varName var\n"
+    "    set var [expr {$var + $amount}]\n"
+    "}",
+    "Namespace-qualified procedure with optional parameter:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "proc", spec);
+}

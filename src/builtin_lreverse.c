@@ -1,4 +1,5 @@
 #include "feather.h"
+#include "internal.h"
 
 FeatherResult feather_builtin_lreverse(const FeatherHostOps *ops, FeatherInterp interp,
                                        FeatherObj cmd, FeatherObj args) {
@@ -27,4 +28,40 @@ FeatherResult feather_builtin_lreverse(const FeatherHostOps *ops, FeatherInterp 
 
   ops->interp.set_result(interp, result);
   return TCL_OK;
+}
+
+void feather_register_lreverse_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Reverse the elements of a list",
+    "Returns a list with the same elements as the input list, but in reverse order. "
+    "The original list is not modified; a new list is returned.\n\n"
+    "The command preserves the structure of nested lists as elements. For example, "
+    "reversing {a b {c d} e} produces {e {c d} b a}.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<list>");
+  e = feather_usage_help(ops, interp, e, "The list to reverse");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lreverse {a b c}",
+    "Reverse a simple list",
+    "c b a");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lreverse {1 2 {3 4} 5}",
+    "Reverse a list with nested elements",
+    "5 {3 4} 2 1");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lreverse {}",
+    "Reverse an empty list",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "lreverse", spec);
 }

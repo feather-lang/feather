@@ -593,3 +593,134 @@ FeatherResult feather_builtin_lsort(const FeatherHostOps *ops, FeatherInterp int
 
   return TCL_OK;
 }
+
+void feather_register_lsort_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Sort the elements of a list",
+    "Returns a new list with the elements of list sorted according to the specified options.\n\n"
+    "The lsort command supports multiple sorting modes (ASCII, dictionary, integer, real, or custom comparison), "
+    "optional case-insensitive comparison, ascending or descending order, duplicate removal, "
+    "sorting sublists by a specific element, returning indices instead of values, "
+    "custom comparison commands, and grouping elements for sorting.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-ascii?");
+  e = feather_usage_help(ops, interp, e,
+    "Use string comparison with Unicode code-point collation order (default)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-dictionary?");
+  e = feather_usage_help(ops, interp, e,
+    "Use dictionary-style comparison: case-insensitive with embedded numbers compared as integers");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-integer?");
+  e = feather_usage_help(ops, interp, e,
+    "Convert list elements to integers and use integer comparison");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-real?");
+  e = feather_usage_help(ops, interp, e,
+    "Convert list elements to floating-point values and use numeric comparison");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-command cmdName?");
+  e = feather_usage_help(ops, interp, e,
+    "Use cmdName as a custom comparison command. The command receives two arguments and must return "
+    "an integer: negative if first < second, positive if first > second, zero if equal");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-increasing?");
+  e = feather_usage_help(ops, interp, e,
+    "Sort in ascending order (default)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-decreasing?");
+  e = feather_usage_help(ops, interp, e,
+    "Sort in descending order");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-nocase?");
+  e = feather_usage_help(ops, interp, e,
+    "Case-insensitive string comparison (only affects -ascii mode)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-unique?");
+  e = feather_usage_help(ops, interp, e,
+    "Remove duplicate elements from the sorted list, keeping the last occurrence of each unique value");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-index indexList?");
+  e = feather_usage_help(ops, interp, e,
+    "Sort sublists by comparing the element at the specified index. Supports nested indices "
+    "and index expressions like 'end' or 'end-1'");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-indices?");
+  e = feather_usage_help(ops, interp, e,
+    "Return a list of indices in sorted order instead of the sorted values");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-stride length?");
+  e = feather_usage_help(ops, interp, e,
+    "Treat the list as groups of length elements and sort the groups. "
+    "The list length must be a multiple of the stride length (minimum 2)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<list>");
+  e = feather_usage_help(ops, interp, e,
+    "The list to be sorted");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lsort {d b a c}",
+    "Sort strings in ascending ASCII order:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lsort -integer {5 3 1 2 11}",
+    "Sort numbers as integers:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lsort -decreasing {apple Banana cherry}",
+    "Sort in descending order:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lsort -dictionary {x1 x10 x2 x20}",
+    "Sort using dictionary order (embedded numbers compared numerically):",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lsort -nocase {apple Banana cherry}",
+    "Sort with case-insensitive comparison:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lsort -unique {a b a c b}",
+    "Remove duplicates after sorting:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lsort -index 1 {{a 3} {b 1} {c 2}}",
+    "Sort sublists by second element:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lsort -indices {d b a c}",
+    "Get sorted indices instead of values:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "lsort", spec);
+}

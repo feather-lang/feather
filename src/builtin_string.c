@@ -1027,6 +1027,205 @@ static FeatherResult string_replace(const FeatherHostOps *ops, FeatherInterp int
   return TCL_OK;
 }
 
+void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Perform string operations",
+    "Performs one of several string operations, depending on subcommand. "
+    "The legal subcommands are: cat, compare, equal, first, index, insert, is, "
+    "last, length, map, match, range, repeat, replace, reverse, tolower, totitle, "
+    "toupper, trim, trimleft, and trimright.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<subcommand>");
+  e = feather_usage_help(ops, interp, e, "The string operation to perform");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?arg?...");
+  e = feather_usage_help(ops, interp, e, "Arguments specific to the subcommand");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // string cat
+  e = feather_usage_example(ops, interp,
+    "string cat \"Hello\" \" \" \"World\"",
+    "Concatenate multiple strings together:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // string compare
+  e = feather_usage_example(ops, interp,
+    "string compare abc abd",
+    "Compare two strings lexicographically (returns -1, 0, or 1):",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "string compare -nocase ABC abc",
+    "Case-insensitive comparison:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "string compare -length 3 abcde abcfg",
+    "Compare only first 3 characters:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // string equal
+  e = feather_usage_example(ops, interp,
+    "string equal hello hello",
+    "Test string equality (returns 0 or 1):",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // string first
+  e = feather_usage_example(ops, interp,
+    "string first \"ll\" \"hello world\"",
+    "Find first occurrence of substring (returns index or -1):",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // string index
+  e = feather_usage_example(ops, interp,
+    "string index hello 1",
+    "Get character at index 1:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "string index hello end",
+    "Get last character:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // string insert
+  e = feather_usage_example(ops, interp,
+    "string insert hello 2 XX",
+    "Insert 'XX' at index 2:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // string is
+  e = feather_usage_example(ops, interp,
+    "string is integer 123",
+    "Test if string is a valid integer:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "string is alpha -strict xyz",
+    "Test if all characters are alphabetic (strict mode requires non-empty):",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // string last
+  e = feather_usage_example(ops, interp,
+    "string last \"o\" \"hello world\"",
+    "Find last occurrence of substring:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // string length
+  e = feather_usage_example(ops, interp,
+    "string length \"hello\"",
+    "Get character count of string:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // string map
+  e = feather_usage_example(ops, interp,
+    "string map {a 1 b 2} \"abc\"",
+    "Replace substrings using a mapping dictionary:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // string match
+  e = feather_usage_example(ops, interp,
+    "string match h*o hello",
+    "Test if string matches glob pattern:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // string range
+  e = feather_usage_example(ops, interp,
+    "string range hello 1 3",
+    "Extract substring from index 1 to 3:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // string repeat
+  e = feather_usage_example(ops, interp,
+    "string repeat ab 3",
+    "Repeat string 3 times:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // string replace
+  e = feather_usage_example(ops, interp,
+    "string replace hello 1 3 XXX",
+    "Replace characters from index 1 to 3 with 'XXX':",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // string reverse
+  e = feather_usage_example(ops, interp,
+    "string reverse hello",
+    "Reverse character order:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // string tolower
+  e = feather_usage_example(ops, interp,
+    "string tolower \"HELLO\"",
+    "Convert to lowercase:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // string totitle
+  e = feather_usage_example(ops, interp,
+    "string totitle \"hELLO wORLD\"",
+    "Convert to title case (first char upper, rest lower):",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // string toupper
+  e = feather_usage_example(ops, interp,
+    "string toupper \"hello\"",
+    "Convert to uppercase:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // string trim
+  e = feather_usage_example(ops, interp,
+    "string trim \"  hello  \"",
+    "Remove leading and trailing whitespace:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "string trim \"xxhelloxx\" x",
+    "Remove leading and trailing 'x' characters:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // string trimleft
+  e = feather_usage_example(ops, interp,
+    "string trimleft \"  hello\"",
+    "Remove leading whitespace only:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // string trimright
+  e = feather_usage_example(ops, interp,
+    "string trimright \"hello  \"",
+    "Remove trailing whitespace only:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "string", spec);
+}
+
 FeatherResult feather_builtin_string(const FeatherHostOps *ops, FeatherInterp interp,
                               FeatherObj cmd, FeatherObj args) {
   (void)cmd;

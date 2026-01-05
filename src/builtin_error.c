@@ -57,3 +57,59 @@ FeatherResult feather_builtin_error(const FeatherHostOps *ops, FeatherInterp int
 
   return TCL_ERROR;
 }
+
+void feather_register_error_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Generate an error",
+    "Generates an error with the specified message. The command returns TCL_ERROR, "
+    "causing the current command to fail and the error to propagate up the call stack.\n\n"
+    "If the info argument is provided, it sets the -errorinfo return option, which "
+    "initializes the stack trace with custom information. Otherwise, Feather automatically "
+    "generates a stack trace as the error propagates.\n\n"
+    "If the code argument is provided, it sets the -errorcode return option, which "
+    "provides a machine-readable error code for programmatic error handling.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<message>");
+  e = feather_usage_help(ops, interp, e,
+    "The error message to display. This becomes the interpreter result.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?info?");
+  e = feather_usage_help(ops, interp, e,
+    "Optional stack trace information. If provided, overrides automatic stack trace "
+    "generation. This is used when re-raising caught errors to preserve the original "
+    "stack trace.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?code?");
+  e = feather_usage_help(ops, interp, e,
+    "Optional machine-readable error code. This is typically a list that categorizes "
+    "the error type (e.g., \"ARITH DIVZERO\" for division by zero).");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "error \"File not found\"",
+    "Generate a simple error with a message",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "error \"Division by zero\" \"\" {ARITH DIVZERO}",
+    "Generate an error with a machine-readable error code",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "if {[catch {some_operation} result options]} {\n"
+    "    # Examine error and re-raise with preserved stack trace\n"
+    "    error $result [dict get $options -errorinfo] [dict get $options -errorcode]\n"
+    "}",
+    "Re-raise a caught error while preserving its stack trace and error code",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "error", spec);
+}

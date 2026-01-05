@@ -53,3 +53,64 @@ FeatherResult feather_builtin_unset(const FeatherHostOps *ops, FeatherInterp int
   ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
   return TCL_OK;
 }
+
+void feather_register_unset_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  // Command description (for NAME and DESCRIPTION sections)
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Delete variables",
+    "Removes one or more variables. By default, it is an error to attempt to "
+    "unset a non-existent variable. Returns an empty string.\n\n"
+    "The -nocomplain option suppresses errors for non-existent variables.\n\n"
+    "The -- option marks the end of options, allowing you to unset a variable "
+    "named \"-nocomplain\".\n\n"
+    "Note: Feather does not support TCL-style arrays. Array syntax like "
+    "\"myArray(key)\" is not supported.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // -nocomplain option
+  e = feather_usage_arg(ops, interp, "?-nocomplain?");
+  e = feather_usage_help(ops, interp, e,
+    "Suppress errors if a variable doesn't exist");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // -- option
+  e = feather_usage_arg(ops, interp, "?--?");
+  e = feather_usage_help(ops, interp, e,
+    "End of options marker");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Variable names (zero or more)
+  e = feather_usage_arg(ops, interp, "?name?...");
+  e = feather_usage_help(ops, interp, e,
+    "Zero or more variable names to delete");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Examples
+  e = feather_usage_example(ops, interp,
+    "unset myVar",
+    "Delete a single variable",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "unset var1 var2 var3",
+    "Delete multiple variables at once",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "unset -nocomplain optionalVar",
+    "Delete a variable that might not exist, without error",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "unset -- -nocomplain",
+    "Delete a variable literally named \"-nocomplain\"",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "unset", spec);
+}

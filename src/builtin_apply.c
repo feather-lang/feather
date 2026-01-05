@@ -240,3 +240,60 @@ FeatherResult feather_builtin_apply(const FeatherHostOps *ops, FeatherInterp int
 
   return result;
 }
+
+void feather_register_apply_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Apply an anonymous function",
+    "Applies an anonymous function (lambda expression) to the given arguments. "
+    "The lambda expression can be either a 2-element list {args body} or a 3-element list "
+    "{args body namespace}. When a namespace is provided, the body executes in that namespace.\n\n"
+    "The args list defines parameters which can be:\n"
+    "- Required parameters: simple names that must have corresponding arguments\n"
+    "- Optional parameters: {name default} pairs that use the default if no argument provided\n"
+    "- Variadic parameter: the special name 'args' collects remaining arguments into a list\n\n"
+    "IMPORTANT: Optional parameters followed by required parameters become required. "
+    "For example, {{x 1} y} requires both arguments because 'y' is required after optional 'x'. "
+    "However, 'args' does not make preceding optionals required.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<lambdaExpr>");
+  e = feather_usage_help(ops, interp, e,
+    "A 2 or 3-element list: {args body} or {args body namespace}. "
+    "The args element is a list of parameter specifications, body is the code to execute, "
+    "and namespace (if provided) specifies the namespace context.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?arg?...");
+  e = feather_usage_help(ops, interp, e,
+    "Arguments to pass to the lambda function. The number of arguments must match "
+    "the parameter requirements defined in the lambda expression.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "apply {{x y} {expr {$x + $y}}} 3 4",
+    "Apply a lambda that adds two numbers, returns 7",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "apply {{{x 1} {y 2}} {expr {$x + $y}}} 5",
+    "Use optional parameters with defaults, returns 7 (x=5, y=2)",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "apply {{first args} {list $first $args}} a b c",
+    "Collect remaining arguments with 'args', returns \"a {b c}\"",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "apply {{x} {set x 10} ::myns}",
+    "Execute lambda in specified namespace",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "apply", spec);
+}

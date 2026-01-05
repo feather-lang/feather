@@ -54,3 +54,59 @@ FeatherResult feather_builtin_throw(const FeatherHostOps *ops, FeatherInterp int
 
   return TCL_ERROR;
 }
+
+void feather_register_throw_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Generate a catchable error",
+    "Throws an error exception with a machine-readable error code and human-readable message. "
+    "The error can be caught by catch or try commands.\n\n"
+    "The type argument is a list of words that classifies the error in a machine-readable form. "
+    "By convention, these words should go from most general to most specific. For example, "
+    "{ARITH DIVZERO} or {POSIX ENOENT {no such file}}.\n\n"
+    "The message argument is a human-readable string describing the error.\n\n"
+    "When thrown, the error sets return options with -code 1 (error) and -errorcode containing "
+    "the type list. The error will unwind the call stack until caught by catch or try.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<type>");
+  e = feather_usage_help(ops, interp, e,
+    "A non-empty list of words classifying the error. Convention suggests ordering from "
+    "general to specific (e.g., {ARITH DIVZERO}).");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<message>");
+  e = feather_usage_help(ops, interp, e,
+    "Human-readable error message describing what went wrong.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "throw {ARITH DIVZERO} \"division by zero\"",
+    "Throw an arithmetic division-by-zero error",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "proc divide {a b} {\n"
+    "    if {$b == 0} {\n"
+    "        throw {ARITH DIVZERO} \"cannot divide by zero\"\n"
+    "    }\n"
+    "    expr {$a / $b}\n"
+    "}",
+    "Use throw in a procedure to signal invalid input",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "try {\n"
+    "    throw {MYAPP NOTFOUND} \"resource not found\"\n"
+    "} trap {MYAPP NOTFOUND} err {\n"
+    "    puts \"Caught: $err\"\n"
+    "}",
+    "Throw and catch a custom error type",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "throw", spec);
+}

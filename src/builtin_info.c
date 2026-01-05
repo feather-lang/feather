@@ -1046,3 +1046,131 @@ FeatherResult feather_builtin_info(const FeatherHostOps *ops, FeatherInterp inte
   ops->interp.set_result(interp, msg);
   return TCL_ERROR;
 }
+
+void feather_register_info_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Introspection and runtime information",
+    "Provides runtime introspection capabilities including information about "
+    "variables, procedures, commands, call stack, namespaces, and values. "
+    "The info command supports 14 subcommands for examining different aspects "
+    "of the interpreter state.\n\n"
+    "Pattern arguments use glob-style matching as supported by the string match command. "
+    "For commands and variables, if the pattern contains :: it is treated as a qualified "
+    "name where only the final component is used as a pattern.\n\n"
+    "Note: The type and methods subcommands are Feather-specific extensions not found in standard TCL.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<subcommand>");
+  e = feather_usage_help(ops, interp, e,
+    "One of: args, body, commands, default, exists, frame, globals, level, locals, methods, procs, script, type, vars");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?arg?...");
+  e = feather_usage_help(ops, interp, e, "Arguments specific to each subcommand");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Subcommand details
+  e = feather_usage_example(ops, interp,
+    "info exists varName",
+    "Returns 1 if variable varName exists in the current scope (including linked "
+    "variables from global/upvar/variable), 0 otherwise. Handles qualified names.",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "info level ?number?",
+    "Without arguments, returns the current call stack level. With a level number, "
+    "returns the command that was invoked at that level as a list. Level 0 means "
+    "current level, positive numbers are absolute levels, negative numbers are "
+    "relative (-1 is caller, -2 is caller's caller, etc.).",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "info commands ?pattern?",
+    "Returns a list of visible command names matching the optional pattern. "
+    "Searches the current namespace and global namespace. If pattern contains :: "
+    "it searches the specified namespace.",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "info procs ?pattern?",
+    "Returns a list of user-defined procedure names matching the optional pattern. "
+    "Excludes built-in commands. Namespace-aware like info commands.",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "info body procname",
+    "Returns the body of the specified procedure.",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "info args procname",
+    "Returns a list of parameter names for the specified procedure.",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "info frame ?number?",
+    "Without arguments, returns the current stack depth. With a level number, "
+    "returns a dictionary describing that stack frame with keys: type, cmd, proc, "
+    "level, file, namespace, line, lambda. Type can be proc, source, or eval.",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "info default procname arg varname",
+    "Checks if parameter arg of procedure procname has a default value. If it does, "
+    "stores the default in variable varname and returns 1. Otherwise returns 0.",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "info locals ?pattern?",
+    "Returns local variable names in the current scope matching the optional pattern. "
+    "Excludes variables linked via global/upvar/variable.",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "info globals ?pattern?",
+    "Returns global variable names matching the optional pattern.",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "info vars ?pattern?",
+    "Returns all visible variable names (both local and global) matching the optional "
+    "pattern. Namespace-aware.",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "info script",
+    "Returns the path of the current script file being evaluated, or empty string if "
+    "evaluated interactively.",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "info type value",
+    "Feather extension: Returns the type of a value. For foreign objects returns the "
+    "registered type name. For collections returns list or dict. For numbers returns "
+    "int or double. For everything else returns string.",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "info methods value",
+    "Feather extension: Returns a list of method names available on a foreign object. "
+    "Returns an error if the value is not a foreign object.",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "info", spec);
+}

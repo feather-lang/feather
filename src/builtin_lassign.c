@@ -1,6 +1,48 @@
 #include "feather.h"
 #include "internal.h"
 
+void feather_register_lassign_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Assign list elements to variables",
+    "Assigns successive elements from list to the variables given by the varName "
+    "arguments in order. If there are more variable names than list elements, the "
+    "remaining variables are set to the empty string. If there are more list elements "
+    "than variables, a list of the unassigned elements is returned as the result of "
+    "the command. If no varName arguments are provided, the command returns the entire "
+    "list.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<list>");
+  e = feather_usage_help(ops, interp, e, "The list whose elements are to be assigned");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?varName?...");
+  e = feather_usage_help(ops, interp, e, "Names of variables to assign list elements to");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lassign {a b c} x y z",
+    "Assigns x=a, y=b, z=c, returns empty string",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lassign {d e} x y z",
+    "Assigns x=d, y=e, z=\"\", returns empty string",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lassign {f g h i} x y",
+    "Assigns x=f, y=g, returns \"h i\"",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "lassign", spec);
+}
+
 FeatherResult feather_builtin_lassign(const FeatherHostOps *ops, FeatherInterp interp,
                                FeatherObj cmd, FeatherObj args) {
   (void)cmd;

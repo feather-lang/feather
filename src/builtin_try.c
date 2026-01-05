@@ -468,3 +468,92 @@ FeatherResult feather_builtin_try(const FeatherHostOps *ops, FeatherInterp inter
   ops->interp.set_result(interp, handlerResultObj);
   return handlerResult;
 }
+
+void feather_register_try_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Structured exception handling",
+    "Evaluates body script and provides exception handling through optional "
+    "handler clauses and cleanup through an optional finally clause.\n\n"
+    "Handlers are matched in order. The first matching handler executes its "
+    "script. If no handler matches, the body's result is propagated.\n\n"
+    "The finally clause always executes, regardless of whether an exception "
+    "occurred or a handler matched. If the finally script raises an exception, "
+    "it replaces the previous result.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<body>");
+  e = feather_usage_help(ops, interp, e, "Script to evaluate");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?on code variableList script?");
+  e = feather_usage_help(ops, interp, e,
+    "Handler that matches specific completion codes. The code can be ok (0), "
+    "error (1), return (2), break (3), continue (4), or an integer. "
+    "The variableList can be empty, contain one variable name (for the result), "
+    "or two variable names (for result and options dictionary). "
+    "If script is \"-\", fall through to the next handler while using this "
+    "handler's variable bindings.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?trap pattern variableList script?");
+  e = feather_usage_help(ops, interp, e,
+    "Handler that matches errors by -errorcode prefix. Only matches when "
+    "completion code is error (1). The pattern is a list prefix that must "
+    "match the beginning of the -errorcode value. An empty pattern {} matches "
+    "all errors. Variable binding and fallthrough work the same as for on.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?finally script?");
+  e = feather_usage_help(ops, interp, e,
+    "Cleanup script that always executes after body and any handler. "
+    "If finally raises an exception, it replaces the previous result. "
+    "Otherwise, the result from the body or handler is preserved. "
+    "Must appear at the end if present.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "try {\n"
+    "    expr {1 / 0}\n"
+    "} on error {result opts} {\n"
+    "    puts \"caught: $result\"\n"
+    "}",
+    "Catch errors using on handler:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "try {\n"
+    "    error \"custom error\" {} {MYAPP ERR01}\n"
+    "} trap {MYAPP} {result} {\n"
+    "    puts \"application error: $result\"\n"
+    "}",
+    "Match specific error codes using trap handler:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "try {\n"
+    "    set f [open file.txt]\n"
+    "    # process file\n"
+    "} finally {\n"
+    "    close $f\n"
+    "}",
+    "Ensure cleanup with finally clause:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "try {\n"
+    "    risky_operation\n"
+    "} trap {DB} - trap {NET} {err} {\n"
+    "    # handle both DB and NET errors\n"
+    "    log_error $err\n"
+    "}",
+    "Use fallthrough to handle multiple error types:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "try", spec);
+}

@@ -128,3 +128,56 @@ FeatherResult feather_builtin_catch(const FeatherHostOps *ops, FeatherInterp int
 
   return TCL_OK;
 }
+
+void feather_register_catch_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Evaluate a script and trap exceptional returns",
+    "Evaluates the script argument and returns an integer code indicating what happened "
+    "during evaluation. The return codes are: 0 (normal completion), 1 (error), 2 (return), "
+    "3 (break), or 4 (continue).\n\n"
+    "If resultVar is specified, the result or error message from evaluating the script is "
+    "stored in that variable.\n\n"
+    "If optionsVar is specified, a dictionary of return options is stored in that variable. "
+    "The options dictionary always contains -code and -level. For errors, it also contains "
+    "-errorinfo (human-readable stack trace), -errorcode (machine-readable error code), "
+    "-errorstack (detailed call stack), and -errorline (line number where error occurred).\n\n"
+    "When an error is caught, catch automatically sets the global variables ::errorInfo and "
+    "::errorCode with the error information.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<script>");
+  e = feather_usage_help(ops, interp, e, "The script to evaluate");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?resultVar?");
+  e = feather_usage_help(ops, interp, e, "Variable name to store the result or error message");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?optionsVar?");
+  e = feather_usage_help(ops, interp, e, "Variable name to store the return options dictionary");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "catch {expr {1 / 0}} msg",
+    "Catch division by zero error, store message in msg, return 1",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "catch {set x 42} result opts",
+    "Execute successful command, store result in result variable, options in opts, return 0",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "if {[catch {someCommand} msg]} {\n"
+    "    puts \"Error: $msg\"\n"
+    "}",
+    "Standard error handling pattern",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "catch", spec);
+}

@@ -390,6 +390,65 @@ static FeatherResult trace_info(const FeatherHostOps *ops, FeatherInterp interp,
   return TCL_OK;
 }
 
+void feather_register_trace_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Monitor and respond to variable access, command execution, and command renaming/deletion",
+    "The trace command allows scripts to monitor and respond to various interpreter events. "
+    "Three types of traces are supported:\n\n"
+    "Variable traces fire when variables are read, written, or unset. The callback receives "
+    "the variable name, array index (always empty in Feather), and operation.\n\n"
+    "Command traces fire when commands are renamed or deleted. The callback receives "
+    "the old name, new name (empty for delete), and operation.\n\n"
+    "Execution traces fire when commands are executed. Enter traces fire before execution "
+    "with the command string. Leave traces fire after execution with the command string, "
+    "result code, result value, and operation. Step traces (enterstep/leavestep) fire for "
+    "every command in a procedure and propagate through nested calls.\n\n"
+    "Note: Feather does not support TCL-style arrays. The 'array' operation for variable "
+    "traces is not supported, and the array index argument passed to variable trace callbacks "
+    "is always an empty string.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<option>");
+  e = feather_usage_help(ops, interp, e, "Must be one of: add, remove, or info");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?arg?...");
+  e = feather_usage_help(ops, interp, e, "Arguments specific to the option");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Example: trace add variable
+  e = feather_usage_example(ops, interp,
+    "trace add variable myVar {write} {puts \"myVar was written\"}",
+    "Add a write trace to variable myVar that prints when it's written:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Example: trace add execution
+  e = feather_usage_example(ops, interp,
+    "trace add execution myProc {enter leave} {puts \"myProc: $args\"}",
+    "Add enter/leave traces to procedure myProc:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Example: trace info
+  e = feather_usage_example(ops, interp,
+    "trace info variable myVar",
+    "List all traces on variable myVar:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Example: trace remove
+  e = feather_usage_example(ops, interp,
+    "trace remove variable myVar {write} {puts \"myVar was written\"}",
+    "Remove a specific trace from variable myVar:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "trace", spec);
+}
+
 FeatherResult feather_builtin_trace(const FeatherHostOps *ops, FeatherInterp interp,
                             FeatherObj cmd, FeatherObj args) {
   size_t argc = ops->list.length(interp, args);

@@ -763,3 +763,96 @@ FeatherResult feather_builtin_scan(const FeatherHostOps *ops, FeatherInterp inte
 
   return TCL_OK;
 }
+
+void feather_register_scan_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Parse string using format specifiers",
+    "Parses the string using conversion specifiers in the format string, similar to the C sscanf function.\n\n"
+    "If variable names are provided, scan operates in variable mode: it assigns parsed values to the named variables and returns the count of successfully assigned values. If no variable names are provided, scan operates in inline mode: it returns a list of parsed values.\n\n"
+    "Returns -1 if the input string is exhausted before any conversions are performed.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<string>");
+  e = feather_usage_help(ops, interp, e,
+    "The input string to parse");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<format>");
+  e = feather_usage_help(ops, interp, e,
+    "The format string containing conversion specifiers. Whitespace in the format matches zero or more whitespace characters in the input. Non-% characters must match exactly. Supported conversion specifiers:\n\n"
+    "%d - decimal integer\n"
+    "%u - unsigned decimal integer\n"
+    "%o - octal integer\n"
+    "%x, %X - hexadecimal integer\n"
+    "%b - binary integer\n"
+    "%i - auto-detect base (0x=hex, 0=octal, else decimal)\n"
+    "%c - single character (returns Unicode codepoint)\n"
+    "%s - non-whitespace string\n"
+    "%f, %e, %E, %g, %G - floating-point number\n"
+    "%[chars] - match character set\n"
+    "%[^chars] - match negated character set\n"
+    "%n - characters scanned so far\n"
+    "%% - literal percent\n\n"
+    "Field width: %10s limits to 10 characters\n"
+    "Suppression: %*d discards the value\n"
+    "Positional: %2$d assigns to 2nd variable\n"
+    "Size modifiers: %ld, %lld (controls integer truncation)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?varName?...");
+  e = feather_usage_help(ops, interp, e,
+    "Variable names to store parsed values (variable mode). If omitted, returns a list of values (inline mode).");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "scan \"25 100\" \"%d %d\" x y",
+    "Parse two decimal integers, assign to x and y, return 2",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "scan \"25 100\" \"%d %d\"",
+    "Parse two decimal integers, return list {25 100}",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "scan \"0xFF\" \"%i\" val",
+    "Parse hexadecimal with auto-detect, assign 255 to val",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "scan \"hello world\" \"%s %s\"",
+    "Parse two words, return {hello world}",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "scan \"A\" \"%c\" code",
+    "Get Unicode codepoint of 'A' (65), assign to code",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "scan \"abc123def\" \"%[a-z]%d%s\" str num rest",
+    "Parse with character set: str=abc, num=123, rest=def",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "scan \"x=10 y=20\" \"x=%d y=%d\" x y",
+    "Parse with literal matching",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "scan \"first second third\" \"%2\\$s %1\\$s\" a b",
+    "Use positional specifiers: a=first, b=second",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "scan", spec);
+}
