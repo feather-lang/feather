@@ -9,17 +9,28 @@ import "github.com/feather-lang/feather"
 #include <stdint.h>
 #include <string.h>
 
+// Handle types (size_t to match Go's export)
+typedef size_t FeatherInterpHandle;
+typedef size_t FeatherObjHandle;
+
 // Callback type for custom commands registered from C
-typedef int (*FeatherCommandCallback)(void *userData, int argc, char **argv, char **result, char **error);
+// Commands receive handles and can use FeatherGetString, FeatherGetInt, etc. to extract values
+typedef int (*FeatherCommandCallback)(void *userData, FeatherInterpHandle interp,
+                                       int argc, FeatherObjHandle *argv,
+                                       FeatherObjHandle *result, char **error);
 
 // Wrapper function to call C callback from Go
-static inline int callCCallback(FeatherCommandCallback cb, void *userData, int argc, char **argv, char **result, char **error) {
-    return cb(userData, argc, argv, result, error);
+static inline int callCCallback(FeatherCommandCallback cb, void *userData,
+                                FeatherInterpHandle interp, int argc, FeatherObjHandle *argv,
+                                FeatherObjHandle *result, char **error) {
+    return cb(userData, interp, argc, argv, result, error);
 }
 
 // Foreign type callbacks
 typedef void* (*FeatherForeignNewFunc)(void *userData);
-typedef int (*FeatherForeignInvokeFunc)(void *instance, const char *method, int argc, char **argv, char **result, char **error);
+typedef int (*FeatherForeignInvokeFunc)(void *instance, FeatherInterpHandle interp,
+                                         const char *method, int argc, FeatherObjHandle *argv,
+                                         FeatherObjHandle *result, char **error);
 typedef void (*FeatherForeignDestroyFunc)(void *instance);
 
 // Wrapper functions for foreign type callbacks
@@ -27,8 +38,11 @@ static inline void* callForeignNew(FeatherForeignNewFunc fn, void *userData) {
     return fn(userData);
 }
 
-static inline int callForeignInvoke(FeatherForeignInvokeFunc fn, void *instance, const char *method, int argc, char **argv, char **result, char **error) {
-    return fn(instance, method, argc, argv, result, error);
+static inline int callForeignInvoke(FeatherForeignInvokeFunc fn, void *instance,
+                                    FeatherInterpHandle interp, const char *method,
+                                    int argc, FeatherObjHandle *argv,
+                                    FeatherObjHandle *result, char **error) {
+    return fn(instance, interp, method, argc, argv, result, error);
 }
 
 static inline void callForeignDestroy(FeatherForeignDestroyFunc fn, void *instance) {
@@ -986,6 +1000,7 @@ func FeatherRegisterCommand(interp C.size_t, name *C.char, callback C.FeatherCom
 	}
 
 	goName := C.GoString(name)
+	interpHandle := uint64(interp)
 
 	// Store callback info
 	info := &cCommandInfo{
@@ -998,29 +1013,26 @@ func FeatherRegisterCommand(interp C.size_t, name *C.char, callback C.FeatherCom
 
 	// Register Go wrapper that calls C callback
 	state.interp.RegisterCommand(goName, func(i *feather.Interp, cmd *feather.Obj, args []*feather.Obj) feather.Result {
-		// Convert args to C strings
+		// Convert args to handles
 		argc := len(args)
-		var cArgs **C.char
+		var cArgs *C.size_t
 		if argc > 0 {
-			cArgs = (**C.char)(C.malloc(C.size_t(argc) * C.size_t(unsafe.Sizeof((*C.char)(nil)))))
+			cArgs = (*C.size_t)(C.malloc(C.size_t(argc) * C.size_t(unsafe.Sizeof(C.size_t(0)))))
 			argSlice := unsafe.Slice(cArgs, argc)
 			for j, arg := range args {
-				argSlice[j] = C.CString(arg.String())
+				argSlice[j] = C.size_t(state.storeObj(arg))
 			}
 		}
 
-		var result *C.char
+		var result C.size_t
 		var errMsg *C.char
 
-		// Call C callback
-		ret := C.callCCallback(info.callback, info.userData, C.int(argc), cArgs, &result, &errMsg)
+		// Call C callback with interpreter handle and arg handles
+		ret := C.callCCallback(info.callback, info.userData, C.size_t(interpHandle),
+			C.int(argc), cArgs, &result, &errMsg)
 
-		// Free C arg strings
+		// Free the args array (handles are managed by refcount)
 		if cArgs != nil {
-			argSlice := unsafe.Slice(cArgs, argc)
-			for j := 0; j < argc; j++ {
-				C.free(unsafe.Pointer(argSlice[j]))
-			}
 			C.free(unsafe.Pointer(cArgs))
 		}
 
@@ -1035,12 +1047,14 @@ func FeatherRegisterCommand(interp C.size_t, name *C.char, callback C.FeatherCom
 			return feather.Error(errStr)
 		}
 
-		var resultStr string
-		if result != nil {
-			resultStr = C.GoString(result)
-			C.free(unsafe.Pointer(result))
+		// Get result object from handle
+		if result != 0 {
+			resultObj := state.getObj(uint64(result))
+			if resultObj != nil {
+				return feather.OK(resultObj)
+			}
 		}
-		return feather.OK(i.String(resultStr))
+		return feather.OK(i.String(""))
 	})
 
 	return 0
@@ -1086,6 +1100,7 @@ func FeatherRegisterForeign(interp C.size_t, typeName *C.char,
 	}
 
 	goTypeName := C.GoString(typeName)
+	interpHandle := uint64(interp)
 
 	// Store foreign type info
 	info := &cForeignTypeInfo{
@@ -1154,31 +1169,27 @@ func FeatherRegisterForeign(interp C.size_t, typeName *C.char,
 				return feather.OK(i.String(""))
 			}
 
-			// Convert remaining args to C strings
+			// Convert remaining args to handles
 			methodArgs := args[1:]
 			argc := len(methodArgs)
-			var cArgs **C.char
+			var cArgs *C.size_t
 			if argc > 0 {
-				cArgs = (**C.char)(C.malloc(C.size_t(argc) * C.size_t(unsafe.Sizeof((*C.char)(nil)))))
+				cArgs = (*C.size_t)(C.malloc(C.size_t(argc) * C.size_t(unsafe.Sizeof(C.size_t(0)))))
 				argSlice := unsafe.Slice(cArgs, argc)
 				for j, arg := range methodArgs {
-					argSlice[j] = C.CString(arg.String())
+					argSlice[j] = C.size_t(state.storeObj(arg))
 				}
 			}
 
-			var result *C.char
+			var result C.size_t
 			var errMsg *C.char
 
-			// Call C invoke callback
+			// Call C invoke callback with interpreter handle and arg handles
 			ret := C.callForeignInvoke(info.invokeFn, instanceInfo.instance,
-				C.CString(methodName), C.int(argc), cArgs, &result, &errMsg)
+				C.size_t(interpHandle), C.CString(methodName), C.int(argc), cArgs, &result, &errMsg)
 
-			// Free C arg strings
+			// Free the args array
 			if cArgs != nil {
-				argSlice := unsafe.Slice(cArgs, argc)
-				for j := 0; j < argc; j++ {
-					C.free(unsafe.Pointer(argSlice[j]))
-				}
 				C.free(unsafe.Pointer(cArgs))
 			}
 
@@ -1193,12 +1204,14 @@ func FeatherRegisterForeign(interp C.size_t, typeName *C.char,
 				return feather.Error(errStr)
 			}
 
-			var resultStr string
-			if result != nil {
-				resultStr = C.GoString(result)
-				C.free(unsafe.Pointer(result))
+			// Get result object from handle
+			if result != 0 {
+				resultObj := state.getObj(uint64(result))
+				if resultObj != nil {
+					return feather.OK(resultObj)
+				}
 			}
-			return feather.OK(i.String(resultStr))
+			return feather.OK(i.String(""))
 		})
 
 		// Return the foreign object (not a string)

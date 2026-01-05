@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include "libfeather.h"
 
-// Convenience typedefs
+// Convenience typedefs matching the Go exports
 typedef size_t FeatherInterp;
 typedef size_t FeatherObj;
 
@@ -38,75 +38,46 @@ static void write_harness_result(const char *code, const char *result, const cha
 }
 
 // -----------------------------------------------------------------------------
-// Test Commands
+// Test Commands (handle-based API)
 // -----------------------------------------------------------------------------
 
-static int cmd_say_hello(void *userData, int argc, char **argv, char **result, char **error) {
+static int cmd_say_hello(void *userData, FeatherInterp interp, int argc, FeatherObj *argv,
+                         FeatherObj *result, char **error) {
     (void)userData; (void)argc; (void)argv; (void)error;
     printf("hello\n");
-    *result = strdup("");
+    *result = FeatherString(interp, "", 0);
     return 0;
 }
 
-static int cmd_echo(void *userData, int argc, char **argv, char **result, char **error) {
+static int cmd_echo(void *userData, FeatherInterp interp, int argc, FeatherObj *argv,
+                    FeatherObj *result, char **error) {
     (void)userData; (void)error;
     for (int i = 0; i < argc; i++) {
         if (i > 0) printf(" ");
-        printf("%s", argv[i]);
+        size_t len;
+        char *s = FeatherGetString(argv[i], interp, &len);
+        printf("%s", s);
+        FeatherFreeString(s);
     }
     printf("\n");
-    *result = strdup("");
+    *result = FeatherString(interp, "", 0);
     return 0;
 }
 
-static int cmd_count(void *userData, int argc, char **argv, char **result, char **error) {
+static int cmd_count(void *userData, FeatherInterp interp, int argc, FeatherObj *argv,
+                     FeatherObj *result, char **error) {
     (void)userData; (void)argv; (void)error;
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%d", argc);
-    *result = strdup(buf);
+    // Return the count as an integer
+    *result = FeatherInt(interp, (int64_t)argc);
     return 0;
 }
 
-static int cmd_list(void *userData, int argc, char **argv, char **result, char **error) {
+static int cmd_list(void *userData, FeatherInterp interp, int argc, FeatherObj *argv,
+                    FeatherObj *result, char **error) {
     (void)userData; (void)error;
 
-    // Calculate result size
-    size_t total_len = 0;
-    for (int i = 0; i < argc; i++) {
-        total_len += strlen(argv[i]) + 3; // space + possible braces
-    }
-
-    char *buf = malloc(total_len + 1);
-    if (!buf) {
-        *error = strdup("out of memory");
-        return 1;
-    }
-    buf[0] = '\0';
-
-    for (int i = 0; i < argc; i++) {
-        if (i > 0) strcat(buf, " ");
-
-        const char *s = argv[i];
-        int needs_braces = 0;
-        for (const char *p = s; *p; p++) {
-            if (*p == ' ' || *p == '\t' || *p == '\n' || *p == '{' || *p == '}') {
-                needs_braces = 1;
-                break;
-            }
-        }
-
-        if (needs_braces) {
-            strcat(buf, "{");
-            strcat(buf, s);
-            strcat(buf, "}");
-        } else if (s[0] == '\0') {
-            strcat(buf, "{}");
-        } else {
-            strcat(buf, s);
-        }
-    }
-
-    *result = buf;
+    // Build the list directly using FeatherList
+    *result = FeatherList(interp, argc, argv);
     return 0;
 }
 
@@ -125,19 +96,9 @@ static void* counter_new(void *userData) {
     return c;
 }
 
-// Helper to check if a string is a valid integer
-static int is_valid_int(const char *s, int *out) {
-    if (!s || !*s) return 0;
-    char *endptr;
-    long val = strtol(s, &endptr, 10);
-    if (*endptr != '\0') return 0; // Not a valid integer
-    if (out) *out = (int)val;
-    return 1;
-}
-
-static int counter_invoke(void *instance, const char *method,
-                          int argc, char **argv,
-                          char **result, char **error) {
+static int counter_invoke(void *instance, FeatherInterp interp, const char *method,
+                          int argc, FeatherObj *argv,
+                          FeatherObj *result, char **error) {
     Counter *c = (Counter*)instance;
     char buf[256];
 
@@ -147,8 +108,7 @@ static int counter_invoke(void *instance, const char *method,
             *error = strdup(buf);
             return 1;
         }
-        snprintf(buf, sizeof(buf), "%d", c->value);
-        *result = strdup(buf);
+        *result = FeatherInt(interp, (int64_t)c->value);
         return 0;
     }
 
@@ -158,14 +118,17 @@ static int counter_invoke(void *instance, const char *method,
             *error = strdup(buf);
             return 1;
         }
-        int val;
-        if (!is_valid_int(argv[0], &val)) {
-            snprintf(buf, sizeof(buf), "argument 1: expected integer but got \"%s\"", argv[0]);
+        int64_t val;
+        if (FeatherGetInt(argv[0], interp, &val) != 0) {
+            size_t len;
+            char *s = FeatherGetString(argv[0], interp, &len);
+            snprintf(buf, sizeof(buf), "argument 1: expected integer but got \"%s\"", s);
+            FeatherFreeString(s);
             *error = strdup(buf);
             return 1;
         }
-        c->value = val;
-        *result = strdup("");
+        c->value = (int)val;
+        *result = FeatherString(interp, "", 0);
         return 0;
     }
 
@@ -176,8 +139,7 @@ static int counter_invoke(void *instance, const char *method,
             return 1;
         }
         c->value++;
-        snprintf(buf, sizeof(buf), "%d", c->value);
-        *result = strdup(buf);
+        *result = FeatherInt(interp, (int64_t)c->value);
         return 0;
     }
 
@@ -187,15 +149,17 @@ static int counter_invoke(void *instance, const char *method,
             *error = strdup(buf);
             return 1;
         }
-        int val;
-        if (!is_valid_int(argv[0], &val)) {
-            snprintf(buf, sizeof(buf), "argument 1: expected integer but got \"%s\"", argv[0]);
+        int64_t val;
+        if (FeatherGetInt(argv[0], interp, &val) != 0) {
+            size_t len;
+            char *s = FeatherGetString(argv[0], interp, &len);
+            snprintf(buf, sizeof(buf), "argument 1: expected integer but got \"%s\"", s);
+            FeatherFreeString(s);
             *error = strdup(buf);
             return 1;
         }
-        c->value += val;
-        snprintf(buf, sizeof(buf), "%d", c->value);
-        *result = strdup(buf);
+        c->value += (int)val;
+        *result = FeatherInt(interp, (int64_t)c->value);
         return 0;
     }
 
