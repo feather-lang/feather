@@ -45,11 +45,16 @@ Key things to identify:
 
 ### 3. Check TCL Documentation (If Applicable)
 
-If implementing a TCL command, check the reference manual:
+If implementing a TCL command, use the **view-manual** skill to check the reference manual:
 
 ```bash
 man -P cat n <command>
 ```
+
+The TCL manpage provides the authoritative format for help output. Key elements to adapt:
+- **Subcommand signatures**: Show the full signature like `namespace children ?namespace? ?pattern?`
+- **Detailed descriptions**: Each subcommand should have 1-2 paragraphs explaining its behavior
+- **Paragraph breaks**: Use `\n\n` to separate distinct concepts within descriptions
 
 **IMPORTANT**: Do not copy TCL documentation verbatim. Feather has important differences:
 - **No array support** - Array syntax like `myArray(key)` is not supported
@@ -191,7 +196,10 @@ Implemented comprehensive usage documentation including:
 | `feather_usage_spec()` | Create new spec |
 | `feather_usage_about()` | Set command name and description |
 | `feather_usage_arg()` | Add argument (use `<name>` for required, `?name?` for optional) |
-| `feather_usage_help()` | Add help text to previous element |
+| `feather_usage_flag()` | Add flag (use `-short` for TCL-style single-dash flags) |
+| `feather_usage_cmd()` | Add subcommand with its own nested spec |
+| `feather_usage_help()` | Add short help text to previous element |
+| `feather_usage_long_help()` | Add detailed description (1-2 paragraphs) to previous element |
 | `feather_usage_example()` | Add code example with description |
 | `feather_usage_add()` | Add element to spec |
 | `feather_usage_register()` | Register complete spec for command |
@@ -206,6 +214,49 @@ Implemented comprehensive usage documentation including:
 | `?name?...` | Variadic optional (0 or more) |
 
 **Note**: Use `?arg?` not `[arg]` because `[]` triggers command substitution in TCL.
+
+### Subcommands
+
+**IMPORTANT**: If a command has subcommands, each subcommand MUST be structurally defined using `feather_usage_cmd()`. Do NOT just list subcommands in help text - they must be registered as structured data to appear in the COMMANDS section of help output.
+
+Use `feather_usage_long_help()` to provide detailed descriptions (1-2 paragraphs) for each subcommand, following the TCL manpage format. See `src/builtin_namespace.c` for an example of comprehensive subcommand documentation.
+
+```c
+// Create a subspec for the subcommand's arguments
+FeatherObj subspec = feather_usage_spec(ops, interp);
+e = feather_usage_arg(ops, interp, "?namespace?");
+subspec = feather_usage_add(ops, interp, subspec, e);
+e = feather_usage_arg(ops, interp, "?pattern?");
+subspec = feather_usage_add(ops, interp, subspec, e);
+
+// Register the subcommand with detailed description
+e = feather_usage_cmd(ops, interp, "children", subspec);
+e = feather_usage_long_help(ops, interp, e,
+    "Returns a list of all child namespaces that belong to the namespace. "
+    "If namespace is not specified, then the children are returned for the "
+    "current namespace.\n\n"
+    "If the optional pattern is given, then this command returns only the "
+    "names that match the glob-style pattern.");
+spec = feather_usage_add(ops, interp, spec, e);
+```
+
+| Function | Purpose |
+|----------|---------|
+| `feather_usage_cmd()` | Define a subcommand with its own nested spec |
+| `feather_usage_long_help()` | Add detailed description (1-2 paragraphs) |
+
+When subcommands are properly registered, the help output includes a COMMANDS section matching TCL manpage format:
+
+```
+COMMANDS
+       command children ?namespace? ?pattern?
+              Returns a list of all child namespaces that belong to the
+              namespace. If namespace is not specified, then the
+              children are returned for the current namespace.
+
+              If the optional pattern is given, then this command
+              returns only the names that match the glob-style pattern.
+```
 
 ### Multi-paragraph Descriptions
 
@@ -296,6 +347,7 @@ spec = feather_usage_add(ops, interp, spec, e);
 4. **Use paragraph breaks** - `\n\n` for readable multi-paragraph help
 5. **Test the output** - Always view the rendered help before committing
 6. **Keep it accurate** - Help must match actual Feather behavior
+7. **Structurally define subcommands** - Use `feather_usage_cmd()` for each subcommand; do NOT just list them in help text
 
 ## Example Session
 

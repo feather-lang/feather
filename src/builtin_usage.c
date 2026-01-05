@@ -817,6 +817,23 @@ static void append_wrapped(const FeatherHostOps *ops, FeatherInterp interp,
 }
 
 /**
+ * Append text verbatim, indenting each line after a newline.
+ * Used for code examples where we want to preserve formatting but add indentation.
+ */
+static void append_indented_verbatim(const FeatherHostOps *ops, FeatherInterp interp,
+                                      FeatherObj builder, FeatherObj text,
+                                      const char *indent) {
+  size_t len = ops->string.byte_length(interp, text);
+  for (size_t i = 0; i < len; i++) {
+    int ch = ops->string.byte_at(interp, text, i);
+    ops->string.builder_append_byte(interp, builder, ch);
+    if (ch == '\n' && i + 1 < len) {
+      append_str(ops, interp, builder, indent);
+    }
+  }
+}
+
+/**
  * Generate usage string for display (--help output)
  * Follows standard Unix manpage format with NAME, SYNOPSIS, DESCRIPTION, etc.
  */
@@ -1032,6 +1049,7 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
   /* === COMMANDS section === */
   if (hasSubcmds) {
     append_str(ops, interp, builder, "\n\nCOMMANDS");
+    int cmdCount = 0;
 
     for (size_t i = 0; i < specLen; i++) {
       FeatherObj entry = ops->list.at(interp, parsedSpec, i);
@@ -1040,15 +1058,79 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
         int64_t hide = dict_get_int(ops, interp, entry, K_HIDE);
         if (hide) continue;
 
-        FeatherObj name = dict_get_str(ops, interp, entry, K_NAME);
-        FeatherObj helpText = dict_get_str(ops, interp, entry, K_HELP);
+        /* Add blank line between commands for readability */
+        if (cmdCount > 0) {
+          ops->string.builder_append_byte(interp, builder, '\n');
+        }
+        cmdCount++;
 
+        FeatherObj name = dict_get_str(ops, interp, entry, K_NAME);
+        FeatherObj subspec = dict_get_str(ops, interp, entry, K_SPEC);
+        FeatherObj helpText = dict_get_str(ops, interp, entry, K_HELP);
+        FeatherObj longHelp = dict_get_str(ops, interp, entry, K_LONG_HELP);
+
+        /* Build signature line: cmdName subcmdName ?arg1? <arg2>... */
         append_str(ops, interp, builder, "\n       ");
+        ops->string.builder_append_obj(interp, builder, cmdName);
+        ops->string.builder_append_byte(interp, builder, ' ');
         ops->string.builder_append_obj(interp, builder, name);
 
-        if (ops->string.byte_length(interp, helpText) > 0) {
+        /* Add arguments from subspec to signature */
+        if (!ops->list.is_nil(interp, subspec)) {
+          size_t subLen = ops->list.length(interp, subspec);
+          for (size_t j = 0; j < subLen; j++) {
+            FeatherObj subEntry = ops->list.at(interp, subspec, j);
+            if (entry_is_type(ops, interp, subEntry, T_ARG)) {
+              int64_t subHide = dict_get_int(ops, interp, subEntry, K_HIDE);
+              if (subHide) continue;
+
+              FeatherObj argName = dict_get_str(ops, interp, subEntry, K_NAME);
+              int64_t required = dict_get_int(ops, interp, subEntry, K_REQUIRED);
+              int64_t variadic = dict_get_int(ops, interp, subEntry, K_VARIADIC);
+
+              ops->string.builder_append_byte(interp, builder, ' ');
+              if (required) {
+                ops->string.builder_append_byte(interp, builder, '<');
+                ops->string.builder_append_obj(interp, builder, argName);
+                ops->string.builder_append_byte(interp, builder, '>');
+              } else {
+                ops->string.builder_append_byte(interp, builder, '?');
+                ops->string.builder_append_obj(interp, builder, argName);
+                ops->string.builder_append_byte(interp, builder, '?');
+              }
+              if (variadic) {
+                append_str(ops, interp, builder, "...");
+              }
+            } else if (entry_is_type(ops, interp, subEntry, T_FLAG)) {
+              int64_t subHide = dict_get_int(ops, interp, subEntry, K_HIDE);
+              if (subHide) continue;
+
+              FeatherObj shortFlag = dict_get_str(ops, interp, subEntry, K_SHORT);
+              FeatherObj longFlag = dict_get_str(ops, interp, subEntry, K_LONG);
+
+              ops->string.builder_append_byte(interp, builder, ' ');
+              ops->string.builder_append_byte(interp, builder, '?');
+              if (ops->string.byte_length(interp, shortFlag) > 0) {
+                ops->string.builder_append_byte(interp, builder, '-');
+                ops->string.builder_append_obj(interp, builder, shortFlag);
+              } else if (ops->string.byte_length(interp, longFlag) > 0) {
+                append_str(ops, interp, builder, "--");
+                ops->string.builder_append_obj(interp, builder, longFlag);
+              }
+              ops->string.builder_append_byte(interp, builder, '?');
+            }
+          }
+        }
+
+        /* Use long_help if available, otherwise fall back to help */
+        FeatherObj descText = longHelp;
+        if (ops->string.byte_length(interp, descText) == 0) {
+          descText = helpText;
+        }
+
+        if (ops->string.byte_length(interp, descText) > 0) {
           append_str(ops, interp, builder, "\n              ");
-          FeatherObj trimmed = trim_text_block(ops, interp, helpText);
+          FeatherObj trimmed = trim_text_block(ops, interp, descText);
           append_wrapped(ops, interp, builder, trimmed, "              ", 58);
         }
       }
@@ -1092,7 +1174,7 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
         if (ops->string.byte_length(interp, code) > 0) {
           append_str(ops, interp, builder, "\n\n           ");
           FeatherObj trimmed = trim_text_block(ops, interp, code);
-          ops->string.builder_append_obj(interp, builder, trimmed);
+          append_indented_verbatim(ops, interp, builder, trimmed, "           ");
         }
       }
     }

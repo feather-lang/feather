@@ -852,83 +852,292 @@ static FeatherResult ns_which(const FeatherHostOps *ops, FeatherInterp interp, F
 
 void feather_register_namespace_usage(const FeatherHostOps *ops, FeatherInterp interp) {
   FeatherObj spec = feather_usage_spec(ops, interp);
+  FeatherObj subspec;
+  FeatherObj e;
 
-  FeatherObj e = feather_usage_about(ops, interp,
-    "Create and manipulate namespaces",
-    "Provides commands for creating, deleting, and manipulating namespaces. "
-    "Namespaces provide isolated command and variable scopes, allowing better "
-    "organization and encapsulation in larger programs.\n\n"
-    "Namespaces are hierarchical and can be nested. The global namespace is "
-    "represented by \"::\" and all other namespaces are its descendants. "
-    "Namespace names starting with \"::\" are absolute, while others are "
-    "relative to the current namespace.\n\n"
-    "The namespace command provides 15 subcommands for different operations.");
+  e = feather_usage_about(ops, interp,
+    "Create and manipulate contexts for commands and variables",
+    "The namespace command lets you create, access, and destroy separate "
+    "contexts for commands and variables. Namespaces are hierarchical and "
+    "can be nested. The global namespace is represented by \"::\" and all "
+    "other namespaces are its descendants. Namespace names starting with "
+    "\"::\" are absolute, while others are relative to the current namespace.");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_arg(ops, interp, "<subcommand>");
-  e = feather_usage_help(ops, interp, e,
-    "The operation to perform. Must be one of: children, code, current, "
-    "delete, eval, exists, export, forget, import, inscope, origin, parent, "
-    "qualifiers, tail, or which.");
+  // --- Subcommand: children ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "?namespace?");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?pattern?");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "children", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns a list of all child namespaces that belong to the namespace. "
+    "If namespace is not specified, then the children are returned for the "
+    "current namespace. This command returns fully-qualified names, which "
+    "start with a double colon (::).\n\n"
+    "If the optional pattern is given, then this command returns only the "
+    "names that match the glob-style pattern. The actual pattern used is "
+    "determined as follows: a pattern that starts with double colon (::) is "
+    "used directly, otherwise the namespace (or the fully-qualified name of "
+    "the current namespace) is prepended onto the pattern.");
   spec = feather_usage_add(ops, interp, spec, e);
 
+  // --- Subcommand: code ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<script>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "code", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Captures the current namespace context for later execution of the "
+    "script. It returns a new script in which script has been wrapped in a "
+    "namespace inscope command. The new script has two important properties. "
+    "First, it can be evaluated in any namespace and will cause script to be "
+    "evaluated in the current namespace (the one where the namespace code "
+    "command was invoked). Second, additional arguments can be appended to "
+    "the resulting script and they will be passed to script as additional "
+    "arguments.\n\n"
+    "This command is needed because callbacks are normally executed in the "
+    "global namespace. A scoped command captures a command together with its "
+    "namespace context in a way that allows it to be executed properly later.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: current ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_cmd(ops, interp, "current", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns the fully-qualified name for the current namespace. The actual "
+    "name of the global namespace is \"\" (i.e., an empty string), but this "
+    "command returns :: for the global namespace as a convenience to "
+    "programmers.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: delete ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "?namespace?...");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "delete", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Each namespace is deleted and all variables, procedures, and child "
+    "namespaces contained in the namespace are deleted. If a namespace does "
+    "not exist, this command returns an error. If no namespace names are "
+    "given, this command does nothing.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: eval ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<namespace>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<arg>...");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "eval", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Activates a namespace called namespace and evaluates some code in that "
+    "context. If the namespace does not already exist, it is created. If "
+    "more than one arg argument is specified, the arguments are concatenated "
+    "together with a space between each one in the same fashion as the eval "
+    "command, and the result is evaluated.\n\n"
+    "If namespace has leading namespace qualifiers and any leading namespaces "
+    "do not exist, they are automatically created.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: exists ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<namespace>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "exists", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns 1 if namespace is a valid namespace in the current context, "
+    "returns 0 otherwise.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: export ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_flag(ops, interp, "-clear", NULL, NULL);
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?pattern?...");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "export", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Specifies which commands are exported from a namespace. The exported "
+    "commands are those that can be later imported into another namespace "
+    "using a namespace import command. Both commands defined in a namespace "
+    "and commands the namespace has previously imported can be exported by a "
+    "namespace. The commands do not have to be defined at the time the "
+    "namespace export command is executed.\n\n"
+    "Each pattern may contain glob-style special characters, but it may not "
+    "include any namespace qualifiers. That is, the pattern can only specify "
+    "commands in the current (exporting) namespace. Each pattern is appended "
+    "onto the namespace's list of export patterns. If the -clear flag is "
+    "given, the namespace's export pattern list is reset to empty before any "
+    "pattern arguments are appended. If no patterns are given and the -clear "
+    "flag is not given, this command returns the namespace's current export "
+    "list.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: forget ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "?pattern?...");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "forget", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Removes previously imported commands from a namespace. Each pattern is "
+    "a simple or qualified name such as x, foo::x or a::b::p*. Qualified "
+    "names contain double colons (::) and qualify a name with the name of "
+    "one or more namespaces.\n\n"
+    "For each simple pattern this command deletes the matching commands of "
+    "the current namespace that were imported from a different namespace. "
+    "For qualified patterns, this command first finds the matching exported "
+    "commands. It then checks whether any of those commands were previously "
+    "imported by the current namespace. If so, this command deletes the "
+    "corresponding imported commands. In effect, this undoes the action of a "
+    "namespace import command.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: import ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_flag(ops, interp, "-force", NULL, NULL);
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?pattern?...");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "import", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Imports commands into a namespace, or queries the set of imported "
+    "commands in a namespace. When no arguments are present, namespace import "
+    "returns the list of commands in the current namespace that have been "
+    "imported from other namespaces.\n\n"
+    "When pattern arguments are present, each pattern is a qualified name "
+    "like foo::x or a::p*. That is, it includes the name of an exporting "
+    "namespace and may have glob-style special characters in the command name "
+    "at the end of the qualified name. All the commands that match a pattern "
+    "string and which are currently exported from their namespace are added "
+    "to the current namespace. This command normally returns an error if an "
+    "imported command conflicts with an existing command. However, if the "
+    "-force option is given, imported commands will silently replace existing "
+    "commands.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: inscope ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<namespace>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<script>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_arg(ops, interp, "?arg?...");
-  e = feather_usage_help(ops, interp, e, "Arguments specific to the subcommand");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "inscope", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Executes a script in the context of the specified namespace. This "
+    "command is not expected to be used directly by programmers; calls to it "
+    "are generated implicitly when applications use namespace code commands "
+    "to create callback scripts.\n\n"
+    "The namespace inscope command is much like the namespace eval command "
+    "except that the namespace must already exist, and namespace inscope "
+    "appends additional args as proper list elements. Thus additional "
+    "arguments will not undergo a second round of substitution, as is the "
+    "case with namespace eval.");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  // Example: namespace current
+  // --- Subcommand: origin ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<command>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "origin", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns the fully-qualified name of the original command to which the "
+    "imported command refers. When a command is imported into a namespace, a "
+    "new command is created in that namespace that points to the actual "
+    "command in the exporting namespace.\n\n"
+    "If a command is imported into a sequence of namespaces a, b,...,n where "
+    "each successive namespace just imports the command from the previous "
+    "namespace, this command returns the fully-qualified name of the original "
+    "command in the first namespace, a. If command does not refer to an "
+    "imported command, the command's own fully-qualified name is returned.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: parent ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "?namespace?");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "parent", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns the fully-qualified name of the parent namespace for namespace. "
+    "If namespace is not specified, the fully-qualified name of the current "
+    "namespace's parent is returned.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: qualifiers ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<string>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "qualifiers", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns any leading namespace qualifiers for string. Qualifiers are "
+    "namespace names separated by double colons (::). For the string "
+    "::foo::bar::x, this command returns ::foo::bar, and for :: it returns "
+    "an empty string. This command is the complement of the namespace tail "
+    "command. It does not check whether the namespace names are, in fact, "
+    "the names of currently defined namespaces.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: tail ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<string>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "tail", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns the simple name at the end of a qualified string. Qualifiers "
+    "are namespace names separated by double colons (::). For the string "
+    "::foo::bar::x, this command returns x, and for :: it returns an empty "
+    "string. This command is the complement of the namespace qualifiers "
+    "command. It does not check whether the namespace names are, in fact, "
+    "the names of currently defined namespaces.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: which ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_flag(ops, interp, "-command", NULL, NULL);
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_flag(ops, interp, "-variable", NULL, NULL);
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<name>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "which", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Looks up name as either a command or variable and returns its "
+    "fully-qualified name. For example, if name does not exist in the current "
+    "namespace but does exist in the global namespace, this command returns a "
+    "fully-qualified name in the global namespace. If the command or variable "
+    "does not exist, this command returns an empty string. If no flag is "
+    "given, name is treated as a command name.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Examples ---
   e = feather_usage_example(ops, interp,
     "namespace current",
     "Get the current namespace (returns \"::\" if in global namespace)",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
-  // Example: namespace eval
   e = feather_usage_example(ops, interp,
     "namespace eval ::math { proc double {x} { expr {$x * 2} } }",
     "Create a namespace and define a procedure in it",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
-  // Example: namespace exists
-  e = feather_usage_example(ops, interp,
-    "namespace exists ::math",
-    "Check if a namespace exists (returns 1 or 0)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  // Example: namespace export/import
   e = feather_usage_example(ops, interp,
     "namespace eval ::math {\n"
     "    proc add {a b} { expr {$a + $b} }\n"
     "    namespace export add\n"
     "}\n"
     "namespace import ::math::add",
-    "Export a command from a namespace and import it into the current namespace",
+    "Export and import commands between namespaces",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
-  // Example: namespace children
   e = feather_usage_example(ops, interp,
-    "namespace children :: m*",
-    "List child namespaces of global namespace matching pattern \"m*\"",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  // Example: namespace qualifiers/tail
-  e = feather_usage_example(ops, interp,
-    "namespace qualifiers ::math::trig::sin\nnamespace tail ::math::trig::sin",
-    "Split a qualified name: qualifiers returns \"::math::trig\", tail returns \"sin\"",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  // Example: namespace code
-  e = feather_usage_example(ops, interp,
-    "namespace eval ::foo {\n"
-    "    variable x 42\n"
-    "    set callback [namespace code {set x}]\n"
-    "}",
-    "Create a callback that preserves namespace context for later execution",
+    "namespace qualifiers ::math::trig::sin",
+    "Extract namespace prefix (returns \"::math::trig\")",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
