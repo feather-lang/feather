@@ -48,6 +48,47 @@ if [ "$(uname)" = "Darwin" ]; then
 fi
 """
 
+[tasks."build:c-shared:cross"]
+description = "Cross-compile libfeather using zig (targets: linux-amd64, linux-arm64, windows-amd64)"
+usage = """
+arg "target" help="Target platform: linux-amd64, linux-arm64, windows-amd64"
+"""
+run = """
+set -e
+TARGET="$usage_target"
+
+case "$TARGET" in
+  linux-amd64)
+    GOOS=linux GOARCH=amd64 ZIG_TARGET=x86_64-linux-gnu EXT=so
+    ;;
+  linux-arm64)
+    GOOS=linux GOARCH=arm64 ZIG_TARGET=aarch64-linux-gnu EXT=so
+    ;;
+  windows-amd64)
+    GOOS=windows GOARCH=amd64 ZIG_TARGET=x86_64-windows-gnu EXT=dll
+    ;;
+  *)
+    echo "Unknown target: $TARGET"
+    echo "Available targets: linux-amd64, linux-arm64, windows-amd64"
+    exit 1
+    ;;
+esac
+
+mkdir -p $MISE_PROJECT_ROOT/bin/cross
+
+echo "Cross-compiling for $TARGET (zig target: $ZIG_TARGET)..."
+CGO_ENABLED=1 GOOS=$GOOS GOARCH=$GOARCH \
+  CC="zig cc -target $ZIG_TARGET" \
+  go build -buildmode=c-shared \
+  -o $MISE_PROJECT_ROOT/bin/cross/libfeather-$TARGET.$EXT \
+  ./cmd/libfeather
+
+# Header is generated with the output name, rename it
+mv libfeather-$TARGET.h $MISE_PROJECT_ROOT/bin/cross/libfeather.h 2>/dev/null || true
+
+echo "Built: bin/cross/libfeather-$TARGET.$EXT"
+"""
+
 [tasks."build:feather-c"]
 description = "Builds the feather-c binary (C host)"
 depends = ["build:c-shared"]
