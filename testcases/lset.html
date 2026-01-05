@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html>
+<head><title>lset tests</title></head>
+<body>
+<h1>lset command tests</h1>
+
+<h2>Basic single-index replacement</h2>
+
+<test-case name="replace element at index 0">
+  <script>
+set x {a b c}
+lset x 0 X
+  </script>
+  <return>TCL_OK</return>
+  <stdout>X b c</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="replace element at index 1">
+  <script>
+set x {a b c}
+lset x 1 X
+  </script>
+  <return>TCL_OK</return>
+  <stdout>a X c</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="replace element at end">
+  <script>
+set x {a b c}
+lset x end X
+  </script>
+  <return>TCL_OK</return>
+  <stdout>a b X</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="replace element at end-1">
+  <script>
+set x {a b c}
+lset x end-1 X
+  </script>
+  <return>TCL_OK</return>
+  <stdout>a X c</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="variable is modified in place">
+  <script>
+set x {a b c}
+lset x 1 X
+set x
+  </script>
+  <return>TCL_OK</return>
+  <stdout>a X c</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Zero-index form (replace entire list)</h2>
+
+<test-case name="lset varName newValue replaces entire list">
+  <script>
+set x {a b c}
+lset x newValue
+  </script>
+  <return>TCL_OK</return>
+  <stdout>newValue</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="lset varName {} newValue replaces entire list">
+  <script>
+set x {a b c}
+lset x {} newValue
+  </script>
+  <return>TCL_OK</return>
+  <stdout>newValue</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="zero-index form modifies variable">
+  <script>
+set x {a b c}
+lset x replacement
+set x
+  </script>
+  <return>TCL_OK</return>
+  <stdout>replacement</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Append via index</h2>
+
+<test-case name="append to list using index equal to length">
+  <script>
+set x {a b c}
+lset x 3 d
+  </script>
+  <return>TCL_OK</return>
+  <stdout>a b c d</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="append to empty list">
+  <script>
+set x {}
+lset x 0 a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>a</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="index beyond length fails">
+  <script>
+set x {a b c}
+lset x 5 X
+  </script>
+  <return>TCL_ERROR</return>
+  <error>index "5" out of range</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+<h2>Multiple/nested indices</h2>
+
+<test-case name="modify nested list element">
+  <script>
+set x {{a b} {c d} {e f}}
+lset x 1 0 X
+  </script>
+  <return>TCL_OK</return>
+  <stdout>{a b} {X d} {e f}</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="modify nested list second element">
+  <script>
+set x {{a b} {c d} {e f}}
+lset x 2 1 Y
+  </script>
+  <return>TCL_OK</return>
+  <stdout>{a b} {c d} {e Y}</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="deeply nested modification">
+  <script>
+set x {{{a b} {c d}} {{e f} {g h}}}
+lset x 1 0 1 X
+  </script>
+  <return>TCL_OK</return>
+  <stdout>{{a b} {c d}} {{e X} {g h}}</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="nested with end keyword">
+  <script>
+set x {{a b} {c d}}
+lset x end 0 Z
+  </script>
+  <return>TCL_OK</return>
+  <stdout>{a b} {Z d}</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="nested with index arithmetic">
+  <script>
+set x {{a b c} {d e f}}
+lset x 1 end-1 X
+  </script>
+  <return>TCL_OK</return>
+  <stdout>{a b c} {d X f}</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="scalar element treated as single-element list">
+  <script>
+set x {a y z}
+lset x 1 0 W
+  </script>
+  <return>TCL_OK</return>
+  <stdout>a W z</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="append to scalar element in nested">
+  <script>
+set x {x y z}
+lset x 1 1 W
+  </script>
+  <return>TCL_OK</return>
+  <stdout>x {y W} z</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Index as list argument</h2>
+
+<test-case name="single index as list">
+  <script>
+set x {a b c}
+lset x {1} X
+  </script>
+  <return>TCL_OK</return>
+  <stdout>a X c</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="multiple indices as list">
+  <script>
+set x {{a b} {c d} {e f}}
+lset x {2 1} Y
+  </script>
+  <return>TCL_OK</return>
+  <stdout>{a b} {c d} {e Y}</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="empty index list replaces entire list">
+  <script>
+set x {a b c}
+lset x {} replacement
+  </script>
+  <return>TCL_OK</return>
+  <stdout>replacement</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Error cases</h2>
+
+<test-case name="negative index">
+  <script>
+set x {a b c}
+lset x -1 X
+  </script>
+  <return>TCL_ERROR</return>
+  <error>index "-1" out of range</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="nested index out of range">
+  <script>
+set x {{a b} {c d}}
+lset x 0 5 X
+  </script>
+  <return>TCL_ERROR</return>
+  <error>index "5" out of range</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="nested negative index">
+  <script>
+set x {{a b c} {d e f}}
+lset x 0 -1 X
+  </script>
+  <return>TCL_ERROR</return>
+  <error>index "-1" out of range</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="variable does not exist">
+  <script>lset nonexistent 0 X</script>
+  <return>TCL_ERROR</return>
+  <error>can't read "nonexistent": no such variable</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="wrong number of args - no args">
+  <script>lset</script>
+  <return>TCL_ERROR</return>
+  <error>wrong # args: should be "lset listVar ?index? ?index ...? value"</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="wrong number of args - only varName">
+  <script>lset x</script>
+  <return>TCL_ERROR</return>
+  <error>wrong # args: should be "lset listVar ?index? ?index ...? value"</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+</body>
+</html>

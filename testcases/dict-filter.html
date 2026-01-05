@@ -1,0 +1,181 @@
+<test-suite name="dict filter">
+
+<!-- dict filter key -->
+
+<test-case name="dict filter key single pattern">
+  <script>
+dict filter {apple 1 banana 2 apricot 3 berry 4} key a*
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>apple 1 apricot 3</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict filter key multiple patterns">
+  <script>
+dict filter {apple 1 banana 2 apricot 3 berry 4} key a* b*
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>apple 1 banana 2 apricot 3 berry 4</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict filter key no matches">
+  <script>
+dict filter {apple 1 banana 2} key z*
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout></stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict filter key exact match pattern">
+  <script>
+dict filter {a 1 ab 2 abc 3} key ab
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>ab 2</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- dict filter value -->
+
+<test-case name="dict filter value single pattern">
+  <script>
+dict filter {a 10 b 20 c 15 d 25} value 1*
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>a 10 c 15</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict filter value multiple patterns">
+  <script>
+dict filter {a 10 b 20 c 15 d 25} value 1* 2*
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>a 10 b 20 c 15 d 25</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict filter value no matches">
+  <script>
+dict filter {a 10 b 20} value 9*
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout></stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- dict filter script -->
+
+<test-case name="dict filter script basic">
+  <script>
+dict filter {a 1 b 2 c 3 d 4} script {k v} {expr {$v > 2}}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>c 3 d 4</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict filter script no matches">
+  <script>
+dict filter {a 1 b 2 c 3 d 4} script {k v} {expr {$v > 10}}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout></stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict filter script with break">
+  <script>
+dict filter {a 1 b 2 c 3 d 4} script {k v} {
+    if {$v == 3} break
+    expr {$v > 0}
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>a 1 b 2</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict filter script with continue">
+  <script>
+dict filter {a 1 b 2 c 3 d 4} script {k v} {
+    if {$v == 2} continue
+    expr {$v > 0}
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>a 1 c 3 d 4</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict filter script using key">
+  <script>
+dict filter {apple 1 banana 2 cherry 3} script {k v} {
+    string match a* $k
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>apple 1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- error cases -->
+
+<test-case name="dict filter wrong args">
+  <script>
+dict filter
+  </script>
+  <return>TCL_ERROR</return>
+  <error>wrong # args: should be "dict filter dictionary filterType ?arg ...?"</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="dict filter unknown filter type">
+  <script>
+dict filter {a 1} unknown
+  </script>
+  <return>TCL_ERROR</return>
+  <error>bad filterType "unknown": must be key, script, or value</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+<test-case name="dict filter script wrong var count">
+  <script>
+dict filter {a 1} script {k} {expr 1}
+  </script>
+  <return>TCL_ERROR</return>
+  <error>must have exactly two variable names</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+</test-suite>

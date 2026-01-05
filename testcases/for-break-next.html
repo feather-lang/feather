@@ -1,0 +1,86 @@
+<test-suite name="for break in next script">
+
+<!-- TCL allows break to be invoked in the next script to exit the loop -->
+
+<test-case name="break in next script exits loop">
+  <script>
+set x 0
+for {set i 0} {$i < 10} {incr i; if {$i == 3} break} {
+    incr x
+}
+set x
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>3</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="break in next script preserves loop variable">
+  <script>
+for {set i 0} {$i < 10} {incr i; if {$i == 5} break} {
+}
+set i
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>5</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="break in next script with complex condition">
+  <script>
+set sum 0
+for {set i 1} {$i <= 100} {incr i; if {$sum > 10} break} {
+    set sum [expr {$sum + $i}]
+}
+list $sum $i
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>15 6</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="break at first next iteration">
+  <script>
+set x 0
+for {set i 0} {$i < 10} {break} {
+    incr x
+}
+set x
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="for returns empty on break in next">
+  <script>
+for {set i 0} {$i < 10} {incr i; if {$i == 2} break} {
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout></stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="continue in next script errors">
+  <script>
+for {set i 0} {$i < 10} {incr i; if {$i == 3} continue} {
+}
+  </script>
+  <return>TCL_ERROR</return>
+  <error>invoked "continue" outside of a loop</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+</test-suite>

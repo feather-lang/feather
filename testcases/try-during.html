@@ -1,0 +1,381 @@
+<test-suite>
+  <!--
+    Tests for try command -during key in exception dictionaries.
+
+    Per TCL 8.6 documentation:
+    "If an exception (i.e. any non-ok result) occurs during the evaluation
+    of either a handler or the finally clause, the original exception's
+    status dictionary will be added to the new exception's status dictionary
+    under the -during key."
+  -->
+
+  <!-- Basic -during in handler -->
+
+  <test-case name="try -during key added when handler raises error">
+    <script>
+catch {
+    try {
+        error "body error" "" {BODY CODE}
+    } on error {res opts} {
+        error "handler error" "" {HANDLER CODE}
+    }
+} msg opts
+dict exists $opts -during
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="try -during contains original error message">
+    <script>
+catch {
+    try {
+        error "body error" "" {BODY CODE}
+    } on error {res opts} {
+        error "handler error" "" {HANDLER CODE}
+    }
+} msg opts
+set during [dict get $opts -during]
+dict get $during -code
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="try -during preserves original errorcode">
+    <script>
+catch {
+    try {
+        error "body error" "" {BODY CODE}
+    } on error {res opts} {
+        error "handler error" "" {HANDLER CODE}
+    }
+} msg opts
+set during [dict get $opts -during]
+dict get $during -errorcode
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>BODY CODE</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="try -during preserves original error message through result var">
+    <script>
+catch {
+    try {
+        error "original message"
+    } on error {res opts} {
+        # res contains "original message"
+        error "handler failed"
+    }
+} msg newopts
+set during [dict get $newopts -during]
+# The -during dict should reflect what was caught in the handler
+# which was the original error with result "original message"
+expr {[dict exists $during -code] ? "yes" : "no"}
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>yes</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- -during in finally clause -->
+
+  <test-case name="try -during key added when finally raises error">
+    <script>
+catch {
+    try {
+        error "body error" "" {BODY CODE}
+    } finally {
+        error "finally error" "" {FINALLY CODE}
+    }
+} msg opts
+dict exists $opts -during
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="try -during in finally preserves body errorcode">
+    <script>
+catch {
+    try {
+        error "body error" "" {BODY CODE}
+    } finally {
+        error "finally error" "" {FINALLY CODE}
+    }
+} msg opts
+set during [dict get $opts -during]
+dict get $during -errorcode
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>BODY CODE</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="try -during in finally after handler captures handler result">
+    <script>
+catch {
+    try {
+        error "body error" "" {BODY CODE}
+    } on error {} {
+        return "handler returned ok"
+    } finally {
+        error "finally error" "" {FINALLY CODE}
+    }
+} msg opts
+set during [dict get $opts -during]
+dict get $during -code
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Non-error exceptions in handlers -->
+
+  <test-case name="try -during added when handler returns with -code">
+    <script>
+catch {
+    try {
+        error "body error" "" {BODY CODE}
+    } on error {} {
+        return -code return "handler return"
+    }
+} msg opts
+dict exists $opts -during
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="try -during added when handler breaks">
+    <script>
+catch {
+    try {
+        error "body error" "" {BODY CODE}
+    } on error {} {
+        break
+    }
+} msg opts
+dict exists $opts -during
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="try -during added when handler continues">
+    <script>
+catch {
+    try {
+        error "body error" "" {BODY CODE}
+    } on error {} {
+        continue
+    }
+} msg opts
+dict exists $opts -during
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Non-error exceptions in finally -->
+
+  <test-case name="try -during added when finally breaks">
+    <script>
+catch {
+    try {
+        error "body error" "" {BODY CODE}
+    } finally {
+        break
+    }
+} msg opts
+dict exists $opts -during
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="try -during added when finally continues">
+    <script>
+catch {
+    try {
+        error "body error" "" {BODY CODE}
+    } finally {
+        continue
+    }
+} msg opts
+dict exists $opts -during
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- No -during when handler/finally succeeds -->
+
+  <test-case name="try no -during when handler succeeds">
+    <script>
+catch {
+    try {
+        error "body error" "" {BODY CODE}
+    } on error {} {
+        # Handler succeeds normally (TCL_OK) by just evaluating to a value
+        set x "success"
+    }
+} msg opts
+dict exists $opts -during
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="try no -during when finally succeeds">
+    <script>
+catch {
+    try {
+        error "body error" "" {BODY CODE}
+    } finally {
+        # Normal execution
+        set x 1
+    }
+} msg opts
+dict exists $opts -during
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Nested -during (error in handler that already has -during) -->
+
+  <test-case name="try nested -during through multiple handlers">
+    <script>
+catch {
+    try {
+        try {
+            error "inner body" "" {INNER}
+        } on error {} {
+            error "inner handler" "" {INNER_HANDLER}
+        }
+    } on error {res opts} {
+        error "outer handler" "" {OUTER_HANDLER}
+    }
+} msg opts
+# Outer error should have -during
+set outer_during [dict get $opts -during]
+# That -during should itself have -during from the inner try
+dict exists $outer_during -during
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="try nested -during preserves innermost error">
+    <script>
+catch {
+    try {
+        try {
+            error "inner body" "" {INNER}
+        } on error {} {
+            error "inner handler" "" {INNER_HANDLER}
+        }
+    } on error {res opts} {
+        error "outer handler" "" {OUTER_HANDLER}
+    }
+} msg opts
+# Outer -during should point to inner handler error
+set outer_during [dict get $opts -during]
+set inner_during [dict get $outer_during -during]
+# Inner -during should point to inner body error
+dict get $inner_during -errorcode
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>INNER</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- -during with successful body -->
+
+  <test-case name="try -during when body succeeds but finally fails">
+    <script>
+catch {
+    try {
+        return "body success"
+    } finally {
+        error "finally error" "" {FINALLY CODE}
+    }
+} msg opts
+set during [dict get $opts -during]
+dict get $during -code
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="try -during contains body result when body succeeds">
+    <script>
+catch {
+    try {
+        return "body success"
+    } finally {
+        error "finally error" "" {FINALLY CODE}
+    }
+} msg opts
+# msg should be "finally error"
+# but -during should show body succeeded with code 0
+set during [dict get $opts -during]
+expr {[dict get $during -code] == 0 ? "yes" : "no"}
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>yes</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

@@ -1,0 +1,114 @@
+<test-suite name="dict with">
+
+<test-case name="dict with basic">
+  <script>
+set d {a 1 b 2 c 3}
+dict with d {
+    set a 10
+    set b 20
+}
+set d
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>a 10 b 20 c 3</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict with returns script result">
+  <script>
+set d {a 1 b 2}
+dict with d { expr {$a + $b} }
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>3</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict with unset removes key">
+  <script>
+set d {a 1 b 2 c 3}
+dict with d {
+    unset b
+}
+set d
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>a 1 c 3</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict with does not add new keys">
+  <script>
+set d {a 1 b 2}
+dict with d {
+    set c 3
+}
+set d
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>a 1 b 2</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict with nested key">
+  <script>
+set d {outer {inner 1 other 2}}
+dict with d outer {
+    set inner 100
+}
+set d
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>outer {inner 100 other 2}</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict with read only">
+  <script>
+set d {x 10 y 20}
+dict with d {
+    expr {$x + $y}
+}
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>30</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="dict with empty dict">
+  <script>
+set d {}
+dict with d { list result }
+  </script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>result</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- error cases -->
+
+<test-case name="dict with wrong args">
+  <script>
+dict with
+  </script>
+  <return>TCL_ERROR</return>
+  <error>wrong # args: should be "dict with dictVarName ?key ...? script"</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+</test-suite>

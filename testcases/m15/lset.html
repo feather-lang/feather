@@ -70,7 +70,7 @@ set x</script>
     <script>set x {a b c}
 lset x 5 X</script>
     <return>TCL_ERROR</return>
-    <error>list index out of range</error>
+    <error>index "5" out of range</error>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -79,7 +79,7 @@ lset x 5 X</script>
     <script>set x {a b c}
 lset x -1 X</script>
     <return>TCL_ERROR</return>
-    <error>list index out of range</error>
+    <error>index "-1" out of range</error>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -87,7 +87,7 @@ lset x -1 X</script>
   <test-case name="lset wrong args too few">
     <script>lset x</script>
     <return>TCL_ERROR</return>
-    <error>wrong # args: should be "lset varName index ?index ...? value"</error>
+    <error>wrong # args: should be "lset listVar ?index? ?index ...? value"</error>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>

@@ -1,0 +1,161 @@
+<test-suite name="lindex nested indexing">
+
+<!-- Identity behavior (1 argument) -->
+<test-case name="lindex with just list returns list">
+  <script>
+    lindex {a b c}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>a b c</stdout>
+</test-case>
+
+<test-case name="lindex with empty index list returns list">
+  <script>
+    lindex {a b c} {}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>a b c</stdout>
+</test-case>
+
+<!-- Multiple indices for nested lists -->
+<test-case name="lindex two indices">
+  <script>
+    lindex {{a b c} {d e f} {g h i}} 2 1
+  </script>
+  <return>TCL_OK</return>
+  <stdout>h</stdout>
+</test-case>
+
+<test-case name="lindex two indices first row">
+  <script>
+    lindex {{a b c} {d e f} {g h i}} 0 2
+  </script>
+  <return>TCL_OK</return>
+  <stdout>c</stdout>
+</test-case>
+
+<test-case name="lindex three indices deep nesting">
+  <script>
+    lindex {{{a b} {c d}} {{e f} {g h}}} 1 1 0
+  </script>
+  <return>TCL_OK</return>
+  <stdout>g</stdout>
+</test-case>
+
+<test-case name="lindex single index on nested list">
+  <script>
+    lindex {{a b} {c d}} 0
+  </script>
+  <return>TCL_OK</return>
+  <stdout>a b</stdout>
+</test-case>
+
+<test-case name="lindex single index on nested list second element">
+  <script>
+    lindex {{a b} {c d}} 1
+  </script>
+  <return>TCL_OK</return>
+  <stdout>c d</stdout>
+</test-case>
+
+<!-- Index list as single argument -->
+<test-case name="lindex index list as single arg">
+  <script>
+    lindex {{a b c} {d e f} {g h i}} {2 1}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>h</stdout>
+</test-case>
+
+<test-case name="lindex index list three levels">
+  <script>
+    lindex {{{a b} {c d}} {{e f} {g h}}} {1 1 0}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>g</stdout>
+</test-case>
+
+<test-case name="lindex single element index list">
+  <script>
+    lindex {a b c} {1}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>b</stdout>
+</test-case>
+
+<!-- End-N with nested indexing -->
+<test-case name="lindex nested with end">
+  <script>
+    lindex {{a b} {c d}} 1 end
+  </script>
+  <return>TCL_OK</return>
+  <stdout>d</stdout>
+</test-case>
+
+<test-case name="lindex end at first level">
+  <script>
+    lindex {{a b} {c d}} end 0
+  </script>
+  <return>TCL_OK</return>
+  <stdout>c</stdout>
+</test-case>
+
+<test-case name="lindex end-1 nested">
+  <script>
+    lindex {{a b c} {d e f}} end-1 end-1
+  </script>
+  <return>TCL_OK</return>
+  <stdout>b</stdout>
+</test-case>
+
+<test-case name="lindex end in index list">
+  <script>
+    lindex {{a b} {c d}} {end 0}
+  </script>
+  <return>TCL_OK</return>
+  <stdout>c</stdout>
+</test-case>
+
+<!-- Out of bounds returns empty -->
+<test-case name="lindex nested out of bounds at first level">
+  <script>
+    lindex {{a b} {c d}} 5 0
+  </script>
+  <return>TCL_OK</return>
+  <stdout></stdout>
+</test-case>
+
+<test-case name="lindex nested out of bounds at second level">
+  <script>
+    lindex {{a b} {c d}} 0 5
+  </script>
+  <return>TCL_OK</return>
+  <stdout></stdout>
+</test-case>
+
+<test-case name="lindex nested negative index">
+  <script>
+    lindex {{a b} {c d}} -1 0
+  </script>
+  <return>TCL_OK</return>
+  <stdout></stdout>
+</test-case>
+
+<!-- Empty list edge cases -->
+<test-case name="lindex empty list returns empty">
+  <script>
+    lindex {}
+  </script>
+  <return>TCL_OK</return>
+  <stdout></stdout>
+</test-case>
+
+<test-case name="lindex empty list with index">
+  <script>
+    lindex {} 0
+  </script>
+  <return>TCL_OK</return>
+  <stdout></stdout>
+</test-case>
+
+</test-suite>

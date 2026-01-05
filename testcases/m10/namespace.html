@@ -169,7 +169,7 @@ namespace exists ::foo</script>
     <script>namespace children</script>
     <return>TCL_OK</return>
     <error></error>
-    <stdout>::tcl</stdout>
+    <stdout>::tcl ::usage</stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
@@ -180,7 +180,7 @@ namespace eval bar {}
 namespace children</script>
     <return>TCL_OK</return>
     <error></error>
-    <stdout>::bar ::foo ::tcl</stdout>
+    <stdout>::bar ::foo ::tcl ::usage</stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
@@ -296,12 +296,15 @@ namespace exists ::foo::bar</script>
     <exit-code>1</exit-code>
   </test-case>
 
-  <test-case name="namespace delete wrong args">
-    <script>namespace delete</script>
-    <return>TCL_ERROR</return>
-    <error>wrong # args: should be "namespace delete ?name name ...?"</error>
+  <test-case name="namespace delete no args is no-op">
+    <script>namespace eval foo {}
+namespace delete
+namespace exists foo</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
     <stderr></stderr>
-    <exit-code>1</exit-code>
+    <exit-code>0</exit-code>
   </test-case>
 
   <!-- ============================================= -->
@@ -515,7 +518,7 @@ foo::bar::baz</script>
   <test-case name="namespace unknown subcommand">
     <script>namespace nosuchsubcmd</script>
     <return>TCL_ERROR</return>
-    <error>bad option "nosuchsubcmd": must be children, current, delete, eval, exists, export, import, parent, qualifiers, or tail</error>
+    <error>bad option "nosuchsubcmd": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which</error>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -709,12 +712,15 @@ namespace eval target {
     <exit-code>0</exit-code>
   </test-case>
 
-  <test-case name="namespace import wrong args">
-    <script>namespace import</script>
-    <return>TCL_ERROR</return>
-    <error>wrong # args: should be "namespace import ?-force? ?pattern pattern ...?"</error>
+  <test-case name="namespace import with no args returns empty when no imports">
+    <script>namespace eval testns {
+    namespace import
+}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
     <stderr></stderr>
-    <exit-code>1</exit-code>
+    <exit-code>0</exit-code>
   </test-case>
 
   <test-case name="namespace import nonexistent namespace fails">

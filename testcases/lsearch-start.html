@@ -1,0 +1,100 @@
+<test-suite name="lsearch -start option">
+
+<test-case name="lsearch -start basic">
+  <script>
+    lsearch -start 2 {a b c d e} c
+  </script>
+  <return>TCL_OK</return>
+  <stdout>2</stdout>
+</test-case>
+
+<test-case name="lsearch -start not found">
+  <script>
+    lsearch -start 2 {a b c d e} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>-1</stdout>
+</test-case>
+
+<test-case name="lsearch -start 0">
+  <script>
+    lsearch -start 0 {a b c} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>0</stdout>
+</test-case>
+
+<test-case name="lsearch -start past end returns -1">
+  <script>
+    lsearch -start 10 {a b c} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>-1</stdout>
+</test-case>
+
+<test-case name="lsearch -start with -all">
+  <script>
+    lsearch -start 1 -all {a b a c a} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>2 4</stdout>
+</test-case>
+
+<test-case name="lsearch -start with -inline">
+  <script>
+    lsearch -start 1 -inline {a b c d} c
+  </script>
+  <return>TCL_OK</return>
+  <stdout>c</stdout>
+</test-case>
+
+<test-case name="lsearch -start with -all -inline">
+  <script>
+    lsearch -start 1 -all -inline {a b a c a} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>a a</stdout>
+</test-case>
+
+<test-case name="lsearch -start with glob pattern">
+  <script>
+    lsearch -start 2 {foo bar baz qux} b*
+  </script>
+  <return>TCL_OK</return>
+  <stdout>2</stdout>
+</test-case>
+
+<test-case name="lsearch -start with -exact">
+  <script>
+    lsearch -start 1 -exact {a* b* c*} b*
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+<test-case name="lsearch -start with -not">
+  <script>
+    lsearch -start 2 -not {a b c d e} c
+  </script>
+  <return>TCL_OK</return>
+  <stdout>3</stdout>
+</test-case>
+
+<test-case name="lsearch -start negative clamps to 0">
+  <script>
+    lsearch -start -1 {a b c} a
+  </script>
+  <return>TCL_OK</return>
+  <stdout>0</stdout>
+</test-case>
+
+<test-case name="lsearch -start missing argument">
+  <script>
+    lsearch -start {a b c} a
+  </script>
+  <return>TCL_ERROR</return>
+  <error>missing starting index</error>
+  <exit-code>1</exit-code>
+</test-case>
+
+</test-suite>

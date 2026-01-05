@@ -1,0 +1,98 @@
+<test-suite>
+  <!--
+    Tests for return -errorstack option.
+    This is a TCL 8.6+ feature for recording call stack with argument values.
+
+    We implement partial support:
+    - Accept -errorstack as a known option
+    - Store it in return options dictionary
+    - Preserve through -options re-raising
+
+    We do NOT implement automatic errorstack generation during error propagation.
+  -->
+
+  <test-case name="return -errorstack stores value in opts">
+    <script>
+proc test {} {
+    return -code error -errorstack {CUSTOM data} "error msg"
+}
+catch {test} msg opts
+dict get $opts -errorstack
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>CUSTOM data</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="return -errorstack with empty list">
+    <script>
+proc test {} {
+    return -code error -errorstack {} "error msg"
+}
+catch {test} msg opts
+dict get $opts -errorstack
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="return -errorstack preserved through -options">
+    <script>
+proc inner {} {
+    return -code error -errorstack {INNER frame} "inner error"
+}
+proc outer {} {
+    catch {inner} msg opts
+    return -options $opts $msg
+}
+catch {outer} msg opts
+# TCL appends CALL frames during propagation, check original is preserved
+set stack [dict get $opts -errorstack]
+# First two elements should be our original INNER frame
+lindex $stack 0
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>INNER</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="return -errorstack with -code error and -errorcode">
+    <script>
+proc test {} {
+    return -code error -errorstack {CALL test} -errorcode {POSIX ENOENT} "not found"
+}
+catch {test} msg opts
+set stack [dict get $opts -errorstack]
+set code [dict get $opts -errorcode]
+set r "$stack,$code"
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>CALL test,POSIX ENOENT</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="return -errorstack with complex list value">
+    <script>
+proc test {} {
+    return -code error -errorstack {INNER {returnImm msg {}} CALL {foo 1 2}} "error"
+}
+catch {test} msg opts
+dict get $opts -errorstack
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>INNER {returnImm msg {}} CALL {foo 1 2}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

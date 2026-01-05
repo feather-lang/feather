@@ -1,0 +1,86 @@
+<test-suite name="lindex end-N index expressions">
+
+<!-- Basic end syntax -->
+<test-case name="lindex end">
+  <script>
+    lindex {a b c d e} end
+  </script>
+  <return>TCL_OK</return>
+  <stdout>e</stdout>
+</test-case>
+
+<test-case name="lindex end-1">
+  <script>
+    lindex {a b c d e} end-1
+  </script>
+  <return>TCL_OK</return>
+  <stdout>d</stdout>
+</test-case>
+
+<test-case name="lindex end-2">
+  <script>
+    lindex {a b c d e} end-2
+  </script>
+  <return>TCL_OK</return>
+  <stdout>c</stdout>
+</test-case>
+
+<test-case name="lindex end-4">
+  <script>
+    lindex {a b c d e} end-4
+  </script>
+  <return>TCL_OK</return>
+  <stdout>a</stdout>
+</test-case>
+
+<!-- Out of bounds cases -->
+<test-case name="lindex end-5 out of bounds">
+  <script>
+    lindex {a b c d e} end-5
+  </script>
+  <return>TCL_OK</return>
+  <stdout></stdout>
+</test-case>
+
+<test-case name="lindex end+1 out of bounds">
+  <script>
+    lindex {a b c d e} end+1
+  </script>
+  <return>TCL_OK</return>
+  <stdout></stdout>
+</test-case>
+
+<test-case name="lindex empty list end">
+  <script>
+    lindex {} end
+  </script>
+  <return>TCL_OK</return>
+  <stdout></stdout>
+</test-case>
+
+<test-case name="lindex single element end-1">
+  <script>
+    lindex {a} end-1
+  </script>
+  <return>TCL_OK</return>
+  <stdout></stdout>
+</test-case>
+
+<!-- Arithmetic expressions -->
+<test-case name="lindex 0+1">
+  <script>
+    lindex {a b c d e} 0+1
+  </script>
+  <return>TCL_OK</return>
+  <stdout>b</stdout>
+</test-case>
+
+<test-case name="lindex 3-2">
+  <script>
+    lindex {a b c d e} 3-2
+  </script>
+  <return>TCL_OK</return>
+  <stdout>b</stdout>
+</test-case>
+
+</test-suite>

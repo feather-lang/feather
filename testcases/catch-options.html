@@ -1,0 +1,200 @@
+<test-suite>
+  <!--
+    Tests for catch command options dictionary population.
+    These test the various options that should be set when catching errors.
+  -->
+
+  <!-- -errorinfo population -->
+
+  <test-case name="catch populates -errorinfo on error">
+    <script>
+proc foo {} { error "something broke" }
+catch {foo} msg opts
+expr {[dict exists $opts -errorinfo] ? "yes" : "no"}
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>yes</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="catch -errorinfo contains error message">
+    <script>
+proc foo {} { error "test error message" }
+catch {foo} msg opts
+set info [dict get $opts -errorinfo]
+expr {[string match "*test error message*" $info] ? "yes" : "no"}
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>yes</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- -errorcode population -->
+
+  <test-case name="catch populates -errorcode on error">
+    <script>
+proc foo {} { error "broke" }
+catch {foo} msg opts
+expr {[dict exists $opts -errorcode] ? "yes" : "no"}
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>yes</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="catch -errorcode defaults to NONE">
+    <script>
+proc foo {} { error "broke" }
+catch {foo} msg opts
+dict get $opts -errorcode
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>NONE</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="catch preserves custom -errorcode">
+    <script>
+proc foo {} { return -code error -errorcode {POSIX ENOENT} "not found" }
+catch {foo} msg opts
+dict get $opts -errorcode
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>POSIX ENOENT</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- -errorstack population -->
+
+  <test-case name="catch populates -errorstack on error">
+    <script>
+proc foo {} { error "broke" }
+catch {foo} msg opts
+expr {[dict exists $opts -errorstack] ? "yes" : "no"}
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>yes</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="catch -errorstack has INNER entry">
+    <script>
+proc foo {} { error "broke" }
+catch {foo} msg opts
+set stack [dict get $opts -errorstack]
+lindex $stack 0
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>INNER</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- -errorline population -->
+
+  <test-case name="catch populates -errorline on error">
+    <script>
+proc foo {} { error "broke" }
+catch {foo} msg opts
+expr {[dict exists $opts -errorline] ? "yes" : "no"}
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>yes</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Global variables -->
+
+  <test-case name="catch sets global errorInfo">
+    <script>
+proc foo {} { error "test message" }
+catch {foo} msg opts
+expr {[info exists ::errorInfo] ? "yes" : "no"}
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>yes</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="catch sets global errorCode">
+    <script>
+proc foo {} { error "broke" }
+catch {foo} msg opts
+expr {[info exists ::errorCode] ? "yes" : "no"}
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>yes</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="global errorCode defaults to NONE">
+    <script>
+proc foo {} { error "broke" }
+catch {foo} msg opts
+set ::errorCode
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>NONE</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- -level in default options -->
+
+  <test-case name="catch includes -level in opts for OK">
+    <script>
+catch {set x 1} msg opts
+expr {[dict exists $opts -level] ? "yes" : "no"}
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>yes</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="catch -level is 0 for normal return">
+    <script>
+catch {set x 1} msg opts
+dict get $opts -level
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="catch -code is 0 for normal return">
+    <script>
+catch {set x 1} msg opts
+dict get $opts -code
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

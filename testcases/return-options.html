@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head><title>return -options tests</title></head>
+<body>
+<h1>return -options tests</h1>
+
+<h2>Basic -options dictionary processing</h2>
+
+<test-case name="return -options with -code in dict">
+  <script>
+proc test {} {
+    return -options {-code 1 -level 0} "my error"
+}
+catch {test} msg opts
+dict get $opts -code
+</script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="return -options with -code error name">
+  <script>
+proc test {} {
+    return -options {-code error -level 0} "my error"
+}
+catch {test} msg opts
+dict get $opts -code
+</script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="return -options with -level in dict">
+  <script>
+proc test {} {
+    return -options {-code ok -level 0} "result"
+}
+catch {test} msg opts
+dict get $opts -level
+</script>
+  <return>TCL_OK</return>
+  <stdout>0</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Order of -options vs explicit options</h2>
+
+<test-case name="explicit -code after -options overrides">
+  <script>
+proc test {} {
+    return -options {-code error} -code ok "test"
+}
+catch {test} msg opts
+dict get $opts -code
+</script>
+  <return>TCL_OK</return>
+  <stdout>0</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="-options after explicit -code overrides">
+  <script>
+proc test {} {
+    return -code ok -options {-code error -level 0} "test"
+}
+catch {test} msg opts
+dict get $opts -code
+</script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Error re-raising pattern</h2>
+
+<test-case name="re-raise error with original options">
+  <script>
+proc inner {} {
+    return -code error "inner error"
+}
+proc outer {} {
+    if {[catch {inner} result opts]} {
+        return -options $opts $result
+    }
+}
+catch {outer} msg opts
+set msg
+</script>
+  <return>TCL_OK</return>
+  <stdout>inner error</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="re-raised error preserves code">
+  <script>
+proc inner {} {
+    return -code error "inner error"
+}
+proc outer {} {
+    if {[catch {inner} result opts]} {
+        return -options $opts $result
+    }
+}
+catch {outer} msg opts
+dict get $opts -code
+</script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>-options with break and continue codes (with level 1)</h2>
+
+<test-case name="return -options with break code level 1">
+  <script>
+proc test {} {
+    return -options {-code 3 -level 1} ""
+}
+catch {test} msg opts
+dict get $opts -code
+</script>
+  <return>TCL_OK</return>
+  <stdout>3</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="return -options with continue code level 1">
+  <script>
+proc test {} {
+    return -options {-code 4 -level 1} ""
+}
+catch {test} msg opts
+dict get $opts -code
+</script>
+  <return>TCL_OK</return>
+  <stdout>4</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Empty and minimal -options</h2>
+
+<test-case name="return with empty -options dict">
+  <script>
+proc test {} {
+    return -options {} "result"
+}
+test
+</script>
+  <return>TCL_OK</return>
+  <stdout>result</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="return -options with only -code">
+  <script>
+proc test {} {
+    return -options {-code 0} "result"
+}
+test
+</script>
+  <return>TCL_OK</return>
+  <stdout>result</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+</body>
+</html>

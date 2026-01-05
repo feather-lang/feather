@@ -1,0 +1,127 @@
+<test-suite name="namespace command resolution">
+
+<!-- Test qualified command name resolution from within namespaces -->
+
+<!-- Basic: qualified name resolves to global when no relative exists -->
+<test-case name="qualified name from namespace finds global">
+  <script>
+    namespace eval foo {
+        proc cmd {} { list foo::cmd }
+    }
+
+    namespace eval bar {
+        proc test {} {
+            foo::cmd
+        }
+    }
+
+    bar::test
+  </script>
+  <return>TCL_OK</return>
+  <stdout>foo::cmd</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- Relative takes precedence over global -->
+<test-case name="relative qualified name takes precedence">
+  <script>
+    namespace eval foo {
+        proc cmd {} { list global-foo::cmd }
+    }
+
+    namespace eval bar::foo {
+        proc cmd {} { list bar::foo::cmd }
+    }
+
+    namespace eval bar {
+        proc test {} {
+            foo::cmd
+        }
+    }
+
+    bar::test
+  </script>
+  <return>TCL_OK</return>
+  <stdout>bar::foo::cmd</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- Absolute name always goes to global -->
+<test-case name="absolute qualified name goes to global">
+  <script>
+    namespace eval foo {
+        proc cmd {} { list global-foo::cmd }
+    }
+
+    namespace eval bar::foo {
+        proc cmd {} { list bar::foo::cmd }
+    }
+
+    namespace eval bar {
+        proc test {} {
+            ::foo::cmd
+        }
+    }
+
+    bar::test
+  </script>
+  <return>TCL_OK</return>
+  <stdout>global-foo::cmd</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- Multi-level qualified name -->
+<test-case name="multi-level qualified name resolution">
+  <script>
+    namespace eval a::b {
+        proc cmd {} { list a::b::cmd }
+    }
+
+    namespace eval x {
+        proc test {} {
+            a::b::cmd
+        }
+    }
+
+    x::test
+  </script>
+  <return>TCL_OK</return>
+  <stdout>a::b::cmd</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- Error when neither relative nor absolute exists -->
+<test-case name="nonexistent qualified name errors">
+  <script>
+    namespace eval bar {
+        proc test {} {
+            nonexistent::cmd
+        }
+    }
+
+    bar::test
+  </script>
+  <return>TCL_ERROR</return>
+  <error>invalid command name "nonexistent::cmd"</error>
+  <exit-code>1</exit-code>
+</test-case>
+
+<!-- From global namespace -->
+<test-case name="qualified name from global namespace">
+  <script>
+    namespace eval foo {
+        proc cmd {} { list foo::cmd }
+    }
+
+    proc test {} {
+        foo::cmd
+    }
+
+    test
+  </script>
+  <return>TCL_OK</return>
+  <stdout>foo::cmd</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+</test-suite>

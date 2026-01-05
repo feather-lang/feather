@@ -1,0 +1,332 @@
+<test-suite name="trace-step">
+  <!--
+    Enterstep and Leavestep Trace Tests
+
+    Tests for enterstep and leavestep execution traces.
+    These fire for each command inside a traced procedure.
+  -->
+
+  <!-- ============================================= -->
+  <!-- Basic enterstep                               -->
+  <!-- ============================================= -->
+
+  <test-case name="enterstep fires for each command in procedure">
+    <script>set log {}
+proc myTrace {cmd args} {
+    global log
+    lappend log $cmd
+}
+proc testProc {} {
+    set x 1
+    set y 2
+}
+trace add execution testProc enterstep myTrace
+testProc
+set log</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{set x 1} {set y 2}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Basic leavestep                               -->
+  <!-- ============================================= -->
+
+  <test-case name="leavestep fires for each command in procedure">
+    <script>set log {}
+proc myTrace {cmd code result op} {
+    global log
+    lappend log "$cmd|$code|$result"
+}
+proc testProc {} {
+    set x 1
+    set y 2
+}
+trace add execution testProc leavestep myTrace
+testProc
+set log</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{set x 1|0|1} {set y 2|0|2}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Both enterstep and leavestep                  -->
+  <!-- ============================================= -->
+
+  <test-case name="enterstep and leavestep fire in correct order">
+    <script>set log {}
+proc myTrace {cmd args} {
+    global log
+    set argc [llength $args]
+    set op [lindex $args [expr {$argc - 1}]]
+    lappend log "$op:$cmd"
+}
+proc testProc {} {
+    set x 1
+    set y 2
+}
+trace add execution testProc {enterstep leavestep} myTrace
+testProc
+set log</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{enterstep:set x 1} {leavestep:set x 1} {enterstep:set y 2} {leavestep:set y 2}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Combined with enter/leave                     -->
+  <!-- ============================================= -->
+
+  <test-case name="enter fires before enterstep">
+    <script>set log {}
+proc myTrace {cmd args} {
+    global log
+    set argc [llength $args]
+    set op [lindex $args [expr {$argc - 1}]]
+    lappend log "$op"
+}
+proc testProc {} {
+    set x 1
+}
+trace add execution testProc {enter enterstep} myTrace
+testProc
+set log</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>enter enterstep</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="leavestep fires before leave">
+    <script>set log {}
+proc myTrace {cmd args} {
+    global log
+    set argc [llength $args]
+    set op [lindex $args [expr {$argc - 1}]]
+    lappend log "$op"
+}
+proc testProc {} {
+    set x 1
+}
+trace add execution testProc {leavestep leave} myTrace
+testProc
+set log</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>leavestep leave</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Nested procedures                             -->
+  <!-- ============================================= -->
+
+  <test-case name="enterstep propagates to nested procedure calls">
+    <script>set log {}
+proc myTrace {cmd args} {
+    global log
+    lappend log $cmd
+}
+proc inner {} {
+    set a 10
+}
+proc outer {} {
+    set x 1
+    inner
+    set y 2
+}
+trace add execution outer enterstep myTrace
+outer
+set log</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{set x 1} inner {set a 10} {set y 2}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="enterstep on inner proc only fires for inner commands">
+    <script>set log {}
+proc myTrace {cmd args} {
+    global log
+    lappend log $cmd
+}
+proc inner {} {
+    set a 10
+}
+proc outer {} {
+    set x 1
+    inner
+    set y 2
+}
+trace add execution inner enterstep myTrace
+outer
+set log</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{set a 10}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Multiple levels of nesting                    -->
+  <!-- ============================================= -->
+
+  <test-case name="enterstep propagates through multiple levels">
+    <script>set log {}
+proc myTrace {cmd args} {
+    global log
+    lappend log $cmd
+}
+proc level2 {} {
+    set c 3
+}
+proc level1 {} {
+    set b 2
+    level2
+}
+proc level0 {} {
+    set a 1
+    level1
+}
+trace add execution level0 enterstep myTrace
+level0
+set log</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{set a 1} level1 {set b 2} level2 {set c 3}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Error handling                                -->
+  <!-- ============================================= -->
+
+  <test-case name="leavestep receives error code and message">
+    <script>set log {}
+proc myTrace {cmd code result op} {
+    global log
+    lappend log "$code:$result"
+}
+proc testProc {} {
+    set x 1
+    error "oops"
+}
+trace add execution testProc leavestep myTrace
+catch {testProc}
+set log</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0:1 1:oops</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="enterstep error propagates">
+    <script>proc myTrace {cmd op} {
+    error "step error"
+}
+proc testProc {} {
+    set x 1
+}
+trace add execution testProc enterstep myTrace
+testProc</script>
+    <return>TCL_ERROR</return>
+    <error>step error</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="leavestep error propagates">
+    <script>proc myTrace {cmd code result op} {
+    error "step error"
+}
+proc testProc {} {
+    set x 1
+}
+trace add execution testProc leavestep myTrace
+testProc</script>
+    <return>TCL_ERROR</return>
+    <error>step error</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Expression evaluation                         -->
+  <!-- ============================================= -->
+
+  <test-case name="enterstep fires for expr command">
+    <script>set log {}
+proc myTrace {cmd args} {
+    global log
+    lappend log $cmd
+}
+proc testProc {} {
+    set x 1
+    set y 2
+    expr {$x + $y}
+}
+trace add execution testProc enterstep myTrace
+testProc
+set log</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{set x 1} {set y 2} {expr {$x + $y}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Trace info and remove                         -->
+  <!-- ============================================= -->
+
+  <test-case name="trace info shows enterstep trace">
+    <script>proc myTrace args {}
+proc myCmd {} {}
+trace add execution myCmd enterstep myTrace
+trace info execution myCmd</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{enterstep myTrace}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="trace info shows leavestep trace">
+    <script>proc myTrace args {}
+proc myCmd {} {}
+trace add execution myCmd leavestep myTrace
+trace info execution myCmd</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{leavestep myTrace}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="trace remove works for enterstep">
+    <script>proc myTrace args {}
+proc myCmd {} {}
+trace add execution myCmd enterstep myTrace
+trace remove execution myCmd enterstep myTrace
+trace info execution myCmd</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

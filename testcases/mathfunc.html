@@ -1,0 +1,565 @@
+<test-suite>
+  <!-- Math function tests for missing functions -->
+
+  <!-- bool() function tests -->
+
+  <test-case name="bool: true literal">
+    <script>
+expr {bool("true")}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="bool: false literal">
+    <script>
+expr {bool("false")}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="bool: yes literal">
+    <script>
+expr {bool("yes")}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="bool: no literal">
+    <script>
+expr {bool("no")}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="bool: on literal">
+    <script>
+expr {bool("on")}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="bool: off literal">
+    <script>
+expr {bool("off")}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="bool: integer 1">
+    <script>
+expr {bool(1)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="bool: integer 0">
+    <script>
+expr {bool(0)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="bool: nonzero integer">
+    <script>
+expr {bool(42)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="bool: double nonzero">
+    <script>
+expr {bool(2.5)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="bool: double zero">
+    <script>
+expr {bool(0.0)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="bool: invalid string">
+    <script>
+expr {bool("invalid")}
+    </script>
+    <return>TCL_ERROR</return>
+    <error>expected boolean value but got "invalid"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="bool: no arguments">
+    <script>
+expr {bool()}
+    </script>
+    <return>TCL_ERROR</return>
+    <error>not enough arguments for math function "bool"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="bool: too many arguments">
+    <script>
+expr {bool(1,2)}
+    </script>
+    <return>TCL_ERROR</return>
+    <error>too many arguments for math function "bool"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- isfinite() function tests -->
+
+  <test-case name="isfinite: normal number">
+    <script>
+expr {isfinite(1.0)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="isfinite: zero">
+    <script>
+expr {isfinite(0.0)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="isfinite: positive infinity">
+    <script>
+expr {isfinite(1.0/0.0)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="isfinite: negative infinity">
+    <script>
+expr {isfinite(-1.0/0.0)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="isfinite: integer">
+    <script>
+expr {isfinite(42)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="isfinite: no arguments">
+    <script>
+expr {isfinite()}
+    </script>
+    <return>TCL_ERROR</return>
+    <error>not enough arguments for math function "isfinite"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <test-case name="isfinite: too many arguments">
+    <script>
+expr {isfinite(1,2)}
+    </script>
+    <return>TCL_ERROR</return>
+    <error>too many arguments for math function "isfinite"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- isnormal() function tests -->
+
+  <test-case name="isnormal: normal number">
+    <script>
+expr {isnormal(1.0)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="isnormal: zero">
+    <script>
+expr {isnormal(0.0)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="isnormal: integer">
+    <script>
+expr {isnormal(42)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- issubnormal() function tests -->
+
+  <test-case name="issubnormal: normal number">
+    <script>
+expr {issubnormal(1.0)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="issubnormal: zero">
+    <script>
+expr {issubnormal(0.0)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="issubnormal: subnormal number">
+    <script>
+expr {issubnormal(5e-324)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- isunordered() function tests -->
+
+  <test-case name="isunordered: two normal numbers">
+    <script>
+expr {isunordered(1.0, 2.0)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="isunordered: integers">
+    <script>
+expr {isunordered(1, 2)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- max() function tests -->
+
+  <test-case name="max: single argument">
+    <script>
+expr {max(42)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="max: two integers">
+    <script>
+expr {max(1,5)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="max: three integers">
+    <script>
+expr {max(3,1,2)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="max: doubles">
+    <script>
+expr {max(1.5, 2.5, 0.5)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2.5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="max: mixed int and double">
+    <script>
+expr {max(1, 2.5, 2)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2.5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="max: no arguments">
+    <script>
+expr {max()}
+    </script>
+    <return>TCL_ERROR</return>
+    <error>not enough arguments for math function "max"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- min() function tests -->
+
+  <test-case name="min: single argument">
+    <script>
+expr {min(42)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>42</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="min: two integers">
+    <script>
+expr {min(5,1)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="min: three integers">
+    <script>
+expr {min(3,1,2)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="min: doubles">
+    <script>
+expr {min(1.5, 2.5, 0.5)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0.5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="min: mixed int and double">
+    <script>
+expr {min(3, 0.5, 2)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0.5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="min: no arguments">
+    <script>
+expr {min()}
+    </script>
+    <return>TCL_ERROR</return>
+    <error>not enough arguments for math function "min"</error>
+    <stderr></stderr>
+    <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- entier() function tests -->
+
+  <test-case name="entier: positive double">
+    <script>
+expr {entier(3.7)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="entier: negative double">
+    <script>
+expr {entier(-3.7)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="entier: integer">
+    <script>
+expr {entier(5)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="entier: whole double">
+    <script>
+expr {entier(3.0)}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>3</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- 0d decimal prefix tests -->
+
+  <test-case name="0d prefix: basic decimal">
+    <script>
+expr {0d123}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>123</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="0d prefix: zero">
+    <script>
+expr {0d0}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="0d prefix: large number">
+    <script>
+expr {0d999}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>999</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="0d prefix: negative">
+    <script>
+expr {-0d123}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-123</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="0d prefix: uppercase D">
+    <script>
+expr {0D456}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>456</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

@@ -157,12 +157,13 @@ incr x 1 2</script>
     <exit-code>1</exit-code>
   </test-case>
 
-  <test-case name="incr undefined variable errors">
+  <test-case name="incr undefined variable auto-initializes to 0">
     <script>incr undefined</script>
-    <return>TCL_ERROR</return>
-    <error>can't read "undefined": no such variable</error>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
     <stderr></stderr>
-    <exit-code>1</exit-code>
+    <exit-code>0</exit-code>
   </test-case>
 
   <test-case name="incr non-integer variable errors">

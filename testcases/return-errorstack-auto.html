@@ -1,0 +1,160 @@
+<test-suite>
+  <!--
+    Tests for automatic -errorstack generation during error propagation.
+    TCL 8.6+ automatically populates -errorstack with call frames and
+    actual argument values when errors propagate through procs.
+  -->
+
+  <test-case name="automatic errorstack has INNER entry">
+    <script>
+proc inner {x y} {
+    error "something broke"
+}
+proc outer {a} {
+    inner $a [expr {$a * 2}]
+}
+catch {outer 5} msg opts
+lindex [dict get $opts -errorstack] 0
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>INNER</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="automatic errorstack has CALL entries">
+    <script>
+proc inner {x y} {
+    error "broke"
+}
+proc outer {a} {
+    inner $a [expr {$a * 2}]
+}
+catch {outer 5} msg opts
+set stack [dict get $opts -errorstack]
+# Should have: INNER {...} CALL {...} CALL {...}
+# That's 6 elements total
+llength $stack
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>6</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="errorstack captures actual argument values">
+    <script>
+proc inner {x y} {
+    error "broke"
+}
+proc outer {a} {
+    inner $a [expr {$a * 2}]
+}
+catch {outer 5} msg opts
+set stack [dict get $opts -errorstack]
+# CALL for inner should be at index 3
+set innerCall [lindex $stack 3]
+# inner was called with 5 and 10
+lindex $innerCall 2
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="errorstack outer call has correct args">
+    <script>
+proc inner {x y} {
+    error "broke"
+}
+proc outer {a} {
+    inner $a [expr {$a * 2}]
+}
+catch {outer 5} msg opts
+set stack [dict get $opts -errorstack]
+# CALL for outer should be at index 5
+set outerCall [lindex $stack 5]
+# outer was called with 5
+lindex $outerCall 1
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>5</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="deep call stack produces multiple CALL frames">
+    <script>
+proc level3 {x} {
+    error "deep error"
+}
+proc level2 {x} {
+    level3 [expr {$x + 1}]
+}
+proc level1 {x} {
+    level2 [expr {$x + 1}]
+}
+catch {level1 10} msg opts
+set stack [dict get $opts -errorstack]
+# Should have: INNER CALL CALL CALL = 8 elements
+llength $stack
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>8</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="errorstack with variadic proc">
+    <script>
+proc varproc {first args} {
+    error "varproc failed"
+}
+proc caller {} {
+    varproc a b c d
+}
+catch {caller} msg opts
+set stack [dict get $opts -errorstack]
+# Find the CALL entry for varproc (should be at index 3)
+set varCall [lindex $stack 3]
+# First element should be varproc
+lindex $varCall 0
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>varproc</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="errorstack preserved through catch and re-raise">
+    <script>
+proc inner {} {
+    error "original error"
+}
+proc middle {} {
+    catch {inner} msg opts
+    return -options $opts $msg
+}
+proc outer {} {
+    middle
+}
+catch {outer} msg opts
+set stack [dict get $opts -errorstack]
+# First entry should still be INNER
+lindex $stack 0
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>INNER</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

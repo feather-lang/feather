@@ -1,0 +1,83 @@
+<test-suite name="lsearch -dictionary option">
+
+<test-case name="lsearch -dictionary with glob pattern">
+  <script>
+    lsearch -dictionary {a1 a10 a2 a20} a*
+  </script>
+  <return>TCL_OK</return>
+  <stdout>0</stdout>
+</test-case>
+
+<test-case name="lsearch -exact -dictionary basic">
+  <script>
+    lsearch -exact -dictionary {a1 a10 a2 a20} a10
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+<test-case name="lsearch -exact -dictionary case sensitive">
+  <script>
+    lsearch -exact -dictionary {Cat cat} Cat
+  </script>
+  <return>TCL_OK</return>
+  <stdout>0</stdout>
+</test-case>
+
+<test-case name="lsearch -exact -dictionary case sensitive lowercase">
+  <script>
+    lsearch -exact -dictionary {Cat cat} cat
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+<test-case name="lsearch -exact -dictionary not found">
+  <script>
+    lsearch -exact -dictionary {a1 a10 a2 a20} a3
+  </script>
+  <return>TCL_OK</return>
+  <stdout>-1</stdout>
+</test-case>
+
+<test-case name="lsearch -all -exact -dictionary">
+  <script>
+    lsearch -all -exact -dictionary {a1 a10 a10 a2} a10
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1 2</stdout>
+</test-case>
+
+<test-case name="lsearch -inline -exact -dictionary">
+  <script>
+    lsearch -inline -exact -dictionary {a1 a10 a2 a20} a10
+  </script>
+  <return>TCL_OK</return>
+  <stdout>a10</stdout>
+</test-case>
+
+<test-case name="lsearch -dictionary with -nocase glob">
+  <script>
+    lsearch -dictionary -nocase {Cat CAT cat} C*
+  </script>
+  <return>TCL_OK</return>
+  <stdout>0</stdout>
+</test-case>
+
+<test-case name="lsearch -exact -dictionary with -not">
+  <script>
+    lsearch -exact -dictionary -not {a1 a10 a2} a10
+  </script>
+  <return>TCL_OK</return>
+  <stdout>0</stdout>
+</test-case>
+
+<test-case name="lsearch -exact -dictionary with -index">
+  <script>
+    lsearch -exact -dictionary -index 1 {{a a1} {b a10} {c a2}} a10
+  </script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+</test-case>
+
+</test-suite>

@@ -1,0 +1,109 @@
+<test-suite name="string totitle">
+
+<!-- Basic totitle -->
+
+<test-case name="string totitle basic">
+  <script>string totitle "hello world"</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>Hello world</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string totitle already title">
+  <script>string totitle "Hello World"</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>Hello world</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string totitle all caps">
+  <script>string totitle "HELLO WORLD"</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>Hello world</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string totitle mixed case">
+  <script>string totitle "hELLO wORLD"</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>Hello world</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string totitle empty">
+  <script>string totitle ""</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout></stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string totitle single char">
+  <script>string totitle "h"</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>H</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- totitle with range -->
+
+<test-case name="string totitle with range start">
+  <script>string totitle "hello world" 0 4</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>Hello world</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string totitle with range middle">
+  <script>string totitle "hello world" 6 10</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>hello World</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- Unicode -->
+
+<test-case name="string totitle unicode umlaut">
+  <script>string totitle "über"</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>Über</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="string totitle unicode greek">
+  <script>string totitle "ΩMEGA"</script>
+  <return>TCL_OK</return>
+  <error></error>
+  <stdout>Ωmega</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<!-- Error cases -->
+
+<test-case name="string totitle wrong args none">
+  <script>string totitle</script>
+  <return>TCL_ERROR</return>
+  <error>wrong # args: should be "string totitle string ?first? ?last?"</error>
+  <stderr></stderr>
+  <exit-code>1</exit-code>
+</test-case>
+
+</test-suite>

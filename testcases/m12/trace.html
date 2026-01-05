@@ -111,7 +111,7 @@ set ::traceLog</script>
     <exit-code>0</exit-code>
   </test-case>
 
-  <test-case name="multiple traces fire in order">
+  <test-case name="multiple variable traces fire in LIFO order">
     <script>set ::traceLog ""
 proc trace1 {name1 name2 op} {
     if {$::traceLog == ""} {
@@ -133,7 +133,7 @@ set x hello
 set ::traceLog</script>
     <return>TCL_OK</return>
     <error></error>
-    <stdout>t1,t2</stdout>
+    <stdout>t2,t1</stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
@@ -241,7 +241,7 @@ rename myProc newProc
 set ::traceLog</script>
     <return>TCL_OK</return>
     <error></error>
-    <stdout>rename:myProc->newProc</stdout>
+    <stdout>rename:::myProc->::newProc</stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
@@ -257,7 +257,7 @@ rename myProc ""
 set ::traceLog</script>
     <return>TCL_OK</return>
     <error></error>
-    <stdout>delete:myProc</stdout>
+    <stdout>delete:::myProc</stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
@@ -269,7 +269,7 @@ set ::traceLog</script>
   <test-case name="trace with no subcommand">
     <script>trace</script>
     <return>TCL_ERROR</return>
-    <error>wrong # args: should be "trace subcommand ?arg ...?"</error>
+    <error>wrong # args: should be "trace option ?arg ...?"</error>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -277,7 +277,7 @@ set ::traceLog</script>
   <test-case name="trace with unknown subcommand">
     <script>trace unknown</script>
     <return>TCL_ERROR</return>
-    <error>unknown or ambiguous subcommand "unknown": must be add, info, or remove</error>
+    <error>bad option "unknown": must be add, info, or remove</error>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -285,7 +285,7 @@ set ::traceLog</script>
   <test-case name="trace add with bad type">
     <script>trace add badtype x {write} myTrace</script>
     <return>TCL_ERROR</return>
-    <error>bad type "badtype": must be command, execution, or variable</error>
+    <error>bad option "badtype": must be execution, command, or variable</error>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -293,7 +293,7 @@ set ::traceLog</script>
   <test-case name="trace add with missing arguments">
     <script>trace add variable</script>
     <return>TCL_ERROR</return>
-    <error>wrong # args: should be "trace add type name ops command"</error>
+    <error>wrong # args: should be "trace add variable name opList command"</error>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
@@ -301,14 +301,16 @@ set ::traceLog</script>
   <test-case name="trace info with bad type">
     <script>trace info badtype x</script>
     <return>TCL_ERROR</return>
-    <error>bad type "badtype": must be command, execution, or variable</error>
+    <error>bad option "badtype": must be execution, command, or variable</error>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
 
   <!-- Execution traces -->
   <test-case name="trace add execution with enter">
-    <script>trace add execution puts {enter} myTrace; trace info execution puts</script>
+    <script>proc myCmd {} {}
+trace add execution myCmd {enter} myTrace
+trace info execution myCmd</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>{enter myTrace}</stdout>
@@ -317,7 +319,9 @@ set ::traceLog</script>
   </test-case>
 
   <test-case name="trace add execution with multiple ops">
-    <script>trace add execution puts {enter leave} myTrace; trace info execution puts</script>
+    <script>proc myCmd {} {}
+trace add execution myCmd {enter leave} myTrace
+trace info execution myCmd</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout>{{enter leave} myTrace}</stdout>
@@ -326,7 +330,10 @@ set ::traceLog</script>
   </test-case>
 
   <test-case name="trace remove execution">
-    <script>trace add execution puts {enter} myTrace; trace remove execution puts {enter} myTrace; trace info execution puts</script>
+    <script>proc myCmd {} {}
+trace add execution myCmd {enter} myTrace
+trace remove execution myCmd {enter} myTrace
+trace info execution myCmd</script>
     <return>TCL_OK</return>
     <error></error>
     <stdout></stdout>

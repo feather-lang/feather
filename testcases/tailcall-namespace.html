@@ -1,0 +1,67 @@
+<test-suite name="tailcall namespace resolution">
+
+<!-- Test that tailcall looks up commands in the proc's namespace, not caller's -->
+
+<test-case name="tailcall uses proc namespace not caller namespace">
+  <script>
+    namespace eval foo {
+        proc cmd {} { list foo::cmd }
+        proc caller {} { tailcall cmd }
+    }
+
+    namespace eval bar {
+        proc cmd {} { list bar::cmd }
+        proc test {} { foo::caller }
+    }
+
+    bar::test
+  </script>
+  <return>TCL_OK</return>
+  <stdout>foo::cmd</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="tailcall from global namespace">
+  <script>
+    proc globalCmd {} { list globalCmd }
+    proc globalCaller {} { tailcall globalCmd }
+
+    namespace eval ns {
+        proc test {} { globalCaller }
+    }
+
+    ns::test
+  </script>
+  <return>TCL_OK</return>
+  <stdout>globalCmd</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="tailcall with qualified name">
+  <script>
+    namespace eval target {
+        proc cmd {} { list target::cmd }
+    }
+
+    namespace eval source {
+        proc caller {} { tailcall target::cmd }
+    }
+
+    source::caller
+  </script>
+  <return>TCL_OK</return>
+  <stdout>target::cmd</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="tailcall basic functionality">
+  <script>
+    proc identity {x} { tailcall list $x }
+    identity hello
+  </script>
+  <return>TCL_OK</return>
+  <stdout>hello</stdout>
+  <exit-code>0</exit-code>
+</test-case>
+
+</test-suite>

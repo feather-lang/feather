@@ -594,7 +594,7 @@ string match "*3*" $info
   <test-case name="dict unknown subcommand is error">
     <script>dict foobar</script>
     <return>TCL_ERROR</return>
-    <error>unknown or ambiguous subcommand "foobar": must be append, create, exists, for, get, getdef, getwithdefault, incr, info, keys, lappend, merge, remove, replace, set, size, unset, or values</error>
+    <error>unknown or ambiguous subcommand "foobar": must be append, create, exists, filter, for, get, getdef, getwithdefault, incr, info, keys, lappend, map, merge, remove, replace, set, size, unset, update, values, or with</error>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>

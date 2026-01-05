@@ -132,7 +132,10 @@ class FeatherInterp {
     if (!obj) return '';
     if (typeof obj === 'string') return obj;
     if (obj.type === 'string') return obj.value;
-    if (obj.type === 'int') return String(obj.value);
+    if (obj.type === 'int') {
+      // Handle BigInt values
+      return typeof obj.value === 'bigint' ? obj.value.toString() : String(obj.value);
+    }
     if (obj.type === 'double') {
       // Format special values to match TCL's format
       if (Number.isNaN(obj.value)) return 'NaN';
@@ -345,7 +348,7 @@ async function createFeather(wasmSource) {
   };
 
   const readI64 = (ptr) => {
-    return Number(new DataView(wasmMemory.buffer).getBigInt64(ptr, true));
+    return new DataView(wasmMemory.buffer).getBigInt64(ptr, true);
   };
 
   const writeF64 = (ptr, value) => {
@@ -534,6 +537,26 @@ async function createFeather(wasmSource) {
       const entry = interp.currentFrame().vars.get(varName);
       // A variable is a link if it has 'link' (upvar) or 'nsLink' (global/variable)
       return (entry && (entry.link || entry.nsLink)) ? 1 : 0;
+    },
+    feather_host_var_resolve_link: (interpId, name) => {
+      const interp = interpreters.get(interpId);
+      let varName = interp.getString(name);
+      let frame = interp.currentFrame();
+      // Follow links to find the target variable name
+      while (true) {
+        const entry = frame.vars.get(varName);
+        if (entry?.link) {
+          frame = interp.frames[entry.link.level];
+          varName = entry.link.name;
+        } else if (entry?.nsLink) {
+          // Namespace link - return the namespace variable name
+          return interp.store({ type: 'string', value: entry.nsLink.name });
+        } else {
+          break;
+        }
+      }
+      // Return the resolved variable name
+      return interp.store({ type: 'string', value: varName });
     },
 
     // Namespace operations
@@ -731,21 +754,25 @@ async function createFeather(wasmSource) {
       return TCL_ERROR;
     },
 
-    // String operations
+    // String operations - work with UTF-8 bytes, not JS characters
     feather_host_string_byte_at: (interpId, obj, index) => {
       const interp = interpreters.get(interpId);
       const str = interp.getString(obj);
-      if (index >= str.length) return -1;
-      return str.charCodeAt(index);
+      const bytes = new TextEncoder().encode(str);
+      if (index >= bytes.length) return -1;
+      return bytes[index];
     },
     feather_host_string_byte_length: (interpId, obj) => {
       const interp = interpreters.get(interpId);
-      return interp.getString(obj).length;
+      const str = interp.getString(obj);
+      return new TextEncoder().encode(str).length;
     },
     feather_host_string_slice: (interpId, obj, start, end) => {
       const interp = interpreters.get(interpId);
       const str = interp.getString(obj);
-      const sliced = str.slice(start, end);
+      // Slice works on UTF-8 bytes, not JS characters
+      const bytes = new TextEncoder().encode(str);
+      const sliced = new TextDecoder().decode(bytes.slice(start, end));
       return interp.store({ type: 'string', value: sliced });
     },
     feather_host_string_concat: (interpId, a, b) => {
@@ -773,13 +800,94 @@ async function createFeather(wasmSource) {
         .replace(/\*/g, '.*').replace(/\?/g, '.') + '$');
       return regex.test(s) ? 1 : 0;
     },
-    feather_host_string_regex_match: (interpId, pattern, string, resultPtr) => {
+    feather_host_string_regex_match: (interpId, pattern, string, nocase, resultPtr, matchesPtr, indicesPtr) => {
       const interp = interpreters.get(interpId);
-      const patStr = interp.getString(pattern);
+      let patStr = interp.getString(pattern);
       const strVal = interp.getString(string);
+
+      // Add case-insensitive flag if needed
+      const flags = nocase ? 'i' : '';
+
       try {
-        const re = new RegExp(patStr);
-        writeI32(resultPtr, re.test(strVal) ? 1 : 0);
+        const re = new RegExp(patStr, flags);
+
+        if (matchesPtr || indicesPtr) {
+          // Need captures
+          const match = re.exec(strVal);
+          if (match === null) {
+            // No match
+            writeI32(resultPtr, 0);
+            if (matchesPtr) {
+              writeI32(matchesPtr, interp.store({ type: 'list', items: [] }));
+            }
+            if (indicesPtr) {
+              writeI32(indicesPtr, interp.store({ type: 'list', items: [] }));
+            }
+          } else {
+            // Match found
+            writeI32(resultPtr, 1);
+
+            if (matchesPtr) {
+              // Build list of matched substrings
+              const matchList = [];
+              for (let j = 0; j < match.length; j++) {
+                matchList.push(interp.store({
+                  type: 'string',
+                  value: match[j] !== undefined ? match[j] : ''
+                }));
+              }
+              writeI32(matchesPtr, interp.store({ type: 'list', items: matchList }));
+            }
+
+            if (indicesPtr) {
+              // Build list of {start end} pairs
+              // Note: TCL uses inclusive character indices
+              const indexList = [];
+
+              // Full match is at match.index with length match[0].length
+              let pos = match.index;
+              indexList.push(interp.store({
+                type: 'list',
+                items: [
+                  interp.store({ type: 'int', value: pos }),
+                  interp.store({ type: 'int', value: pos + match[0].length - 1 })
+                ]
+              }));
+
+              // For capturing groups, we need to find their positions
+              // JavaScript doesn't give us group indices directly in older engines,
+              // but we can use the 'd' flag if available (ES2022) or work around it
+              // For simplicity, we'll search for each group within the string
+              for (let j = 1; j < match.length; j++) {
+                if (match[j] === undefined) {
+                  // Unmatched optional group
+                  indexList.push(interp.store({
+                    type: 'list',
+                    items: [
+                      interp.store({ type: 'int', value: -1 }),
+                      interp.store({ type: 'int', value: -1 })
+                    ]
+                  }));
+                } else {
+                  // Find the group's position - search from full match position
+                  const groupStart = strVal.indexOf(match[j], match.index);
+                  const groupEnd = groupStart + match[j].length - 1;
+                  indexList.push(interp.store({
+                    type: 'list',
+                    items: [
+                      interp.store({ type: 'int', value: groupStart }),
+                      interp.store({ type: 'int', value: groupEnd })
+                    ]
+                  }));
+                }
+              }
+              writeI32(indicesPtr, interp.store({ type: 'list', items: indexList }));
+            }
+          }
+        } else {
+          // Simple match - no captures needed
+          writeI32(resultPtr, re.test(strVal) ? 1 : 0);
+        }
         return TCL_OK;
       } catch (e) {
         interp.result = interp.store({ type: 'string', value: `invalid regex: ${e.message}` });
@@ -824,15 +932,17 @@ async function createFeather(wasmSource) {
     feather_host_string_get: (interpId, obj, lenPtr) => {
       const interp = interpreters.get(interpId);
       const str = interp.getString(obj);
-      writeI32(lenPtr, str.length);
-      const [ptr] = writeString(str);
+      const [ptr, byteLen] = writeString(str);
+      writeI32(lenPtr, byteLen);  // Write UTF-8 byte length, not JS string length
       return ptr;
     },
 
     // Rune operations
     feather_host_rune_length: (interpId, str) => {
       const interp = interpreters.get(interpId);
-      return [...interp.getString(str)].length;
+      const s = interp.getString(str);
+      const len = [...s].length;
+      return len;
     },
     feather_host_rune_at: (interpId, str, index) => {
       const interp = interpreters.get(interpId);
@@ -843,9 +953,17 @@ async function createFeather(wasmSource) {
     feather_host_rune_range: (interpId, str, first, last) => {
       const interp = interpreters.get(interpId);
       const chars = [...interp.getString(str)];
-      const f = Math.max(0, Number(first));
-      const l = Math.min(chars.length - 1, Number(last));
-      if (f > l) return interp.store({ type: 'string', value: '' });
+      let f = Number(first);
+      let l = Number(last);
+
+      // Match Go implementation: clamp f but not l before comparison
+      if (f < 0) f = 0;
+      if (l >= chars.length) l = chars.length - 1;
+
+      if (f > l || chars.length === 0) {
+        return interp.store({ type: 'string', value: '' });
+      }
+
       return interp.store({ type: 'string', value: chars.slice(f, l + 1).join('') });
     },
     feather_host_rune_to_upper: (interpId, str) => {
@@ -859,6 +977,85 @@ async function createFeather(wasmSource) {
     feather_host_rune_fold: (interpId, str) => {
       const interp = interpreters.get(interpId);
       return interp.store({ type: 'string', value: interp.getString(str).toLowerCase() });
+    },
+    feather_host_rune_is_class: (interpId, ch, charClass) => {
+      const interp = interpreters.get(interpId);
+      const s = interp.getString(ch);
+      if (s.length === 0) return 0;
+      // Get the first code point
+      const codePoint = s.codePointAt(0);
+      const c = String.fromCodePoint(codePoint);
+
+      // Character class constants match FeatherCharClass enum
+      const CHAR_ALNUM = 0;
+      const CHAR_ALPHA = 1;
+      const CHAR_ASCII = 2;
+      const CHAR_CONTROL = 3;
+      const CHAR_DIGIT = 4;
+      const CHAR_GRAPH = 5;
+      const CHAR_LOWER = 6;
+      const CHAR_PRINT = 7;
+      const CHAR_PUNCT = 8;
+      const CHAR_SPACE = 9;
+      const CHAR_UPPER = 10;
+      const CHAR_WORDCHAR = 11;
+      const CHAR_XDIGIT = 12;
+
+      // Helper functions for Unicode classification
+      const isLetter = (cp) => /\p{L}/u.test(String.fromCodePoint(cp));
+      const isDigit = (cp) => /\p{Nd}/u.test(String.fromCodePoint(cp));
+      const isUpper = (cp) => /\p{Lu}/u.test(String.fromCodePoint(cp));
+      const isLower = (cp) => /\p{Ll}/u.test(String.fromCodePoint(cp));
+      const isSpace = (cp) => /\p{Zs}|\t|\n|\r|\v|\f/u.test(String.fromCodePoint(cp));
+      const isControl = (cp) => /\p{Cc}/u.test(String.fromCodePoint(cp));
+      const isPunct = (cp) => /\p{P}/u.test(String.fromCodePoint(cp));
+      const isPrint = (cp) => !/\p{Cc}/u.test(String.fromCodePoint(cp)) && !/\p{Cs}/u.test(String.fromCodePoint(cp));
+
+      let result = false;
+      switch (charClass) {
+        case CHAR_ALNUM:
+          result = isLetter(codePoint) || isDigit(codePoint);
+          break;
+        case CHAR_ALPHA:
+          result = isLetter(codePoint);
+          break;
+        case CHAR_ASCII:
+          result = codePoint <= 127;
+          break;
+        case CHAR_CONTROL:
+          result = isControl(codePoint);
+          break;
+        case CHAR_DIGIT:
+          result = isDigit(codePoint);
+          break;
+        case CHAR_GRAPH:
+          // Graphical = printable and not space
+          result = isPrint(codePoint) && !isSpace(codePoint);
+          break;
+        case CHAR_LOWER:
+          result = isLower(codePoint);
+          break;
+        case CHAR_PRINT:
+          result = isPrint(codePoint);
+          break;
+        case CHAR_PUNCT:
+          result = isPunct(codePoint);
+          break;
+        case CHAR_SPACE:
+          result = isSpace(codePoint);
+          break;
+        case CHAR_UPPER:
+          result = isUpper(codePoint);
+          break;
+        case CHAR_WORDCHAR:
+          // Word character = alphanumeric or underscore
+          result = isLetter(codePoint) || isDigit(codePoint) || codePoint === 0x5F; // underscore
+          break;
+        case CHAR_XDIGIT:
+          result = /^[0-9a-fA-F]$/.test(c);
+          break;
+      }
+      return result ? 1 : 0;
     },
 
     // List operations
@@ -1085,7 +1282,8 @@ async function createFeather(wasmSource) {
     // Integer operations
     feather_host_integer_create: (interpId, val) => {
       const interp = interpreters.get(interpId);
-      return interp.store({ type: 'int', value: Number(val) });
+      // Preserve BigInt for i64 values to avoid precision loss
+      return interp.store({ type: 'int', value: typeof val === 'bigint' ? val : BigInt(val) });
     },
     feather_host_integer_get: (interpId, obj, outPtr) => {
       const interp = interpreters.get(interpId);
@@ -1100,15 +1298,24 @@ async function createFeather(wasmSource) {
         interp.result = interp.store({ type: 'string', value: `expected integer but got "${str}"` });
         return TCL_ERROR;
       }
-      const val = parseInt(str, str.startsWith('0x') || str.startsWith('-0x') ? 16 :
-                           str.startsWith('0o') || str.startsWith('-0o') ? 8 :
-                           str.startsWith('0b') || str.startsWith('-0b') ? 2 : 10);
-      if (isNaN(val)) {
+      // Use BigInt to parse large integers without precision loss
+      try {
+        let val;
+        if (str.startsWith('0x') || str.startsWith('-0x')) {
+          val = BigInt(str);
+        } else if (str.startsWith('0o') || str.startsWith('-0o')) {
+          val = BigInt(str);
+        } else if (str.startsWith('0b') || str.startsWith('-0b')) {
+          val = BigInt(str);
+        } else {
+          val = BigInt(str);
+        }
+        writeI64(outPtr, val);
+        return TCL_OK;
+      } catch (e) {
         interp.result = interp.store({ type: 'string', value: `expected integer but got "${str}"` });
         return TCL_ERROR;
       }
-      writeI64(outPtr, val);
-      return TCL_OK;
     },
 
     // Double operations
@@ -1155,12 +1362,16 @@ async function createFeather(wasmSource) {
       if (val === Infinity) return 2;   // FEATHER_DBL_INF
       if (val === -Infinity) return 3;  // FEATHER_DBL_NEG_INF
       if (val === 0) return 1;          // FEATHER_DBL_ZERO
+      // Smallest normal positive float64 is 2^-1022
+      const smallestNormal = 2.2250738585072014e-308;
+      if (Math.abs(val) < smallestNormal) return 5;  // FEATHER_DBL_SUBNORMAL
       return 0;                         // FEATHER_DBL_NORMAL
     },
-    feather_host_dbl_format: (interpId, val, specifier, precision) => {
+    feather_host_dbl_format: (interpId, val, specifier, precision, alternate) => {
       const interp = interpreters.get(interpId);
       const spec = String.fromCharCode(specifier);
       const prec = precision < 0 ? 6 : precision;
+      const alt = alternate !== 0;
 
       // Handle special values
       if (Number.isNaN(val)) {
@@ -1200,26 +1411,54 @@ async function createFeather(wasmSource) {
             exponent = Math.floor(Math.log10(absVal));
           }
           const sigfigs = prec > 0 ? prec : 6;
-          
+
           if (exponent < -4 || exponent >= sigfigs) {
             // Use exponential notation
             result = val.toExponential(sigfigs - 1);
-            // Trim trailing zeros before 'e' (TCL %g behavior)
-            result = result.replace(/(\.\d*?)0+(e)/, '$1$2').replace(/\.(e)/, '$1');
+            if (!alt) {
+              // Trim trailing zeros before 'e' (TCL %g behavior)
+              result = result.replace(/(\.\d*?)0+(e)/, '$1$2').replace(/\.(e)/, '$1');
+            }
             result = padExponent(result);
           } else {
             // Use fixed notation with trailing zeros trimmed
             const decimalPlaces = sigfigs - exponent - 1;
             result = val.toFixed(Math.max(0, decimalPlaces));
-            // Remove trailing zeros after decimal point
-            if (result.includes('.')) {
-              result = result.replace(/\.?0+$/, '');
+            if (!alt) {
+              // Remove trailing zeros after decimal point
+              if (result.includes('.')) {
+                result = result.replace(/\.?0+$/, '');
+              }
             }
           }
           if (spec === 'G') result = result.toUpperCase();
           break;
         }
       }
+
+      // Handle alternate form (#) for f/F - ensure decimal point
+      if (alt && (spec === 'f' || spec === 'F')) {
+        if (!result.includes('.')) {
+          result = result + '.';
+        }
+      }
+
+      // Handle alternate form for e/E - ensure decimal point
+      if (alt && (spec === 'e' || spec === 'E')) {
+        // Find 'e' or 'E' and insert decimal point before it if missing
+        const expIdx = result.search(/[eE]/);
+        if (expIdx > 0 && !result.substring(0, expIdx).includes('.')) {
+          result = result.substring(0, expIdx) + '.' + result.substring(expIdx);
+        }
+      }
+
+      // Handle alternate form for g/G - ensure decimal point present
+      if (alt && (spec === 'g' || spec === 'G')) {
+        if (!result.includes('.') && !result.includes('e') && !result.includes('E')) {
+          result = result + '.';
+        }
+      }
+
       return interp.store({ type: 'string', value: result });
     },
     feather_host_dbl_math: (interpId, op, a, b, outPtr) => {

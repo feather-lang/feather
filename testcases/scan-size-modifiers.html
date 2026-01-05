@@ -1,0 +1,209 @@
+<test-suite name="scan size modifier truncation and unsigned conversion">
+  <!-- Test %d with no modifier (32-bit truncation) -->
+
+  <test-case name="scan: %d 32-bit truncation positive">
+    <script>scan "4294967297" %d</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: %d 32-bit truncation sign bit">
+    <script>scan "2147483648" %d</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-2147483648</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: %d 32-bit truncation wraparound">
+    <script>scan "4294967295" %d</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Test %lld (no truncation) -->
+
+  <test-case name="scan: %lld no truncation large positive">
+    <script>scan "4294967296" %lld</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>4294967296</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: %lld no truncation max int64">
+    <script>scan "9223372036854775807" %lld</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>9223372036854775807</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Test %u unsigned conversion (32-bit) -->
+
+  <test-case name="scan: %u unsigned -1 to 4294967295">
+    <script>scan "-1" %u</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>4294967295</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: %u unsigned positive">
+    <script>scan "123" %u</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>123</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: %u unsigned large positive">
+    <script>scan "2147483648" %u</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>2147483648</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: %u unsigned truncation from 64-bit">
+    <script>scan "4294967296" %u</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: %u unsigned truncation wraparound">
+    <script>scan "4294967297" %u</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Test %lu unsigned 64-bit -->
+
+  <test-case name="scan: %lu unsigned 64-bit -1">
+    <script>scan "-1" %lu</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: %lu unsigned 64-bit large value">
+    <script>scan "4294967296" %lu</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>4294967296</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Test %o octal with truncation -->
+
+  <test-case name="scan: %o octal 32-bit truncation">
+    <script>scan "37777777777" %o</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: %llo octal no truncation">
+    <script>scan "77777777777" %llo</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>8589934591</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Test %x hex with truncation -->
+
+  <test-case name="scan: %x hex 32-bit truncation">
+    <script>scan "FFFFFFFF" %x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>-1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: %x hex 32-bit truncation positive">
+    <script>scan "100000000" %x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: %llx hex no truncation">
+    <script>scan "100000000" %llx</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>4294967296</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Test %b binary with truncation -->
+
+  <test-case name="scan: %b binary 32-bit truncation">
+    <script>scan "100000000000000000000000000000000" %b</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: %llb binary no truncation">
+    <script>scan "100000000000000000000000000000000" %llb</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>4294967296</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- Test variable assignment with truncation -->
+
+  <test-case name="scan: %d truncation into variable">
+    <script>scan "4294967297" %d x
+set x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="scan: %u unsigned into variable">
+    <script>scan "-1" %u x
+set x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>4294967295</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

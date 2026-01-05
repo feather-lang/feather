@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head><title>return -errorinfo tests</title></head>
+<body>
+<h1>return -errorinfo tests</h1>
+
+<h2>Basic -errorinfo usage</h2>
+
+<test-case name="return -errorinfo sets errorinfo in options">
+  <script>
+proc test {} {
+    return -code error -errorinfo "Custom trace" "my error"
+}
+catch {test} msg opts
+dict exists $opts -errorinfo
+</script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<test-case name="return -errorinfo sets global errorInfo">
+  <script>
+proc test {} {
+    return -code error -errorinfo "Custom trace" "my error"
+}
+catch {test} msg opts
+expr {[string match "*Custom trace*" $::errorInfo]}
+</script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>-errorinfo via -options</h2>
+
+<test-case name="return -options preserves errorinfo">
+  <script>
+proc inner {} {
+    return -code error -errorinfo "Inner trace" "inner error"
+}
+proc outer {} {
+    catch {inner} result opts
+    return -options $opts $result
+}
+catch {outer} msg opts
+expr {[string match "*Inner trace*" [dict get $opts -errorinfo]]}
+</script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>-errorinfo with multiline value</h2>
+
+<test-case name="return -errorinfo with newlines">
+  <script>
+proc test {} {
+    return -code error -errorinfo "Line 1\n    Line 2\n    Line 3" "my error"
+}
+catch {test} msg opts
+expr {[string match "*Line 1*Line 2*Line 3*" [dict get $opts -errorinfo]]}
+</script>
+  <return>TCL_OK</return>
+  <stdout>1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+<h2>Combined options</h2>
+
+<test-case name="return with -errorcode and -errorinfo">
+  <script>
+proc test {} {
+    return -code error -errorcode {MYERR 42} -errorinfo "Custom trace" "my error"
+}
+catch {test} msg opts
+list [dict get $opts -errorcode] [expr {[string match "*Custom trace*" [dict get $opts -errorinfo]]}]
+</script>
+  <return>TCL_OK</return>
+  <stdout>{MYERR 42} 1</stdout>
+  <stderr></stderr>
+  <exit-code>0</exit-code>
+</test-case>
+
+</body>
+</html>

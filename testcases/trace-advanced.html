@@ -1,0 +1,283 @@
+<test-suite name="trace-advanced">
+  <!--
+    Advanced Trace Behavior Tests
+
+    Tests for trace behaviors not covered in basic trace tests:
+    - Error propagation from trace callbacks
+    - Trace removal on variable unset
+    - Variable modification in read/write callbacks
+    - upvar interaction with traces
+  -->
+
+  <!-- ============================================= -->
+  <!-- Error propagation from write trace callbacks  -->
+  <!-- ============================================= -->
+
+  <test-case name="write trace error propagates with can't set message">
+    <script>proc traceProc {name1 name2 op} {
+    error "trace error"
+}
+trace add variable x write traceProc
+catch {set x 10} result
+set result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>can't set "x": trace error</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="write trace error creates variable but allows restoration">
+    <script>proc traceProc {name1 name2 op} {
+    upvar 1 $name1 var
+    set var original
+    error "blocked"
+}
+trace add variable x write traceProc
+catch {set x newvalue}
+set x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>original</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="write trace fires after variable is set">
+    <script>set log {}
+proc traceProc {name1 name2 op} {
+    global x log
+    lappend log "x=$x"
+}
+trace add variable x write traceProc
+set x newvalue
+set log</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>x=newvalue</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Error propagation from read trace callbacks   -->
+  <!-- ============================================= -->
+
+  <test-case name="read trace error propagates with can't read message">
+    <script>set x 5
+proc traceProc {name1 name2 op} {
+    error "read error"
+}
+trace add variable x read traceProc
+catch {set y $x} result
+set result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>can't read "x": read error</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Error propagation from unset trace callbacks  -->
+  <!-- ============================================= -->
+
+  <test-case name="unset trace error does not prevent unset">
+    <script>set x 5
+proc traceProc {name1 name2 op} {
+    error "unset error"
+}
+trace add variable x unset traceProc
+catch {unset x} result
+list [info exists x] $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>0 {}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Error propagation from execution traces       -->
+  <!-- ============================================= -->
+
+  <test-case name="execution enter trace error propagates">
+    <script>proc execTrace args {
+    error "exec trace error"
+}
+proc myProc {} { return ok }
+trace add execution myProc enter execTrace
+catch {myProc} result
+set result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>exec trace error</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="execution leave trace error propagates">
+    <script>proc execTrace args {
+    error "leave trace error"
+}
+proc myProc {} { return ok }
+trace add execution myProc leave execTrace
+catch {myProc} result
+set result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>leave trace error</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Trace removal on variable unset               -->
+  <!-- ============================================= -->
+
+  <test-case name="variable traces removed on unset">
+    <script>proc myTrace {name1 name2 op} {}
+trace add variable x unset myTrace
+trace add variable x write myTrace
+set x 10
+unset x
+trace info variable x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="unset trace fires before traces are removed">
+    <script>set log {}
+proc unsetTrace {name1 name2 op} {
+    global log
+    lappend log "unset:$name1"
+}
+set x 10
+trace add variable x unset unsetTrace
+unset x
+set log</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>unset:x</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Variable modification in trace callbacks      -->
+  <!-- ============================================= -->
+
+  <test-case name="read trace can modify variable with upvar">
+    <script>set x 5
+proc readTrace {name1 name2 op} {
+    upvar 1 $name1 var
+    set var 100
+}
+trace add variable x read readTrace
+set x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>100</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="write trace can see and modify new value">
+    <script>proc writeTrace {name1 name2 op} {
+    upvar 1 $name1 var
+    set var [expr {$var * 2}]
+}
+trace add variable x write writeTrace
+set x 5
+set x</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>10</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- upvar interaction with traces                 -->
+  <!-- ============================================= -->
+
+  <test-case name="upvar write fires trace with local name">
+    <script>set log {}
+proc traceProc {name1 name2 op} {
+    global log
+    lappend log "$name1|$op"
+}
+proc myProc {} {
+    upvar 1 x localX
+    set localX 10
+}
+set x 0
+trace add variable x write traceProc
+myProc
+set log</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>localX|write</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="upvar read fires trace with local name">
+    <script>set log {}
+proc traceProc {name1 name2 op} {
+    global log
+    lappend log "$name1|$op"
+}
+proc myProc {} {
+    upvar 1 x localX
+    expr {$localX + 1}
+}
+set x 5
+trace add variable x read traceProc
+myProc
+set log</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>localX|read</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Command trace error behavior                  -->
+  <!-- ============================================= -->
+
+  <test-case name="command rename trace error does not propagate">
+    <script>proc cmdTrace {old new op} {
+    error "trace error"
+}
+proc myProc {} {}
+trace add command myProc rename cmdTrace
+catch {rename myProc newProc} result
+list [info commands newProc] $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>newProc {}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="command delete trace error does not propagate">
+    <script>proc cmdTrace {old new op} {
+    error "trace error"
+}
+proc myProc {} {}
+trace add command myProc delete cmdTrace
+catch {rename myProc ""} result
+list [info commands myProc] $result</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{} {}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

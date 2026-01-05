@@ -387,12 +387,13 @@ set result</script>
     <exit-code>1</exit-code>
   </test-case>
 
-  <test-case name="return with unknown option gives error">
+  <test-case name="return with unknown option accepts it as custom option">
     <script>return -unknown value</script>
-    <return>TCL_ERROR</return>
-    <error>bad option "-unknown": must be -code, -level, or -options</error>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
     <stderr></stderr>
-    <exit-code>1</exit-code>
+    <exit-code>0</exit-code>
   </test-case>
 
   <!-- ============================================= -->
@@ -414,6 +415,38 @@ set result</script>
     <error>top level error</error>
     <stderr></stderr>
     <exit-code>1</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- multiple trailing arguments                   -->
+  <!-- ============================================= -->
+
+  <test-case name="return with multiple args returns last only">
+    <script>
+proc test {} {
+    return a b c
+}
+test
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>c</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="return with options then multiple args returns last">
+    <script>
+proc test {} {
+    return -code ok first second third
+}
+test
+</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>third</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
   </test-case>
 
 </test-suite>
