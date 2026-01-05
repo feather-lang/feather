@@ -72,3 +72,4 @@ coverage.html
 feather-wasm/wasm/feather.wasm
 /feather-tester
 feather-httpd
+examples/embed
