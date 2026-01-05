@@ -1248,11 +1248,11 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
     "See if pattern matches string; return 1 if it does, 0 if it does not. If "
     "-nocase is specified, then the pattern attempts to match against the string "
     "in a case insensitive manner.\n\n"
-    "The following special sequences may appear in pattern:\n"
-    "  *        Matches any sequence of characters, including empty\n"
-    "  ?        Matches any single character\n"
-    "  [chars]  Matches any character in the set, including ranges like a-z\n"
-    "  \\x       Matches the single character x literally");
+    "The following special sequences may appear in pattern:\n\n"
+    "*          Matches any sequence of characters, including empty\n\n"
+    "?          Matches any single character\n\n"
+    "[chars]    Matches any character in the set, including ranges like a-z\n\n"
+    "\\x         Matches the single character x literally");
   spec = feather_usage_add(ops, interp, spec, e);
 
   // --- Subcommand: range ---

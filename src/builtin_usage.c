@@ -944,13 +944,17 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
     append_wrapped(ops, interp, builder, trimmed, "       ", 65);
   }
 
-  /* === Custom SECTIONS (appear after DESCRIPTION) === */
+  /* === Custom SECTIONS (appear after DESCRIPTION, except SEE ALSO) === */
   for (size_t i = 0; i < specLen; i++) {
     FeatherObj entry = ops->list.at(interp, parsedSpec, i);
 
     if (entry_is_type(ops, interp, entry, T_SECTION)) {
       FeatherObj sectionName = dict_get_str(ops, interp, entry, K_SECTION_NAME);
       FeatherObj content = dict_get_str(ops, interp, entry, K_CONTENT);
+
+      /* Skip SEE ALSO - it will be rendered at the very end */
+      FeatherObj lower = ops->rune.to_lower(interp, sectionName);
+      if (feather_obj_eq_literal(ops, interp, lower, "see also")) continue;
 
       if (ops->string.byte_length(interp, sectionName) > 0) {
         append_str(ops, interp, builder, "\n\n");
@@ -1201,6 +1205,22 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
           FeatherObj trimmed = trim_text_block(ops, interp, code);
           append_indented_verbatim(ops, interp, builder, trimmed, "           ");
         }
+      }
+    }
+  }
+
+  /* === SEE ALSO section (always last) === */
+  for (size_t i = 0; i < specLen; i++) {
+    FeatherObj entry = ops->list.at(interp, parsedSpec, i);
+
+    if (entry_is_type(ops, interp, entry, T_SECTION)) {
+      FeatherObj sectionName = dict_get_str(ops, interp, entry, K_SECTION_NAME);
+      FeatherObj lower = ops->rune.to_lower(interp, sectionName);
+      if (feather_obj_eq_literal(ops, interp, lower, "see also")) {
+        FeatherObj content = dict_get_str(ops, interp, entry, K_CONTENT);
+        append_str(ops, interp, builder, "\n\nSEE ALSO\n       ");
+        FeatherObj trimmed = trim_text_block(ops, interp, content);
+        append_wrapped(ops, interp, builder, trimmed, "       ", 65);
       }
     }
   }
