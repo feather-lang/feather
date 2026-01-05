@@ -10,12 +10,14 @@ variable ?name value ...? name ?value?
 
 ## Parameters
 
-- **name**: Variable name (must not be namespace-qualified)
+- **name**: Variable name (simple or namespace-qualified)
 - **value**: Optional initial value for the preceding name
 
 ## Description
 
-Creates a variable in the current namespace and links a local reference to it. If called inside a procedure within a namespace, creates both the namespace variable and a local alias. The name must be simple (not qualified with `::`) since the variable is always created in the current namespace.
+Creates a variable in the current namespace and links a local reference to it. If called inside a procedure within a namespace, creates both the namespace variable and a local alias.
+
+When `name` is a simple name (not qualified with `::`), the variable is created in the current namespace. When `name` is a fully-qualified name (e.g., `::other::varname`), `variable` creates a local link to that variable in the specified namespace, enabling cross-namespace access. The parent namespace must already exist; otherwise an error is raised.
 
 ## Examples
 
@@ -49,12 +51,12 @@ puts "Timeout: $config::timeout"`
 
 const variableWithoutInitialValue = `namespace eval app {
     variable name
-    
+
     proc init {n} {
         variable name
         set name $n
     }
-    
+
     proc greet {} {
         variable name
         puts "Hello, $name!"
@@ -63,6 +65,26 @@ const variableWithoutInitialValue = `namespace eval app {
 
 app::init {Feather User}
 app::greet`
+
+const crossNamespaceAccess = `namespace eval target {
+    variable data "shared data"
+}
+
+namespace eval other {
+    proc access {} {
+        variable ::target::data
+        puts "Accessed: $data"
+    }
+
+    proc modify {} {
+        variable ::target::data
+        set data "modified by other"
+    }
+}
+
+other::access
+other::modify
+puts "After modify: $target::data"`
 </script>
 
 ### Declaring namespace variables
@@ -76,6 +98,10 @@ app::greet`
 ### Variable without initial value
 
 <WasmPlayground :tcl="variableWithoutInitialValue" />
+
+### Cross-namespace access with qualified names
+
+<WasmPlayground :tcl="crossNamespaceAccess" />
 
 ## See Also
 

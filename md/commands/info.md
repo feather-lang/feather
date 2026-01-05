@@ -12,29 +12,33 @@ info subcommand ?arg ...?
 
 ### Variables
 
-- **info exists varName** - Returns 1 if variable exists, 0 otherwise
-- **info locals ?pattern?** - Returns names of local variables matching pattern
-- **info globals ?pattern?** - Returns names of global variables matching pattern
-- **info vars ?pattern?** - Returns names of all visible variables matching pattern
+- **info exists varName** - Returns 1 if variable exists, 0 otherwise. Handles qualified names (e.g., `::ns::var`).
+- **info locals ?pattern?** - Returns names of local variables matching pattern. Excludes linked variables (global/upvar/variable).
+- **info globals ?pattern?** - Returns names of global variables matching pattern.
+- **info vars ?pattern?** - Returns names of all visible variables matching pattern. Namespace-aware pattern matching.
 
 ### Procedures
 
-- **info commands ?pattern?** - Returns names of all commands matching pattern
-- **info procs ?pattern?** - Returns names of procedures matching pattern
-- **info body procname** - Returns the body of a procedure
-- **info args procname** - Returns the parameter list of a procedure
-- **info default procname arg varname** - Sets varname to default value if arg has one
+- **info commands ?pattern?** - Returns names of all commands matching pattern. Searches current namespace plus global namespace. Qualified patterns (containing `::`) search the specified namespace.
+- **info procs ?pattern?** - Returns names of user-defined procedures matching pattern. Namespace-aware, excludes builtins.
+- **info body procname** - Returns the body of a procedure.
+- **info args procname** - Returns the parameter names of a procedure.
+- **info default procname arg varname** - Sets varname to default value if arg has one. Returns 1 if default exists, 0 otherwise.
 
 ### Call Stack
 
-- **info level ?number?** - Returns current level or command at specified level
-- **info frame ?number?** - Returns dictionary with frame information
+- **info level ?number?** - Returns current level or command at specified level. Supports relative (negative) and absolute levels.
+- **info frame ?number?** - Returns dictionary with frame information including: `type` (proc, source, or eval), `cmd`, `proc`, `level`, `file`, `namespace`, `line`, `lambda`.
 
 ### Other
 
-- **info script** - Returns filename of currently executing script
-- **info type value** - Returns the type name of a value
-- **info methods value** - Returns list of methods available on a foreign object
+- **info script** - Returns filename of currently executing script. Note: Unlike TCL, Feather only supports reading the script path, not setting it.
+- **info type value** - Returns the type name of a value. Feather extension: returns "list", "dict", "int", "double", "string", or the registered type name for foreign objects.
+- **info methods value** - Returns list of methods available on a foreign object. Feather extension for introspecting foreign object methods.
+
+### Pattern Matching
+
+All subcommands that accept a pattern use glob-style pattern matching (same as `string match`). For namespace-aware subcommands like `info commands`, `info procs`, and `info vars`, only the final component of a qualified pattern is treated as a pattern.
 
 ## Examples
 

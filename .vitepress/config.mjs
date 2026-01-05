@@ -83,6 +83,7 @@ export default defineConfig({
           { text: "unset", link: "/commands/unset" },
           { text: "uplevel", link: "/commands/uplevel" },
           { text: "upvar", link: "/commands/upvar" },
+          { text: "usage", link: "/commands/usage" },
           { text: "variable", link: "/commands/variable" },
           { text: "while", link: "/commands/while" },
         ],

@@ -5,13 +5,27 @@ Appends values to a list variable.
 ## Syntax
 
 ```tcl
-lappend varName ?value ...?
+lappend varName ?value value value ...?
 ```
 
 ## Parameters
 
 - **varName**: Name of the variable containing the list
 - **value**: Optional values to append to the list
+
+## Description
+
+The `lappend` command appends values to a list stored in a variable. Each value is appended as a separate list element (not raw text, unlike `append`).
+
+Key behaviors:
+
+- If the variable does not exist, it is created as a new list containing the provided values
+- Multiple values can be appended in a single call
+- Qualified variable names are supported
+- Variable traces (read and write) are fired appropriately
+- The resulting list is returned as the command result
+
+**Note**: Array element default values are not supported. If the variable indicates an element that does not exist of an array with a default value, the behavior may differ from standard Tcl.
 
 ## Examples
 

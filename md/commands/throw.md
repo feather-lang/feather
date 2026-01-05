@@ -10,8 +10,8 @@ throw type message
 
 ## Parameters
 
-- **type**: Error type as a list (e.g., `{ARITH DIVZERO}`)
-- **message**: Human-readable error message
+- **type**: Error type as a non-empty list for machine-readable error classification. By convention, words should go from most general to most specific (e.g., `{ARITH DIVZERO}`)
+- **message**: Human-readable error message for display
 
 ## Examples
 

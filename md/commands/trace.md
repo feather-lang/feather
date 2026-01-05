@@ -12,7 +12,7 @@ trace subcommand ?arg ...?
 
 ### trace add
 
-Add a trace to a variable or command.
+Add a trace to a variable, command, or execution.
 
 ```tcl
 trace add variable varName ops commandPrefix
@@ -20,7 +20,9 @@ trace add command cmdName ops commandPrefix
 trace add execution cmdName ops commandPrefix
 ```
 
-**Variable operations**: `read`, `write`, `unset`, `array`
+**Variable operations**: `read`, `write`, `unset`
+
+Note: The `array` operation is not supported in Feather (no array support).
 
 **Command operations**: `rename`, `delete`
 
@@ -38,13 +40,64 @@ trace remove execution cmdName ops commandPrefix
 
 ### trace info
 
-List traces on a variable or command.
+List traces on a variable, command, or execution.
 
 ```tcl
 trace info variable varName
 trace info command cmdName
 trace info execution cmdName
 ```
+
+## Callback Arguments
+
+When a trace fires, Feather appends specific arguments to the command prefix:
+
+### Variable Traces
+
+```
+commandPrefix name1 name2 op
+```
+- `name1`: Variable name being accessed
+- `name2`: Array index (empty string for scalars)
+- `op`: Operation (`read`, `write`, `unset`)
+
+### Command Traces
+
+```
+commandPrefix oldName newName op
+```
+- `oldName`: Current command name (fully qualified)
+- `newName`: New name (empty string for delete)
+- `op`: Operation (`rename`, `delete`)
+
+### Execution Traces (enter/enterstep)
+
+```
+commandPrefix command-string op
+```
+- `command-string`: Complete command with expanded arguments
+- `op`: Operation (`enter`, `enterstep`)
+
+### Execution Traces (leave/leavestep)
+
+```
+commandPrefix command-string code result op
+```
+- `command-string`: Complete command with expanded arguments
+- `code`: Result code
+- `result`: Result string
+- `op`: Operation (`leave`, `leavestep`)
+
+## Behavior Notes
+
+- **Multiple traces**: Multiple traces can be registered on the same target
+- **Trace ordering**: Variable traces fire in LIFO order (most recently added first)
+- **Trace disabling**: Traces on a target are temporarily disabled while a callback runs
+- **Error propagation**: Variable trace errors propagate as `can't read "varname": <error>` or `can't set "varname": <error>`; unset trace errors are silently ignored
+- **Command existence**: `trace add command/execution` throws an error if the command does not exist
+- **Namespace resolution**: Unqualified command/execution trace names are automatically prefixed with `::`
+- **Trace removal on unset**: When a variable is unset, all traces on it are automatically removed
+- **Step trace propagation**: `enterstep` and `leavestep` traces propagate through nested procedure calls
 
 ## Examples
 

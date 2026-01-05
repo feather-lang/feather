@@ -22,17 +22,26 @@ lsearch ?options? list pattern
 
 ### Data type
 - **-ascii**: Compare as strings (default)
+- **-dictionary**: Dictionary-style comparison (handles embedded numbers naturally, e.g., "a2" < "a10")
 - **-integer**: Compare as integers
+- **-real**: Compare as floating-point numbers
 
 ### Sort order (for -sorted)
 - **-sorted**: List is sorted, use binary search
 - **-increasing**: Ascending order (default with -sorted)
 - **-decreasing**: Descending order
+- **-bisect**: Return index of last element less than or equal to pattern (for sorted lists)
 
 ### Result control
 - **-all**: Return all matching indices
 - **-inline**: Return matching values instead of indices
-- **-start index**: Start searching at index
+- **-not**: Return elements that do NOT match the pattern
+- **-start index**: Start searching at index (supports `end`, `end-N`, and arithmetic expressions like `0+1`)
+
+### Element selection
+- **-index indexList**: Compare against a specific element within each list item. Can be a single index or a nested index list (e.g., `-index {0 1}` for deep access)
+- **-subindices**: Return full index path to matched element (requires `-index`)
+- **-stride count**: Treat list as groups of count elements, searching only the first element of each group
 
 ### Modifiers
 - **-nocase**: Case-insensitive matching
@@ -62,6 +71,27 @@ puts [lsearch -start 2 $list a]`
 
 const notFoundReturnsNegativeOne = `set items {x y z}
 puts [lsearch $items w]`
+
+const findNonMatching = `set items {a b c d e}
+puts [lsearch -not $items b]
+puts [lsearch -not -all $items b]`
+
+const searchByIndex = `set records {{alice 30} {bob 25} {carol 35}}
+puts [lsearch -index 0 $records bob]
+puts [lsearch -index 1 -inline $records 25]`
+
+const strideSearch = `set pairs {name alice age 30 city boston}
+puts [lsearch -stride 2 $pairs age]
+puts [lsearch -stride 2 -inline $pairs age]`
+
+const bisectSearch = `set sorted {a b d e}
+puts [lsearch -sorted -bisect $sorted c]`
+
+const dictionarySearch = `set versions {a1 a2 a10 a20}
+puts [lsearch -exact -dictionary $versions a10]`
+
+const endIndexExpr = `set list {a b c d e}
+puts [lsearch -start end-2 $list d]`
 </script>
 
 ### Find first occurrence
@@ -91,6 +121,30 @@ puts [lsearch $items w]`
 ### Not found returns -1
 
 <WasmPlayground :tcl="notFoundReturnsNegativeOne" />
+
+### Find non-matching elements with -not
+
+<WasmPlayground :tcl="findNonMatching" />
+
+### Search by element index with -index
+
+<WasmPlayground :tcl="searchByIndex" />
+
+### Search strided lists with -stride
+
+<WasmPlayground :tcl="strideSearch" />
+
+### Find insertion point with -bisect
+
+<WasmPlayground :tcl="bisectSearch" />
+
+### Dictionary-style comparison
+
+<WasmPlayground :tcl="dictionarySearch" />
+
+### Using end-N index expressions
+
+<WasmPlayground :tcl="endIndexExpr" />
 
 ## See Also
 

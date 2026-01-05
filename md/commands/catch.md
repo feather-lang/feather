@@ -24,6 +24,35 @@ catch script ?resultVar? ?optionsVar?
 | 3 | TCL_BREAK - break command |
 | 4 | TCL_CONTINUE - continue command |
 
+## Options Dictionary
+
+When using the `optionsVar` parameter, `catch` populates it with a dictionary containing detailed information about the script execution:
+
+### For Successful Execution
+
+| Key | Description |
+|-----|-------------|
+| `-code` | The return code (0 for OK) |
+| `-level` | Return level (0 for normal) |
+
+### For Errors
+
+| Key | Description |
+|-----|-------------|
+| `-code` | The return code (1 for ERROR) |
+| `-level` | Return level (0 for normal) |
+| `-errorinfo` | Human-readable stack trace |
+| `-errorcode` | Machine-readable error code (defaults to NONE) |
+| `-errorstack` | Call stack with argument values (INNER/CALL entries) |
+| `-errorline` | Line number where error occurred |
+
+## Global Variables
+
+On error, `catch` automatically sets these global variables:
+
+- `::errorInfo` - Same content as `-errorinfo` option
+- `::errorCode` - Same content as `-errorcode` option (defaults to NONE)
+
 ## Examples
 
 <script setup>
@@ -49,13 +78,41 @@ proc safeDiv {a b} {
 
 puts [safeDiv 10 2]
 puts [safeDiv 10 0]`
+
+const optionsDictExample = `# Using the options dictionary
+proc foo {} { error "something broke" }
+
+catch {foo} msg opts
+puts "Message: $msg"
+puts "Return code: [dict get $opts -code]"
+puts "Error code: [dict get $opts -errorcode]"
+
+# Successful execution
+catch {set x 1} msg2 opts2
+puts "\\nSuccess result: $msg2"
+puts "Success code: [dict get $opts2 -code]"`
+
+const customErrorCodes = `# Custom error codes with return
+proc openFile {filename} {
+    if {$filename eq ""} {
+        return -code error -errorcode {POSIX ENOENT} "file not found"
+    }
+    return "opened $filename"
+}
+
+catch {openFile ""} msg opts
+puts "Error: $msg"
+puts "Error code: [dict get $opts -errorcode]"`
 </script>
 
 <WasmPlayground :tcl="basicErrorCatching" />
+
+<WasmPlayground :tcl="optionsDictExample" />
+
+<WasmPlayground :tcl="customErrorCodes" />
 
 ## See Also
 
 - [try](./try)
 - [throw](./throw)
 - [error](./error)
-

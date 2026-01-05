@@ -16,6 +16,15 @@ eval arg ?arg ...?
 
 The `eval` command concatenates all its arguments (using the same rules as `concat`), then evaluates the result as a Tcl script. This is useful for constructing commands dynamically or evaluating lists as scripts.
 
+### Argument Handling
+
+- **Single argument**: When exactly one argument is provided, it is used directly as the script to evaluate.
+- **Multiple arguments**: When multiple arguments are provided, they are concatenated using the same rules as the `concat` command before evaluation.
+
+### Error and Result Propagation
+
+Any error generated during evaluation is propagated back to the caller. Similarly, the result of the evaluated script becomes the result of the `eval` command.
+
 ## Examples
 
 <script setup>
@@ -45,6 +54,9 @@ eval $cmdlist`
 
 ## See Also
 
-- [expr](./expr)
-- [namespace](./namespace)
+- [concat](./concat) - The concatenation rules used when multiple arguments are provided
+- [catch](./catch) - Capture errors from evaluated scripts
+- [subst](./subst) - Perform substitutions without evaluation
+- [uplevel](./uplevel) - Evaluate script in a different stack level
+- [namespace](./namespace) - Namespace management commands
 

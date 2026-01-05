@@ -11,8 +11,13 @@ linsert list index ?value ...?
 ## Parameters
 
 - **list**: The original list
-- **index**: Position to insert at (0-based)
-- **value**: Values to insert
+- **index**: Position to insert at. Supports:
+  - Simple integer indices (0-based)
+  - `end` keyword to insert at the end
+  - `end-N` syntax for end-relative positioning
+  - Negative indices are clamped to 0 (insert at beginning)
+  - Indices greater than list length are treated as `end`
+- **value**: Values to insert (zero or more)
 
 ## Examples
 
@@ -29,6 +34,10 @@ puts $result`
 
 const insertAtEnd = `set items {x y}
 set result [linsert $items end z]
+puts $result`
+
+const endRelative = `set items {a b c d}
+set result [linsert $items end-1 X]
 puts $result`
 
 const originalListUnchanged = `set original {1 2 3}
@@ -48,6 +57,10 @@ puts "Modified: $modified"`
 ### Insert at end
 
 <WasmPlayground :tcl="insertAtEnd" />
+
+### End-relative indexing
+
+<WasmPlayground :tcl="endRelative" />
 
 ### Original list unchanged
 

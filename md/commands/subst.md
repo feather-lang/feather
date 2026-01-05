@@ -24,6 +24,34 @@ subst ?options? string
 
 Performs command substitution, variable substitution, and backslash substitution on the given string, similar to how the Tcl interpreter processes double-quoted strings. The options allow selective disabling of specific substitution types.
 
+Note that `subst` does not give any special treatment to double quotes or curly braces (except within command substitutions) - they are treated as literal characters.
+
+### Variable Substitution
+
+The following variable syntax is supported:
+- Simple variables: `$name`
+- Braced variables: `${name}`
+- Namespace-qualified variables: `$namespace::name`
+- Array variables with index: `$name(index)` (the index is also substituted)
+
+### Backslash Escape Sequences
+
+The following backslash escape sequences are supported:
+- Standard escapes: `\a`, `\b`, `\f`, `\n`, `\r`, `\t`, `\v`, `\\`
+- Backslash-newline: `\<newline>` collapses to a single space (including trailing whitespace)
+- Hexadecimal: `\xNN` (up to 2 hex digits)
+- Octal: `\NNN` (up to 3 octal digits)
+- Unicode 16-bit: `\uNNNN` (exactly 4 hex digits, e.g., `\u00A9` produces the copyright symbol)
+- Unicode 32-bit: `\UNNNNNNNN` (exactly 8 hex digits, e.g., `\U0001F44B` produces the waving hand emoji)
+
+### Exception Handling in Command Substitution
+
+When a command within `[...]` raises an exception:
+- `break` - stops substitution and returns the result up to that point
+- `continue` - substitutes an empty string for that command and continues processing
+- `return` - substitutes the returned value
+- Custom return codes (>= 5) - substitutes the returned value
+
 ## Examples
 
 <script setup>

@@ -12,13 +12,32 @@ apply lambdaExpr ?arg ...?
 
 - **lambdaExpr**: A list containing `{params body ?namespace?}`
   - **params**: Parameter list (same format as `proc`)
+    - **Required parameters**: Simple names that must have values provided
+    - **Optional parameters with defaults**: Parameters specified as `{name default}` pairs
+    - **Variadic args**: The special `args` parameter as the last parameter collects remaining arguments into a list
   - **body**: The script to execute
-  - **namespace**: Optional namespace context for the lambda
+  - **namespace**: Optional namespace context for the lambda (relative to global namespace)
 - **arg ...**: Arguments to pass to the lambda
 
 ## Returns
 
 The result of evaluating body with args bound to params.
+
+## Parameter Behavior
+
+Arguments with default values that are followed by non-defaulted arguments become required arguments. Enough actual arguments must be supplied to allow all arguments up to and including the last required formal argument.
+
+```tcl
+apply { {{x 1} y} {list $x $y} } 10       ;# Error: wrong # args
+apply { {{x 1} y} {list $x $y} } 5 10     ;# Returns "5 10"
+```
+
+Note: The `args` parameter does NOT make preceding optionals required:
+
+```tcl
+apply { {{x 1} args} {list $x $args} }        ;# Returns "1 {}"
+apply { {{x 1} args} {list $x $args} } 10     ;# Returns "10 {}"
+```
 
 ## Examples
 
@@ -59,6 +78,19 @@ const higherOrder = `proc map {lambda list} {
 set numbers {1 2 3 4 5}
 set squared [map {{x} {expr {$x * $x}}} $numbers]
 puts "Squared: $squared"`
+
+const variadicArgs = `# Lambda with variadic args parameter
+set sum { {first args} {
+    set total $first
+    foreach n $args {
+        set total [expr {$total + $n}]
+    }
+    return $total
+} }
+
+puts "Sum of 5: [apply $sum 5]"
+puts "Sum of 1 2 3: [apply $sum 1 2 3]"
+puts "Sum of 10 20 30 40: [apply $sum 10 20 30 40]"`
 </script>
 
 ### Basic lambda
@@ -81,8 +113,16 @@ puts "Squared: $squared"`
 
 <WasmPlayground :tcl="higherOrder" />
 
+### Variadic args parameter
+
+<WasmPlayground :tcl="variadicArgs" />
+
 ## See Also
 
 - [proc](./proc) - Define named procedures
 - [return](./return) - Return from procedure
+- [global](./global) - Access global variables from within lambda
+- [upvar](./upvar) - Access variables in calling frames
+- [variable](./variable) - Access namespace variables
+- [namespace](./namespace) - Namespace operations
 

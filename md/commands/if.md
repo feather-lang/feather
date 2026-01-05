@@ -19,6 +19,16 @@ if expr1 ?then? body1 ?elseif expr2 ?then? body2 ...? ?else bodyN?
 - **else**: Keyword introducing the fallback branch
 - **bodyN**: Script to execute if no conditions are true
 
+## Boolean Values
+
+Conditions can evaluate to:
+- Boolean literals: `true`, `false`, `yes`, `no`
+- Integer values: `0` is false, any non-zero value is true
+
+## Return Value
+
+Returns the result of the executed body script. If no condition matches and no `else` clause exists, returns an empty string.
+
 ## Examples
 
 <script setup>

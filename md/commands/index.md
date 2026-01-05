@@ -14,6 +14,8 @@ The commands listed here mostly match the commands implemented by TCL.
 - The [info](./info) command supports `type` and `methods` subcommands
   to get access to the internal representation of a value, and the
   methods exposed on foreign objects.
+- The [usage](./usage) command provides declarative CLI argument parsing
+  with automatic help generation.
 
 
 ## Control Flow
@@ -111,3 +113,9 @@ Commands for examining the interpreter state:
 - [info](./info) - Query interpreter information
 - [trace](./trace) - Trace variable and command execution
 - [namespace](./namespace) - Manage namespaces
+
+## Argument Parsing
+
+Commands for parsing command-line arguments:
+
+- [usage](./usage) - Declarative CLI argument parsing with help generation
