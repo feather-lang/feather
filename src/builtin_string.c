@@ -1037,16 +1037,18 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
     "Performs one of several string operations, depending on subcommand. "
     "The legal subcommands are: cat, compare, equal, first, index, insert, is, "
     "last, length, map, match, range, repeat, replace, reverse, tolower, totitle, "
-    "toupper, trim, trimleft, and trimright.\n\n"
-    "STRING INDICES\n\n"
+    "toupper, trim, trimleft, and trimright.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_section(ops, interp, "String Indices",
     "When referring to indices into a string (e.g., for string index or string "
     "range) the following formats are supported:\n\n"
-    "  integer   The character at the specified integral index (0 = first char)\n"
-    "  end       The last character of the string\n"
-    "  end-N     The last character minus offset N\n"
-    "  end+N     The last character plus offset N (e.g., end+-1)\n"
-    "  M+N       The character at index M plus N\n"
-    "  M-N       The character at index M minus N");
+    "integer    The character at the specified integral index (0 = first char)\n\n"
+    "end        The last character of the string\n\n"
+    "end-N      The last character minus offset N\n\n"
+    "end+N      The last character plus offset N (e.g., end+-1)\n\n"
+    "M+N        The character at index M plus N\n\n"
+    "M-N        The character at index M minus N");
   spec = feather_usage_add(ops, interp, spec, e);
 
   // --- Subcommand: cat ---

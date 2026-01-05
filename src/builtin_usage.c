@@ -82,6 +82,11 @@ static const char *T_FLAG    = "flag";
 static const char *T_CMD     = "cmd";
 static const char *T_EXAMPLE = "example";
 static const char *T_META    = "meta"; /* Spec-level metadata (about, description) */
+static const char *T_SECTION = "section"; /* Custom section with header and content */
+
+/* Section entry keys */
+static const char *K_SECTION_NAME = "section_name";
+static const char *K_CONTENT      = "content";
 
 /**
  * Helper to get a string key from a dict, returning empty string if not found.
@@ -937,6 +942,26 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
     append_str(ops, interp, builder, "\n\nDESCRIPTION\n       ");
     FeatherObj trimmed = trim_text_block(ops, interp, descriptionText);
     append_wrapped(ops, interp, builder, trimmed, "       ", 65);
+  }
+
+  /* === Custom SECTIONS (appear after DESCRIPTION) === */
+  for (size_t i = 0; i < specLen; i++) {
+    FeatherObj entry = ops->list.at(interp, parsedSpec, i);
+
+    if (entry_is_type(ops, interp, entry, T_SECTION)) {
+      FeatherObj sectionName = dict_get_str(ops, interp, entry, K_SECTION_NAME);
+      FeatherObj content = dict_get_str(ops, interp, entry, K_CONTENT);
+
+      if (ops->string.byte_length(interp, sectionName) > 0) {
+        append_str(ops, interp, builder, "\n\n");
+        /* Output section name in uppercase */
+        FeatherObj upper = ops->rune.to_upper(interp, sectionName);
+        ops->string.builder_append_obj(interp, builder, upper);
+        append_str(ops, interp, builder, "\n       ");
+        FeatherObj trimmed = trim_text_block(ops, interp, content);
+        append_wrapped(ops, interp, builder, trimmed, "       ", 65);
+      }
+    }
   }
 
   /* === OPTIONS section === */
@@ -2266,6 +2291,22 @@ FeatherObj feather_usage_example(const FeatherHostOps *ops, FeatherInterp interp
     helpObj = ops->string.intern(interp, help, feather_strlen(help));
   }
   return usage_example_from_parts(ops, interp, codeObj, headerObj, helpObj);
+}
+
+/**
+ * Create a custom section entry.
+ * name is the section header (e.g., "STRING INDICES")
+ * content is the section body text
+ */
+FeatherObj feather_usage_section(const FeatherHostOps *ops, FeatherInterp interp,
+                                 const char *name, const char *content) {
+  FeatherObj entry = ops->dict.create(interp);
+  entry = dict_set_str(ops, interp, entry, K_TYPE, ops->string.intern(interp, S(T_SECTION)));
+  entry = dict_set_str(ops, interp, entry, K_SECTION_NAME,
+                       ops->string.intern(interp, name, feather_strlen(name)));
+  entry = dict_set_str(ops, interp, entry, K_CONTENT,
+                       ops->string.intern(interp, content, feather_strlen(content)));
+  return entry;
 }
 
 /**

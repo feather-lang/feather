@@ -1583,6 +1583,18 @@ FeatherObj feather_usage_example(const FeatherHostOps *ops, FeatherInterp interp
                                  const char *help);
 
 /**
+ * Create a custom section entry.
+ *
+ * name:    Section header (e.g., "STRING INDICES") - will be uppercased
+ * content: Section body text
+ *
+ * Returns a dict entry that can be added to the spec.
+ * Custom sections appear after DESCRIPTION in the help output.
+ */
+FeatherObj feather_usage_section(const FeatherHostOps *ops, FeatherInterp interp,
+                                 const char *name, const char *content);
+
+/**
  * Set help text on an entry. Returns modified entry.
  */
 FeatherObj feather_usage_help(const FeatherHostOps *ops, FeatherInterp interp,
