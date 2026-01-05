@@ -2125,6 +2125,9 @@ static FeatherResult usage_help(const FeatherHostOps *ops, FeatherInterp interp,
 
   /* Build full command name and navigate to subcommand spec */
   FeatherObj fullCmdName = cmdName;
+  FeatherObj parentCmdName = cmdName; /* Track parent for SEE ALSO */
+  FeatherObj subcmdLongHelp = ops->string.intern(interp, "", 0);
+  FeatherObj subcmdHelp = ops->string.intern(interp, "", 0);
 
   for (size_t i = 1; i < argc; i++) {
     FeatherObj subcmdName = ops->list.at(interp, args, i);
@@ -2138,7 +2141,10 @@ static FeatherResult usage_help(const FeatherHostOps *ops, FeatherInterp interp,
 
       FeatherObj name = dict_get_str(ops, interp, entry, K_NAME);
       if (ops->string.equal(interp, name, subcmdName)) {
-        /* Found the subcommand - descend into it */
+        /* Found the subcommand - capture its description before descending */
+        subcmdLongHelp = dict_get_str(ops, interp, entry, K_LONG_HELP);
+        subcmdHelp = dict_get_str(ops, interp, entry, K_HELP);
+        parentCmdName = fullCmdName;
         parsedSpec = dict_get_str(ops, interp, entry, K_SPEC);
         fullCmdName = ops->string.concat(interp, fullCmdName, ops->string.intern(interp, " ", 1));
         fullCmdName = ops->string.concat(interp, fullCmdName, subcmdName);
@@ -2154,6 +2160,45 @@ static FeatherResult usage_help(const FeatherHostOps *ops, FeatherInterp interp,
       ops->interp.set_result(interp, msg);
       return TCL_ERROR;
     }
+  }
+
+  /* If we navigated to a subcommand, build a synthetic spec with description */
+  if (argc > 1) {
+    FeatherObj newSpec = ops->list.create(interp);
+
+    /* Add meta entry with the subcommand's description */
+    if (ops->string.byte_length(interp, subcmdLongHelp) > 0 ||
+        ops->string.byte_length(interp, subcmdHelp) > 0) {
+      FeatherObj meta = ops->dict.create(interp);
+      meta = dict_set_str(ops, interp, meta, K_TYPE, ops->string.intern(interp, S(T_META)));
+
+      /* Use long_help if available, otherwise use help */
+      FeatherObj desc = subcmdLongHelp;
+      if (ops->string.byte_length(interp, desc) == 0) {
+        desc = subcmdHelp;
+      }
+      meta = dict_set_str(ops, interp, meta, K_LONG_HELP, desc);
+      newSpec = ops->list.push(interp, newSpec, meta);
+    }
+
+    /* Copy all entries from the subspec */
+    size_t subLen = ops->list.length(interp, parsedSpec);
+    for (size_t j = 0; j < subLen; j++) {
+      FeatherObj entry = ops->list.at(interp, parsedSpec, j);
+      newSpec = ops->list.push(interp, newSpec, entry);
+    }
+
+    /* Add a section for SEE ALSO */
+    FeatherObj seeAlso = ops->dict.create(interp);
+    seeAlso = dict_set_str(ops, interp, seeAlso, K_TYPE, ops->string.intern(interp, S(T_SECTION)));
+    seeAlso = dict_set_str(ops, interp, seeAlso, K_SECTION_NAME,
+                           ops->string.intern(interp, "See Also", 8));
+    FeatherObj seeAlsoContent = ops->string.concat(interp, parentCmdName,
+                                                    ops->string.intern(interp, "(1)", 3));
+    seeAlso = dict_set_str(ops, interp, seeAlso, K_CONTENT, seeAlsoContent);
+    newSpec = ops->list.push(interp, newSpec, seeAlso);
+
+    parsedSpec = newSpec;
   }
 
   FeatherObj helpStr = generate_usage_string(ops, interp, fullCmdName, parsedSpec);

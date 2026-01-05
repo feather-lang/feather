@@ -1068,6 +1068,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   // --- Subcommand: compare ---
   subspec = feather_usage_spec(ops, interp);
   e = feather_usage_flag(ops, interp, "-nocase", NULL, NULL);
+  e = feather_usage_help(ops, interp, e, "Compare case-insensitively");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_flag(ops, interp, "-length", NULL, "<len>");
   e = feather_usage_help(ops, interp, e, "Compare only first N characters");
@@ -1089,6 +1090,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   // --- Subcommand: equal ---
   subspec = feather_usage_spec(ops, interp);
   e = feather_usage_flag(ops, interp, "-nocase", NULL, NULL);
+  e = feather_usage_help(ops, interp, e, "Compare case-insensitively");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_flag(ops, interp, "-length", NULL, "<len>");
   e = feather_usage_help(ops, interp, e, "Compare only first N characters");
@@ -1163,6 +1165,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   e = feather_usage_arg(ops, interp, "<class>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_flag(ops, interp, "-strict", NULL, NULL);
+  e = feather_usage_help(ops, interp, e, "Empty string returns 0 instead of 1");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_flag(ops, interp, "-failindex", NULL, "<varname>");
   e = feather_usage_help(ops, interp, e, "Variable to store failing index");
@@ -1214,6 +1217,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   // --- Subcommand: map ---
   subspec = feather_usage_spec(ops, interp);
   e = feather_usage_flag(ops, interp, "-nocase", NULL, NULL);
+  e = feather_usage_help(ops, interp, e, "Match keys case-insensitively");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_arg(ops, interp, "<mapping>");
   subspec = feather_usage_add(ops, interp, subspec, e);
@@ -1233,6 +1237,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   // --- Subcommand: match ---
   subspec = feather_usage_spec(ops, interp);
   e = feather_usage_flag(ops, interp, "-nocase", NULL, NULL);
+  e = feather_usage_help(ops, interp, e, "Match case-insensitively");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_arg(ops, interp, "<pattern>");
   subspec = feather_usage_add(ops, interp, subspec, e);
