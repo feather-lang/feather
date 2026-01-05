@@ -61,7 +61,7 @@ cc -o $MISE_PROJECT_ROOT/bin/feather-c \
   -I$MISE_PROJECT_ROOT/bin \
   -L$MISE_PROJECT_ROOT/bin \
   $RPATH_FLAG \
-  c/host/tester.c \
+  c/tester.c \
   -lfeather
 """
 
