@@ -743,3 +743,83 @@ FeatherResult feather_builtin_format(const FeatherHostOps *ops, FeatherInterp in
   ops->interp.set_result(interp, result);
   return TCL_OK;
 }
+
+void feather_register_format_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Format a string using conversion specifiers",
+    "Returns a formatted string by replacing conversion specifiers in formatString "
+    "with the corresponding arguments. This command provides functionality similar to "
+    "C's sprintf, with extensions for TCL-specific needs.\n\n"
+    "The formatString contains literal text and conversion specifiers. Each specifier "
+    "starts with % and follows the pattern: %[position$][flags][width][.precision][size]type\n\n"
+    "Conversion types: %d/%i (signed integer), %u (unsigned integer), %o (octal), "
+    "%x/%X (hexadecimal lowercase/uppercase), %b (binary), %c (Unicode character from code point), "
+    "%s (string), %f (float), %e/%E (scientific notation), %g/%G (shorter of %e/%E or %f), "
+    "%a/%A (hexadecimal float), %p (pointer), %% (literal %).\n\n"
+    "Flags: - (left-justify), + (always show sign), space (space before positive numbers), "
+    "0 (zero-pad numbers), # (alternate form: adds 0x, 0o, 0b, or 0d prefixes).\n\n"
+    "Width and precision can be literal numbers or * to use next argument. Width specifies "
+    "minimum field width. Precision specifies minimum digits for integers, maximum characters "
+    "for strings, or decimal places for floats.\n\n"
+    "Positional arguments using %n$ syntax allow reordering arguments. Cannot mix positional "
+    "(%n$) and sequential (%) specifiers in the same format string.\n\n"
+    "Size modifiers: h (16-bit), l/j/q (64-bit), ll/L (no truncation), z/t (pointer size), "
+    "or none (32-bit default).");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<formatString>");
+  e = feather_usage_help(ops, interp, e,
+    "Template string containing literal text and conversion specifiers (%)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?arg?...");
+  e = feather_usage_help(ops, interp, e,
+    "Values to substitute for conversion specifiers in the format string");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "format \"Hello %s\" \"World\"",
+    "Basic string substitution:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "format \"Integer: %d, Hex: %#x, Binary: %#b\" 42 42 42",
+    "Multiple integer formats with alternate form:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "format \"%08d\" 42",
+    "Zero-padded 8-digit integer:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "format \"%.2f\" 3.14159",
+    "Floating-point with 2 decimal places:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "format \"%2\\$s %1\\$s\" \"World\" \"Hello\"",
+    "Positional arguments (reordering):",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "format \"%-10s %10d\" \"left\" 123",
+    "Left-justified string and right-justified integer:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "format \"%c%c%c\" 72 105 33",
+    "Unicode characters from code points:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "format", spec);
+}

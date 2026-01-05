@@ -47,3 +47,51 @@ FeatherResult feather_builtin_join(const FeatherHostOps *ops, FeatherInterp inte
   ops->interp.set_result(interp, result);
   return TCL_OK;
 }
+
+void feather_register_join_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  // Command description (for NAME and DESCRIPTION sections)
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Create a string by joining list elements with a separator",
+    "Returns a string created by joining all elements of list together "
+    "with joinString separating each adjacent pair of elements.\n\n"
+    "If joinString is not specified, it defaults to a single space character.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Arguments
+  e = feather_usage_arg(ops, interp, "<list>");
+  e = feather_usage_help(ops, interp, e, "The list whose elements will be joined");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?joinString?");
+  e = feather_usage_help(ops, interp, e, "The separator string to place between elements (default: single space)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Examples
+  e = feather_usage_example(ops, interp,
+    "join {a b c}",
+    "Join elements with default space separator:",
+    "a b c");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "join {a b c} {, }",
+    "Join elements with custom separator:",
+    "a, b, c");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "join {one} {-}",
+    "Single element list returns the element unchanged:",
+    "one");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "join {}",
+    "Empty list returns empty string:",
+    "");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "join", spec);
+}

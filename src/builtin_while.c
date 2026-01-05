@@ -47,3 +47,70 @@ FeatherResult feather_builtin_while(const FeatherHostOps *ops, FeatherInterp int
   ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
   return TCL_OK;
 }
+
+void feather_register_while_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  // Command description (for NAME and DESCRIPTION sections)
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Execute commands repeatedly while a condition is true",
+    "The while command evaluates test as an expression (in the same way that "
+    "expr evaluates its argument). The value of the expression must be a "
+    "proper boolean value; if it is a true value then body is executed by "
+    "passing it to the Tcl interpreter.\n\n"
+    "Once body has been executed then test is evaluated again, and the process "
+    "repeats until eventually test evaluates to a false boolean value. "
+    "Continue commands may be executed inside body to terminate the current "
+    "iteration of the loop, and break commands may be executed inside body to "
+    "cause immediate termination of the while command.\n\n"
+    "The while command always returns an empty string.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Required argument: test
+  e = feather_usage_arg(ops, interp, "<test>");
+  e = feather_usage_help(ops, interp, e, "Boolean expression to evaluate before each iteration");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Required argument: body
+  e = feather_usage_arg(ops, interp, "<body>");
+  e = feather_usage_help(ops, interp, e, "Script to execute while test is true");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Examples
+  e = feather_usage_example(ops, interp,
+    "set x 0\n"
+    "while {$x < 5} {\n"
+    "    puts $x\n"
+    "    incr x\n"
+    "}",
+    "Print numbers 0 through 4",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "set i 10\n"
+    "while {$i > 0} {\n"
+    "    if {$i == 5} {\n"
+    "        break\n"
+    "    }\n"
+    "    incr i -1\n"
+    "}",
+    "Loop exits early when i equals 5 using break",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "set i 0\n"
+    "while {$i < 10} {\n"
+    "    incr i\n"
+    "    if {$i % 2 == 0} {\n"
+    "        continue\n"
+    "    }\n"
+    "    puts $i\n"
+    "}",
+    "Print only odd numbers using continue",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "while", spec);
+}

@@ -728,3 +728,165 @@ FeatherResult feather_builtin_lsearch(const FeatherHostOps *ops, FeatherInterp i
 
   return TCL_OK;
 }
+
+void feather_register_lsearch_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Search for element in a list",
+    "Searches a list for an element matching the pattern using the specified "
+    "matching mode. Returns the index of the first matching element, or -1 if "
+    "no match is found.\n\n"
+    "By default, uses glob-style pattern matching. The matching mode can be "
+    "changed with -exact (literal comparison) or -regexp (regular expression).\n\n"
+    "For sorted lists, -sorted enables efficient binary search (O(log n) instead "
+    "of O(n)). The -bisect option finds the insertion point in a sorted list.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-exact?");
+  e = feather_usage_help(ops, interp, e, "Use literal string comparison (default for -sorted)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-glob?");
+  e = feather_usage_help(ops, interp, e, "Use glob-style pattern matching (default)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-regexp?");
+  e = feather_usage_help(ops, interp, e, "Use regular expression matching");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-nocase?");
+  e = feather_usage_help(ops, interp, e, "Case-insensitive comparison");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-all?");
+  e = feather_usage_help(ops, interp, e, "Return all matching indices/values instead of just the first");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-inline?");
+  e = feather_usage_help(ops, interp, e, "Return matching values instead of indices");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-not?");
+  e = feather_usage_help(ops, interp, e, "Negate the match condition (find non-matches)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-start index?");
+  e = feather_usage_help(ops, interp, e, "Begin searching at the specified index (supports end-N syntax)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-index indexList?");
+  e = feather_usage_help(ops, interp, e,
+    "Search within nested list elements at the specified index or index path. "
+    "Supports single index (e.g., 0) or list of indices for nested structures (e.g., {0 1})");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-subindices?");
+  e = feather_usage_help(ops, interp, e,
+    "Return full path indices {listindex subindex...} for nested matches. "
+    "Requires -index. With -inline, returns the matched element value");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-stride length?");
+  e = feather_usage_help(ops, interp, e,
+    "Treat list as groups of <length> elements. Searches match against the "
+    "first element of each group by default, or the element at -index within each group. "
+    "With -inline, returns all elements in the matching group");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-sorted?");
+  e = feather_usage_help(ops, interp, e,
+    "Use binary search (O(log n)) for sorted lists. Implies -exact. "
+    "Cannot be used efficiently with -not (falls back to linear search)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-bisect?");
+  e = feather_usage_help(ops, interp, e,
+    "Find insertion point in sorted list. Returns the index of the last element "
+    "<= pattern (for -increasing) or >= pattern (for -decreasing). "
+    "Returns -1 if pattern is smaller than all elements. Implies -sorted");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-ascii?");
+  e = feather_usage_help(ops, interp, e, "Compare as Unicode strings (default for -sorted)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-dictionary?");
+  e = feather_usage_help(ops, interp, e,
+    "Dictionary-style comparison: case-insensitive with embedded numbers compared numerically");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-integer?");
+  e = feather_usage_help(ops, interp, e, "Compare as integers (for -sorted)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-real?");
+  e = feather_usage_help(ops, interp, e, "Compare as floating-point values (for -sorted)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-increasing?");
+  e = feather_usage_help(ops, interp, e, "List is sorted in increasing order (default for -sorted)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-decreasing?");
+  e = feather_usage_help(ops, interp, e, "List is sorted in decreasing order (for -sorted)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<list>");
+  e = feather_usage_help(ops, interp, e, "The list to search");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<pattern>");
+  e = feather_usage_help(ops, interp, e, "The pattern or value to search for");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lsearch {a b c d} b",
+    "Basic search - returns 1 (index of 'b')",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lsearch -all {a b c b d} b",
+    "Find all matches - returns {1 3}",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lsearch -inline {red green blue} gr*",
+    "Return value instead of index - returns 'green'",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lsearch -exact -nocase {Apple Banana Cherry} banana",
+    "Case-insensitive exact match - returns 1",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lsearch -sorted -integer {1 3 5 7 9} 5",
+    "Binary search in sorted list - returns 2",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lsearch -bisect -sorted -integer {1 3 5 7 9} 6",
+    "Find insertion point - returns 2 (index of last element <= 6)",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lsearch -index 1 {{a 1} {b 2} {c 3}} 2",
+    "Search nested lists by second element - returns 1",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lsearch -stride 2 {name John age 30 name Jane age 25} Jane",
+    "Search through grouped elements - returns 4",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "lsearch", spec);
+}

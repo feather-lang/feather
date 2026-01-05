@@ -1,6 +1,51 @@
 #include "feather.h"
 #include "internal.h"
 
+void feather_register_lappend_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Append list elements to variable",
+    "Treats the variable given by varName as a list and appends each of the "
+    "value arguments to that list as a separate element, with spaces between "
+    "elements.\n\n"
+    "If varName does not exist, it is created as a list with elements given "
+    "by the value arguments. The lappend command provides a relatively efficient "
+    "way to build up large lists, since it avoids the overhead of string "
+    "concatenation and parsing.\n\n"
+    "The command returns the value of the variable after appending, which is "
+    "the new list.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<varName>");
+  e = feather_usage_help(ops, interp, e, "Name of the variable to append to");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?value?...");
+  e = feather_usage_help(ops, interp, e, "Values to append as list elements (zero or more)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lappend mylist a b c",
+    "Create new list or append to existing:",
+    "a b c");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "set x {1 2}\nlappend x 3 4",
+    "Append multiple elements:",
+    "1 2 3 4");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lappend result",
+    "Create empty list if variable doesn't exist:",
+    "");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "lappend", spec);
+}
+
 FeatherResult feather_builtin_lappend(const FeatherHostOps *ops, FeatherInterp interp,
                                FeatherObj cmd, FeatherObj args) {
   (void)cmd;

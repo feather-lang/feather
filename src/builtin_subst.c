@@ -466,3 +466,76 @@ FeatherResult feather_builtin_subst(const FeatherHostOps *ops, FeatherInterp int
   ops->interp.set_result(interp, result);
   return TCL_OK;
 }
+
+void feather_register_subst_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Perform backslash, command, and variable substitutions",
+    "Performs backslash, command, and variable substitutions on string and returns "
+    "the fully-substituted result. The substitutions are performed in exactly the "
+    "same way that they would be performed by the TCL parser on a script.\n\n"
+    "Backslash substitution replaces backslash sequences with their corresponding "
+    "characters (such as \\n for newline, \\t for tab, \\xNN for hex codes, \\uNNNN "
+    "for 16-bit Unicode, and \\UNNNNNNNN for 32-bit Unicode).\n\n"
+    "Command substitution replaces bracketed commands [cmd] with their results. "
+    "If a command substitution encounters break, the substitution stops and returns "
+    "the result accumulated so far. If it encounters continue, an empty string is "
+    "substituted for that command. If it encounters return or a custom return code, "
+    "the returned value is substituted.\n\n"
+    "Variable substitution replaces variable references ($varName, ${varName}, or "
+    "$varName(index)) with their values. Note that the array-style syntax $varName(index) "
+    "is processed by subst but Feather does not support TCL-style arrays as separate "
+    "data structures.\n\n"
+    "The optional switches control which substitutions are performed. If none are specified, "
+    "all three types of substitutions are performed.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-nobackslashes?");
+  e = feather_usage_help(ops, interp, e, "Disable backslash substitution");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-nocommands?");
+  e = feather_usage_help(ops, interp, e, "Disable command substitution");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-novariables?");
+  e = feather_usage_help(ops, interp, e, "Disable variable substitution");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<string>");
+  e = feather_usage_help(ops, interp, e, "The string to perform substitutions on");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "set x 10\nsubst {The value is $x}",
+    "Variable substitution:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "subst {2 + 2 = [expr {2 + 2}]}",
+    "Command substitution:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "subst {Line 1\\nLine 2\\tTabbed}",
+    "Backslash substitution:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "subst -nocommands {Value: $x [ignored]}",
+    "Disable command substitution (brackets are literal):",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "subst {Copyright \\u00A9 2026}",
+    "Unicode escape (16-bit):",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "subst", spec);
+}

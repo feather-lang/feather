@@ -272,3 +272,120 @@ FeatherResult feather_builtin_switch(const FeatherHostOps *ops, FeatherInterp in
   // Execute the matched body
   return feather_script_eval_obj(ops, interp, bodyToExecute, TCL_EVAL_LOCAL);
 }
+
+void feather_register_switch_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Evaluate one of several scripts, depending on a given value",
+    "The switch command matches its string argument against each of the pattern arguments in "
+    "order. As soon as it finds a pattern that matches string, it evaluates the following body "
+    "argument and returns the result of that evaluation. If the last pattern is the keyword "
+    "\"default\", it matches anything. If no pattern matches and no default is given, switch "
+    "returns an empty string.\n\n"
+    "If the initial arguments begin with -, they are treated as options. The following options "
+    "are supported:\n\n"
+    "-exact: Use exact string comparison when matching string to a pattern (default).\n\n"
+    "-glob: Use glob-style pattern matching (wildcards *, ?, [...]).\n\n"
+    "-regexp: Use regular expression pattern matching.\n\n"
+    "-nocase: Perform case-insensitive matching. Works with all matching modes.\n\n"
+    "-matchvar varName: Only valid with -regexp. The variable varName receives a list of the "
+    "matched substrings: element 0 is the overall match, elements 1..n are capturing groups.\n\n"
+    "-indexvar varName: Only valid with -regexp. The variable varName receives a list of "
+    "two-element lists containing the start and end indices (inclusive) of each matched substring.\n\n"
+    "--: Marks the end of options. The next argument is treated as string even if it starts with -.\n\n"
+    "Two syntaxes are provided for the pattern and body arguments:\n\n"
+    "Inline form: The pattern and body arguments are separate arguments to switch. "
+    "There must be at least one pattern-body pair, and the patterns and bodies must alternate.\n\n"
+    "List form: All patterns and bodies are combined into a single argument (typically a braced list). "
+    "This form is especially convenient for multi-line switch statements.\n\n"
+    "If a body is specified as \"-\" (a single hyphen), it means that the body for the next pattern "
+    "should be used (fall-through). This allows several patterns to share the same body.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-exact?");
+  e = feather_usage_help(ops, interp, e, "Use exact string comparison (default)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-glob?");
+  e = feather_usage_help(ops, interp, e, "Use glob-style pattern matching");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-regexp?");
+  e = feather_usage_help(ops, interp, e, "Use regular expression pattern matching");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-nocase?");
+  e = feather_usage_help(ops, interp, e, "Perform case-insensitive matching");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-matchvar varName?");
+  e = feather_usage_help(ops, interp, e, "Variable to receive matched substrings (requires -regexp)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?-indexvar varName?");
+  e = feather_usage_help(ops, interp, e, "Variable to receive match indices (requires -regexp)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?--?");
+  e = feather_usage_help(ops, interp, e, "End of options marker");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<string>");
+  e = feather_usage_help(ops, interp, e, "The value to match against patterns");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<pattern>");
+  e = feather_usage_help(ops, interp, e, "Pattern to match (or \"default\" to match anything)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<body>");
+  e = feather_usage_help(ops, interp, e, "Script to evaluate if pattern matches (or \"-\" for fall-through)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?pattern body ...?");
+  e = feather_usage_help(ops, interp, e, "Additional pattern-body pairs");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "switch -exact $x {\n"
+    "    a { puts \"Found a\" }\n"
+    "    b { puts \"Found b\" }\n"
+    "    default { puts \"Something else\" }\n"
+    "}",
+    "Exact string matching with list form syntax:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "switch -glob $filename {\n"
+    "    *.txt { puts \"Text file\" }\n"
+    "    *.c { puts \"C source\" }\n"
+    "    default { puts \"Unknown type\" }\n"
+    "}",
+    "Glob pattern matching:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "switch -regexp -matchvar matches $input {\n"
+    "    {^([0-9]+)$} { puts \"Number: [lindex $matches 1]\" }\n"
+    "    {^([a-z]+)$} { puts \"Word: [lindex $matches 1]\" }\n"
+    "    default { puts \"Other\" }\n"
+    "}",
+    "Regular expression matching with capture groups:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "switch $x \\\n"
+    "    a { puts \"Found a\" } \\\n"
+    "    b { puts \"Found b\" } \\\n"
+    "    c - \\\n"
+    "    d { puts \"Found c or d\" }",
+    "Fall-through using inline form syntax:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "switch", spec);
+}

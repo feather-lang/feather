@@ -167,3 +167,81 @@ FeatherResult feather_builtin_lset(const FeatherHostOps *ops, FeatherInterp inte
   ops->interp.set_result(interp, result);
   return TCL_OK;
 }
+
+void feather_register_lset_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Modify element of a list stored in a variable",
+    "Changes one or more elements of the list stored in varName and returns "
+    "the modified list. Without indices, replaces the entire value.\n\n"
+    "With one or more indices, replaces the element at the specified position. "
+    "Indices can be specified as separate arguments or as a single list argument. "
+    "Each index identifies a level of nesting in the list structure.\n\n"
+    "Index values support integer positions (0-based), the \"end\" keyword for "
+    "the last element, and arithmetic expressions like \"end-1\" or \"0+1\". "
+    "An index equal to the list length appends a new element.\n\n"
+    "Returns an error if the variable does not exist or if any index is out of range.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<varName>");
+  e = feather_usage_help(ops, interp, e,
+    "Name of the variable containing the list to modify");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?index?...");
+  e = feather_usage_help(ops, interp, e,
+    "Zero or more indices specifying which element to modify. Can be specified "
+    "as separate arguments or as a single list. Each index identifies a nesting "
+    "level. Supports integers, \"end\" keyword, and arithmetic like \"end-1\"");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<value>");
+  e = feather_usage_help(ops, interp, e,
+    "The new value to set at the specified position");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "set x {a b c}\n"
+    "lset x 1 B",
+    "Replace element at index 1",
+    "Result: {a B c}");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "set x {a b c}\n"
+    "lset x end Z",
+    "Replace last element using \"end\" keyword",
+    "Result: {a b Z}");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "set x {a b c}\n"
+    "lset x 3 d",
+    "Append element by using index equal to list length",
+    "Result: {a b c d}");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "set x {{a b} {c d}}\n"
+    "lset x 0 1 B",
+    "Modify nested element using multiple indices",
+    "Result: {{a B} {c d}}");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "set x {{a b} {c d}}\n"
+    "lset x {1 0} C",
+    "Modify nested element using list of indices",
+    "Result: {{a b} {C d}}");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "set x hello\n"
+    "lset x WORLD",
+    "Replace entire variable value (no indices)",
+    "Result: WORLD");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "lset", spec);
+}

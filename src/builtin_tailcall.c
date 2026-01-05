@@ -1,6 +1,51 @@
 #include "feather.h"
 #include "internal.h"
 
+void feather_register_tailcall_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Replace the current procedure with another command",
+    "Replaces the currently executing procedure with another command, enabling "
+    "tail-call optimization. This allows recursive procedures to execute without "
+    "growing the call stack.\n\n"
+    "The current procedure is immediately terminated and replaced with command. "
+    "The command is looked up in the current namespace context (not the caller's), "
+    "then executed in the caller's frame.\n\n"
+    "This command may only be called from within a procedure or lambda, not at "
+    "the global level.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<command>");
+  e = feather_usage_help(ops, interp, e, "The command to execute as replacement");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?arg?...");
+  e = feather_usage_help(ops, interp, e, "Arguments to pass to the command");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "proc factorial {n {acc 1}} {\n"
+    "    if {$n <= 1} { return $acc }\n"
+    "    tailcall factorial [expr {$n - 1}] [expr {$acc * $n}]\n"
+    "}",
+    "Tail-recursive factorial using accumulator pattern:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "proc countdown {n} {\n"
+    "    if {$n <= 0} { return \"Done!\" }\n"
+    "    puts $n\n"
+    "    tailcall countdown [expr {$n - 1}]\n"
+    "}",
+    "Countdown without growing the call stack:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "tailcall", spec);
+}
+
 FeatherResult feather_builtin_tailcall(const FeatherHostOps *ops, FeatherInterp interp,
                                 FeatherObj cmd, FeatherObj args) {
   (void)cmd;

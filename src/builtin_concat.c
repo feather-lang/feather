@@ -51,3 +51,48 @@ FeatherResult feather_builtin_concat(const FeatherHostOps *ops, FeatherInterp in
   ops->interp.set_result(interp, result);
   return TCL_OK;
 }
+
+void feather_register_concat_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Join arguments with spaces",
+    "Joins each of its arguments together with spaces after trimming leading "
+    "and trailing whitespace from each of them. Arguments that are empty after "
+    "trimming are ignored entirely.\n\n"
+    "If no arguments are provided, returns an empty string. Internal whitespace "
+    "within arguments is preserved.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?arg?...");
+  e = feather_usage_help(ops, interp, e,
+    "Zero or more arguments to concatenate. Each argument will have leading "
+    "and trailing whitespace trimmed before joining");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "concat a b c",
+    "Simple concatenation:",
+    "a b c");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "concat \"  hello  \" \"  world  \"",
+    "Trimming whitespace:",
+    "hello world");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "concat \"a b\" c {d   e}",
+    "Preserving internal spaces:",
+    "a b c d   e");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "concat",
+    "No arguments returns empty string:",
+    "");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "concat", spec);
+}

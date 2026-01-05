@@ -89,3 +89,69 @@ FeatherResult feather_builtin_lindex(const FeatherHostOps *ops, FeatherInterp in
   ops->interp.set_result(interp, value);
   return TCL_OK;
 }
+
+void feather_register_lindex_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Retrieve an element from a list",
+    "Returns the element at the specified index (or indices for nested lists). "
+    "List indexing is zero-based, where 0 is the first element.\n\n"
+    "If no index is specified, returns the list unchanged. If one or more indices "
+    "are provided, each index is applied in sequence to navigate into nested lists.\n\n"
+    "Indices can be integers, the keyword \"end\" (last element), \"end-N\" "
+    "(N positions before the last), or arithmetic expressions like \"M+N\" or \"M-N\". "
+    "Out-of-bounds indices return an empty string.\n\n"
+    "When a single index argument is a list, each element of that list is treated "
+    "as a separate index for nested list traversal.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<list>");
+  e = feather_usage_help(ops, interp, e, "The list to index into");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?index?...");
+  e = feather_usage_help(ops, interp, e,
+    "Zero or more indices. Each index is applied in sequence to navigate nested lists. "
+    "Can be an integer, \"end\", \"end-N\", or an arithmetic expression. "
+    "If omitted, returns the list unchanged.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lindex {a b c} 1",
+    "Basic indexing - returns the second element:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lindex {a b c d e} end",
+    "Use end to get the last element:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lindex {a b c d e} end-2",
+    "Use end-N to count backwards from the end:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lindex {{a b} {c d} {e f}} 1 0",
+    "Nested list indexing with multiple indices:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lindex {{a b} {c d} {e f}} {1 0}",
+    "Equivalent using a list of indices:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "lindex {a b c}",
+    "No index returns the list unchanged:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "lindex", spec);
+}

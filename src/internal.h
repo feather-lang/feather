@@ -1240,11 +1240,62 @@ FeatherResult feather_foreach_impl(const FeatherHostOps *ops,
                                     void *ctx);
 
 /**
- * feather_register_set_usage registers the usage spec for the 'set' command.
- *
+ * Usage registration functions for built-in commands.
  * Called during interpreter initialization to make usage help available.
  */
 void feather_register_set_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_expr_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_proc_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_if_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_while_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_for_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_foreach_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_lmap_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_lassign_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_linsert_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_switch_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_tailcall_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_break_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_continue_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_incr_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_llength_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_lindex_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_lreplace_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_return_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_mathfunc_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_error_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_catch_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_info_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_upvar_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_uplevel_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_rename_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_namespace_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_variable_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_global_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_apply_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_throw_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_try_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_trace_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_list_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_lrange_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_lappend_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_lset_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_lreplace_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_lreverse_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_lrepeat_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_lsort_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_lsearch_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_split_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_join_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_concat_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_append_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_unset_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_format_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_scan_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_subst_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_eval_usage(const FeatherHostOps *ops, FeatherInterp interp);
 
 /**
  * feather_builtin_usage implements the TCL 'usage' command.

@@ -94,3 +94,56 @@ FeatherResult feather_builtin_split(const FeatherHostOps *ops, FeatherInterp int
   ops->interp.set_result(interp, result);
   return TCL_OK;
 }
+
+void feather_register_split_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Split string into list elements",
+    "Splits a string into list elements using delimiter characters. Each character "
+    "in splitChars is treated as a delimiter. Returns a list of the elements between "
+    "delimiters.\n\n"
+    "If splitChars is not specified, the string is split on whitespace characters "
+    "(space, tab, newline, carriage return). Note that each whitespace character acts "
+    "as an individual delimiter, so consecutive whitespace will produce empty list elements.\n\n"
+    "If splitChars is an empty string, the string is split into individual characters.\n\n"
+    "The split command has full Unicode support for both the input string and "
+    "delimiter characters.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<string>");
+  e = feather_usage_help(ops, interp, e, "The string to split");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?splitChars?");
+  e = feather_usage_help(ops, interp, e,
+    "Characters to use as delimiters. If not specified, defaults to whitespace "
+    "(space, tab, newline, carriage return). If empty string, splits into individual characters.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "split \"a:b:c\" \":\"",
+    "Split on colons",
+    "a b c");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "split \"hello world\"",
+    "Split on whitespace (default)",
+    "hello world");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "split \"abc\" \"\"",
+    "Split into individual characters",
+    "a b c");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "split \"a::b\" \":\"",
+    "Adjacent delimiters create empty elements",
+    "a {} b");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "split", spec);
+}

@@ -73,3 +73,44 @@ FeatherResult feather_builtin_global(const FeatherHostOps *ops, FeatherInterp in
   ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
   return TCL_OK;
 }
+
+void feather_register_global_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Access global variables",
+    "Creates links from local variables in a procedure to variables in the global namespace "
+    "(or other namespaces if qualified names are used).\n\n"
+    "This command has no effect unless executed inside a procedure body. When called at "
+    "global scope or with no arguments, it is a no-op.\n\n"
+    "If a variable name is namespace-qualified (contains ::), the link is created to that "
+    "namespace variable, but the local variable name is just the unqualified tail.\n\n"
+    "Note: Array element syntax like \"varName(index)\" is not supported and will cause an error.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?varName?...");
+  e = feather_usage_help(ops, interp, e,
+    "One or more variable names to link to the global (or specified) namespace. "
+    "May be namespace-qualified (e.g., ::foo or ns::var).");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "proc myProc {} {\n"
+    "    global x y\n"
+    "    set x 10\n"
+    "}",
+    "Link local variables x and y to global variables",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "proc myProc {} {\n"
+    "    global ::ns::var\n"
+    "    set var 42\n"
+    "}",
+    "Link local variable 'var' to namespace variable '::ns::var'",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "global", spec);
+}

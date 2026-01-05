@@ -90,3 +90,75 @@ FeatherResult feather_builtin_variable(const FeatherHostOps *ops, FeatherInterp 
   ops->interp.set_result(interp, ops->string.intern(interp, "", 0));
   return TCL_OK;
 }
+
+void feather_register_variable_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+
+  // Command description
+  FeatherObj e = feather_usage_about(ops, interp,
+    "Create and link namespace variables",
+    "Creates namespace variables and links them to local procedure variables. "
+    "Accepts one or more name/value pairs, where the final value is optional.\n\n"
+    "When executed inside a procedure, variable creates a local variable linked "
+    "to the namespace variable, making the namespace variable accessible by the "
+    "local name.\n\n"
+    "Qualified names (e.g., ::ns::varname) create links to variables in other "
+    "namespaces. If the target namespace doesn't exist, an error is raised.\n\n"
+    "Note: Feather does not support TCL's undefined variable state. Variables "
+    "created without values may not behave exactly as in standard TCL.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Arguments
+  e = feather_usage_arg(ops, interp, "<name>");
+  e = feather_usage_help(ops, interp, e,
+    "Variable name. May be simple (varname) or qualified (::ns::varname). "
+    "When called inside a procedure, creates a local link to the namespace variable.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?value?");
+  e = feather_usage_help(ops, interp, e,
+    "Initial value for the variable. If provided, sets the namespace variable "
+    "to this value. The final variable in the argument list may omit the value.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "?name value ...?");
+  e = feather_usage_help(ops, interp, e,
+    "Additional name/value pairs. Each pair creates and initializes a namespace "
+    "variable with a local link.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Examples
+  e = feather_usage_example(ops, interp,
+    "namespace eval myns {\n"
+    "    variable counter 0\n"
+    "}",
+    "Create a namespace variable with initial value:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "proc increment {} {\n"
+    "    variable counter\n"
+    "    incr counter\n"
+    "}",
+    "Link to namespace variable inside a procedure:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "variable name1 value1 name2 value2 name3",
+    "Create multiple variables (last one without value):",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "proc accessOther {} {\n"
+    "    variable ::someNS::myvar\n"
+    "    return $myvar\n"
+    "}",
+    "Link to variable in a different namespace using qualified name:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "variable", spec);
+}
