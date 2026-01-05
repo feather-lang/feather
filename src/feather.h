@@ -1633,6 +1633,15 @@ FeatherObj feather_usage_hide(const FeatherHostOps *ops, FeatherInterp interp,
                               FeatherObj entry);
 
 /**
+ * Mark a subcommand entry as a clause (syntax element that appears after other arguments).
+ * Clause subcommands appear in the COMMANDS section but do not trigger <COMMAND> in synopsis.
+ * Use this for commands like "try" where handlers (on/trap/finally) appear after the body,
+ * not as the first argument.
+ */
+FeatherObj feather_usage_clause(const FeatherHostOps *ops, FeatherInterp interp,
+                                FeatherObj entry);
+
+/**
  * Create an empty usage spec (list).
  */
 FeatherObj feather_usage_spec(const FeatherHostOps *ops, FeatherInterp interp);

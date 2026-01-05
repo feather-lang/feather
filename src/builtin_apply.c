@@ -246,29 +246,46 @@ void feather_register_apply_usage(const FeatherHostOps *ops, FeatherInterp inter
 
   FeatherObj e = feather_usage_about(ops, interp,
     "Apply an anonymous function",
-    "Applies an anonymous function (lambda expression) to the given arguments. "
-    "The lambda expression can be either a 2-element list {args body} or a 3-element list "
-    "{args body namespace}. When a namespace is provided, the body executes in that namespace.\n\n"
-    "The args list defines parameters which can be:\n"
-    "- Required parameters: simple names that must have corresponding arguments\n"
-    "- Optional parameters: {name default} pairs that use the default if no argument provided\n"
-    "- Variadic parameter: the special name 'args' collects remaining arguments into a list\n\n"
-    "IMPORTANT: Optional parameters followed by required parameters become required. "
-    "For example, {{x 1} y} requires both arguments because 'y' is required after optional 'x'. "
-    "However, 'args' does not make preceding optionals required.");
+    "The command apply applies the function func to the arguments arg1 arg2 ... "
+    "and returns the result.\n\n"
+    "The function func is a two element list {args body} or a three element list "
+    "{args body namespace}. The first element args specifies the formal arguments "
+    "to func. The specification of the formal arguments args is shared with the "
+    "proc command.\n\n"
+    "The contents of body are executed after the local variables corresponding to "
+    "the formal arguments are given the values of the actual parameters. When body "
+    "is being executed, variable names normally refer to local variables, which are "
+    "created automatically when referenced and deleted when apply returns. Global "
+    "variables can only be accessed by invoking the global command or the upvar "
+    "command. Namespace variables can only be accessed by invoking the variable "
+    "command or the upvar command.\n\n"
+    "The invocation of apply adds a call frame to the evaluation stack. The execution "
+    "of body proceeds in this call frame, in the namespace given by namespace or in "
+    "the global namespace if none was specified. If given, namespace is interpreted "
+    "relative to the global namespace even if its name does not start with \"::\".");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_arg(ops, interp, "<lambdaExpr>");
+  e = feather_usage_section(ops, interp, "Formal Arguments",
+    "The args list defines parameters which can be:\n\n"
+    "Required parameters      Simple names that must have corresponding arguments\n\n"
+    "Optional parameters      Two-element lists {name default} that use the default "
+    "value if no argument is provided\n\n"
+    "Variadic parameter       The special name 'args' as the last parameter collects "
+    "all remaining arguments into a list\n\n"
+    "IMPORTANT: Optional parameters followed by required parameters become required. "
+    "For example, {{x 1} y} requires both arguments because 'y' is required after "
+    "optional 'x'. However, the 'args' parameter does not make preceding optionals "
+    "required.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_arg(ops, interp, "<func>");
   e = feather_usage_help(ops, interp, e,
-    "A 2 or 3-element list: {args body} or {args body namespace}. "
-    "The args element is a list of parameter specifications, body is the code to execute, "
-    "and namespace (if provided) specifies the namespace context.");
+    "A 2 or 3-element list: {args body} or {args body namespace}");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_arg(ops, interp, "?arg?...");
   e = feather_usage_help(ops, interp, e,
-    "Arguments to pass to the lambda function. The number of arguments must match "
-    "the parameter requirements defined in the lambda expression.");
+    "Arguments to pass to the anonymous function");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
@@ -293,6 +310,10 @@ void feather_register_apply_usage(const FeatherHostOps *ops, FeatherInterp inter
     "apply {{x} {set x 10} ::myns}",
     "Execute lambda in specified namespace",
     NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_section(ops, interp, "See Also",
+    "proc, uplevel, upvar, global, variable, namespace");
   spec = feather_usage_add(ops, interp, spec, e);
 
   feather_usage_register(ops, interp, "apply", spec);

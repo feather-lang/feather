@@ -70,6 +70,11 @@ void feather_register_lreplace_usage(const FeatherHostOps *ops, FeatherInterp in
     "a b X Y");
   spec = feather_usage_add(ops, interp, spec, e);
 
+  e = feather_usage_section(ops, interp, "See Also",
+    "list(1), lappend(1), lindex(1), linsert(1), llength(1), lrange(1), "
+    "lrepeat(1), lreverse(1), lsearch(1), lset(1), lsort(1)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
   feather_usage_register(ops, interp, "lreplace", spec);
 }
 

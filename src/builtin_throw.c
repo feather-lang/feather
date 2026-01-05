@@ -59,15 +59,14 @@ void feather_register_throw_usage(const FeatherHostOps *ops, FeatherInterp inter
   FeatherObj spec = feather_usage_spec(ops, interp);
 
   FeatherObj e = feather_usage_about(ops, interp,
-    "Generate a catchable error",
-    "Throws an error exception with a machine-readable error code and human-readable message. "
-    "The error can be caught by catch or try commands.\n\n"
-    "The type argument is a list of words that classifies the error in a machine-readable form. "
-    "By convention, these words should go from most general to most specific. For example, "
-    "{ARITH DIVZERO} or {POSIX ENOENT {no such file}}.\n\n"
-    "The message argument is a human-readable string describing the error.\n\n"
-    "When thrown, the error sets return options with -code 1 (error) and -errorcode containing "
-    "the type list. The error will unwind the call stack until caught by catch or try.");
+    "Generate a machine-readable error",
+    "This command causes the current evaluation to be unwound with an error. "
+    "The error created is described by the type and message arguments: type must contain "
+    "a list of words describing the error in a form that is machine-readable (and which will "
+    "form the error-code part of the result dictionary), and message should contain text that "
+    "is intended for display to a human being.\n\n"
+    "The stack will be unwound until the error is trapped by a suitable catch or try command.\n\n"
+    "By convention, the words in the type argument should go from most general to most specific.");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_arg(ops, interp, "<type>");
@@ -106,6 +105,10 @@ void feather_register_throw_usage(const FeatherHostOps *ops, FeatherInterp inter
     "}",
     "Throw and catch a custom error type",
     NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_section(ops, interp, "See Also",
+    "catch, error, return, try");
   spec = feather_usage_add(ops, interp, spec, e);
 
   feather_usage_register(ops, interp, "throw", spec);

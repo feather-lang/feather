@@ -55,6 +55,7 @@ static const char *K_DEFAULT    = "default";
 static const char *K_LONG_HELP  = "long_help";
 static const char *K_CHOICES    = "choices";
 static const char *K_HIDE       = "hide";
+static const char *K_CLAUSE     = "clause";  /* Subcommand is a syntax clause, not first-arg */
 static const char *K_VALUE_TYPE = "value_type";
 static const char *K_SHORT      = "short";
 static const char *K_LONG       = "long";
@@ -261,6 +262,8 @@ static const UsageRegistration usage_registrations[] = {
   {"scan", feather_register_scan_usage},
   {"subst", feather_register_subst_usage},
   {"eval", feather_register_eval_usage},
+  {"usage", feather_register_usage_usage},
+  {"tcl::mathfunc", feather_register_mathfunc_usage},
   {NULL, NULL}
 };
 
@@ -611,6 +614,11 @@ static FeatherObj usage_set_hide(const FeatherHostOps *ops, FeatherInterp interp
   return dict_set_int(ops, interp, entry, K_HIDE, 1);
 }
 
+static FeatherObj usage_set_clause(const FeatherHostOps *ops, FeatherInterp interp,
+                                   FeatherObj entry) {
+  return dict_set_int(ops, interp, entry, K_CLAUSE, 1);
+}
+
 /**
  * Parse a spec string into a structured representation.
  *
@@ -950,7 +958,8 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
   /* Check for features in spec and find meta entry */
   int hasFlags = 0;
   int hasArgs = 0;
-  int hasSubcmds = 0;
+  int hasSubcmds = 0;  /* True subcommands (appear as first arg) */
+  int hasClauses = 0;  /* Clause subcommands (appear after other args) */
   int hasExamples = 0;
   FeatherObj aboutText = ops->string.intern(interp, "", 0);
   FeatherObj descriptionText = ops->string.intern(interp, "", 0);
@@ -971,7 +980,11 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
     }
     if (entry_is_type(ops, interp, entry, T_CMD)) {
       int64_t hide = dict_get_int(ops, interp, entry, K_HIDE);
-      if (!hide) hasSubcmds = 1;
+      int64_t isClause = dict_get_int(ops, interp, entry, K_CLAUSE);
+      if (!hide) {
+        if (isClause) hasClauses = 1;
+        else hasSubcmds = 1;
+      }
     }
     if (entry_is_type(ops, interp, entry, T_EXAMPLE)) {
       hasExamples = 1;
@@ -1176,7 +1189,7 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
   }
 
   /* === COMMANDS section === */
-  if (hasSubcmds) {
+  if (hasSubcmds || hasClauses) {
     append_str(ops, interp, builder, "\n\nCOMMANDS");
     int cmdCount = 0;
 
@@ -1236,6 +1249,8 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
 
               FeatherObj shortFlag = dict_get_str(ops, interp, subEntry, K_SHORT);
               FeatherObj longFlag = dict_get_str(ops, interp, subEntry, K_LONG);
+              int64_t hasValue = dict_get_int(ops, interp, subEntry, K_HAS_VALUE);
+              FeatherObj varName = dict_get_str(ops, interp, subEntry, K_VAR_NAME);
 
               ops->string.builder_append_byte(interp, builder, ' ');
               ops->string.builder_append_byte(interp, builder, '?');
@@ -1245,6 +1260,11 @@ static FeatherObj generate_usage_string(const FeatherHostOps *ops, FeatherInterp
               } else if (ops->string.byte_length(interp, longFlag) > 0) {
                 append_str(ops, interp, builder, "--");
                 ops->string.builder_append_obj(interp, builder, longFlag);
+              }
+              /* Include the value placeholder if the flag takes a value */
+              if (hasValue && ops->string.byte_length(interp, varName) > 0) {
+                ops->string.builder_append_byte(interp, builder, ' ');
+                ops->string.builder_append_obj(interp, builder, varName);
               }
               ops->string.builder_append_byte(interp, builder, '?');
             }
@@ -2535,6 +2555,17 @@ FeatherObj feather_usage_hide(const FeatherHostOps *ops, FeatherInterp interp,
 }
 
 /**
+ * Mark a subcommand entry as a clause (syntax element that appears after other arguments).
+ * Clause subcommands appear in the COMMANDS section but do not trigger <COMMAND> in synopsis.
+ * Use this for commands like "try" where handlers (on/trap/finally) appear after the body,
+ * not as the first argument.
+ */
+FeatherObj feather_usage_clause(const FeatherHostOps *ops, FeatherInterp interp,
+                                FeatherObj entry) {
+  return usage_set_clause(ops, interp, entry);
+}
+
+/**
  * Create an empty usage spec.
  */
 FeatherObj feather_usage_spec(const FeatherHostOps *ops, FeatherInterp interp) {
@@ -2594,4 +2625,143 @@ void feather_usage_register(const FeatherHostOps *ops, FeatherInterp interp,
 
   /* Save back */
   usage_set_specs(ops, interp, specs);
+}
+
+/**
+ * Register usage help for the 'usage' command itself.
+ */
+void feather_register_usage_usage(const FeatherHostOps *ops, FeatherInterp interp) {
+  FeatherObj spec = feather_usage_spec(ops, interp);
+  FeatherObj subspec;
+  FeatherObj e;
+
+  e = feather_usage_about(ops, interp,
+    "Define and query command-line argument specifications",
+    "The usage command provides a declarative way to specify command-line "
+    "arguments, flags, and subcommands for procedures. It supports automatic "
+    "parsing of argument lists into local variables, validation of required "
+    "arguments and flag values, and generation of help text.\n\n"
+    "Usage specs are defined using a TCL-native block syntax with entry types "
+    "for arguments (arg), flags (flag), subcommands (cmd), and examples "
+    "(example). Each entry can have additional options like help text, default "
+    "values, and valid choices.\n\n"
+    "Note: This is a Feather-specific command and is not part of standard TCL.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: for ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<command>");
+  e = feather_usage_help(ops, interp, e, "The command name to define or query");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?spec?");
+  e = feather_usage_help(ops, interp, e, "The usage specification (if defining)");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "for", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Defines or retrieves a usage specification for a command. When called with "
+    "both command and spec arguments, stores the specification for later use "
+    "with parse and help subcommands. When called with only the command name, "
+    "returns the stored specification in a format that can be passed back to "
+    "usage for (round-trippable).\n\n"
+    "The spec uses a TCL-native block syntax with these entry types:\n\n"
+    "arg <name>              Required positional argument\n\n"
+    "arg ?name?              Optional positional argument\n\n"
+    "arg <name>...           Variadic required (1 or more)\n\n"
+    "arg ?name?...           Variadic optional (0 or more)\n\n"
+    "flag -s --long          Boolean flag (short and/or long form)\n\n"
+    "flag -f --file <path>   Flag with required value\n\n"
+    "cmd name {...}          Subcommand with nested spec\n\n"
+    "example {code}          Usage example");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: parse ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<command>");
+  e = feather_usage_help(ops, interp, e, "The command whose spec to use for parsing");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<args>");
+  e = feather_usage_help(ops, interp, e, "The argument list to parse");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "parse", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Parses an argument list according to a previously defined usage "
+    "specification and creates local variables in the caller's scope for each "
+    "argument and flag.\n\n"
+    "Flags can appear anywhere in the argument list and are parsed first. The "
+    "special \"--\" separator stops flag parsing, treating all subsequent "
+    "arguments as positional. Boolean flags are set to 1 when present, 0 when "
+    "absent. Flags that take values store the provided value.\n\n"
+    "Positional arguments are matched in order after flag processing. Variadic "
+    "arguments collect all remaining positional values into a list.\n\n"
+    "A special variable $subcommand is set to a list containing the path of "
+    "matched subcommands (e.g., {remote add} for nested commands).\n\n"
+    "Returns an error if required arguments are missing, unknown flags are "
+    "provided, or values fail validation (such as choices or type constraints).");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: help ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<command>");
+  e = feather_usage_help(ops, interp, e, "The command to generate help for");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?subcommand?...");
+  e = feather_usage_help(ops, interp, e, "Optional subcommand path for specific help");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "help", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Generates help text for a command based on its usage specification. The "
+    "output follows the standard Unix manpage format with sections for NAME, "
+    "SYNOPSIS, DESCRIPTION, OPTIONS, ARGUMENTS, COMMANDS, and EXAMPLES.\n\n"
+    "If optional subcommand arguments are provided, generates help specific to "
+    "that subcommand path. For example, \"usage help git remote\" would show "
+    "help for the \"remote\" subcommand of \"git\".\n\n"
+    "Help text is automatically word-wrapped and formatted for terminal "
+    "display. Multi-line text in specifications is dedented and trimmed for "
+    "consistent output.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Custom section: Spec Options ---
+  e = feather_usage_section(ops, interp, "Spec Options",
+    "Each entry in a spec can have an options block with additional "
+    "configuration:\n\n"
+    "help {text}         Short help text displayed in usage output\n\n"
+    "long_help {text}    Extended help for detailed documentation\n\n"
+    "default {value}     Default value when argument is omitted (arg only)\n\n"
+    "choices {a b c}     Space-separated list of valid values\n\n"
+    "type script         Validates value is syntactically complete TCL\n\n"
+    "hide                Hide from help output");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Examples ---
+  e = feather_usage_example(ops, interp,
+    "usage for mycommand {\n"
+    "    arg <input>\n"
+    "    arg ?output?\n"
+    "    flag -v --verbose\n"
+    "}",
+    "Define a simple command spec",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "proc mycommand {args} {\n"
+    "    usage parse mycommand $args\n"
+    "    puts \"Input: $input\"\n"
+    "}",
+    "Parse arguments in a procedure",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "puts [usage help mycommand]",
+    "Display help for a command",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- SEE ALSO ---
+  e = feather_usage_section(ops, interp, "See Also",
+    "proc(1)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "usage", spec);
 }

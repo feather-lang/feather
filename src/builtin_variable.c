@@ -96,16 +96,29 @@ void feather_register_variable_usage(const FeatherHostOps *ops, FeatherInterp in
 
   // Command description
   FeatherObj e = feather_usage_about(ops, interp,
-    "Create and link namespace variables",
-    "Creates namespace variables and links them to local procedure variables. "
-    "Accepts one or more name/value pairs, where the final value is optional.\n\n"
-    "When executed inside a procedure, variable creates a local variable linked "
-    "to the namespace variable, making the namespace variable accessible by the "
-    "local name.\n\n"
-    "Qualified names (e.g., ::ns::varname) create links to variables in other "
-    "namespaces. If the target namespace doesn't exist, an error is raised.\n\n"
-    "Note: Feather does not support TCL's undefined variable state. Variables "
-    "created without values may not behave exactly as in standard TCL.");
+    "Create and initialize a namespace variable",
+    "This command is normally used within a namespace eval command to create "
+    "one or more variables within a namespace. Each variable name is initialized "
+    "with value. The value for the last variable is optional.\n\n"
+    "If a variable name does not exist, it is created. In this case, if value is "
+    "specified, it is assigned to the newly created variable. If the variable "
+    "already exists, it is set to value if value is specified or left unchanged "
+    "if no value is given. Normally, name is unqualified (does not include the "
+    "names of any containing namespaces), and the variable is created in the "
+    "current namespace. If name includes any namespace qualifiers, the variable "
+    "is created in the specified namespace.\n\n"
+    "If the variable command is executed inside a procedure, it creates local "
+    "variables linked to the corresponding namespace variables (and therefore "
+    "these variables are listed by info vars). In this way the variable command "
+    "resembles the global command, although the global command resolves variable "
+    "names with respect to the global namespace instead of the current namespace "
+    "of the procedure. If any values are given, they are used to modify the "
+    "values of the associated namespace variables. If a namespace variable does "
+    "not exist, it is created and optionally initialized.\n\n"
+    "Note: Feather does not support TCL's undefined variable state where variables "
+    "are visible to namespace which but not to info exists. Variables created "
+    "without values may not behave exactly as in standard TCL. Feather also does "
+    "not support TCL-style arrays, so name cannot reference an array element.");
   spec = feather_usage_add(ops, interp, spec, e);
 
   // Arguments
@@ -158,6 +171,11 @@ void feather_register_variable_usage(const FeatherHostOps *ops, FeatherInterp in
     "}",
     "Link to variable in a different namespace using qualified name:",
     NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // See Also
+  e = feather_usage_section(ops, interp, "See Also",
+    "global, namespace, upvar");
   spec = feather_usage_add(ops, interp, spec, e);
 
   feather_usage_register(ops, interp, "variable", spec);

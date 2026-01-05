@@ -53,17 +53,23 @@ void feather_register_while_usage(const FeatherHostOps *ops, FeatherInterp inter
 
   // Command description (for NAME and DESCRIPTION sections)
   FeatherObj e = feather_usage_about(ops, interp,
-    "Execute commands repeatedly while a condition is true",
+    "Execute script repeatedly as long as a condition is met",
     "The while command evaluates test as an expression (in the same way that "
     "expr evaluates its argument). The value of the expression must be a "
     "proper boolean value; if it is a true value then body is executed by "
-    "passing it to the Tcl interpreter.\n\n"
-    "Once body has been executed then test is evaluated again, and the process "
-    "repeats until eventually test evaluates to a false boolean value. "
-    "Continue commands may be executed inside body to terminate the current "
-    "iteration of the loop, and break commands may be executed inside body to "
-    "cause immediate termination of the while command.\n\n"
-    "The while command always returns an empty string.");
+    "passing it to the Tcl interpreter. Once body has been executed then "
+    "test is evaluated again, and the process repeats until eventually test "
+    "evaluates to a false boolean value. Continue commands may be executed "
+    "inside body to terminate the current iteration of the loop, and break "
+    "commands may be executed inside body to cause immediate termination of "
+    "the while command. The while command always returns an empty string.\n\n"
+    "Note that test should almost always be enclosed in braces. If not, "
+    "variable substitutions will be made before the while command starts "
+    "executing, which means that variable changes made by the loop body will "
+    "not be considered in the expression. This is likely to result in an "
+    "infinite loop. If test is enclosed in braces, variable substitutions "
+    "are delayed until the expression is evaluated (before each loop "
+    "iteration), so changes in the variables will be visible.");
   spec = feather_usage_add(ops, interp, spec, e);
 
   // Required argument: test
@@ -110,6 +116,11 @@ void feather_register_while_usage(const FeatherHostOps *ops, FeatherInterp inter
     "}",
     "Print only odd numbers using continue",
     NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // SEE ALSO section
+  e = feather_usage_section(ops, interp, "See Also",
+    "break, continue, for, foreach");
   spec = feather_usage_add(ops, interp, spec, e);
 
   feather_usage_register(ops, interp, "while", spec);

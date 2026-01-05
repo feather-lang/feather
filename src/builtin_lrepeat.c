@@ -99,5 +99,10 @@ void feather_register_lrepeat_usage(const FeatherHostOps *ops, FeatherInterp int
     "");
   spec = feather_usage_add(ops, interp, spec, e);
 
+  e = feather_usage_section(ops, interp, "See Also",
+    "list, lappend, lassign, lindex, linsert, llength, lmap, lrange, "
+    "lreplace, lreverse, lsearch, lset, lsort");
+  spec = feather_usage_add(ops, interp, spec, e);
+
   feather_usage_register(ops, interp, "lrepeat", spec);
 }

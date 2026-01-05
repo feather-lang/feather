@@ -40,8 +40,9 @@ void feather_register_list_usage(const FeatherHostOps *ops, FeatherInterp interp
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
-    "list {a b} c",
-    "Create a list where the first element contains spaces",
+    "list a b \"c d e  \" \"  f {g h}\"",
+    "Demonstrates quoting behavior. Returns: a b {c d e  } {  f {g h}}. "
+    "Note how braces are added to preserve whitespace and special characters",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
@@ -49,6 +50,11 @@ void feather_register_list_usage(const FeatherHostOps *ops, FeatherInterp interp
     "list",
     "Create an empty list",
     NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // See Also
+  e = feather_usage_section(ops, interp, "See Also",
+    "lappend, lindex, linsert, llength, lrange, lreplace, lsearch, lset, lsort, concat");
   spec = feather_usage_add(ops, interp, spec, e);
 
   feather_usage_register(ops, interp, "list", spec);

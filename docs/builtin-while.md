@@ -21,6 +21,18 @@ Loop control is handled via:
 - `TCL_CONTINUE` - skips to the next iteration
 - `TCL_ERROR` - propagates errors up the call stack
 
+## Usage Help
+
+The command has comprehensive usage help registered via `feather_register_while_usage()`:
+- NAME section with brief description
+- SYNOPSIS showing `while <test> <body>`
+- DESCRIPTION including the important note about enclosing test in braces
+- ARGUMENTS section for `<test>` and `<body>`
+- EXAMPLES showing basic loop, break, and continue usage
+- SEE ALSO section referencing break, continue, for, foreach
+
+Run `usage help while` to view the help.
+
 ## TCL Features We Support
 
 | Feature | Status | Notes |

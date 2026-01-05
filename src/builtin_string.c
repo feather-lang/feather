@@ -1425,7 +1425,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
 
   e = feather_usage_example(ops, interp,
     "string map {abc 1 ab 2 a 3 1 0} 1abcaababcababc",
-    "Apply string substitutions (returns 01teleprinter22211):",
+    "Apply string substitutions (returns 0132121):",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 

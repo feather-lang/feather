@@ -43,7 +43,7 @@ The TCL manual documents these behaviors, all of which we implement:
 
 The TCL manual states that variables created by `global` (like those created by `upvar`) are "not included in the list returned by `info locals`".
 
-Our implementation creates the link via `ops->var.link_ns()`, but whether linked variables are excluded from `info locals` depends on the `info locals` implementation, not the `global` command itself. This should be verified separately.
+Our implementation creates the link via `ops->var.link_ns()`, but whether linked variables are excluded from `info locals` depends on the `info locals` implementation, not the `global` command itself. This is now documented in the usage help for `global`.
 
 ### Error Message Format
 

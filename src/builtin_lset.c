@@ -172,16 +172,39 @@ void feather_register_lset_usage(const FeatherHostOps *ops, FeatherInterp interp
   FeatherObj spec = feather_usage_spec(ops, interp);
 
   FeatherObj e = feather_usage_about(ops, interp,
-    "Modify element of a list stored in a variable",
-    "Changes one or more elements of the list stored in varName and returns "
-    "the modified list. Without indices, replaces the entire value.\n\n"
-    "With one or more indices, replaces the element at the specified position. "
-    "Indices can be specified as separate arguments or as a single list argument. "
-    "Each index identifies a level of nesting in the list structure.\n\n"
-    "Index values support integer positions (0-based), the \"end\" keyword for "
-    "the last element, and arithmetic expressions like \"end-1\" or \"0+1\". "
-    "An index equal to the list length appends a new element.\n\n"
-    "Returns an error if the variable does not exist or if any index is out of range.");
+    "Change an element in a list",
+    "The lset command accepts a parameter, varName, which it interprets as "
+    "the name of a variable containing a list. It also accepts zero or more "
+    "indices into the list. The indices may be presented either consecutively "
+    "on the command line, or grouped in a list and presented as a single "
+    "argument. Finally, it accepts a new value for an element of varName.\n\n"
+    "If no indices are presented, newValue replaces the old value of the "
+    "variable varName.\n\n"
+    "When presented with a single index, the lset command treats the content "
+    "of the varName variable as a list. It addresses the index'th element in "
+    "it (0 refers to the first element of the list). The command constructs "
+    "a new list in which the designated element is replaced with newValue. "
+    "This new list is stored in the variable varName, and is also the return "
+    "value from the lset command.\n\n"
+    "If index is negative or greater than the number of elements in $varName, "
+    "then an error occurs. If index is equal to the number of elements in "
+    "$varName, then the given element is appended to the list.\n\n"
+    "If additional index arguments are supplied, then each argument is used "
+    "in turn to address an element within a sublist designated by the previous "
+    "indexing operation, allowing the script to alter elements in sublists "
+    "(or append elements to sublists).");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_section(ops, interp, "List Indices",
+    "The interpretation of each simple index value is the same as for the "
+    "command string index, supporting simple index arithmetic and indices "
+    "relative to the end of the list:\n\n"
+    "integer    A decimal number giving the position of the element (0-based)\n\n"
+    "end        The last element of the list\n\n"
+    "end-N      The element N positions before the last element\n\n"
+    "end+N      Same as end-N (N positions before end)\n\n"
+    "M+N        The element at position M plus N\n\n"
+    "M-N        The element at position M minus N");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_arg(ops, interp, "<varName>");
@@ -193,10 +216,10 @@ void feather_register_lset_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_help(ops, interp, e,
     "Zero or more indices specifying which element to modify. Can be specified "
     "as separate arguments or as a single list. Each index identifies a nesting "
-    "level. Supports integers, \"end\" keyword, and arithmetic like \"end-1\"");
+    "level in the list structure");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_arg(ops, interp, "<value>");
+  e = feather_usage_arg(ops, interp, "<newValue>");
   e = feather_usage_help(ops, interp, e,
     "The new value to set at the specified position");
   spec = feather_usage_add(ops, interp, spec, e);
@@ -205,42 +228,46 @@ void feather_register_lset_usage(const FeatherHostOps *ops, FeatherInterp interp
     "set x {a b c}\n"
     "lset x 1 B",
     "Replace element at index 1",
-    "Result: {a B c}");
+    "a B c");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
     "set x {a b c}\n"
     "lset x end Z",
     "Replace last element using \"end\" keyword",
-    "Result: {a b Z}");
+    "a b Z");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
     "set x {a b c}\n"
     "lset x 3 d",
-    "Append element by using index equal to list length",
-    "Result: {a b c d}");
+    "Append element when index equals list length",
+    "a b c d");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
     "set x {{a b} {c d}}\n"
     "lset x 0 1 B",
     "Modify nested element using multiple indices",
-    "Result: {{a B} {c d}}");
+    "{a B} {c d}");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
     "set x {{a b} {c d}}\n"
     "lset x {1 0} C",
     "Modify nested element using list of indices",
-    "Result: {{a b} {C d}}");
+    "{a b} {C d}");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
     "set x hello\n"
     "lset x WORLD",
     "Replace entire variable value (no indices)",
-    "Result: WORLD");
+    "WORLD");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_section(ops, interp, "See Also",
+    "list, lappend, lindex, llength, lrange, lreplace, lsort");
   spec = feather_usage_add(ops, interp, spec, e);
 
   feather_usage_register(ops, interp, "lset", spec);

@@ -57,5 +57,16 @@ void feather_register_llength_usage(const FeatherHostOps *ops, FeatherInterp int
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
+  e = feather_usage_example(ops, interp,
+    "llength {a b { } c d e}",
+    "Returns 6 - the { } is a single element containing one space",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_section(ops, interp, "See Also",
+    "list, lappend, lassign, lindex, linsert, lmap, lrange, lrepeat, "
+    "lreplace, lreverse, lsearch, lset, lsort");
+  spec = feather_usage_add(ops, interp, spec, e);
+
   feather_usage_register(ops, interp, "llength", spec);
 }

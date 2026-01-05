@@ -155,5 +155,9 @@ void feather_register_upvar_usage(const FeatherHostOps *ops, FeatherInterp inter
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
+  e = feather_usage_section(ops, interp, "See Also",
+    "global(1), namespace(1), uplevel(1), variable(1)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
   feather_usage_register(ops, interp, "upvar", spec);
 }

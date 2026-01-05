@@ -553,591 +553,421 @@ FeatherResult feather_builtin_mathfunc_min(const FeatherHostOps *ops, FeatherInt
   return TCL_OK;
 }
 
-/* Usage registration for all mathfunc commands */
+/* Usage registration for all mathfunc commands - structured as subcommands */
 void feather_register_mathfunc_usage(const FeatherHostOps *ops, FeatherInterp interp) {
-  FeatherObj spec, e;
+  FeatherObj spec = feather_usage_spec(ops, interp);
+  FeatherObj subspec;
+  FeatherObj e;
 
-  /* sin - Trigonometric sine */
-  spec = feather_usage_spec(ops, interp);
   e = feather_usage_about(ops, interp,
-    "Trigonometric sine function",
-    "Returns the sine of arg, where arg is in radians.");
+    "Mathematical functions for Tcl expressions",
+    "The expr command handles mathematical functions of the form sin($x) or "
+    "atan2($y,$x) by converting them to calls of the form "
+    "[tcl::mathfunc::sin [expr {$x}]] or [tcl::mathfunc::atan2 [expr {$y}] "
+    "[expr {$x}]]. These functions are available both within expr and by "
+    "invoking the given commands directly.\n\n"
+    "All functions work with floating-point numbers unless otherwise noted. "
+    "Type conversion functions (int, wide, double, entier) and comparison "
+    "functions (max, min) preserve integer types when appropriate.\n\n"
+    "Note: Feather does not implement rand(), srand(), or isqrt() as these "
+    "require features outside Feather's scope (random number generation and "
+    "arbitrary precision integers).");
   spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- abs --- */
+  subspec = feather_usage_spec(ops, interp);
   e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Angle in radians");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "abs", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns the absolute value of arg. Arg may be either integer or "
+    "floating-point, and the result is returned in the same form.");
   spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::sin 0",
-    "Returns 0.0 (sine of 0 radians)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::sin", spec);
 
-  /* cos - Trigonometric cosine */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Trigonometric cosine function",
-    "Returns the cosine of arg, where arg is in radians.");
-  spec = feather_usage_add(ops, interp, spec, e);
+  /* --- acos --- */
+  subspec = feather_usage_spec(ops, interp);
   e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Angle in radians");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "acos", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns the arc cosine of arg, in the range [0,pi] radians. Arg should "
+    "be in the range [-1,1].");
   spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::cos 0",
-    "Returns 1.0 (cosine of 0 radians)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::cos", spec);
 
-  /* tan - Trigonometric tangent */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Trigonometric tangent function",
-    "Returns the tangent of arg, where arg is in radians.");
-  spec = feather_usage_add(ops, interp, spec, e);
+  /* --- asin --- */
+  subspec = feather_usage_spec(ops, interp);
   e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Angle in radians");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "asin", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns the arc sine of arg, in the range [-pi/2,pi/2] radians. Arg "
+    "should be in the range [-1,1].");
   spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::tan 0",
-    "Returns 0.0 (tangent of 0 radians)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::tan", spec);
 
-  /* asin - Arc sine */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Arc sine function",
-    "Returns the arc sine of arg in radians. The argument must be in the range [-1, 1].");
-  spec = feather_usage_add(ops, interp, spec, e);
+  /* --- atan --- */
+  subspec = feather_usage_spec(ops, interp);
   e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Value in range [-1, 1]");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "atan", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns the arc tangent of arg, in the range [-pi/2,pi/2] radians.");
   spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::asin 0.5",
-    "Returns approximately 0.5236 radians (30 degrees)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::asin", spec);
 
-  /* acos - Arc cosine */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Arc cosine function",
-    "Returns the arc cosine of arg in radians. The argument must be in the range [-1, 1].");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Value in range [-1, 1]");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::acos 0.5",
-    "Returns approximately 1.0472 radians (60 degrees)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::acos", spec);
-
-  /* atan - Arc tangent */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Arc tangent function",
-    "Returns the arc tangent of arg in radians.");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Numeric value");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::atan 1",
-    "Returns approximately 0.7854 radians (45 degrees)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::atan", spec);
-
-  /* atan2 - Two-argument arc tangent */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Two-argument arc tangent function",
-    "Returns the arc tangent of y/x in radians, using the signs of both arguments "
-    "to determine the quadrant of the result. This is useful for converting Cartesian "
-    "coordinates to polar coordinates.");
-  spec = feather_usage_add(ops, interp, spec, e);
+  /* --- atan2 --- */
+  subspec = feather_usage_spec(ops, interp);
   e = feather_usage_arg(ops, interp, "<y>");
-  e = feather_usage_help(ops, interp, e, "Y coordinate");
-  spec = feather_usage_add(ops, interp, spec, e);
+  subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_arg(ops, interp, "<x>");
-  e = feather_usage_help(ops, interp, e, "X coordinate");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "atan2", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns the arc tangent of y/x, in the range [-pi,pi] radians. x and y "
+    "cannot both be 0. If x is greater than 0, this is equivalent to "
+    "\"atan [expr {y/x}]\".");
   spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::atan2 1 1",
-    "Returns approximately 0.7854 radians (45 degrees)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::atan2", spec);
 
-  /* sinh - Hyperbolic sine */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Hyperbolic sine function",
-    "Returns the hyperbolic sine of arg.");
-  spec = feather_usage_add(ops, interp, spec, e);
+  /* --- bool --- */
+  subspec = feather_usage_spec(ops, interp);
   e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Numeric value");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "bool", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Accepts any numeric value, or any string acceptable to string is boolean, "
+    "and returns the corresponding boolean value 0 or 1. Non-zero numbers are "
+    "true. Other numbers are false. Non-numeric strings produce boolean value "
+    "in agreement with string is true and string is false.");
   spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::sinh 0",
-    "Returns 0.0 (hyperbolic sine of 0)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::sinh", spec);
 
-  /* cosh - Hyperbolic cosine */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Hyperbolic cosine function",
-    "Returns the hyperbolic cosine of arg.");
-  spec = feather_usage_add(ops, interp, spec, e);
+  /* --- ceil --- */
+  subspec = feather_usage_spec(ops, interp);
   e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Numeric value");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "ceil", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns the smallest integral floating-point value (i.e. with a zero "
+    "fractional part) not less than arg. The argument may be any numeric value.");
   spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::cosh 0",
-    "Returns 1.0 (hyperbolic cosine of 0)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::cosh", spec);
 
-  /* tanh - Hyperbolic tangent */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Hyperbolic tangent function",
+  /* --- cos --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<arg>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "cos", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns the cosine of arg, measured in radians.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- cosh --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<arg>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "cosh", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns the hyperbolic cosine of arg. If the result would cause an "
+    "overflow, an error is returned.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- double --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<arg>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "double", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "The argument may be any numeric value. If arg is a floating-point value, "
+    "returns arg, otherwise converts arg to floating-point and returns the "
+    "converted value. May return Inf or -Inf when the argument is a numeric "
+    "value that exceeds the floating-point range.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- entier --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<arg>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "entier", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "The argument may be any numeric value. The integer part of arg is "
+    "determined and returned. In standard TCL, the integer range returned by "
+    "this function is unlimited (arbitrary precision), but Feather uses 64-bit "
+    "integers, so this is equivalent to int().");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- exp --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<arg>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "exp", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns the exponential of arg, defined as e**arg. If the result would "
+    "cause an overflow, an error is returned.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- floor --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<arg>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "floor", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns the largest integral floating-point value (i.e. with a zero "
+    "fractional part) not greater than arg. The argument may be any numeric value.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- fmod --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<x>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<y>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "fmod", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns the floating-point remainder of the division of x by y. If y is "
+    "0, an error is returned.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- hypot --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<x>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<y>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "hypot", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Computes the length of the hypotenuse of a right-angled triangle, "
+    "approximately \"sqrt [expr {x*x+y*y}]\" except for being more numerically "
+    "stable when the two arguments have substantially different magnitudes.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- int --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<arg>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "int", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "The argument may be any numeric value. The integer part of arg is "
+    "determined, and then the low order bits of that integer value up to the "
+    "machine word size are returned as an integer value. In Feather, all "
+    "integers are 64-bit, so this is equivalent to wide().");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- isfinite --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<arg>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "isfinite", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns 1 if the floating-point number arg is finite. That is, if it is "
+    "zero, subnormal, or normal. Returns 0 if the number is infinite or NaN. "
+    "Throws an error if arg cannot be promoted to a floating-point value.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- isinf --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<arg>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "isinf", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns 1 if the floating-point number arg is infinite. Returns 0 if the "
+    "number is finite or NaN. Throws an error if arg cannot be promoted to a "
+    "floating-point value.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- isnan --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<arg>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "isnan", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns 1 if the floating-point number arg is Not-a-Number. Returns 0 if "
+    "the number is finite or infinite. Throws an error if arg cannot be "
+    "promoted to a floating-point value.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- isnormal --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<arg>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "isnormal", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns 1 if the floating-point number arg is normal. Returns 0 if the "
+    "number is zero, subnormal, infinite or NaN. Throws an error if arg cannot "
+    "be promoted to a floating-point value.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- issubnormal --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<arg>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "issubnormal", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns 1 if the floating-point number arg is subnormal, i.e., the result "
+    "of gradual underflow. Returns 0 if the number is zero, normal, infinite "
+    "or NaN. Throws an error if arg cannot be promoted to a floating-point value.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- isunordered --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<x>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<y>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "isunordered", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns 1 if x and y cannot be compared for ordering, that is, if either "
+    "one is NaN. Returns 0 if both values can be ordered, that is, if they are "
+    "both chosen from among the set of zero, subnormal, normal and infinite "
+    "values. Throws an error if either x or y cannot be promoted to a "
+    "floating-point value.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- log --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<arg>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "log", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns the natural logarithm of arg. Arg must be a positive value.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- log10 --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<arg>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "log10", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns the base 10 logarithm of arg. Arg must be a positive value.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- max --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<arg>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?arg?...");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "max", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Accepts one or more numeric arguments. Returns the one argument with the "
+    "greatest value. Preserves integer type if all arguments are integers, "
+    "otherwise returns floating-point.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- min --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<arg>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?arg?...");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "min", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Accepts one or more numeric arguments. Returns the one argument with the "
+    "least value. Preserves integer type if all arguments are integers, "
+    "otherwise returns floating-point.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- pow --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<x>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<y>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "pow", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Computes the value of x raised to the power y. If x is negative, y must "
+    "be an integer value.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- round --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<arg>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "round", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "If arg is an integer value, returns arg, otherwise converts arg to integer "
+    "by rounding and returns the converted value.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- sin --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<arg>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "sin", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns the sine of arg, measured in radians.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- sinh --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<arg>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "sinh", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns the hyperbolic sine of arg. If the result would cause an overflow, "
+    "an error is returned.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- sqrt --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<arg>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "sqrt", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "The argument may be any non-negative numeric value. Returns a floating-point "
+    "value that is the square root of arg. May return Inf when the argument is "
+    "a numeric value that exceeds the square of the maximum value of the "
+    "floating-point range.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- tan --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<arg>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "tan", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns the tangent of arg, measured in radians.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- tanh --- */
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<arg>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "tanh", subspec);
+  e = feather_usage_long_help(ops, interp, e,
     "Returns the hyperbolic tangent of arg.");
   spec = feather_usage_add(ops, interp, spec, e);
+
+  /* --- wide --- */
+  subspec = feather_usage_spec(ops, interp);
   e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Numeric value");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::tanh 0",
-    "Returns 0.0 (hyperbolic tangent of 0)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::tanh", spec);
-
-  /* exp - Exponential */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Exponential function",
-    "Returns e raised to the power of arg, where e is the base of natural logarithms "
-    "(approximately 2.71828).");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Exponent value");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::exp 1",
-    "Returns approximately 2.71828 (e to the power of 1)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::exp", spec);
-
-  /* log - Natural logarithm */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Natural logarithm function",
-    "Returns the natural logarithm (base e) of arg. The argument must be positive.");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Positive numeric value");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::log 2.71828",
-    "Returns approximately 1.0 (natural log of e)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::log", spec);
-
-  /* log10 - Base-10 logarithm */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Base-10 logarithm function",
-    "Returns the base-10 logarithm of arg. The argument must be positive.");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Positive numeric value");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::log10 100",
-    "Returns 2.0 (10 to the power of 2 is 100)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::log10", spec);
-
-  /* sqrt - Square root */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Square root function",
-    "Returns the square root of arg. The argument must be non-negative.");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Non-negative numeric value");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::sqrt 16",
-    "Returns 4.0 (square root of 16)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::sqrt", spec);
-
-  /* pow - Power function */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Power function",
-    "Returns x raised to the power of y.");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<x>");
-  e = feather_usage_help(ops, interp, e, "Base value");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<y>");
-  e = feather_usage_help(ops, interp, e, "Exponent value");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::pow 2 8",
-    "Returns 256.0 (2 to the power of 8)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::pow", spec);
-
-  /* floor - Floor function */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Floor function",
-    "Returns the largest integer value not greater than arg (rounds down).");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Numeric value");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::floor 3.7",
-    "Returns 3.0 (largest integer not greater than 3.7)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::floor", spec);
-
-  /* ceil - Ceiling function */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Ceiling function",
-    "Returns the smallest integer value not less than arg (rounds up).");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Numeric value");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::ceil 3.2",
-    "Returns 4.0 (smallest integer not less than 3.2)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::ceil", spec);
-
-  /* round - Round to nearest integer */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Round to nearest integer",
-    "Returns the integer value closest to arg. If arg is halfway between two integers, "
-    "rounds to the even integer. Returns an integer type (not a floating-point number).");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Numeric value");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::round 3.7",
-    "Returns 4 (nearest integer to 3.7)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::round", spec);
-
-  /* abs - Absolute value */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Absolute value function",
-    "Returns the absolute value of arg. Preserves the input type: integer input returns "
-    "integer, floating-point input returns floating-point.");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Numeric value");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::abs -5",
-    "Returns 5 (absolute value of -5)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::abs", spec);
-
-  /* fmod - Floating-point remainder */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Floating-point remainder function",
-    "Returns the floating-point remainder of x divided by y. The result has the same "
-    "sign as x.");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<x>");
-  e = feather_usage_help(ops, interp, e, "Dividend value");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<y>");
-  e = feather_usage_help(ops, interp, e, "Divisor value");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::fmod 7.5 2.0",
-    "Returns 1.5 (remainder of 7.5 divided by 2.0)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::fmod", spec);
-
-  /* hypot - Hypotenuse calculation */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Hypotenuse calculation",
-    "Returns the square root of (x*x + y*y), computed in a way that avoids overflow. "
-    "This is the length of the hypotenuse of a right triangle with sides of length x and y.");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<x>");
-  e = feather_usage_help(ops, interp, e, "First side length");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<y>");
-  e = feather_usage_help(ops, interp, e, "Second side length");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::hypot 3 4",
-    "Returns 5.0 (hypotenuse of right triangle with sides 3 and 4)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::hypot", spec);
-
-  /* double - Convert to floating-point */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Convert to floating-point",
-    "Converts arg to a floating-point number and returns it.");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Value to convert");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::double 42",
-    "Returns 42.0 (floating-point representation)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::double", spec);
-
-  /* int - Convert to integer */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Convert to integer",
-    "Converts arg to an integer by truncating toward zero and returns it. "
-    "In Feather, this produces a 64-bit integer.");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Value to convert");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::int 3.7",
-    "Returns 3 (truncated toward zero)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::int", spec);
-
-  /* wide - Convert to 64-bit integer */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Convert to 64-bit integer",
-    "Converts arg to a 64-bit integer by truncating toward zero and returns it. "
-    "In Feather, this is equivalent to int() as all integers are 64-bit.");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Value to convert");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::wide 3.7",
-    "Returns 3 (truncated toward zero)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::wide", spec);
-
-  /* isnan - Test if Not-a-Number */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Test if Not-a-Number",
-    "Returns 1 if arg is a floating-point NaN (Not-a-Number) value, 0 otherwise.");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Value to test");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::isnan [expr {0.0/0.0}]",
-    "Returns 1 (result of 0/0 is NaN)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::isnan", spec);
-
-  /* isinf - Test if infinite */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Test if infinite",
-    "Returns 1 if arg is a floating-point infinity (positive or negative), 0 otherwise.");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Value to test");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::isinf [expr {1.0/0.0}]",
-    "Returns 1 (result of 1/0 is infinity)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::isinf", spec);
-
-  /* isfinite - Test if finite */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Test if finite",
-    "Returns 1 if arg is a finite floating-point number (not NaN and not infinite), "
-    "0 otherwise. Finite numbers include zero, subnormal, and normal numbers.");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Value to test");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::isfinite 3.14",
-    "Returns 1 (3.14 is a finite number)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::isfinite", spec);
-
-  /* isnormal - Test if normal */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Test if normal",
-    "Returns 1 if arg is a normal floating-point number (not zero, not subnormal, "
-    "not infinite, and not NaN), 0 otherwise.");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Value to test");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::isnormal 3.14",
-    "Returns 1 (3.14 is a normal number)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::isnormal", spec);
-
-  /* issubnormal - Test if subnormal */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Test if subnormal",
-    "Returns 1 if arg is a subnormal (denormalized) floating-point number, 0 otherwise. "
-    "Subnormal numbers are very small numbers close to zero that have reduced precision.");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Value to test");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::issubnormal 1e-320",
-    "Returns 1 (very small number is subnormal)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::issubnormal", spec);
-
-  /* isunordered - Test if either is NaN */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Test if either value is NaN",
-    "Returns 1 if either x or y is NaN (Not-a-Number), 0 otherwise. This is useful "
-    "for checking if a comparison between two values would be unordered.");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<x>");
-  e = feather_usage_help(ops, interp, e, "First value to test");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<y>");
-  e = feather_usage_help(ops, interp, e, "Second value to test");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::isunordered 3.14 [expr {0.0/0.0}]",
-    "Returns 1 (second argument is NaN)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::isunordered", spec);
-
-  /* bool - Convert to boolean */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Convert to boolean",
-    "Converts arg to a boolean value (0 or 1). Accepts numeric values (0 is false, "
-    "non-zero is true) and boolean string literals: \"true\", \"false\", \"yes\", \"no\", "
-    "\"on\", \"off\" (case-insensitive).");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Value to convert");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::bool yes",
-    "Returns 1 (\"yes\" converts to true)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::bool", spec);
-
-  /* entier - Convert to integer (same as int in Feather) */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Convert to integer",
-    "Converts arg to an integer by truncating toward zero. In standard TCL, this "
-    "provides arbitrary-precision integer conversion, but Feather uses 64-bit integers, "
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "wide", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "The argument may be any numeric value. The integer part of arg is "
+    "determined, and then the low order 64 bits of that integer value are "
+    "returned as an integer value. In Feather, all integers are 64-bit, "
     "so this is equivalent to int().");
   spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "Value to convert");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::entier 3.7",
-    "Returns 3 (truncated toward zero)",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::entier", spec);
 
-  /* max - Return maximum value */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Return maximum value",
-    "Returns the maximum of one or more numeric arguments. Preserves integer type "
-    "if all arguments are integers, otherwise returns floating-point.");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "First value");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "?arg?...");
-  e = feather_usage_help(ops, interp, e, "Additional values to compare");
-  spec = feather_usage_add(ops, interp, spec, e);
+  /* Add examples */
   e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::max 5 12 8",
-    "Returns 12 (maximum of 5, 12, and 8)",
+    "expr {sin(0.5)}",
+    "Use sin within an expression (returns approximately 0.479)",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::max", spec);
 
-  /* min - Return minimum value */
-  spec = feather_usage_spec(ops, interp);
-  e = feather_usage_about(ops, interp,
-    "Return minimum value",
-    "Returns the minimum of one or more numeric arguments. Preserves integer type "
-    "if all arguments are integers, otherwise returns floating-point.");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "<arg>");
-  e = feather_usage_help(ops, interp, e, "First value");
-  spec = feather_usage_add(ops, interp, spec, e);
-  e = feather_usage_arg(ops, interp, "?arg?...");
-  e = feather_usage_help(ops, interp, e, "Additional values to compare");
-  spec = feather_usage_add(ops, interp, spec, e);
   e = feather_usage_example(ops, interp,
-    "tcl::mathfunc::min 5 12 8",
-    "Returns 5 (minimum of 5, 12, and 8)",
+    "tcl::mathfunc::sqrt 16",
+    "Call sqrt directly (returns 4.0)",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
-  feather_usage_register(ops, interp, "tcl::mathfunc::min", spec);
+
+  e = feather_usage_example(ops, interp,
+    "expr {max(1, 5, 3)}",
+    "Find maximum of multiple values (returns 5)",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* Add SEE ALSO section */
+  e = feather_usage_section(ops, interp, "See Also",
+    "expr");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  feather_usage_register(ops, interp, "tcl::mathfunc", spec);
 }

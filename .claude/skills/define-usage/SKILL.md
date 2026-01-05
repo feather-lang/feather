@@ -198,6 +198,7 @@ Implemented comprehensive usage documentation including:
 | `feather_usage_arg()` | Add argument (use `<name>` for required, `?name?` for optional) |
 | `feather_usage_flag()` | Add flag (use `-short` for TCL-style single-dash flags) |
 | `feather_usage_cmd()` | Add subcommand with its own nested spec |
+| `feather_usage_clause()` | Mark subcommand as a clause (appears after args, not first) |
 | `feather_usage_section()` | Add custom section (e.g., "String Indices") |
 | `feather_usage_help()` | Add short help text to previous element |
 | `feather_usage_long_help()` | Add detailed description (1-2 paragraphs) to previous element |
@@ -268,6 +269,32 @@ When users request help for a specific subcommand (e.g., `usage help string matc
 3. **Adds a SEE ALSO section** referencing the parent command
 
 This means you don't need to duplicate descriptions - the `long_help` you provide with `feather_usage_cmd()` serves double duty for both the parent's COMMANDS section and the subcommand's own help page.
+
+#### Clause Subcommands
+
+Some commands have syntax elements that look like subcommands but appear after other arguments rather than as the first argument. For example, the `try` command has handler clauses (`on`, `trap`, `finally`) that appear after the body script:
+
+```tcl
+try body ?handler...? ?finally script?
+```
+
+For these cases, use `feather_usage_clause()` to mark the subcommand as a "clause". Clause subcommands:
+- **Appear in the COMMANDS section** for documentation purposes
+- **Do NOT add `<COMMAND>` to the SYNOPSIS** (since they're not first-argument subcommands)
+- **Support subcommand help** (e.g., `usage help try on` works)
+
+```c
+// Define the clause subcommand
+e = feather_usage_cmd(ops, interp, "on", subspec);
+e = feather_usage_clause(ops, interp, e);  // Mark as clause
+e = feather_usage_long_help(ops, interp, e,
+    "This clause matches if the evaluation of body completed with the exception "
+    "code code. The code may be expressed as an integer or one of the following "
+    "literal words: ok, error, return, break, or continue.");
+spec = feather_usage_add(ops, interp, spec, e);
+```
+
+See `src/builtin_try.c` for a complete example of clause subcommand usage.
 
 ### Flags
 

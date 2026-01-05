@@ -1296,6 +1296,7 @@ void feather_register_format_usage(const FeatherHostOps *ops, FeatherInterp inte
 void feather_register_scan_usage(const FeatherHostOps *ops, FeatherInterp interp);
 void feather_register_subst_usage(const FeatherHostOps *ops, FeatherInterp interp);
 void feather_register_eval_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_usage_usage(const FeatherHostOps *ops, FeatherInterp interp);
 
 /**
  * feather_builtin_usage implements the TCL 'usage' command.

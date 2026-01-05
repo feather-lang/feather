@@ -56,12 +56,13 @@ void feather_register_concat_usage(const FeatherHostOps *ops, FeatherInterp inte
   FeatherObj spec = feather_usage_spec(ops, interp);
 
   FeatherObj e = feather_usage_about(ops, interp,
-    "Join arguments with spaces",
+    "Join lists together",
     "Joins each of its arguments together with spaces after trimming leading "
-    "and trailing whitespace from each of them. Arguments that are empty after "
-    "trimming are ignored entirely.\n\n"
-    "If no arguments are provided, returns an empty string. Internal whitespace "
-    "within arguments is preserved.");
+    "and trailing white-space from each of them. If all of the arguments are "
+    "lists, this has the same effect as concatenating them into a single list. "
+    "Arguments that are empty (after trimming) are ignored entirely.\n\n"
+    "It permits any number of arguments; if no args are supplied, the result "
+    "is an empty string.");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_arg(ops, interp, "?arg?...");
@@ -71,27 +72,25 @@ void feather_register_concat_usage(const FeatherHostOps *ops, FeatherInterp inte
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
-    "concat a b c",
-    "Simple concatenation:",
-    "a b c");
+    "concat a b {c d e} {f {g h}}",
+    "Concatenating lists flattens them:",
+    "a b c d e f {g h}");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
-    "concat \"  hello  \" \"  world  \"",
-    "Trimming whitespace:",
-    "hello world");
+    "concat \" a b {c   \" d \"  e} f\"",
+    "Concatenating non-lists:",
+    "a b {c d e} f");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
-    "concat \"a b\" c {d   e}",
-    "Preserving internal spaces:",
-    "a b c d   e");
+    "concat \"a   b   c\" { d e f }",
+    "Internal spaces are preserved:",
+    "a   b   c d e f");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_example(ops, interp,
-    "concat",
-    "No arguments returns empty string:",
-    "");
+  e = feather_usage_section(ops, interp, "See Also",
+    "join(1), list(1)");
   spec = feather_usage_add(ops, interp, spec, e);
 
   feather_usage_register(ops, interp, "concat", spec);

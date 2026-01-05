@@ -93,5 +93,16 @@ void feather_register_join_usage(const FeatherHostOps *ops, FeatherInterp interp
     "");
   spec = feather_usage_add(ops, interp, spec, e);
 
+  e = feather_usage_example(ops, interp,
+    "join {1 {2 3} 4 {5 {6 7} 8}}",
+    "Flatten a list by a single level (nested braces are preserved):",
+    "1 2 3 4 5 {6 7} 8");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // See Also section
+  e = feather_usage_section(ops, interp, "See Also",
+    "list(1), lappend(1), split(1)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
   feather_usage_register(ops, interp, "join", spec);
 }

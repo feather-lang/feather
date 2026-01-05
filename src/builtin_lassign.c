@@ -40,6 +40,17 @@ void feather_register_lassign_usage(const FeatherHostOps *ops, FeatherInterp int
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
+  e = feather_usage_example(ops, interp,
+    "set argv [lassign $argv firstArg]",
+    "Remove and return the first element (similar to shell's shift command)",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_section(ops, interp, "See Also",
+    "list(1), lappend(1), lindex(1), linsert(1), llength(1), lrange(1), "
+    "lreplace(1), lsearch(1), lset(1), lsort(1)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
   feather_usage_register(ops, interp, "lassign", spec);
 }
 

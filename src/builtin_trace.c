@@ -392,58 +392,141 @@ static FeatherResult trace_info(const FeatherHostOps *ops, FeatherInterp interp,
 
 void feather_register_trace_usage(const FeatherHostOps *ops, FeatherInterp interp) {
   FeatherObj spec = feather_usage_spec(ops, interp);
+  FeatherObj subspec;
+  FeatherObj e;
 
-  FeatherObj e = feather_usage_about(ops, interp,
-    "Monitor and respond to variable access, command execution, and command renaming/deletion",
-    "The trace command allows scripts to monitor and respond to various interpreter events. "
-    "Three types of traces are supported:\n\n"
-    "Variable traces fire when variables are read, written, or unset. The callback receives "
-    "the variable name, array index (always empty in Feather), and operation.\n\n"
-    "Command traces fire when commands are renamed or deleted. The callback receives "
-    "the old name, new name (empty for delete), and operation.\n\n"
-    "Execution traces fire when commands are executed. Enter traces fire before execution "
-    "with the command string. Leave traces fire after execution with the command string, "
-    "result code, result value, and operation. Step traces (enterstep/leavestep) fire for "
-    "every command in a procedure and propagate through nested calls.\n\n"
-    "Note: Feather does not support TCL-style arrays. The 'array' operation for variable "
-    "traces is not supported, and the array index argument passed to variable trace callbacks "
-    "is always an empty string.");
+  e = feather_usage_about(ops, interp,
+    "Monitor variable accesses, command usages and command executions",
+    "This command causes Tcl commands to be executed whenever certain operations "
+    "are invoked. Three types of traces are supported: variable traces fire when "
+    "variables are read, written, or unset; command traces fire when commands are "
+    "renamed or deleted; execution traces fire when commands are executed.\n\n"
+    "Note: Feather does not support TCL-style arrays. The 'array' operation for "
+    "variable traces is accepted but has no effect, and the array index argument "
+    "passed to variable trace callbacks is always an empty string.");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_arg(ops, interp, "<option>");
-  e = feather_usage_help(ops, interp, e, "Must be one of: add, remove, or info");
+  // --- Subcommand: add ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<type>");
+  e = feather_usage_help(ops, interp, e, "Must be command, execution, or variable");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<name>");
+  e = feather_usage_help(ops, interp, e, "Name of variable or command to trace");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<ops>");
+  e = feather_usage_help(ops, interp, e, "List of operations to trace");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<commandPrefix>");
+  e = feather_usage_help(ops, interp, e, "Command to execute when trace fires");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "add", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Arrange for commandPrefix to be executed whenever the named variable or "
+    "command is accessed in one of the ways specified by ops.\n\n"
+    "For 'trace add variable', ops is a list of one or more of: read, write, unset. "
+    "The callback receives: name1 name2 op. name1 is the variable name, name2 is "
+    "always empty (Feather has no arrays), and op is the operation. Read/write "
+    "traces can modify the variable to affect the result. Errors in read/write "
+    "traces propagate as \"can't read\" or \"can't set\" errors. Errors in unset "
+    "traces are ignored. Traces fire in LIFO order (most recently added first).\n\n"
+    "For 'trace add command', ops is a list of one or more of: rename, delete. "
+    "The callback receives: oldName newName op. oldName is the current fully-qualified "
+    "name, newName is the new name (empty for delete), and op is the operation. "
+    "The command must exist. Errors in command traces are ignored.\n\n"
+    "For 'trace add execution', ops is a list of one or more of: enter, leave, "
+    "enterstep, leavestep. The command must exist. For enter/enterstep, the "
+    "callback receives: command-string op. For leave/leavestep, the callback "
+    "receives: command-string code result op. Step traces fire for every command "
+    "in a procedure and propagate through nested calls. Errors propagate directly.");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_arg(ops, interp, "?arg?...");
-  e = feather_usage_help(ops, interp, e, "Arguments specific to the option");
+  // --- Subcommand: remove ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<type>");
+  e = feather_usage_help(ops, interp, e, "Must be command, execution, or variable");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<name>");
+  e = feather_usage_help(ops, interp, e, "Name of variable or command");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<opList>");
+  e = feather_usage_help(ops, interp, e, "List of operations");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<commandPrefix>");
+  e = feather_usage_help(ops, interp, e, "Command that was registered");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "remove", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "If there is a trace set on the specified variable or command with the "
+    "operations and command given by opList and commandPrefix, then the trace "
+    "is removed, so that commandPrefix will never again be invoked. Returns an "
+    "empty string.\n\n"
+    "For command and execution traces, the command must exist or an error is "
+    "thrown. For variable traces, if the variable has no matching trace, the "
+    "command silently does nothing.");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  // Example: trace add variable
+  // --- Subcommand: info ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<type>");
+  e = feather_usage_help(ops, interp, e, "Must be command, execution, or variable");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<name>");
+  e = feather_usage_help(ops, interp, e, "Name of variable or command");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "info", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns a list containing one element for each trace currently set on the "
+    "specified variable or command. Each element of the list is itself a list "
+    "containing two elements, which are the opList and commandPrefix associated "
+    "with the trace.\n\n"
+    "If the variable or command does not have any traces set, then the result "
+    "is an empty string. For command and execution traces, the command must "
+    "exist or an error is thrown.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Examples ---
   e = feather_usage_example(ops, interp,
-    "trace add variable myVar {write} {puts \"myVar was written\"}",
-    "Add a write trace to variable myVar that prints when it's written:",
+    "proc tracer {varname args} {\n"
+    "    upvar #0 $varname var\n"
+    "    puts \"$varname was updated to be \\\"$var\\\"\"\n"
+    "}\n"
+    "trace add variable foo write \"tracer foo\"",
+    "Print a message when a global variable is updated",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
-  // Example: trace add execution
   e = feather_usage_example(ops, interp,
-    "trace add execution myProc {enter leave} {puts \"myProc: $args\"}",
-    "Add enter/leave traces to procedure myProc:",
+    "proc doMult args {\n"
+    "    global foo bar foobar\n"
+    "    set foobar [expr {$foo * $bar}]\n"
+    "}\n"
+    "trace add variable foo write doMult\n"
+    "trace add variable bar write doMult",
+    "Keep a computed variable in sync with its inputs",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
-  // Example: trace info
+  e = feather_usage_example(ops, interp,
+    "proc x {} { y }\n"
+    "proc y {} { z }\n"
+    "proc z {} { puts hello }\n"
+    "proc report args { puts [info level 0] }\n"
+    "trace add execution x enterstep report\n"
+    "x",
+    "Trace all commands executed during a procedure call",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
   e = feather_usage_example(ops, interp,
     "trace info variable myVar",
-    "List all traces on variable myVar:",
+    "List all traces on variable myVar",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
-  // Example: trace remove
-  e = feather_usage_example(ops, interp,
-    "trace remove variable myVar {write} {puts \"myVar was written\"}",
-    "Remove a specific trace from variable myVar:",
-    NULL);
+  // --- See Also section ---
+  e = feather_usage_section(ops, interp, "See Also",
+    "set, unset");
   spec = feather_usage_add(ops, interp, spec, e);
 
   feather_usage_register(ops, interp, "trace", spec);

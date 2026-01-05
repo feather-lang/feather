@@ -6,14 +6,14 @@ void feather_register_tailcall_usage(const FeatherHostOps *ops, FeatherInterp in
 
   FeatherObj e = feather_usage_about(ops, interp,
     "Replace the current procedure with another command",
-    "Replaces the currently executing procedure with another command, enabling "
-    "tail-call optimization. This allows recursive procedures to execute without "
-    "growing the call stack.\n\n"
-    "The current procedure is immediately terminated and replaced with command. "
-    "The command is looked up in the current namespace context (not the caller's), "
-    "then executed in the caller's frame.\n\n"
-    "This command may only be called from within a procedure or lambda, not at "
-    "the global level.");
+    "Replaces the currently executing procedure, lambda application, or method "
+    "with another command. The command, which will have arg ... passed as "
+    "arguments if they are supplied, will be looked up in the current namespace "
+    "context, not in the caller's. Apart from that difference in resolution, "
+    "it is equivalent to:\n\n"
+    "    return [uplevel 1 [list command ?arg ...?]]\n\n"
+    "This command may not be invoked from within an uplevel into a procedure "
+    "or inside a catch inside a procedure or lambda.");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_arg(ops, interp, "<command>");
@@ -41,6 +41,10 @@ void feather_register_tailcall_usage(const FeatherHostOps *ops, FeatherInterp in
     "}",
     "Countdown without growing the call stack:",
     NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_section(ops, interp, "See Also",
+    "apply, proc, uplevel");
   spec = feather_usage_add(ops, interp, spec, e);
 
   feather_usage_register(ops, interp, "tailcall", spec);

@@ -55,5 +55,10 @@ void feather_register_continue_usage(const FeatherHostOps *ops, FeatherInterp in
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
+  // See Also section
+  e = feather_usage_section(ops, interp, "See Also",
+    "break, for, foreach, return, while");
+  spec = feather_usage_add(ops, interp, spec, e);
+
   feather_usage_register(ops, interp, "continue", spec);
 }

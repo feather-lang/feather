@@ -111,15 +111,12 @@ void feather_register_rename_usage(const FeatherHostOps *ops, FeatherInterp inte
 
   FeatherObj e = feather_usage_about(ops, interp,
     "Rename or delete a command",
-    "Renames a command from oldName to newName. The command can be invoked using "
-    "the new name after the rename operation completes.\n\n"
-    "If newName is an empty string, the command is deleted instead of renamed. "
-    "This provides a way to remove commands from the interpreter.\n\n"
-    "Both oldName and newName can be namespace-qualified (e.g., ::ns::cmd). "
-    "If unqualified, oldName is resolved relative to the current namespace, "
-    "and newName is created in the current namespace.\n\n"
-    "The rename command fires command traces after a successful operation, "
-    "with operation \"rename\" for normal renames or \"delete\" for deletions.");
+    "Rename the command that used to be called oldName so that it is now called "
+    "newName. If newName is an empty string then oldName is deleted.\n\n"
+    "Both oldName and newName may include namespace qualifiers (names of containing "
+    "namespaces). If a command is renamed into a different namespace, future "
+    "invocations of it will execute in the new namespace.\n\n"
+    "The rename command returns an empty string as result.");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_arg(ops, interp, "<oldName>");
@@ -149,6 +146,21 @@ void feather_register_rename_usage(const FeatherHostOps *ops, FeatherInterp inte
     "rename ::ns::cmd ::other::newcmd",
     "Rename a command from one namespace to another",
     NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "rename ::source ::theRealSource\n"
+    "proc ::source args {\n"
+    "    puts \"sourcing: [lindex $args 0]\"\n"
+    "    uplevel 1 ::theRealSource $args\n"
+    "}",
+    "Wrap a command with monitoring. The rename command can be used to wrap "
+    "standard commands with your own machinery",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_section(ops, interp, "See Also",
+    "namespace, proc");
   spec = feather_usage_add(ops, interp, spec, e);
 
   feather_usage_register(ops, interp, "rename", spec);

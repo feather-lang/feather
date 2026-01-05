@@ -100,23 +100,40 @@ void feather_register_uplevel_usage(const FeatherHostOps *ops, FeatherInterp int
 
   FeatherObj e = feather_usage_about(ops, interp,
     "Execute a script in a different stack frame",
-    "Evaluates a command in the context of a different stack frame. This allows "
-    "a procedure to execute code as if it were running in the context of one of "
-    "its callers.\n\n"
-    "The level argument specifies which stack frame to use. It can be in one of "
-    "two forms:\n\n"
-    "A positive integer N specifies a relative level, moving N frames up the call "
-    "stack from the current frame. Level 1 (the default) refers to the caller's "
-    "frame, level 2 to the caller's caller, and so on.\n\n"
-    "A number preceded by # (e.g., #0, #1) specifies an absolute frame number, "
-    "where #0 is the global frame, #1 is the first procedure call, etc.\n\n"
-    "If the first argument could be interpreted as a level (it starts with # or "
-    "consists only of digits), it will be treated as the level specifier. Otherwise, "
-    "the level defaults to 1.\n\n"
-    "When multiple arguments are provided after the level, they are concatenated "
-    "with spaces to form the script, similar to the concat command. The script is "
-    "then evaluated in the specified frame's variable context. Variables set or "
-    "modified by the script will affect the target frame, not the current frame.");
+    "All of the arg arguments are concatenated as if they had been passed to "
+    "concat; the result is then evaluated in the variable context indicated by "
+    "level. Uplevel returns the result of that evaluation.\n\n"
+    "If level is an integer then it gives a distance (up the procedure calling "
+    "stack) to move before executing the command. If level consists of # followed "
+    "by an integer then the level gives an absolute level. If level is omitted "
+    "then it defaults to 1. Level cannot be defaulted if the first command "
+    "argument is an integer or starts with #.\n\n"
+    "For example, suppose that procedure a was invoked from top-level, and that "
+    "it called b, and that b called c. Suppose that c invokes the uplevel command. "
+    "If level is 1 or #2 or omitted, then the command will be executed in the "
+    "variable context of b. If level is 2 or #1 then the command will be executed "
+    "in the variable context of a. If level is 3 or #0 then the command will be "
+    "executed at top-level (only global variables will be visible).\n\n"
+    "The uplevel command causes the invoking procedure to disappear from the "
+    "procedure calling stack while the command is being executed. In the above "
+    "example, suppose c invokes the command \"uplevel 1 {set x 43; d}\" where d "
+    "is another procedure. The set command will modify the variable x in b's "
+    "context, and d will execute at level 3, as if called from b. If it in turn "
+    "executes the command \"uplevel {set x 42}\" then the set command will modify "
+    "the same variable x in b's context: the procedure c does not appear to be on "
+    "the call stack when d is executing. The info level command may be used to "
+    "obtain the level of the current procedure.\n\n"
+    "Uplevel makes it possible to implement new control constructs as procedures "
+    "(for example, uplevel could be used to implement the while construct as a "
+    "procedure).\n\n"
+    "The namespace eval and apply commands offer other ways (besides procedure "
+    "calls) that the naming context can change. They add a call frame to the stack "
+    "to represent the namespace context. This means each namespace eval command "
+    "counts as another call level for uplevel and upvar commands. For example, "
+    "info level 1 will return a list describing a command that is either the "
+    "outermost procedure call or the outermost namespace eval command. Also, "
+    "uplevel #0 evaluates a script at top-level in the outermost namespace (the "
+    "global namespace).");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_arg(ops, interp, "?level?");
@@ -127,38 +144,39 @@ void feather_register_uplevel_usage(const FeatherHostOps *ops, FeatherInterp int
     "from the global frame: #0 is global, #1 is the first procedure call, etc.");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_arg(ops, interp, "<command>");
+  e = feather_usage_arg(ops, interp, "<arg>...");
   e = feather_usage_help(ops, interp, e,
-    "The command or script to execute in the target frame.");
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  e = feather_usage_arg(ops, interp, "?arg?...");
-  e = feather_usage_help(ops, interp, e,
-    "Additional arguments to concatenate with command (joined with spaces).");
+    "One or more arguments forming the script. Multiple arguments are concatenated "
+    "with spaces (as if passed to concat) to form the script to evaluate.");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
-    "uplevel set x 10",
-    "Set variable x to 10 in the caller's frame:",
+    "uplevel 1 {set x 43; d}",
+    "Set variable x in the caller's frame and invoke procedure d:",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
-    "uplevel 1 {expr $a + $b}",
-    "Evaluate an expression using variables from the caller's frame:",
+    "uplevel #0 {set globalVar 5}",
+    "Execute code at the global level (top-level frame):",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
-    "uplevel 2 return 42",
-    "Return from the caller's caller with value 42:",
+    "proc do {body while condition} {\n"
+    "    if {$while ne \"while\"} { error \"required word missing\" }\n"
+    "    set conditionCmd [list expr $condition]\n"
+    "    while {1} {\n"
+    "        uplevel 1 $body\n"
+    "        if {![uplevel 1 $conditionCmd]} { break }\n"
+    "    }\n"
+    "}",
+    "Implement a do-while control construct using uplevel:",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_example(ops, interp,
-    "uplevel #0 {global myvar; set myvar 5}",
-    "Execute code at the global level:",
-    NULL);
+  e = feather_usage_section(ops, interp, "See Also",
+    "apply(1), namespace(1), upvar(1)");
   spec = feather_usage_add(ops, interp, spec, e);
 
   feather_usage_register(ops, interp, "uplevel", spec);

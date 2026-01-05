@@ -114,5 +114,9 @@ void feather_register_incr_usage(const FeatherHostOps *ops, FeatherInterp interp
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
+  e = feather_usage_section(ops, interp, "See Also",
+    "expr, set");
+  spec = feather_usage_add(ops, interp, spec, e);
+
   feather_usage_register(ops, interp, "incr", spec);
 }

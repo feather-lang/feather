@@ -283,54 +283,51 @@ void feather_register_switch_usage(const FeatherHostOps *ops, FeatherInterp inte
     "argument and returns the result of that evaluation. If the last pattern is the keyword "
     "\"default\", it matches anything. If no pattern matches and no default is given, switch "
     "returns an empty string.\n\n"
-    "If the initial arguments begin with -, they are treated as options. The following options "
-    "are supported:\n\n"
-    "-exact: Use exact string comparison when matching string to a pattern (default).\n\n"
-    "-glob: Use glob-style pattern matching (wildcards *, ?, [...]).\n\n"
-    "-regexp: Use regular expression pattern matching.\n\n"
-    "-nocase: Perform case-insensitive matching. Works with all matching modes.\n\n"
-    "-matchvar varName: Only valid with -regexp. The variable varName receives a list of the "
-    "matched substrings: element 0 is the overall match, elements 1..n are capturing groups.\n\n"
-    "-indexvar varName: Only valid with -regexp. The variable varName receives a list of "
-    "two-element lists containing the start and end indices (inclusive) of each matched substring.\n\n"
-    "--: Marks the end of options. The next argument is treated as string even if it starts with -.\n\n"
-    "Two syntaxes are provided for the pattern and body arguments:\n\n"
-    "Inline form: The pattern and body arguments are separate arguments to switch. "
-    "There must be at least one pattern-body pair, and the patterns and bodies must alternate.\n\n"
-    "List form: All patterns and bodies are combined into a single argument (typically a braced list). "
-    "This form is especially convenient for multi-line switch statements.\n\n"
-    "If a body is specified as \"-\" (a single hyphen), it means that the body for the next pattern "
-    "should be used (fall-through). This allows several patterns to share the same body.");
+    "Two syntaxes are provided for the pattern and body arguments. The first uses a separate "
+    "argument for each of the patterns and commands; this form is convenient if substitutions "
+    "are desired on some of the patterns or commands. The second form places all of the patterns "
+    "and commands together into a single argument; the argument must have proper list structure, "
+    "with the elements of the list being the patterns and commands. The second form makes it easy "
+    "to construct multi-line switch commands, since the braces around the whole list make it "
+    "unnecessary to include a backslash at the end of each line.\n\n"
+    "If a body is specified as \"-\" it means that the body for the next pattern should also be "
+    "used as the body for this pattern (if the next pattern also has a body of \"-\" then the body "
+    "after that is used, and so on). This feature makes it possible to share a single body among "
+    "several patterns.\n\n"
+    "Beware of how you place comments in switch commands. Comments should only be placed inside "
+    "the execution body of one of the patterns, and not intermingled with the patterns.");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_arg(ops, interp, "?-exact?");
-  e = feather_usage_help(ops, interp, e, "Use exact string comparison (default)");
+  // Flags (options)
+  e = feather_usage_flag(ops, interp, "-exact", NULL, NULL);
+  e = feather_usage_help(ops, interp, e, "Use exact matching when comparing string to a pattern. This is the default.");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_arg(ops, interp, "?-glob?");
-  e = feather_usage_help(ops, interp, e, "Use glob-style pattern matching");
+  e = feather_usage_flag(ops, interp, "-glob", NULL, NULL);
+  e = feather_usage_help(ops, interp, e, "When matching string to the patterns, use glob-style matching (i.e. the same as implemented by the string match command).");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_arg(ops, interp, "?-regexp?");
-  e = feather_usage_help(ops, interp, e, "Use regular expression pattern matching");
+  e = feather_usage_flag(ops, interp, "-regexp", NULL, NULL);
+  e = feather_usage_help(ops, interp, e, "When matching string to the patterns, use regular expression matching.");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_arg(ops, interp, "?-nocase?");
-  e = feather_usage_help(ops, interp, e, "Perform case-insensitive matching");
+  e = feather_usage_flag(ops, interp, "-nocase", NULL, NULL);
+  e = feather_usage_help(ops, interp, e, "Causes comparisons to be handled in a case-insensitive manner.");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_arg(ops, interp, "?-matchvar varName?");
-  e = feather_usage_help(ops, interp, e, "Variable to receive matched substrings (requires -regexp)");
+  e = feather_usage_flag(ops, interp, "-matchvar", NULL, "<varName>");
+  e = feather_usage_help(ops, interp, e, "This option (only legal when -regexp is also specified) specifies the name of a variable into which the list of matches found by the regular expression engine will be written. The first element of the list written will be the overall substring of the input string matched, the second element of the list will be the substring matched by the first capturing parenthesis in the regular expression that matched, and so on. When a default branch is taken, the variable will have the empty list written to it.");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_arg(ops, interp, "?-indexvar varName?");
-  e = feather_usage_help(ops, interp, e, "Variable to receive match indices (requires -regexp)");
+  e = feather_usage_flag(ops, interp, "-indexvar", NULL, "<varName>");
+  e = feather_usage_help(ops, interp, e, "This option (only legal when -regexp is also specified) specifies the name of a variable into which the list of indices referring to matching substrings found by the regular expression engine will be written. The first element of the list written will be a two-element list specifying the index of the start and index of the first character after the end of the overall substring of the input string matched. Similarly, the second element of the list refers to the first capturing parenthesis in the regular expression that matched, and so on. When a default branch is taken, the variable will have the empty list written to it.");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_arg(ops, interp, "?--?");
-  e = feather_usage_help(ops, interp, e, "End of options marker");
+  e = feather_usage_flag(ops, interp, "--", NULL, NULL);
+  e = feather_usage_help(ops, interp, e, "Marks the end of options. The argument following this one will be treated as string even if it starts with a -.");
   spec = feather_usage_add(ops, interp, spec, e);
 
+  // Positional arguments
   e = feather_usage_arg(ops, interp, "<string>");
   e = feather_usage_help(ops, interp, e, "The value to match against patterns");
   spec = feather_usage_add(ops, interp, spec, e);
@@ -385,6 +382,10 @@ void feather_register_switch_usage(const FeatherHostOps *ops, FeatherInterp inte
     "    d { puts \"Found c or d\" }",
     "Fall-through using inline form syntax:",
     NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_section(ops, interp, "See Also",
+    "for, if, regexp, string match");
   spec = feather_usage_add(ops, interp, spec, e);
 
   feather_usage_register(ops, interp, "switch", spec);

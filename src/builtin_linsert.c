@@ -55,6 +55,11 @@ void feather_register_linsert_usage(const FeatherHostOps *ops, FeatherInterp int
     "a b X c");
   spec = feather_usage_add(ops, interp, spec, e);
 
+  e = feather_usage_section(ops, interp, "See Also",
+    "list, lappend, lassign, lindex, llength, lmap, lrange, "
+    "lrepeat, lreplace, lreverse, lsearch, lset, lsort");
+  spec = feather_usage_add(ops, interp, spec, e);
+
   feather_usage_register(ops, interp, "linsert", spec);
 }
 

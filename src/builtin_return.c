@@ -300,128 +300,146 @@ void feather_register_return_usage(const FeatherHostOps *ops, FeatherInterp inte
   FeatherObj spec = feather_usage_spec(ops, interp);
 
   FeatherObj e = feather_usage_about(ops, interp,
-    "Return from a procedure",
-    "Returns from the current procedure, loop, or top-level command, optionally "
-    "specifying the return value, completion code, and other options.\n\n"
-    "With no options, returns from the current procedure with the specified value "
-    "(or empty string if no value is given). The value becomes the result of the "
-    "procedure invocation.\n\n"
-    "The -code option specifies the completion code: ok (default), error, return, "
-    "break, continue, or any integer. This affects how the return is interpreted "
-    "by the caller.\n\n"
-    "The -level option controls which stack level the return applies to. Level 0 "
-    "means the code takes effect immediately. Level 1 (default) means return from "
-    "the enclosing procedure. Higher levels propagate up the call stack.\n\n"
-    "The -errorcode option sets a machine-readable error code when returning an "
-    "error. The -errorinfo option provides custom stack trace information. The "
-    "-errorstack option stores call stack details.\n\n"
-    "The -options option accepts a dictionary containing any of the above options. "
-    "This enables error re-raising: catch {command} result opts; return -options $opts $result\n\n"
-    "Arbitrary option-value pairs (like -custom value) are accepted and preserved "
-    "in the return options dictionary, available through catch.");
+    "Return from a procedure, or set return code of a script",
+    "In its simplest usage, the return command is used without options in the body "
+    "of a procedure to immediately return control to the caller of the procedure. "
+    "If a result argument is provided, its value becomes the result of the procedure "
+    "passed back to the caller. If result is not specified then an empty string will "
+    "be returned to the caller as the result of the procedure.\n\n"
+    "The return command serves a similar function within script files that are "
+    "evaluated by the source command. When source evaluates the contents of a file "
+    "as a script, an invocation of the return command will cause script evaluation "
+    "to immediately cease, and the value result (or an empty string) will be returned "
+    "as the result of the source command.");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_arg(ops, interp, "?-code?");
+  // Custom section: Exceptional Return Codes
+  e = feather_usage_section(ops, interp, "Exceptional Return Codes",
+    "In addition to the result of a procedure, the return code of a procedure may "
+    "also be set by return through use of the -code option. In the usual case where "
+    "the -code option is not specified the procedure will return normally. However, "
+    "the -code option may be used to generate an exceptional return from the procedure. "
+    "Code may have any of the following values:\n\n"
+    "ok (or 0)       Normal return: same as if the option is omitted. The return code "
+    "of the procedure is 0 (TCL_OK).\n\n"
+    "error (or 1)    Error return: the return code of the procedure is 1 (TCL_ERROR). "
+    "The procedure command behaves in its calling context as if it were the command "
+    "error result.\n\n"
+    "return (or 2)   The return code of the procedure is 2 (TCL_RETURN). The procedure "
+    "command behaves in its calling context as if it were the command return (with no arguments).\n\n"
+    "break (or 3)    The return code of the procedure is 3 (TCL_BREAK). The procedure "
+    "command behaves in its calling context as if it were the command break.\n\n"
+    "continue (or 4) The return code of the procedure is 4 (TCL_CONTINUE). The procedure "
+    "command behaves in its calling context as if it were the command continue.\n\n"
+    "value           Value must be an integer; it will be returned as the return code "
+    "for the current procedure.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Custom section: Return Options
+  e = feather_usage_section(ops, interp, "Return Options",
+    "In addition to a result and a return code, evaluation of a command in Tcl also "
+    "produces a dictionary of return options. In general usage, all option value pairs "
+    "given as arguments to return become entries in the return options dictionary, and "
+    "any values at all are acceptable except as noted below. The catch command may be "
+    "used to capture all of this information - the return code, the result, and the "
+    "return options dictionary - that arise from evaluation of a script.\n\n"
+    "As documented above, the -code entry in the return options dictionary receives "
+    "special treatment by Tcl. There are other return options also recognized and "
+    "treated specially by Tcl.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Flags
+  e = feather_usage_flag(ops, interp, "-code", NULL, "<code>");
   e = feather_usage_help(ops, interp, e,
     "Completion code: ok, error, return, break, continue, or an integer (default: ok)");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_arg(ops, interp, "?code?");
-  e = feather_usage_help(ops, interp, e, "The code value");
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  e = feather_usage_arg(ops, interp, "?-level?");
+  e = feather_usage_flag(ops, interp, "-level", NULL, "<level>");
   e = feather_usage_help(ops, interp, e,
-    "Stack level for return (0 = immediate, 1 = enclosing proc, default: 1)");
+    "The -level and -code options work together to set the return code to be returned "
+    "by one of the commands currently being evaluated. The level value must be a "
+    "non-negative integer representing a number of levels on the call stack. It defines "
+    "the number of levels up the stack at which the return code of a command currently "
+    "being evaluated should be code. If no -level option is provided, the default value "
+    "of level is 1, so that return sets the return code that the current procedure "
+    "returns to its caller, 1 level up the call stack");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_arg(ops, interp, "?level?");
-  e = feather_usage_help(ops, interp, e, "The level value (non-negative integer)");
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  e = feather_usage_arg(ops, interp, "?-errorcode?");
-  e = feather_usage_help(ops, interp, e, "Machine-readable error code (used with -code error)");
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  e = feather_usage_arg(ops, interp, "?errorcode?");
-  e = feather_usage_help(ops, interp, e, "The error code value");
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  e = feather_usage_arg(ops, interp, "?-errorinfo?");
-  e = feather_usage_help(ops, interp, e, "Custom stack trace information (used with -code error)");
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  e = feather_usage_arg(ops, interp, "?errorinfo?");
-  e = feather_usage_help(ops, interp, e, "The error info value");
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  e = feather_usage_arg(ops, interp, "?-errorstack?");
-  e = feather_usage_help(ops, interp, e, "Call stack information (automatically generated during error propagation)");
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  e = feather_usage_arg(ops, interp, "?errorstack?");
-  e = feather_usage_help(ops, interp, e, "The error stack value");
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  e = feather_usage_arg(ops, interp, "?-options?");
+  e = feather_usage_flag(ops, interp, "-errorcode", NULL, "<list>");
   e = feather_usage_help(ops, interp, e,
-    "Dictionary containing return options (extracts -code, -level, -errorcode, -errorinfo, -errorstack)");
+    "The -errorcode option receives special treatment only when the value of the -code "
+    "option is TCL_ERROR. Then the list value is meant to be additional information about "
+    "the error, presented as a Tcl list for further processing by programs. If no "
+    "-errorcode option is provided to return when the -code error option is provided, "
+    "Tcl will set the value of the -errorcode entry in the return options dictionary "
+    "to the default value of NONE. The -errorcode return option will also be stored in "
+    "the global variable errorCode");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_arg(ops, interp, "?options?");
-  e = feather_usage_help(ops, interp, e, "The options dictionary");
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  e = feather_usage_arg(ops, interp, "?-option?...");
+  e = feather_usage_flag(ops, interp, "-errorinfo", NULL, "<info>");
   e = feather_usage_help(ops, interp, e,
-    "Arbitrary custom options (stored in return options dictionary)");
+    "The -errorinfo option receives special treatment only when the value of the -code "
+    "option is TCL_ERROR. Then info is the initial stack trace, meant to provide to a "
+    "human reader additional information about the context in which the error occurred. "
+    "The stack trace will also be stored in the global variable errorInfo");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_arg(ops, interp, "?value?...");
+  e = feather_usage_flag(ops, interp, "-errorstack", NULL, "<list>");
   e = feather_usage_help(ops, interp, e,
-    "Return value (default: empty string). If multiple values given, last one is used");
+    "The -errorstack option receives special treatment only when the value of the -code "
+    "option is TCL_ERROR. Then list is the initial error stack, recording actual argument "
+    "values passed to each proc level. If no -errorstack option is provided to return "
+    "when the -code error option is provided, Tcl will provide its own initial error "
+    "stack in the entry for -errorstack");
   spec = feather_usage_add(ops, interp, spec, e);
 
+  e = feather_usage_flag(ops, interp, "-options", NULL, "<options>");
+  e = feather_usage_help(ops, interp, e,
+    "The value options must be a valid dictionary. The entries of that dictionary are "
+    "treated as additional option value pairs for the return command. This enables "
+    "the standard error re-raising pattern: catch {command} result opts; return -options $opts $result");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Arguments
+  e = feather_usage_arg(ops, interp, "?result?");
+  e = feather_usage_help(ops, interp, e,
+    "Return value (default: empty string)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Examples
   e = feather_usage_example(ops, interp,
-    "return",
-    "Return empty string from procedure",
+    "proc printOneLine {} {\n    puts \"line 1\"\n    return\n    puts \"line 2\"\n}",
+    "Return from a procedure, interrupting the procedure body",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
-    "return 42",
-    "Return value 42 from procedure",
+    "proc returnX {} {return X}\nputs [returnX]",
+    "Use return to set the value returned by the procedure (prints \"X\")",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
-    "return -code error \"Something failed\"",
-    "Return an error with message",
+    "proc factorial {n} {\n    if {![string is integer $n] || ($n < 0)} {\n        return -code error \"expected non-negative integer, but got \\\"$n\\\"\"\n    }\n    if {$n < 2} { return 1 }\n    return [expr {$n * [factorial [expr {$n - 1}]]}]\n}",
+    "Use return -code error to report invalid arguments",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
-    "return -code error -errorcode {POSIX ENOENT} \"File not found\"",
-    "Return error with machine-readable error code",
+    "proc myBreak {} {\n    return -code break\n}",
+    "A procedure replacement for break",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
-    "catch {command} result opts\nreturn -options $opts $result",
-    "Re-raise an error preserving all options",
+    "proc doSomething {} {\n    set resource [allocate]\n    catch {\n        # Long script that might raise an error\n    } result options\n    deallocate $resource\n    return -options $options $result\n}",
+    "Use catch and return -options to re-raise a caught error",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_example(ops, interp,
-    "return -code break",
-    "Break out of enclosing loop from within a procedure",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  e = feather_usage_example(ops, interp,
-    "return -level 0 -code error \"Immediate error\"",
-    "Trigger error immediately (level 0) without returning from procedure",
-    NULL);
+  // See Also section
+  e = feather_usage_section(ops, interp, "See Also",
+    "break, catch, continue, error, proc, source");
   spec = feather_usage_add(ops, interp, spec, e);
 
   feather_usage_register(ops, interp, "return", spec);

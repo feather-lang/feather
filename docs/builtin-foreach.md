@@ -8,7 +8,7 @@ Feather's `foreach` implementation is located in `src/builtin_foreach.c`. It pro
 
 **Signature:**
 ```tcl
-foreach varList list ?varList list ...? command
+foreach varList list ?varList list ...? body
 ```
 
 **Core behavior:**
@@ -53,7 +53,7 @@ Our implementation validates:
 
 The error message format matches TCL convention:
 ```
-wrong # args: should be "foreach varList list ?varList list ...? command"
+wrong # args: should be "foreach varList list ?varList list ...? body"
 ```
 
 ### Element Extraction

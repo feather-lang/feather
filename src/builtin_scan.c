@@ -768,10 +768,19 @@ void feather_register_scan_usage(const FeatherHostOps *ops, FeatherInterp interp
   FeatherObj spec = feather_usage_spec(ops, interp);
 
   FeatherObj e = feather_usage_about(ops, interp,
-    "Parse string using format specifiers",
-    "Parses the string using conversion specifiers in the format string, similar to the C sscanf function.\n\n"
-    "If variable names are provided, scan operates in variable mode: it assigns parsed values to the named variables and returns the count of successfully assigned values. If no variable names are provided, scan operates in inline mode: it returns a list of parsed values.\n\n"
-    "Returns -1 if the input string is exhausted before any conversions are performed.");
+    "Parse string using conversion specifiers in the style of sscanf",
+    "This command parses substrings from an input string in a fashion similar to "
+    "the ANSI C sscanf procedure and returns a count of the number of conversions "
+    "performed, or -1 if the end of the input string is reached before any "
+    "conversions have been performed.\n\n"
+    "String gives the input to be parsed and format indicates how to parse it, "
+    "using % conversion specifiers as in sscanf. Each varName gives the name of a "
+    "variable; when a substring is scanned from string that matches a conversion "
+    "specifier, the substring is assigned to the corresponding variable.\n\n"
+    "If no varName variables are specified, then scan works in an inline manner, "
+    "returning the data that would otherwise be stored in the variables as a list. "
+    "In the inline case, an empty string is returned when the end of the input "
+    "string is reached before any conversions have been performed.");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_arg(ops, interp, "<string>");
@@ -781,29 +790,84 @@ void feather_register_scan_usage(const FeatherHostOps *ops, FeatherInterp interp
 
   e = feather_usage_arg(ops, interp, "<format>");
   e = feather_usage_help(ops, interp, e,
-    "The format string containing conversion specifiers. Whitespace in the format matches zero or more whitespace characters in the input. Non-% characters must match exactly. Supported conversion specifiers:\n\n"
-    "%d - decimal integer\n"
-    "%u - unsigned decimal integer\n"
-    "%o - octal integer\n"
-    "%x, %X - hexadecimal integer\n"
-    "%b - binary integer\n"
-    "%i - auto-detect base (0x=hex, 0=octal, else decimal)\n"
-    "%c - single character (returns Unicode codepoint)\n"
-    "%s - non-whitespace string\n"
-    "%f, %e, %E, %g, %G - floating-point number\n"
-    "%[chars] - match character set\n"
-    "%[^chars] - match negated character set\n"
-    "%n - characters scanned so far\n"
-    "%% - literal percent\n\n"
-    "Field width: %10s limits to 10 characters\n"
-    "Suppression: %*d discards the value\n"
-    "Positional: %2$d assigns to 2nd variable\n"
-    "Size modifiers: %ld, %lld (controls integer truncation)");
+    "The format string containing conversion specifiers");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_arg(ops, interp, "?varName?...");
   e = feather_usage_help(ops, interp, e,
-    "Variable names to store parsed values (variable mode). If omitted, returns a list of values (inline mode).");
+    "Variable names to store parsed values (variable mode). If omitted, returns "
+    "a list of values (inline mode).");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* Details on Scanning section */
+  e = feather_usage_section(ops, interp, "Details On Scanning",
+    "Scan operates by scanning string and format together. If the next character "
+    "in format is a blank or tab then it matches any number of white space "
+    "characters in string (including zero). Otherwise, if it is not a % character "
+    "then it must match the next character of string. When a % is encountered in "
+    "format, it indicates the start of a conversion specifier.\n\n"
+    "A conversion specifier contains up to four fields after the %: a XPG3 "
+    "position specifier (or a * to indicate the converted value is to be discarded "
+    "instead of assigned to any variable); a number indicating a maximum substring "
+    "width; a size modifier; and a conversion character. All of these fields are "
+    "optional except for the conversion character.\n\n"
+    "When scan finds a conversion specifier in format, it first skips any "
+    "white-space characters in string (unless the conversion character is [ or c). "
+    "Then it converts the next input characters according to the conversion "
+    "specifier and stores the result in the variable given by the next argument "
+    "to scan.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* Positional Specifiers section */
+  e = feather_usage_section(ops, interp, "Positional Specifiers",
+    "If the % is followed by a decimal number and a $, as in \"%2$d\", then the "
+    "variable to use is not taken from the next sequential argument. Instead, it "
+    "is taken from the argument indicated by the number, where 1 corresponds to "
+    "the first varName.\n\n"
+    "If there are any positional specifiers in format then all of the specifiers "
+    "must be positional. In the inline case, any position can be specified at most "
+    "once and the empty positions will be filled in with empty strings.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* Size Modifiers section */
+  e = feather_usage_section(ops, interp, "Size Modifiers",
+    "The size modifier field is used only when scanning a substring into one of "
+    "Tcl's integer values. The size modifier field dictates the integer range "
+    "acceptable to be stored in a variable.\n\n"
+    "h          Truncate to 32-bit signed range (same as no modifier)\n\n"
+    "l, j, q    Truncate to 64-bit range\n\n"
+    "ll, L      No truncation (unlimited range)\n\n"
+    "z, t       Platform-dependent (32-bit or 64-bit based on pointer size)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* Conversion Specifiers section */
+  e = feather_usage_section(ops, interp, "Conversion Specifiers",
+    "d          Decimal integer. Truncated as required by the size modifier.\n\n"
+    "o          Octal integer. Truncated as required by the size modifier.\n\n"
+    "x, X       Hexadecimal integer. Truncated as required by the size modifier.\n\n"
+    "b          Binary integer. Truncated as required by the size modifier.\n\n"
+    "u          Unsigned decimal integer. The value is truncated as required by "
+    "the size modifier, and the corresponding unsigned value for that truncated "
+    "range is computed and stored.\n\n"
+    "i          Integer with auto-detected base. The base is determined by C "
+    "convention (leading 0 for octal; prefix 0x for hexadecimal).\n\n"
+    "c          A single character is read and its Unicode value is stored as an "
+    "integer. Initial white space is not skipped.\n\n"
+    "s          The input substring consists of all characters up to the next "
+    "white-space character; the characters are copied to the variable.\n\n"
+    "e, f, g, E, G    Floating-point number consisting of an optional sign, a "
+    "string of decimal digits possibly containing a decimal point, and an optional "
+    "exponent consisting of an e or E followed by an optional sign and a string "
+    "of decimal digits.\n\n"
+    "[chars]    The input substring consists of one or more characters in chars. "
+    "If the first character between the brackets is a ] then it is treated as "
+    "part of chars rather than the closing bracket. If chars contains a sequence "
+    "of the form a-b then any character between a and b (inclusive) will match.\n\n"
+    "[^chars]   The input substring consists of one or more characters not in "
+    "chars. The same escaping rules as [chars] apply.\n\n"
+    "n          No input is consumed. Instead, the total number of characters "
+    "scanned from the input string so far is stored in the variable.\n\n"
+    "%%         A literal percent sign. No conversion is performed.");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
@@ -814,19 +878,25 @@ void feather_register_scan_usage(const FeatherHostOps *ops, FeatherInterp interp
 
   e = feather_usage_example(ops, interp,
     "scan \"25 100\" \"%d %d\"",
-    "Parse two decimal integers, return list {25 100}",
+    "Parse two decimal integers inline, return list {25 100}",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "scan \"#08D03F\" \"#%2x%2x%2x\" r g b",
+    "Parse RGB color: r=8, g=208, b=63",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "scan \"08:30\" \"%d:%d\" hours minutes",
+    "Parse HH:MM time string",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
     "scan \"0xFF\" \"%i\" val",
     "Parse hexadecimal with auto-detect, assign 255 to val",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  e = feather_usage_example(ops, interp,
-    "scan \"hello world\" \"%s %s\"",
-    "Parse two words, return {hello world}",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
@@ -843,15 +913,14 @@ void feather_register_scan_usage(const FeatherHostOps *ops, FeatherInterp interp
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
-    "scan \"x=10 y=20\" \"x=%d y=%d\" x y",
-    "Parse with literal matching",
+    "scan \"20000000000000000000\" \"%lld\"",
+    "Parse large integer with no truncation",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_example(ops, interp,
-    "scan \"first second third\" \"%2\\$s %1\\$s\" a b",
-    "Use positional specifiers: a=first, b=second",
-    NULL);
+  /* See Also section */
+  e = feather_usage_section(ops, interp, "See Also",
+    "format(1), string(1)");
   spec = feather_usage_add(ops, interp, spec, e);
 
   feather_usage_register(ops, interp, "scan", spec);

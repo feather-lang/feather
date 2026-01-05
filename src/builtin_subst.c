@@ -474,32 +474,35 @@ void feather_register_subst_usage(const FeatherHostOps *ops, FeatherInterp inter
     "Perform backslash, command, and variable substitutions",
     "Performs backslash, command, and variable substitutions on string and returns "
     "the fully-substituted result. The substitutions are performed in exactly the "
-    "same way that they would be performed by the TCL parser on a script.\n\n"
+    "same way as for TCL commands.\n\n"
     "Backslash substitution replaces backslash sequences with their corresponding "
     "characters (such as \\n for newline, \\t for tab, \\xNN for hex codes, \\uNNNN "
     "for 16-bit Unicode, and \\UNNNNNNNN for 32-bit Unicode).\n\n"
     "Command substitution replaces bracketed commands [cmd] with their results. "
-    "If a command substitution encounters break, the substitution stops and returns "
-    "the result accumulated so far. If it encounters continue, an empty string is "
-    "substituted for that command. If it encounters return or a custom return code, "
+    "If a command substitution encounters break, the result of the whole substitution "
+    "will be the string (as substituted) up to the start of the substitution that raised "
+    "the exception. If continue is encountered, an empty string is substituted for that "
+    "entire command substitution. If return or any other return code is encountered, "
     "the returned value is substituted.\n\n"
     "Variable substitution replaces variable references ($varName, ${varName}, or "
-    "$varName(index)) with their values. Note that the array-style syntax $varName(index) "
-    "is processed by subst but Feather does not support TCL-style arrays as separate "
-    "data structures.\n\n"
-    "The optional switches control which substitutions are performed. If none are specified, "
-    "all three types of substitutions are performed.");
+    "$varName(index)) with their values. Note: Feather does not support TCL-style arrays; "
+    "the array-style syntax is parsed but you must define scalar variables with parenthesized names.\n\n"
+    "The optional switches control which substitutions are performed. Note that the "
+    "substitution of one kind can include substitution of other kinds. For example, "
+    "even when -novariables is specified, command substitution is performed without "
+    "restriction, so any variable substitution necessary to complete the command "
+    "substitution will still take place.");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_arg(ops, interp, "?-nobackslashes?");
+  e = feather_usage_flag(ops, interp, "-nobackslashes", NULL, NULL);
   e = feather_usage_help(ops, interp, e, "Disable backslash substitution");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_arg(ops, interp, "?-nocommands?");
+  e = feather_usage_flag(ops, interp, "-nocommands", NULL, NULL);
   e = feather_usage_help(ops, interp, e, "Disable command substitution");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_arg(ops, interp, "?-novariables?");
+  e = feather_usage_flag(ops, interp, "-novariables", NULL, NULL);
   e = feather_usage_help(ops, interp, e, "Disable variable substitution");
   spec = feather_usage_add(ops, interp, spec, e);
 
@@ -535,6 +538,28 @@ void feather_register_subst_usage(const FeatherHostOps *ops, FeatherInterp inter
     "subst {Copyright \\u00A9 2026}",
     "Unicode escape (16-bit):",
     NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "subst {abc,[break],def}",
+    "Using break stops substitution (returns \"abc,\"):",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "subst {abc,[continue],def}",
+    "Using continue substitutes empty string (returns \"abc,,def\"):",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "subst {abc,[return foo],def}",
+    "Using return substitutes the returned value (returns \"abc,foo,def\"):",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_section(ops, interp, "See Also",
+    "eval(1), set(1), break(1), continue(1), return(1)");
   spec = feather_usage_add(ops, interp, spec, e);
 
   feather_usage_register(ops, interp, "subst", spec);

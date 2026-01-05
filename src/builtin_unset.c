@@ -60,25 +60,26 @@ void feather_register_unset_usage(const FeatherHostOps *ops, FeatherInterp inter
   // Command description (for NAME and DESCRIPTION sections)
   FeatherObj e = feather_usage_about(ops, interp,
     "Delete variables",
-    "Removes one or more variables. By default, it is an error to attempt to "
-    "unset a non-existent variable. Returns an empty string.\n\n"
-    "The -nocomplain option suppresses errors for non-existent variables.\n\n"
-    "The -- option marks the end of options, allowing you to unset a variable "
-    "named \"-nocomplain\".\n\n"
+    "This command removes one or more variables. If an error occurs during "
+    "variable deletion, any variables after the named one causing the error "
+    "are not deleted. An error can occur when the named variable does not "
+    "exist.\n\n"
     "Note: Feather does not support TCL-style arrays. Array syntax like "
     "\"myArray(key)\" is not supported.");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  // -nocomplain option
-  e = feather_usage_arg(ops, interp, "?-nocomplain?");
+  // -nocomplain flag
+  e = feather_usage_flag(ops, interp, "-nocomplain", NULL, NULL);
   e = feather_usage_help(ops, interp, e,
-    "Suppress errors if a variable doesn't exist");
+    "Suppress errors for non-existent variables. The option may not be "
+    "abbreviated, in order to disambiguate it from possible variable names");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  // -- option
-  e = feather_usage_arg(ops, interp, "?--?");
+  // -- flag (end of options marker)
+  e = feather_usage_flag(ops, interp, "--", NULL, NULL);
   e = feather_usage_help(ops, interp, e,
-    "End of options marker");
+    "Indicates the end of the options. Use this if you wish to remove a "
+    "variable with the same name as any of the options");
   spec = feather_usage_add(ops, interp, spec, e);
 
   // Variable names (zero or more)

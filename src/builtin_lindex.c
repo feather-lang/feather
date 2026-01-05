@@ -153,5 +153,10 @@ void feather_register_lindex_usage(const FeatherHostOps *ops, FeatherInterp inte
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
+  e = feather_usage_section(ops, interp, "See Also",
+    "list(1), lappend(1), lassign(1), linsert(1), llength(1), lrange(1), "
+    "lrepeat(1), lreplace(1), lreverse(1), lsearch(1), lset(1), lsort(1), string(1)");
+  spec = feather_usage_add(ops, interp, spec, e);
+
   feather_usage_register(ops, interp, "lindex", spec);
 }

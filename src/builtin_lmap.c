@@ -95,5 +95,9 @@ void feather_register_lmap_usage(const FeatherHostOps *ops, FeatherInterp interp
     "2 4");
   spec = feather_usage_add(ops, interp, spec, e);
 
+  e = feather_usage_section(ops, interp, "See Also",
+    "foreach, for, while, break, continue, list");
+  spec = feather_usage_add(ops, interp, spec, e);
+
   feather_usage_register(ops, interp, "lmap", spec);
 }

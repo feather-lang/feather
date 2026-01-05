@@ -80,11 +80,13 @@ void feather_register_global_usage(const FeatherHostOps *ops, FeatherInterp inte
   FeatherObj e = feather_usage_about(ops, interp,
     "Access global variables",
     "Creates links from local variables in a procedure to variables in the global namespace "
-    "(or other namespaces if qualified names are used).\n\n"
+    "(or other namespaces if qualified names are used). These linked variables, like those "
+    "created by upvar, are not included in the list returned by info locals.\n\n"
     "This command has no effect unless executed inside a procedure body. When called at "
     "global scope or with no arguments, it is a no-op.\n\n"
     "If a variable name is namespace-qualified (contains ::), the link is created to that "
-    "namespace variable, but the local variable name is just the unqualified tail.\n\n"
+    "namespace variable, but the local variable name is just the unqualified tail, as "
+    "determined by the namespace tail command.\n\n"
     "Note: Array element syntax like \"varName(index)\" is not supported and will cause an error.");
   spec = feather_usage_add(ops, interp, spec, e);
 
@@ -110,6 +112,10 @@ void feather_register_global_usage(const FeatherHostOps *ops, FeatherInterp inte
     "}",
     "Link local variable 'var' to namespace variable '::ns::var'",
     NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_section(ops, interp, "See Also",
+    "namespace(1), upvar(1), variable(1)");
   spec = feather_usage_add(ops, interp, spec, e);
 
   feather_usage_register(ops, interp, "global", spec);

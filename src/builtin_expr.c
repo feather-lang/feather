@@ -1844,25 +1844,19 @@ void feather_register_expr_usage(const FeatherHostOps *ops, FeatherInterp interp
   FeatherObj spec = feather_usage_spec(ops, interp);
 
   FeatherObj e = feather_usage_about(ops, interp,
-    "Evaluate mathematical expression",
-    "Concatenates all arguments with spaces, parses the result as a mathematical "
-    "expression, and returns the computed value.\n\n"
-    "Supports arithmetic operations (+, -, *, /, %, **), comparison operators "
-    "(<, >, <=, >=, ==, !=, eq, ne, lt, le, gt, ge), logical operators "
-    "(&&, ||, !, ?:), bitwise operators (&, |, ^, ~, <<, >>), list membership "
-    "(in, ni), variable substitution ($var, ${var}), command substitution ([cmd]), "
-    "and math functions via tcl::mathfunc:: namespace.\n\n"
-    "Operands can be integers (decimal, hex 0x, binary 0b, octal 0o), "
-    "floating-point numbers (3.14, 1e10, .5), boolean literals "
-    "(true, false, yes, no, on, off), variables, command results, "
-    "or parenthesized subexpressions. Comments starting with # are supported.\n\n"
-    "Math functions include: abs, acos, asin, atan, atan2, bool, ceil, cos, cosh, "
-    "double, entier, exp, floor, fmod, hypot, int, isfinite, isinf, isnan, "
-    "isnormal, issubnormal, isunordered, log, log10, max, min, pow, round, sin, "
-    "sinh, sqrt, tan, tanh, wide. Use as: expr {funcname(args)}.\n\n"
-    "Short-circuit evaluation applies to &&, ||, and ?:. Integer division "
-    "truncates toward zero (may differ from TCL which uses floor division). "
-    "NaN results produce domain errors.");
+    "Evaluate an expression",
+    "Concatenates all arguments with spaces into an expression, evaluates that "
+    "expression, and returns its value. The operators permitted in an expression "
+    "include a subset of the operators permitted in C expressions.\n\n"
+    "The value of an expression is often a numeric result, either an integer or "
+    "a floating-point value, but may also be a non-numeric value. When the result "
+    "is an integer, it is in decimal form.\n\n"
+    "At any point in the expression except within double quotes or braces, # is "
+    "the beginning of a comment, which lasts to the end of the line or the end "
+    "of the expression, whichever comes first.\n\n"
+    "Because expr parses and performs substitutions on values that have already "
+    "been parsed and substituted by TCL, it is usually best to enclose expressions "
+    "in braces to avoid the first round of substitutions.");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_arg(ops, interp, "<arg>");
@@ -1873,34 +1867,147 @@ void feather_register_expr_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_help(ops, interp, e, "Additional expression components (concatenated with spaces)");
   spec = feather_usage_add(ops, interp, spec, e);
 
+  /* Operands section */
+  e = feather_usage_section(ops, interp, "Operands",
+    "An expression consists of a combination of operands, operators, parentheses "
+    "and commas, possibly with whitespace between any of these elements. Each "
+    "operand is interpreted as a numeric value if at all possible.\n\n"
+    "Numeric value    Integer or floating-point. Integers may use prefixes: 0x "
+    "(hex), 0b (binary), 0o (octal), 0d (decimal). Floats may use decimal "
+    "point (.), e/E notation, and +/- signs. Inf and NaN are recognized. Digits "
+    "may be separated with underscores (e.g., 100_000_000).\n\n"
+    "Boolean value    true, false, yes, no, on, off (case-insensitive).\n\n"
+    "Variable         Using standard $ notation ($name or ${name}).\n\n"
+    "Double-quoted string    Backslash, variable, and command substitution "
+    "are performed.\n\n"
+    "Braced string    The operand is treated as a literal braced value.\n\n"
+    "Bracketed command    Command substitution is performed ([cmd args]).\n\n"
+    "Function call    A mathematical function such as sin($x), whose arguments "
+    "have any of the above forms for operands.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* Operators section */
+  e = feather_usage_section(ops, interp, "Operators",
+    "Operators are listed in increasing order of precedence:\n\n"
+    "?:               Ternary if-then-else (right-to-left). Evaluates lazily.\n\n"
+    "||               Logical OR. Result is 0 or 1. Evaluates lazily.\n\n"
+    "&&               Logical AND. Result is 0 or 1. Evaluates lazily.\n\n"
+    "|                Bit-wise OR. Valid for integers.\n\n"
+    "^                Bit-wise XOR. Valid for integers.\n\n"
+    "&                Bit-wise AND. Valid for integers.\n\n"
+    "== !=            Boolean equal and not equal.\n\n"
+    "eq ne            Boolean string equal and string not equal.\n\n"
+    "< > <= >=        Numeric-preferring comparisons. Falls back to string "
+    "comparison if operands are not numeric.\n\n"
+    "lt gt le ge      String comparisons. Always uses string comparison.\n\n"
+    "in ni            List containment. First argument is a string, second "
+    "is a list. Returns 1 or 0.\n\n"
+    "<< >>            Left and right bit shift. Valid for integers.\n\n"
+    "+ -              Add and subtract. Valid for numeric operands.\n\n"
+    "* / %            Multiply, divide, and remainder. Remainder is valid "
+    "for integers only.\n\n"
+    "**               Exponentiation (right-to-left). Valid for numeric operands.\n\n"
+    "- + ~ !          Unary minus, plus, bit-wise NOT, logical NOT. Bit-wise "
+    "NOT is valid for integers only.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* Math Functions section */
+  e = feather_usage_section(ops, interp, "Math Functions",
+    "A mathematical function such as sin($x) is replaced with a call to an "
+    "ordinary TCL command in the tcl::mathfunc namespace. For example, "
+    "expr {sin($x+$y)} evaluates as tcl::mathfunc::sin [expr {$x+$y}].\n\n"
+    "abs(x)           Absolute value\n\n"
+    "acos(x)          Arc cosine (radians)\n\n"
+    "asin(x)          Arc sine (radians)\n\n"
+    "atan(x)          Arc tangent (radians)\n\n"
+    "atan2(y,x)       Arc tangent of y/x (radians)\n\n"
+    "bool(x)          Convert to boolean (0 or 1)\n\n"
+    "ceil(x)          Smallest integer >= x\n\n"
+    "cos(x)           Cosine (radians)\n\n"
+    "cosh(x)          Hyperbolic cosine\n\n"
+    "double(x)        Convert to floating-point\n\n"
+    "entier(x)        Convert to integer (same as int() in Feather)\n\n"
+    "exp(x)           e raised to the power x\n\n"
+    "floor(x)         Largest integer <= x\n\n"
+    "fmod(x,y)        Floating-point remainder of x/y\n\n"
+    "hypot(x,y)       Square root of x*x + y*y\n\n"
+    "int(x)           Truncate to integer\n\n"
+    "isfinite(x)      Returns 1 if finite (not Inf or NaN)\n\n"
+    "isinf(x)         Returns 1 if infinite\n\n"
+    "isnan(x)         Returns 1 if NaN\n\n"
+    "isnormal(x)      Returns 1 if normal (not zero, subnormal, Inf, or NaN)\n\n"
+    "issubnormal(x)   Returns 1 if subnormal (denormalized)\n\n"
+    "isunordered(x,y) Returns 1 if either is NaN\n\n"
+    "log(x)           Natural logarithm\n\n"
+    "log10(x)         Base-10 logarithm\n\n"
+    "max(x,...)       Maximum of one or more arguments\n\n"
+    "min(x,...)       Minimum of one or more arguments\n\n"
+    "pow(x,y)         x raised to the power y\n\n"
+    "round(x)         Round to nearest integer\n\n"
+    "sin(x)           Sine (radians)\n\n"
+    "sinh(x)          Hyperbolic sine\n\n"
+    "sqrt(x)          Square root\n\n"
+    "tan(x)           Tangent (radians)\n\n"
+    "tanh(x)          Hyperbolic tangent\n\n"
+    "wide(x)          Convert to 64-bit integer");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  /* Types and Precision section */
+  e = feather_usage_section(ops, interp, "Types and Precision",
+    "Conversion among internal representations for integer, floating-point, and "
+    "string operands is done automatically as needed. For arithmetic computations, "
+    "integers are used until some floating-point number is introduced, after which "
+    "floating-point values are used.\n\n"
+    "For example, expr {5 / 4} returns 1, while expr {5 / 4.0} returns 1.25.\n\n"
+    "Feather uses 64-bit integers and IEEE 754 double-precision floating-point. "
+    "Unlike standard TCL, integer division truncates toward zero (C semantics) "
+    "rather than toward negative infinity. NaN results produce domain errors.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
   e = feather_usage_example(ops, interp,
-    "expr {2 + 2}",
-    "Simple arithmetic",
+    "expr {3.1 + $a}",
+    "Basic arithmetic with variable:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "expr {4*[llength {6 2}]}",
+    "Using command substitution:",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
     "expr {$x > 10 ? \"big\" : \"small\"}",
-    "Ternary conditional operator",
+    "Ternary conditional:",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
     "expr {5 in {1 3 5 7}}",
-    "List membership test",
+    "List membership test:",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
-    "expr {sqrt(pow($a, 2) + pow($b, 2))}",
-    "Math functions for Pythagorean theorem",
+    "expr {hypot($x, $y)}",
+    "Convert cartesian to polar (radius):",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
     "expr {0xff & 0b1111}",
-    "Bitwise AND with hex and binary literals",
+    "Bitwise AND with hex and binary literals:",
     NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_example(ops, interp,
+    "expr {100_000_000 + 1}",
+    "Digit separators for readability:",
+    NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_section(ops, interp, "See Also",
+    "if, for, while, format, string");
   spec = feather_usage_add(ops, interp, spec, e);
 
   feather_usage_register(ops, interp, "expr", spec);

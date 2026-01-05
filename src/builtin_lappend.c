@@ -5,16 +5,15 @@ void feather_register_lappend_usage(const FeatherHostOps *ops, FeatherInterp int
   FeatherObj spec = feather_usage_spec(ops, interp);
 
   FeatherObj e = feather_usage_about(ops, interp,
-    "Append list elements to variable",
+    "Append list elements onto a variable",
     "Treats the variable given by varName as a list and appends each of the "
     "value arguments to that list as a separate element, with spaces between "
-    "elements.\n\n"
-    "If varName does not exist, it is created as a list with elements given "
-    "by the value arguments. The lappend command provides a relatively efficient "
-    "way to build up large lists, since it avoids the overhead of string "
-    "concatenation and parsing.\n\n"
-    "The command returns the value of the variable after appending, which is "
-    "the new list.");
+    "elements. If varName does not exist, it is created as a list with elements "
+    "given by the value arguments.\n\n"
+    "lappend is similar to append except that the values are appended as list "
+    "elements rather than raw text. This command provides a relatively efficient "
+    "way to build up large lists. For example, \"lappend a $b\" is much more "
+    "efficient than \"set a [concat $a [list $b]]\" when $a is long.");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_arg(ops, interp, "<varName>");
@@ -41,6 +40,11 @@ void feather_register_lappend_usage(const FeatherHostOps *ops, FeatherInterp int
     "lappend result",
     "Create empty list if variable doesn't exist:",
     "");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_section(ops, interp, "See Also",
+    "append(1), list(1), lindex(1), llength(1), lrange(1), lreplace(1), "
+    "lsearch(1), lset(1), lsort(1)");
   spec = feather_usage_add(ops, interp, spec, e);
 
   feather_usage_register(ops, interp, "lappend", spec);

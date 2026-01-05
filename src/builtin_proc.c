@@ -350,23 +350,45 @@ void feather_register_proc_usage(const FeatherHostOps *ops, FeatherInterp interp
 
   FeatherObj e = feather_usage_about(ops, interp,
     "Create a TCL procedure",
-    "Creates a new procedure named name. When name is invoked, the list of "
-    "arguments provided will be matched with the parameter list args, and the "
-    "body script will be evaluated in the new procedure's context.\n\n"
-    "The name may be a simple name or a namespace-qualified name (e.g., ::ns::proc). "
-    "If the name contains namespace qualifiers, the necessary namespaces are created "
-    "automatically if they do not exist.\n\n"
-    "The args parameter is a list of argument specifiers. Each specifier is either "
-    "a parameter name or a two-element list {name default} specifying a parameter "
-    "with a default value. Parameters with defaults are optional if no required "
-    "parameters follow them.\n\n"
-    "If the last parameter is named args, the procedure becomes variadic and any "
-    "extra arguments are collected into the args parameter as a list.\n\n"
-    "The body is evaluated as a TCL script when the procedure is called. The return "
-    "value is the result of the last command in the body, or the value specified by "
-    "an explicit return command.\n\n"
-    "Defining a procedure with the same name as an existing command (builtin or "
-    "user-defined) replaces that command.");
+    "Creates a new procedure named name, replacing any existing command or "
+    "procedure there may have been by that name. Whenever the new command is "
+    "invoked, the contents of body will be executed by the interpreter.\n\n"
+    "Normally, name is unqualified (does not include the names of any containing "
+    "namespaces), and the new procedure is created in the current namespace. If "
+    "name includes any namespace qualifiers, the procedure is created in the "
+    "specified namespace. The necessary namespaces are created automatically if "
+    "they do not exist.\n\n"
+    "The args parameter specifies the formal arguments to the procedure. It "
+    "consists of a list, possibly empty, each of whose elements specifies one "
+    "argument. Each argument specifier is also a list with either one or two "
+    "fields. If there is only a single field in the specifier then it is the "
+    "name of the argument; if there are two fields, then the first is the "
+    "argument name and the second is its default value. Arguments with default "
+    "values that are followed by non-defaulted arguments become required "
+    "arguments; enough actual arguments must be supplied to allow all arguments "
+    "up to and including the last required formal argument.\n\n"
+    "When name is invoked a local variable will be created for each of the "
+    "formal arguments to the procedure; its value will be the value of the "
+    "corresponding argument in the invoking command or the argument's default "
+    "value. Actual arguments are assigned to formal arguments strictly in order.\n\n"
+    "There is one special case to permit procedures with variable numbers of "
+    "arguments. If the last formal argument has the name args, then a call to "
+    "the procedure may contain more actual arguments than the procedure has "
+    "formal arguments. In this case, all of the actual arguments starting at "
+    "the one that would be assigned to args are combined into a list; this "
+    "combined value is assigned to the local variable args.\n\n"
+    "When body is being executed, variable names normally refer to local "
+    "variables, which are created automatically when referenced and deleted "
+    "when the procedure returns. Other variables can only be accessed by "
+    "invoking one of the global, variable, or upvar commands. The current "
+    "namespace when body is executed will be the namespace that the procedure's "
+    "name exists in.\n\n"
+    "The proc command returns an empty string. When a procedure is invoked, "
+    "the procedure's return value is the value specified in a return command. "
+    "If the procedure does not execute an explicit return, then its return "
+    "value is the value of the last command executed in the procedure's body. "
+    "If an error occurs while executing the procedure body, then the "
+    "procedure-as-a-whole will return that same error.");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_arg(ops, interp, "<name>");
@@ -428,6 +450,10 @@ void feather_register_proc_usage(const FeatherHostOps *ops, FeatherInterp interp
     "}",
     "Namespace-qualified procedure with optional parameter:",
     NULL);
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  e = feather_usage_section(ops, interp, "See Also",
+    "global, info, namespace, return, upvar, variable");
   spec = feather_usage_add(ops, interp, spec, e);
 
   feather_usage_register(ops, interp, "proc", spec);

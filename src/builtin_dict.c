@@ -1005,58 +1005,392 @@ static FeatherResult dict_with(const FeatherHostOps *ops, FeatherInterp interp, 
 
 void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp) {
   FeatherObj spec = feather_usage_spec(ops, interp);
+  FeatherObj subspec;
+  FeatherObj e;
 
-  FeatherObj e = feather_usage_about(ops, interp,
+  e = feather_usage_about(ops, interp,
     "Manipulate dictionaries",
     "Performs one of several operations on dictionary values or variables "
-    "containing dictionary values (see lindex for details on dictionary "
-    "notation). The subcommand argument determines what action is carried out "
-    "by the command.\n\n"
-    "Dictionaries are order-preserving key-value mappings. Keys and values can "
-    "be arbitrary strings. Many subcommands support nested dictionary access "
-    "by providing multiple key arguments to navigate through dictionary levels.\n\n"
-    "Note: Maximum nesting depth is 64 levels for nested operations.");
+    "containing dictionary values, depending on the subcommand. Dictionaries "
+    "are order-preserving key-value mappings where keys and values can be "
+    "arbitrary strings.\n\n"
+    "Many subcommands support nested dictionary access by providing multiple "
+    "key arguments to navigate through dictionary levels. The maximum nesting "
+    "depth is 64 levels.");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_arg(ops, interp, "<subcommand>");
-  e = feather_usage_help(ops, interp, e,
-    "The dict operation to perform. Must be one of: append, create, exists, "
-    "filter, for, get, getdef, getwithdefault, incr, info, keys, lappend, map, "
-    "merge, remove, replace, set, size, unset, update, values, or with.");
+  // --- Subcommand: append ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<dictVarName>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<key>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?string?...");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "append", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Appends the given string (or strings) to the value that the given key "
+    "maps to in the dictionary value contained in the given variable, writing "
+    "the resulting dictionary value back to that variable. Non-existent keys "
+    "are treated as if they map to an empty string. The updated dictionary "
+    "value is returned.");
   spec = feather_usage_add(ops, interp, spec, e);
 
+  // --- Subcommand: create ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "?key value?...");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "create", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns a new dictionary that contains each of the key/value mappings "
+    "listed as arguments (keys and values alternating, with each key being "
+    "followed by its associated value).");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: exists ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<dictionary>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<key>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?key?...");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "exists", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns a boolean value indicating whether the given key (or path of "
+    "keys through a set of nested dictionaries) exists in the given dictionary "
+    "value. This returns a true value exactly when dict get on that path will "
+    "succeed.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: filter ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<dictionary>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<filterType>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_arg(ops, interp, "?arg?...");
-  e = feather_usage_help(ops, interp, e,
-    "Arguments specific to the subcommand");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "filter", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Takes a dictionary value and returns a new dictionary that contains just "
+    "those key/value pairs that match the specified filter type. Supported "
+    "filter types are:\n\n"
+    "dict filter dictionary key ?globPattern ...?\n"
+    "    Matches key/value pairs whose keys match any of the given patterns "
+    "(in the style of string match).\n\n"
+    "dict filter dictionary value ?globPattern ...?\n"
+    "    Matches key/value pairs whose values match any of the given patterns.\n\n"
+    "dict filter dictionary script {keyVar valueVar} script\n"
+    "    Tests for matching by assigning the key to keyVar and value to "
+    "valueVar, then evaluating the script which should return a boolean. "
+    "break stops filtering and returns results so far; continue skips the "
+    "current pair.");
   spec = feather_usage_add(ops, interp, spec, e);
 
-  // Examples for common subcommands
+  // --- Subcommand: for ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "{keyVar valueVar}");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<dictionary>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<body>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "for", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Iterates over the key-value pairs in the dictionary. The first argument "
+    "is a two-element list of variable names (for the key and value "
+    "respectively), the second is the dictionary value to iterate, and the "
+    "third is a script to be evaluated for each mapping with the key and value "
+    "variables set appropriately.\n\n"
+    "The result is an empty string. If the body generates a break result, "
+    "iteration stops immediately. A continue result is treated like a normal "
+    "return. The order of iteration is the order in which keys were inserted "
+    "into the dictionary.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: get ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<dictionary>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?key?...");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "get", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Given a dictionary value and a key, retrieves the value for that key. "
+    "When several keys are supplied, this facilitates lookups in nested "
+    "dictionaries: the result of dict get $dict foo bar is equivalent to "
+    "dict get [dict get $dict foo] bar.\n\n"
+    "If no keys are provided, dict get returns a list containing pairs of "
+    "elements in a manner similar to array get. That is, the first element of "
+    "each pair is the key and the second is the value.\n\n"
+    "It is an error to attempt to retrieve a value for a key that is not "
+    "present in the dictionary.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: getdef / getwithdefault ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<dictionary>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?key?...");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<key>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<default>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "getdef", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Behaves the same as dict get (with at least one key argument), returning "
+    "the value that the key path maps to in the dictionary, except that "
+    "instead of producing an error because the key (or one of the keys on the "
+    "key path) is absent, it returns the default argument instead.\n\n"
+    "Note that there must always be at least one key provided. "
+    "dict getwithdefault is an alias for dict getdef.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: incr ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<dictVarName>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<key>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?increment?");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "incr", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Adds the given increment value (an integer that defaults to 1 if not "
+    "specified) to the value that the given key maps to in the dictionary "
+    "value contained in the given variable, writing the resulting dictionary "
+    "value back to that variable. Non-existent keys are treated as if they "
+    "map to 0. It is an error to increment a value for an existing key if "
+    "that value is not an integer. The updated dictionary value is returned.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: info ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<dictionary>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "info", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns information (intended for display to people) about the given "
+    "dictionary. In feather, this returns a string of the form \"N entries in "
+    "table\" where N is the number of key-value pairs.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: keys ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<dictionary>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?globPattern?");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "keys", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns a list of all keys in the given dictionary value. If a pattern "
+    "is supplied, only those keys that match it (according to the rules of "
+    "string match) will be returned. The returned keys will be in the order "
+    "that they were inserted into the dictionary.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: lappend ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<dictVarName>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<key>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?value?...");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "lappend", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Appends the given items to the list value that the given key maps to in "
+    "the dictionary value contained in the given variable, writing the "
+    "resulting dictionary value back to that variable. Non-existent keys are "
+    "treated as if they map to an empty list, and it is legal for there to be "
+    "no items to append. It is an error for the value that the key maps to to "
+    "not be representable as a list. The updated dictionary value is returned.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: map ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "{keyVar valueVar}");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<dictionary>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<body>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "map", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Applies a transformation to each element of a dictionary, returning a "
+    "new dictionary. The first argument is a two-element list of variable "
+    "names (for key and value), the second is the dictionary to iterate, and "
+    "the third is a script evaluated for each mapping. The result of each "
+    "script evaluation becomes the new value for that key.\n\n"
+    "If the body generates a break result, the command returns an empty "
+    "dictionary immediately. A continue result skips the current key-value "
+    "pair (it is not included in the result). The order of iteration is the "
+    "order in which keys were inserted.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: merge ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "?dictionary?...");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "merge", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns a dictionary that contains the contents of each of the dictionary "
+    "arguments. Where two or more dictionaries contain a mapping for the same "
+    "key, the resulting dictionary maps that key to the value according to the "
+    "last dictionary on the command line containing a mapping for that key.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: remove ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<dictionary>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?key?...");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "remove", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns a new dictionary that is a copy of the old one passed in as the "
+    "first argument except without mappings for each of the keys listed. It "
+    "is legal for there to be no keys to remove, and it is also legal for any "
+    "of the keys to be removed to not be present in the input dictionary.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: replace ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<dictionary>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?key value?...");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "replace", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns a new dictionary that is a copy of the old one passed in as the "
+    "first argument except with some values different or some extra key/value "
+    "pairs added. It is legal for this command to be called with no key/value "
+    "pairs, but illegal for this command to be called with a key but no value.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: set ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<dictVarName>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<key>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?key?...");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<value>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "set", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Takes the name of a variable containing a dictionary value and places an "
+    "updated dictionary value in that variable containing a mapping from the "
+    "given key to the given value. When multiple keys are present, this "
+    "operation creates or updates a chain of nested dictionaries. The updated "
+    "dictionary value is returned.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: size ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<dictionary>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "size", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns the number of key/value mappings in the given dictionary value.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: unset ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<dictVarName>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<key>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?key?...");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "unset", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Takes the name of a variable containing a dictionary value and places an "
+    "updated dictionary value in that variable that does not contain a mapping "
+    "for the given key. Where multiple keys are present, this describes a path "
+    "through nested dictionaries to the mapping to remove. At least one key "
+    "must be specified, but the last key on the key-path need not exist. All "
+    "other components on the path must exist. The updated dictionary value is "
+    "returned.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: update ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<dictVarName>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<key>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<varName>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?key varName?...");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<body>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "update", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Executes the script in body with the value for each key (as found by "
+    "reading the dictionary value in dictVarName) mapped to the variable "
+    "varName. There may be multiple key/varName pairs. If a key does not have "
+    "a mapping, the corresponding varName is not created.\n\n"
+    "When body terminates, any changes made to the varNames are reflected back "
+    "to the dictionary within dictVarName. If a variable is unset during body, "
+    "the corresponding key is removed from the dictionary. The result of dict "
+    "update is the result of the evaluation of body.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: values ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<dictionary>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?globPattern?");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "values", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Returns a list of all values in the given dictionary value. If a pattern "
+    "is supplied, only those values that match it (according to the rules of "
+    "string match) will be returned. The returned values will be in the order "
+    "of the keys associated with those values were inserted into the "
+    "dictionary.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // --- Subcommand: with ---
+  subspec = feather_usage_spec(ops, interp);
+  e = feather_usage_arg(ops, interp, "<dictVarName>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "?key?...");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_arg(ops, interp, "<body>");
+  subspec = feather_usage_add(ops, interp, subspec, e);
+  e = feather_usage_cmd(ops, interp, "with", subspec);
+  e = feather_usage_long_help(ops, interp, e,
+    "Executes the script in body with the value for each key in dictVarName "
+    "mapped to a variable with the same name as the key. Where one or more "
+    "keys are provided, these indicate a chain of nested dictionaries, with "
+    "the innermost dictionary being the one opened out for execution.\n\n"
+    "After body executes, any changes made to the variables are reflected back "
+    "to the dictionary. If a variable is unset, the corresponding key is "
+    "removed. New variables created during body are NOT added as new keys "
+    "(only existing keys are tracked). The result is the result of body.");
+  spec = feather_usage_add(ops, interp, spec, e);
+
+  // Examples
   e = feather_usage_example(ops, interp,
-    "dict create a 1 b 2 c 3",
-    "Create a dictionary with three key-value pairs",
+    "dict create .txt \"Text File\" .tcl \"Tcl Script\"",
+    "Create a dictionary to map file extensions to descriptions",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
-    "dict get $mydict key",
-    "Retrieve the value for \"key\" from the dictionary",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  e = feather_usage_example(ops, interp,
-    "dict set myvar outer inner value",
+    "dict set employeeInfo 12345 name \"Joe Schmoe\"",
     "Set a nested dictionary value (creates nested structure if needed)",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,
-    "dict keys $mydict pattern*",
-    "Get all keys matching a glob pattern",
-    NULL);
-  spec = feather_usage_add(ops, interp, spec, e);
-
-  e = feather_usage_example(ops, interp,
-    "dict for {k v} $mydict { puts \"$k = $v\" }",
+    "dict for {id info} $employees { puts \"$id: [dict get $info name]\" }",
     "Iterate over all key-value pairs in the dictionary",
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
@@ -1067,10 +1401,8 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
     NULL);
   spec = feather_usage_add(ops, interp, spec, e);
 
-  e = feather_usage_example(ops, interp,
-    "dict merge $dict1 $dict2 $dict3",
-    "Merge multiple dictionaries (later values override earlier)",
-    NULL);
+  e = feather_usage_section(ops, interp, "See Also",
+    "list, string match");
   spec = feather_usage_add(ops, interp, spec, e);
 
   feather_usage_register(ops, interp, "dict", spec);
