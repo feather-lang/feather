@@ -157,7 +157,10 @@ usage complete {git commit -a} 13
     <script>
 usage for git {
   cmd clone {arg &lt;repo&gt;}
-  cmd internal {arg &lt;cmd&gt;} {hide}
+  cmd internal {
+    arg &lt;cmd&gt;
+    hide
+  }
   cmd commit {arg &lt;msg&gt;}
 }
 usage complete {git } 4

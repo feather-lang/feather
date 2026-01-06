@@ -632,7 +632,7 @@ static FeatherObj usage_set_clause(const FeatherHostOps *ops, FeatherInterp inte
 }
 
 /**
- * Parse a spec string into a structured representation.
+ * Parse a spec list into a structured representation.
  *
  * New block-based format:
  *   flag -s --long <value> { options }
@@ -641,12 +641,9 @@ static FeatherObj usage_set_clause(const FeatherHostOps *ops, FeatherInterp inte
  *
  * Returns a list of dict entries.
  */
-static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
-                              FeatherObj specStr) {
+static FeatherObj parse_spec_from_list(const FeatherHostOps *ops, FeatherInterp interp,
+                                        FeatherObj specList) {
   FeatherObj result = ops->list.create(interp);
-
-  /* Parse the spec as a TCL list/script */
-  FeatherObj specList = feather_list_parse_obj(ops, interp, specStr);
   size_t specLen = ops->list.length(interp, specList);
 
   size_t i = 0;
@@ -712,6 +709,21 @@ static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
         i++;
       }
 
+      /* Check for 'hide' keyword inside body and extract it before parsing */
+      int hide = 0;
+      FeatherObj bodyList = feather_list_parse_obj(ops, interp, cmdBody);
+      size_t bodyLen = ops->list.length(interp, bodyList);
+      FeatherObj filteredBody = ops->list.create(interp);
+
+      for (size_t j = 0; j < bodyLen; j++) {
+        FeatherObj token = ops->list.at(interp, bodyList, j);
+        if (feather_obj_eq_literal(ops, interp, token, "hide")) {
+          hide = 1;
+        } else {
+          filteredBody = ops->list.push(interp, filteredBody, token);
+        }
+      }
+
       /* Check for options block - cmd supports before/after help */
       FeatherObj helpText = ops->string.intern(interp, "", 0);
       FeatherObj longHelp = ops->string.intern(interp, "", 0);
@@ -719,7 +731,6 @@ static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
       FeatherObj afterHelp = ops->string.intern(interp, "", 0);
       FeatherObj beforeLongHelp = ops->string.intern(interp, "", 0);
       FeatherObj afterLongHelp = ops->string.intern(interp, "", 0);
-      int hide = 0;
 
       if (i < specLen) {
         FeatherObj next = ops->list.at(interp, specList, i);
@@ -731,8 +742,8 @@ static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
         }
       }
 
-      /* Recursively parse the subcommand body */
-      FeatherObj subSpec = parse_spec(ops, interp, cmdBody);
+      /* Recursively parse the filtered subcommand body */
+      FeatherObj subSpec = parse_spec_from_list(ops, interp, filteredBody);
 
       /* Build cmd entry using internal API */
       FeatherObj entry = usage_cmd_from_obj(ops, interp, cmdName, subSpec);
@@ -867,6 +878,16 @@ static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
   }
 
   return result;
+}
+
+/**
+ * Parse a spec string into a structured representation.
+ * Wrapper that parses the string and calls parse_spec_from_list.
+ */
+static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
+                              FeatherObj specStr) {
+  FeatherObj specList = feather_list_parse_obj(ops, interp, specStr);
+  return parse_spec_from_list(ops, interp, specList);
 }
 
 /**
