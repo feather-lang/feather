@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Usage Complete - Value Completion from Choices</title>
+</head>
+<body>
+
+<!-- Basic value completion -->
+<test id="complete-choices-empty-prefix">
+  <script>
+usage for compile {
+  flag --format &lt;fmt&gt; {
+    help {Output format}
+    choices {json yaml toml}
+  }
+}
+usage complete {compile --format } 18
+  </script>
+  <expected>{{text json type value help {Output format}} {text toml type value help {Output format}} {text yaml type value help {Output format}}}</expected>
+</test>
+
+<test id="complete-choices-with-prefix">
+  <script>
+usage for compile {
+  flag --format &lt;fmt&gt; {
+    help {Output format}
+    choices {json yaml toml}
+  }
+}
+usage complete {compile --format j} 19
+  </script>
+  <expected>{{text json type value help {Output format}}}</expected>
+</test>
+
+<test id="complete-choices-partial-match">
+  <script>
+usage for compile {
+  flag --format &lt;fmt&gt; {
+    choices {json yaml toml xml html}
+  }
+}
+usage complete {compile --format xm} 20
+  </script>
+  <expected>{{text xml type value help {}}}</expected>
+</test>
+
+<!-- Short flag with choices -->
+<test id="complete-choices-short-flag">
+  <script>
+usage for compile {
+  flag -f &lt;fmt&gt; {
+    help {Output format}
+    choices {json yaml toml}
+  }
+}
+usage complete {compile -f } 11
+  </script>
+  <expected>{{text json type value help {Output format}} {text toml type value help {Output format}} {text yaml type value help {Output format}}}</expected>
+</test>
+
+<!-- Subcommand with choices -->
+<test id="complete-choices-subcommand">
+  <script>
+usage for git {
+  cmd merge {
+    flag --strategy &lt;s&gt; {
+      help {Merge strategy}
+      choices {recursive ours theirs}
+    }
+  }
+}
+usage complete {git merge --strategy } 24
+  </script>
+  <expected>{{text ours type value help {Merge strategy}} {text recursive type value help {Merge strategy}} {text theirs type value help {Merge strategy}}}</expected>
+</test>
+
+<!-- No choices returns empty -->
+<test id="complete-no-choices-empty">
+  <script>
+usage for cmd {
+  flag --file &lt;path&gt; {
+    help {Input file}
+  }
+}
+usage complete {cmd --file } 11
+  </script>
+  <expected>{}</expected>
+</test>
+
+<!-- Boolean flag doesn't complete values -->
+<test id="complete-boolean-flag-no-values">
+  <script>
+usage for cmd {
+  flag --verbose
+}
+usage complete {cmd --verbose } 16
+  </script>
+  <expected>{{text --verbose type flag help {}}}</expected>
+</test>
+
+<!-- Multiple choices scenarios -->
+<test id="complete-choices-after-other-args">
+  <script>
+usage for deploy {
+  arg &lt;app&gt;
+  flag --env &lt;e&gt; {
+    choices {dev staging prod}
+  }
+}
+usage complete {deploy myapp --env } 20
+  </script>
+  <expected>{{text dev type value help {}} {text prod type value help {}} {text staging type value help {}}}</expected>
+</test>
+
+<!-- Case sensitivity in choices -->
+<test id="complete-choices-case-sensitive">
+  <script>
+usage for cmd {
+  flag --mode &lt;m&gt; {
+    choices {Debug Release Test}
+  }
+}
+usage complete {compile --mode D} 18
+  </script>
+  <expected>{{text Debug type value help {}}}</expected>
+</test>
+
+<!-- Empty choices list -->
+<test id="complete-empty-choices-list">
+  <script>
+usage for cmd {
+  flag --opt &lt;val&gt; {
+    choices {}
+  }
+}
+usage complete {cmd --opt } 10
+  </script>
+  <expected>{}</expected>
+</test>
+
+<!-- Choices with both short and long flags -->
+<test id="complete-choices-long-form">
+  <script>
+usage for compile {
+  flag -f --format &lt;fmt&gt; {
+    choices {json yaml}
+  }
+}
+usage complete {compile --format } 18
+  </script>
+  <expected>{{text json type value help {}} {text yaml type value help {}}}</expected>
+</test>
+
+<test id="complete-choices-short-form">
+  <script>
+usage for compile {
+  flag -f --format &lt;fmt&gt; {
+    choices {json yaml}
+  }
+}
+usage complete {compile -f } 11
+  </script>
+  <expected>{{text json type value help {}} {text yaml type value help {}}}</expected>
+</test>
+
+<!-- Optional flag value still completes from choices -->
+<test id="complete-choices-optional-value">
+  <script>
+usage for cmd {
+  flag --level ?n? {
+    choices {1 2 3}
+  }
+}
+usage complete {cmd --level } 12
+  </script>
+  <expected>{{text 1 type value help {}} {text 2 type value help {}} {text 3 type value help {}}}</expected>
+</test>
+
+</body>
+</html>
