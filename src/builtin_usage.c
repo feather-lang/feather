@@ -2614,12 +2614,12 @@ static FeatherObj complete_commands(const FeatherHostOps *ops, FeatherInterp int
   /* Create completion entries */
   for (size_t i = 0; i < numMatches; i++) {
     FeatherObj cmdName = ops->list.at(interp, matches, i);
-    FeatherObj spec = ops->dict.get(interp, specs, cmdName);
+    FeatherObj specEntry = ops->dict.get(interp, specs, cmdName);
 
-    /* Get help text from spec if available */
+    /* Get help text from spec entry if available */
     FeatherObj help = ops->string.intern(interp, "", 0);
-    if (!ops->list.is_nil(interp, spec)) {
-      help = dict_get_str(ops, interp, spec, K_HELP);
+    if (!ops->list.is_nil(interp, specEntry)) {
+      help = dict_get_str(ops, interp, specEntry, K_HELP);
     }
 
     /* Convert cmdName to C string for make_completion */
@@ -2639,17 +2639,134 @@ static FeatherObj complete_commands(const FeatherHostOps *ops, FeatherInterp int
 }
 
 /**
- * Simplified completion implementation (v1).
+ * Complete subcommand names from a spec.
+ * Returns list of {text <subcmd> type subcommand help <...>} dicts.
+ * Results are in spec order (not alphabetical).
+ */
+static FeatherObj complete_subcommands(const FeatherHostOps *ops, FeatherInterp interp,
+                                        FeatherObj spec, FeatherObj prefix) {
+  FeatherObj result = ops->list.create(interp);
+
+  /* Spec is a list of entries */
+  size_t specLen = ops->list.length(interp, spec);
+  for (size_t i = 0; i < specLen; i++) {
+    FeatherObj entry = ops->list.at(interp, spec, i);
+    FeatherObj entryType = dict_get_str(ops, interp, entry, K_TYPE);
+
+    /* Only process cmd entries */
+    if (!feather_obj_eq_literal(ops, interp, entryType, T_CMD)) {
+      continue;
+    }
+
+    /* Check hide flag */
+    int hide = dict_get_int(ops, interp, entry, K_HIDE);
+    if (hide) {
+      continue;
+    }
+
+    /* Get subcommand name */
+    FeatherObj subcmdName = dict_get_str(ops, interp, entry, K_NAME);
+
+    /* Filter by prefix */
+    if (obj_has_prefix(ops, interp, subcmdName, prefix)) {
+      /* Get help text */
+      FeatherObj help = dict_get_str(ops, interp, entry, K_HELP);
+
+      /* Convert to C string */
+      size_t nameLen = ops->string.byte_length(interp, subcmdName);
+      char namebuf[256];
+      if (nameLen >= sizeof(namebuf)) nameLen = sizeof(namebuf) - 1;
+      for (size_t j = 0; j < nameLen; j++) {
+        namebuf[j] = (char)ops->string.byte_at(interp, subcmdName, j);
+      }
+      namebuf[nameLen] = '\0';
+
+      FeatherObj completion = make_completion(ops, interp, namebuf, T_SUBCOMMAND, help);
+      result = ops->list.push(interp, result, completion);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Complete flag names from a spec.
+ * Returns list of {text <flag> type flag help <...>} dicts.
+ */
+static FeatherObj complete_flags(const FeatherHostOps *ops, FeatherInterp interp,
+                                  FeatherObj spec, FeatherObj prefix) {
+  FeatherObj result = ops->list.create(interp);
+
+  /* Spec is a list of entries */
+  size_t specLen = ops->list.length(interp, spec);
+  for (size_t i = 0; i < specLen; i++) {
+    FeatherObj entry = ops->list.at(interp, spec, i);
+    FeatherObj entryType = dict_get_str(ops, interp, entry, K_TYPE);
+
+    /* Only process flag entries */
+    if (!feather_obj_eq_literal(ops, interp, entryType, T_FLAG)) {
+      continue;
+    }
+
+    /* Check hide flag */
+    int hide = dict_get_int(ops, interp, entry, K_HIDE);
+    if (hide) {
+      continue;
+    }
+
+    /* Get help text */
+    FeatherObj help = dict_get_str(ops, interp, entry, K_HELP);
+
+    /* Add short flag if present */
+    FeatherObj shortFlag = dict_get_str(ops, interp, entry, K_SHORT);
+    if (ops->string.byte_length(interp, shortFlag) > 0) {
+      /* Build -X format */
+      size_t flagLen = ops->string.byte_length(interp, shortFlag);
+      char flagbuf[64];
+      flagbuf[0] = '-';
+      for (size_t j = 0; j < flagLen && j < sizeof(flagbuf) - 2; j++) {
+        flagbuf[j + 1] = (char)ops->string.byte_at(interp, shortFlag, j);
+      }
+      flagbuf[flagLen + 1] = '\0';
+
+      /* Create flag string and check prefix */
+      FeatherObj flagStr = ops->string.intern(interp, flagbuf, flagLen + 1);
+      if (obj_has_prefix(ops, interp, flagStr, prefix)) {
+        FeatherObj completion = make_completion(ops, interp, flagbuf, T_FLAG, help);
+        result = ops->list.push(interp, result, completion);
+      }
+    }
+
+    /* Add long flag if present */
+    FeatherObj longFlag = dict_get_str(ops, interp, entry, K_LONG);
+    if (ops->string.byte_length(interp, longFlag) > 0) {
+      /* Build --XXX format */
+      size_t flagLen = ops->string.byte_length(interp, longFlag);
+      char flagbuf[64];
+      flagbuf[0] = '-';
+      flagbuf[1] = '-';
+      for (size_t j = 0; j < flagLen && j < sizeof(flagbuf) - 3; j++) {
+        flagbuf[j + 2] = (char)ops->string.byte_at(interp, longFlag, j);
+      }
+      flagbuf[flagLen + 2] = '\0';
+
+      /* Create flag string and check prefix */
+      FeatherObj flagStr = ops->string.intern(interp, flagbuf, flagLen + 2);
+      if (obj_has_prefix(ops, interp, flagStr, prefix)) {
+        FeatherObj completion = make_completion(ops, interp, flagbuf, T_FLAG, help);
+        result = ops->list.push(interp, result, completion);
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Enhanced completion implementation (v2).
  *
- * This initial implementation handles basic command completion at the start of scripts.
- * It extracts the partial token at the cursor position and completes from registered commands.
- *
- * Future enhancements will add:
- * - Subcommand completion
- * - Flag completion
- * - Value completion from choices
- * - Argument placeholders
- * - Script-type recursion
+ * Handles command, subcommand, and flag completion by parsing tokens from the script.
+ * Determines completion context and returns appropriate candidates.
  */
 static FeatherObj usage_complete_impl(const FeatherHostOps *ops, FeatherInterp interp,
                                        FeatherObj scriptObj, size_t pos) {
@@ -2671,26 +2788,113 @@ static FeatherObj usage_complete_impl(const FeatherHostOps *ops, FeatherInterp i
     token_start--;
   }
 
-  /* Extract the partial token */
+  /* Extract the partial token being completed */
   FeatherObj prefix = ops->string.slice(interp, scriptObj, token_start, pos);
 
-  /* Check if we're at a command position (start of line or after separator) */
-  int at_command_pos = 1;
-  for (size_t i = 0; i < token_start; i++) {
-    int c = ops->string.byte_at(interp, scriptObj, i);
-    if (c != ' ' && c != '\t' && c != '\n' && c != '\r' && c != ';') {
-      /* Found non-whitespace before our token, not at command position */
-      at_command_pos = 0;
-      break;
+  /* Tokenize the script up to the cursor to understand context */
+  /* Simple tokenization: split by whitespace, track tokens before cursor */
+  FeatherObj tokens = ops->list.create(interp);
+  size_t i = 0;
+  while (i < token_start) {
+    /* Skip whitespace */
+    while (i < token_start) {
+      int c = ops->string.byte_at(interp, scriptObj, i);
+      if (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == ';') {
+        i++;
+      } else {
+        break;
+      }
     }
+    if (i >= token_start) break;
+
+    /* Find end of token */
+    size_t tok_start = i;
+    while (i < token_start) {
+      int c = ops->string.byte_at(interp, scriptObj, i);
+      if (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == ';') {
+        break;
+      }
+      i++;
+    }
+
+    /* Extract token */
+    FeatherObj token = ops->string.slice(interp, scriptObj, tok_start, i);
+    tokens = ops->list.push(interp, tokens, token);
   }
 
-  /* If at command position, complete commands */
-  if (at_command_pos) {
+  size_t numTokens = ops->list.length(interp, tokens);
+
+  /* Case 1: No tokens yet - complete commands */
+  if (numTokens == 0) {
     return complete_commands(ops, interp, prefix);
   }
 
-  /* Otherwise, return empty list for now */
+  /* Get the first token (command name) */
+  FeatherObj cmdName = ops->list.at(interp, tokens, 0);
+
+  /* Look up the command's spec */
+  FeatherObj specs = usage_get_specs(ops, interp);
+  FeatherObj specEntry = ops->dict.get(interp, specs, cmdName);
+
+  /* If command not found, no completions */
+  if (ops->list.is_nil(interp, specEntry)) {
+    return ops->list.create(interp);
+  }
+
+  /* Get the parsed spec (list of entries) from the spec entry dict */
+  FeatherObj parsedSpec = dict_get_str(ops, interp, specEntry, K_SPEC);
+
+  /* Case 2: One token (the command) - complete subcommands or flags/args */
+  if (numTokens == 1) {
+    /* Check if spec has subcommands */
+    int hasSubcmds = 0;
+    size_t specLen = ops->list.length(interp, parsedSpec);
+    for (size_t j = 0; j < specLen; j++) {
+      FeatherObj entry = ops->list.at(interp, parsedSpec, j);
+      FeatherObj entryType = dict_get_str(ops, interp, entry, K_TYPE);
+      if (feather_obj_eq_literal(ops, interp, entryType, T_CMD)) {
+        hasSubcmds = 1;
+        break;
+      }
+    }
+
+    if (hasSubcmds) {
+      /* Complete subcommands */
+      return complete_subcommands(ops, interp, parsedSpec, prefix);
+    } else {
+      /* Complete flags */
+      return complete_flags(ops, interp, parsedSpec, prefix);
+    }
+  }
+
+  /* Case 3: Multiple tokens - check if second token is a subcommand */
+  if (numTokens >= 2) {
+    FeatherObj secondToken = ops->list.at(interp, tokens, 1);
+
+    /* Look for matching subcommand in spec */
+    size_t specLen = ops->list.length(interp, parsedSpec);
+    for (size_t j = 0; j < specLen; j++) {
+      FeatherObj entry = ops->list.at(interp, parsedSpec, j);
+      FeatherObj entryType = dict_get_str(ops, interp, entry, K_TYPE);
+
+      if (feather_obj_eq_literal(ops, interp, entryType, T_CMD)) {
+        FeatherObj subcmdName = dict_get_str(ops, interp, entry, K_NAME);
+        if (obj_strcmp(ops, interp, secondToken, subcmdName) == 0) {
+          /* Found matching subcommand, use its spec */
+          FeatherObj subspec = dict_get_str(ops, interp, entry, K_SPEC);
+          if (!ops->list.is_nil(interp, subspec)) {
+            /* Complete flags from subcommand spec */
+            return complete_flags(ops, interp, subspec, prefix);
+          }
+        }
+      }
+    }
+
+    /* No matching subcommand, complete flags from main spec */
+    return complete_flags(ops, interp, parsedSpec, prefix);
+  }
+
+  /* Default: return empty list */
   return ops->list.create(interp);
 }
 
