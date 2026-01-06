@@ -1,0 +1,272 @@
+<test-suite>
+  <!--
+    Usage Complete - Advanced Tests
+
+    Tests for subcommand completion, flag completion, and advanced scenarios.
+  -->
+
+  <!-- ============================================= -->
+  <!-- Subcommand completion tests                  -->
+  <!-- ============================================= -->
+
+  <test-case name="complete subcommand with empty prefix">
+    <script>
+usage for git {
+  cmd clone {arg &lt;repo&gt;}
+  cmd commit {arg &lt;msg&gt;}
+  cmd checkout {arg &lt;branch&gt;}
+}
+usage complete {git } 4
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text clone type subcommand help {}} {text commit type subcommand help {}} {text checkout type subcommand help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="complete subcommand with prefix">
+    <script>
+usage for git {
+  cmd clone {arg &lt;repo&gt;}
+  cmd commit {arg &lt;msg&gt;}
+  cmd checkout {arg &lt;branch&gt;}
+}
+usage complete {git co} 6
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text commit type subcommand help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="complete subcommand with help text">
+    <script>
+usage for git {
+  cmd clone {
+    arg &lt;repo&gt;
+    help {Clone a repository}
+  }
+  cmd commit {
+    arg &lt;msg&gt;
+    help {Create a commit}
+  }
+}
+usage complete {git cl} 6
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text clone type subcommand help {Clone a repository}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Flag completion tests                         -->
+  <!-- ============================================= -->
+
+  <test-case name="complete flags when no subcommands">
+    <script>
+usage for compile {
+  arg &lt;source&gt;
+  flag --verbose {help {Enable verbose output}}
+  flag -O --optimize ?level? {help {Optimization level}}
+}
+usage complete {compile file.c } 15
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text -O type flag help {Optimization level}} {text --optimize type flag help {Optimization level}} {text --verbose type flag help {Enable verbose output}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="complete flags with dash prefix">
+    <script>
+usage for compile {
+  arg &lt;source&gt;
+  flag --verbose
+  flag -O --optimize
+}
+usage complete {compile file.c -} 16
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text -O type flag help {}} {text --optimize type flag help {}} {text --verbose type flag help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="complete flags with long prefix">
+    <script>
+usage for compile {
+  arg &lt;source&gt;
+  flag --verbose
+  flag --version
+  flag -O --optimize
+}
+usage complete {compile file.c --ver} 20
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text --verbose type flag help {}} {text --version type flag help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="complete flags in subcommand">
+    <script>
+usage for git {
+  cmd commit {
+    flag -m --message &lt;msg&gt; {help {Commit message}}
+    flag -a --all {help {Stage all changes}}
+  }
+}
+usage complete {git commit } 11
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text -a type flag help {Stage all changes}} {text -m type flag help {Commit message}} {text --all type flag help {Stage all changes}} {text --message type flag help {Commit message}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="complete flags in subcommand with prefix">
+    <script>
+usage for git {
+  cmd commit {
+    flag -m --message &lt;msg&gt;
+    flag -a --all
+  }
+}
+usage complete {git commit -a} 13
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text -a type flag help {}} {text --all type flag help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Hide flag filtering                           -->
+  <!-- ============================================= -->
+
+  <test-case name="no hidden subcommands in completion">
+    <script>
+usage for git {
+  cmd clone {arg &lt;repo&gt;}
+  cmd internal {arg &lt;cmd&gt;} {hide}
+  cmd commit {arg &lt;msg&gt;}
+}
+usage complete {git } 4
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text clone type subcommand help {}} {text commit type subcommand help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="no hidden flags in completion">
+    <script>
+usage for cmd {
+  flag --verbose
+  flag --debug {hide}
+  flag --quiet
+}
+usage complete {cmd } 4
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text --quiet type flag help {}} {text --verbose type flag help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Mixed scenarios                               -->
+  <!-- ============================================= -->
+
+  <test-case name="no results for unknown command">
+    <script>
+usage for puts {arg &lt;text&gt;}
+usage complete {undefined } 10
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="complete after subcommand with args">
+    <script>
+usage for git {
+  cmd commit {
+    arg &lt;msg&gt;
+    flag -a --all
+  }
+}
+usage complete {git commit "my message" } 24
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text -a type flag help {}} {text --all type flag help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="subcommand spec order preserved">
+    <script>
+usage for test {
+  cmd zebra {arg &lt;x&gt;}
+  cmd apple {arg &lt;y&gt;}
+  cmd banana {arg &lt;z&gt;}
+}
+set result [usage complete {test } 5]
+list [lindex [lindex $result 0] 1] \
+     [lindex [lindex $result 1] 1] \
+     [lindex [lindex $result 2] 1]
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>zebra apple banana</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Short and long flag variations                -->
+  <!-- ============================================= -->
+
+  <test-case name="complete short flag only">
+    <script>
+usage for cmd {
+  flag -v {help {Verbose mode}}
+}
+usage complete {cmd -} 5
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text -v type flag help {Verbose mode}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="complete long flag only">
+    <script>
+usage for cmd {
+  flag --verbose {help {Verbose mode}}
+}
+usage complete {cmd --} 6
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text --verbose type flag help {Verbose mode}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

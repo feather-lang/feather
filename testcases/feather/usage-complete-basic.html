@@ -1,0 +1,144 @@
+<test-suite>
+  <!--
+    Usage Complete - Basic Tests
+
+    Tests for basic command completion functionality.
+  -->
+
+  <!-- ============================================= -->
+  <!-- Basic command completion                      -->
+  <!-- ============================================= -->
+
+  <test-case name="complete command at position 0 empty">
+    <script>
+usage for puts {arg &lt;text&gt;}
+usage for proc {arg &lt;name&gt;}
+usage complete {} 0
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text proc type command help {}} {text puts type command help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="complete command with prefix">
+    <script>
+usage for puts {arg &lt;text&gt;}
+usage for proc {arg &lt;name&gt;}
+usage complete {pu} 2
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text puts type command help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="complete command with partial match">
+    <script>
+usage for puts {arg &lt;text&gt;}
+usage for proc {arg &lt;name&gt;}
+usage for print {arg &lt;msg&gt;}
+usage complete {pr} 2
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text print type command help {}} {text proc type command help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="no completion in middle of command args">
+    <script>
+usage for puts {arg &lt;text&gt;}
+usage complete {puts hello} 10
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="complete at start after semicolon">
+    <script>
+usage for puts {arg &lt;text&gt;}
+usage for set {arg &lt;var&gt; arg &lt;value&gt;}
+usage complete {puts hello; se} 14
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text set type command help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="complete command with help text">
+    <script>
+usage for test {
+  arg &lt;file&gt;
+  help {Check if file exists}
+}
+usage complete {te} 2
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text test type command help {Check if file exists}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="empty prefix matches all commands">
+    <script>
+usage for cmd1 {}
+usage for cmd2 {}
+set result [usage complete {} 0]
+expr {[llength $result] == 2}
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="case sensitive command matching">
+    <script>
+usage for Puts {arg &lt;text&gt;}
+usage for puts {arg &lt;text&gt;}
+usage complete {P} 1
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text Puts type command help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="complete at end of script">
+    <script>
+usage for puts {arg &lt;text&gt;}
+set script {pu}
+usage complete $script [string length $script]
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text puts type command help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="position beyond script length is clamped">
+    <script>
+usage for puts {arg &lt;text&gt;}
+usage complete {pu} 1000
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text puts type command help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>
