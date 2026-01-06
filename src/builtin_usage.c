@@ -2858,9 +2858,119 @@ static FeatherObj find_flag_entry(const FeatherHostOps *ops, FeatherInterp inter
 }
 
 /**
- * Enhanced completion implementation (v2).
+ * Check if a token looks like a flag (starts with dash).
+ */
+static int token_is_flag(const FeatherHostOps *ops, FeatherInterp interp,
+                         FeatherObj token) {
+  size_t len = ops->string.byte_length(interp, token);
+  if (len == 0) return 0;
+  return ops->string.byte_at(interp, token, 0) == '-';
+}
+
+/**
+ * Generate argument placeholders for expected positional arguments.
+ * Returns list of {text {} type arg-placeholder name <arg> help <help>} dicts.
+ */
+static FeatherObj get_arg_placeholders(const FeatherHostOps *ops, FeatherInterp interp,
+                                        FeatherObj spec, FeatherObj tokens) {
+  FeatherObj result = ops->list.create(interp);
+
+  /* Count how many positional arguments have been provided */
+  size_t numTokens = ops->list.length(interp, tokens);
+  size_t posArgCount = 0;
+
+  /* Skip first token (command name), count non-flag tokens */
+  for (size_t i = 1; i < numTokens; i++) {
+    FeatherObj token = ops->list.at(interp, tokens, i);
+
+    if (token_is_flag(ops, interp, token)) {
+      /* Check if this flag consumes next token */
+      FeatherObj flagEntry = find_flag_entry(ops, interp, spec, token);
+      if (!ops->list.is_nil(interp, flagEntry)) {
+        int hasValue = dict_get_int(ops, interp, flagEntry, K_HAS_VALUE);
+        if (hasValue && i + 1 < numTokens) {
+          i++; /* Skip the flag's value */
+        }
+      }
+    } else {
+      /* Positional argument */
+      posArgCount++;
+    }
+  }
+
+  /* Find arg entries in spec and determine which to show */
+  size_t specLen = ops->list.length(interp, spec);
+  size_t argIndex = 0;
+  int variadicSatisfied = 0;
+
+  for (size_t i = 0; i < specLen; i++) {
+    FeatherObj entry = ops->list.at(interp, spec, i);
+    FeatherObj entryType = dict_get_str(ops, interp, entry, K_TYPE);
+
+    if (!feather_obj_eq_literal(ops, interp, entryType, T_ARG)) {
+      continue;
+    }
+
+    /* Check hide flag */
+    int hide = dict_get_int(ops, interp, entry, K_HIDE);
+    if (hide) {
+      continue;
+    }
+
+    int required = dict_get_int(ops, interp, entry, K_REQUIRED);
+    int variadic = dict_get_int(ops, interp, entry, K_VARIADIC);
+    FeatherObj name = dict_get_str(ops, interp, entry, K_NAME);
+    FeatherObj help = dict_get_str(ops, interp, entry, K_HELP);
+
+    /* Determine if we should show this arg */
+    if (variadic) {
+      /* Variadic: only show if not yet satisfied */
+      if (argIndex < posArgCount) {
+        variadicSatisfied = 1;
+      }
+      if (!variadicSatisfied) {
+        /* Convert name to C string */
+        size_t nameLen = ops->string.byte_length(interp, name);
+        char namebuf[256];
+        if (nameLen >= sizeof(namebuf)) nameLen = sizeof(namebuf) - 1;
+        for (size_t j = 0; j < nameLen; j++) {
+          namebuf[j] = (char)ops->string.byte_at(interp, name, j);
+        }
+        namebuf[nameLen] = '\0';
+
+        FeatherObj placeholder = make_arg_placeholder(ops, interp, namebuf, help);
+        result = ops->list.push(interp, result, placeholder);
+      }
+      /* Don't increment argIndex for variadic - it consumes all remaining */
+    } else {
+      /* Regular arg: show if required and not provided, or optional and next */
+      if (argIndex == posArgCount) {
+        /* This is the next expected arg */
+        if (required || argIndex == posArgCount) {
+          /* Show placeholder */
+          size_t nameLen = ops->string.byte_length(interp, name);
+          char namebuf[256];
+          if (nameLen >= sizeof(namebuf)) nameLen = sizeof(namebuf) - 1;
+          for (size_t j = 0; j < nameLen; j++) {
+            namebuf[j] = (char)ops->string.byte_at(interp, name, j);
+          }
+          namebuf[nameLen] = '\0';
+
+          FeatherObj placeholder = make_arg_placeholder(ops, interp, namebuf, help);
+          result = ops->list.push(interp, result, placeholder);
+        }
+      }
+      argIndex++;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Enhanced completion implementation (v3).
  *
- * Handles command, subcommand, and flag completion by parsing tokens from the script.
+ * Handles command, subcommand, flag, value, and argument placeholder completion.
  * Determines completion context and returns appropriate candidates.
  */
 static FeatherObj usage_complete_impl(const FeatherHostOps *ops, FeatherInterp interp,
@@ -2957,8 +3067,18 @@ static FeatherObj usage_complete_impl(const FeatherHostOps *ops, FeatherInterp i
       /* Complete subcommands */
       return complete_subcommands(ops, interp, parsedSpec, prefix);
     } else {
-      /* Complete flags */
-      return complete_flags(ops, interp, parsedSpec, prefix);
+      /* Complete flags and argument placeholders */
+      FeatherObj flags = complete_flags(ops, interp, parsedSpec, prefix);
+      FeatherObj placeholders = get_arg_placeholders(ops, interp, parsedSpec, tokens);
+
+      /* Combine flags and placeholders */
+      size_t numPlaceholders = ops->list.length(interp, placeholders);
+      for (size_t i = 0; i < numPlaceholders; i++) {
+        FeatherObj placeholder = ops->list.at(interp, placeholders, i);
+        flags = ops->list.push(interp, flags, placeholder);
+      }
+
+      return flags;
     }
   }
 
@@ -3079,7 +3199,7 @@ FeatherResult feather_builtin_usage(const FeatherHostOps *ops, FeatherInterp int
     /* Get position */
     FeatherObj posObj = ops->list.at(interp, args, 1);
     int64_t pos_i = 0;
-    if (!ops->integer.get(interp, posObj, &pos_i) || pos_i < 0) {
+    if (ops->integer.get(interp, posObj, &pos_i) == TCL_ERROR || pos_i < 0) {
       ops->interp.set_result(interp,
           ops->string.intern(interp, S("usage complete: pos must be a non-negative integer")));
       return TCL_ERROR;
