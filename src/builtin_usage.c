@@ -85,9 +85,18 @@ static const char *T_EXAMPLE = "example";
 static const char *T_META    = "meta"; /* Spec-level metadata (about, description) */
 static const char *T_SECTION = "section"; /* Custom section with header and content */
 
+/* Completion type values */
+static const char *T_COMMAND     = "command";
+static const char *T_SUBCOMMAND  = "subcommand";
+static const char *T_VALUE       = "value";
+static const char *T_ARG_PLACEHOLDER = "arg-placeholder";
+
 /* Section entry keys */
 static const char *K_SECTION_NAME = "section_name";
 static const char *K_CONTENT      = "content";
+
+/* Completion entry keys */
+static const char *K_TEXT = "text";
 
 /**
  * Helper to get a string key from a dict, returning empty string if not found.
@@ -2444,6 +2453,247 @@ static FeatherResult usage_help(const FeatherHostOps *ops, FeatherInterp interp,
   return TCL_OK;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Completion Support Functions
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Create a completion entry dict: {text <str> type <type> help <help>}
+ */
+static FeatherObj make_completion(const FeatherHostOps *ops, FeatherInterp interp,
+                                   const char *text, const char *type, FeatherObj help) {
+  FeatherObj dict = ops->dict.create(interp);
+
+  FeatherObj textObj = ops->string.intern(interp, text, feather_strlen(text));
+  dict = dict_set_str(ops, interp, dict, K_TEXT, textObj);
+
+  FeatherObj typeObj = ops->string.intern(interp, type, feather_strlen(type));
+  dict = dict_set_str(ops, interp, dict, K_TYPE, typeObj);
+
+  dict = dict_set_str(ops, interp, dict, K_HELP, help);
+
+  return dict;
+}
+
+/**
+ * Create an arg placeholder entry: {text {} type arg-placeholder name <name> help <help>}
+ */
+static FeatherObj make_arg_placeholder(const FeatherHostOps *ops, FeatherInterp interp,
+                                        const char *name, FeatherObj help) {
+  FeatherObj dict = ops->dict.create(interp);
+
+  FeatherObj emptyText = ops->string.intern(interp, "", 0);
+  dict = dict_set_str(ops, interp, dict, K_TEXT, emptyText);
+
+  FeatherObj typeObj = ops->string.intern(interp, S(T_ARG_PLACEHOLDER));
+  dict = dict_set_str(ops, interp, dict, K_TYPE, typeObj);
+
+  FeatherObj nameObj = ops->string.intern(interp, name, feather_strlen(name));
+  dict = dict_set_str(ops, interp, dict, K_NAME, nameObj);
+
+  dict = dict_set_str(ops, interp, dict, K_HELP, help);
+
+  return dict;
+}
+
+/**
+ * Check if a string starts with a prefix (case-sensitive)
+ */
+static int str_has_prefix(const char *str, size_t str_len,
+                          const char *prefix, size_t prefix_len) {
+  if (prefix_len > str_len) {
+    return 0;
+  }
+  for (size_t i = 0; i < prefix_len; i++) {
+    if (str[i] != prefix[i]) {
+      return 0;
+    }
+  }
+  return 1;
+}
+
+/**
+ * Check if a FeatherObj string starts with a prefix (case-sensitive)
+ */
+static int obj_has_prefix(const FeatherHostOps *ops, FeatherInterp interp,
+                          FeatherObj obj, FeatherObj prefix) {
+  size_t obj_len = ops->string.byte_length(interp, obj);
+  size_t prefix_len = ops->string.byte_length(interp, prefix);
+
+  if (prefix_len > obj_len) {
+    return 0;
+  }
+
+  for (size_t i = 0; i < prefix_len; i++) {
+    int obj_ch = ops->string.byte_at(interp, obj, i);
+    int prefix_ch = ops->string.byte_at(interp, prefix, i);
+    if (obj_ch != prefix_ch) {
+      return 0;
+    }
+  }
+
+  return 1;
+}
+
+/**
+ * Compare two FeatherObj strings (returns <0, 0, >0 like strcmp)
+ */
+static int obj_strcmp(const FeatherHostOps *ops, FeatherInterp interp,
+                      FeatherObj a, FeatherObj b) {
+  size_t lenA = ops->string.byte_length(interp, a);
+  size_t lenB = ops->string.byte_length(interp, b);
+
+  size_t minLen = lenA < lenB ? lenA : lenB;
+  for (size_t i = 0; i < minLen; i++) {
+    int chA = ops->string.byte_at(interp, a, i);
+    int chB = ops->string.byte_at(interp, b, i);
+    if (chA < chB) return -1;
+    if (chA > chB) return 1;
+  }
+
+  if (lenA < lenB) return -1;
+  if (lenA > lenB) return 1;
+  return 0;
+}
+
+/**
+ * Complete command names from registered usage specs.
+ * Returns list of {text <cmd> type command help <...>} dicts.
+ * Results are sorted alphabetically.
+ */
+static FeatherObj complete_commands(const FeatherHostOps *ops, FeatherInterp interp,
+                                     FeatherObj prefix) {
+  FeatherObj result = ops->list.create(interp);
+  FeatherObj specs = usage_get_specs(ops, interp);
+
+  /* Get all command names (dict keys) */
+  FeatherObj keys = ops->dict.keys(interp, specs);
+  size_t numKeys = ops->list.length(interp, keys);
+
+  /* Collect matching commands */
+  FeatherObj matches = ops->list.create(interp);
+  for (size_t i = 0; i < numKeys; i++) {
+    FeatherObj cmdName = ops->list.at(interp, keys, i);
+
+    /* Filter by prefix */
+    if (obj_has_prefix(ops, interp, cmdName, prefix)) {
+      matches = ops->list.push(interp, matches, cmdName);
+    }
+  }
+
+  /* Sort matches alphabetically using bubble sort */
+  size_t numMatches = ops->list.length(interp, matches);
+  if (numMatches > 1) {
+    /* We need to rebuild the list for sorting since list.set doesn't exist */
+    int sorted = 0;
+    while (!sorted) {
+      sorted = 1;
+      FeatherObj newMatches = ops->list.create(interp);
+      for (size_t i = 0; i < numMatches; i++) {
+        FeatherObj curr = ops->list.at(interp, matches, i);
+
+        if (i + 1 < numMatches) {
+          FeatherObj next = ops->list.at(interp, matches, i + 1);
+          if (obj_strcmp(ops, interp, curr, next) > 0) {
+            /* Swap - add next, then curr (we'll skip next in next iteration) */
+            newMatches = ops->list.push(interp, newMatches, next);
+            newMatches = ops->list.push(interp, newMatches, curr);
+            i++; /* Skip next element since we already added it */
+            sorted = 0;
+          } else {
+            newMatches = ops->list.push(interp, newMatches, curr);
+          }
+        } else {
+          newMatches = ops->list.push(interp, newMatches, curr);
+        }
+      }
+      matches = newMatches;
+    }
+  }
+
+  /* Create completion entries */
+  for (size_t i = 0; i < numMatches; i++) {
+    FeatherObj cmdName = ops->list.at(interp, matches, i);
+    FeatherObj spec = ops->dict.get(interp, specs, cmdName);
+
+    /* Get help text from spec if available */
+    FeatherObj help = ops->string.intern(interp, "", 0);
+    if (!ops->list.is_nil(interp, spec)) {
+      help = dict_get_str(ops, interp, spec, K_HELP);
+    }
+
+    /* Convert cmdName to C string for make_completion */
+    size_t cmdLen = ops->string.byte_length(interp, cmdName);
+    char cmdbuf[256];
+    if (cmdLen >= sizeof(cmdbuf)) cmdLen = sizeof(cmdbuf) - 1;
+    for (size_t j = 0; j < cmdLen; j++) {
+      cmdbuf[j] = (char)ops->string.byte_at(interp, cmdName, j);
+    }
+    cmdbuf[cmdLen] = '\0';
+
+    FeatherObj completion = make_completion(ops, interp, cmdbuf, T_COMMAND, help);
+    result = ops->list.push(interp, result, completion);
+  }
+
+  return result;
+}
+
+/**
+ * Simplified completion implementation (v1).
+ *
+ * This initial implementation handles basic command completion at the start of scripts.
+ * It extracts the partial token at the cursor position and completes from registered commands.
+ *
+ * Future enhancements will add:
+ * - Subcommand completion
+ * - Flag completion
+ * - Value completion from choices
+ * - Argument placeholders
+ * - Script-type recursion
+ */
+static FeatherObj usage_complete_impl(const FeatherHostOps *ops, FeatherInterp interp,
+                                       FeatherObj scriptObj, size_t pos) {
+  size_t script_len = ops->string.byte_length(interp, scriptObj);
+
+  /* Clamp position to script length */
+  if (pos > script_len) {
+    pos = script_len;
+  }
+
+  /* Find the start of the current token by scanning backwards */
+  size_t token_start = pos;
+  while (token_start > 0) {
+    int c = ops->string.byte_at(interp, scriptObj, token_start - 1);
+    /* Stop at whitespace, newline, semicolon (command separators) */
+    if (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == ';') {
+      break;
+    }
+    token_start--;
+  }
+
+  /* Extract the partial token */
+  FeatherObj prefix = ops->string.slice(interp, scriptObj, token_start, pos);
+
+  /* Check if we're at a command position (start of line or after separator) */
+  int at_command_pos = 1;
+  for (size_t i = 0; i < token_start; i++) {
+    int c = ops->string.byte_at(interp, scriptObj, i);
+    if (c != ' ' && c != '\t' && c != '\n' && c != '\r' && c != ';') {
+      /* Found non-whitespace before our token, not at command position */
+      at_command_pos = 0;
+      break;
+    }
+  }
+
+  /* If at command position, complete commands */
+  if (at_command_pos) {
+    return complete_commands(ops, interp, prefix);
+  }
+
+  /* Otherwise, return empty list for now */
+  return ops->list.create(interp);
+}
+
 /**
  * Main usage command dispatcher
  *
@@ -2451,6 +2701,7 @@ static FeatherResult usage_help(const FeatherHostOps *ops, FeatherInterp interp,
  *   usage for command ?spec?   - define or get usage spec
  *   usage parse command args   - parse args and set local vars
  *   usage help command         - generate help text
+ *   usage complete script pos  - get completion candidates
  */
 FeatherResult feather_builtin_usage(const FeatherHostOps *ops, FeatherInterp interp,
                                     FeatherObj cmd, FeatherObj args) {
@@ -2482,10 +2733,38 @@ FeatherResult feather_builtin_usage(const FeatherHostOps *ops, FeatherInterp int
     return usage_help(ops, interp, args);
   }
 
+  if (feather_obj_eq_literal(ops, interp, subcmd, "complete")) {
+    /* usage complete script pos */
+    size_t complete_argc = ops->list.length(interp, args);
+    if (complete_argc != 2) {
+      ops->interp.set_result(interp,
+          ops->string.intern(interp, S("wrong # args: should be \"usage complete script pos\"")));
+      return TCL_ERROR;
+    }
+
+    /* Get script string */
+    FeatherObj scriptObj = ops->list.at(interp, args, 0);
+
+    /* Get position */
+    FeatherObj posObj = ops->list.at(interp, args, 1);
+    int64_t pos_i = 0;
+    if (!ops->integer.get(interp, posObj, &pos_i) || pos_i < 0) {
+      ops->interp.set_result(interp,
+          ops->string.intern(interp, S("usage complete: pos must be a non-negative integer")));
+      return TCL_ERROR;
+    }
+    size_t pos = (size_t)pos_i;
+
+    /* Perform completion */
+    FeatherObj result = usage_complete_impl(ops, interp, scriptObj, pos);
+    ops->interp.set_result(interp, result);
+    return TCL_OK;
+  }
+
   /* Unknown subcommand */
   FeatherObj msg = ops->string.intern(interp, "unknown subcommand \"", 20);
   msg = ops->string.concat(interp, msg, subcmd);
-  msg = ops->string.concat(interp, msg, ops->string.intern(interp, "\": must be for, help, or parse", 30));
+  msg = ops->string.concat(interp, msg, ops->string.intern(interp, S("\": must be complete, for, help, or parse")));
   ops->interp.set_result(interp, msg);
   return TCL_ERROR;
 }
