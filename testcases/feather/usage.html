@@ -25,7 +25,7 @@
   <test-case name="usage with unknown subcommand errors">
     <script>usage foo</script>
     <return>TCL_ERROR</return>
-    <error>unknown subcommand "foo": must be for, help, or parse</error>
+    <error>unknown subcommand "foo": must be complete, for, help, or parse</error>
     <stderr></stderr>
     <exit-code>1</exit-code>
   </test-case>
