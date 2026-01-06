@@ -3000,6 +3000,36 @@ static int token_is_flag(const FeatherHostOps *ops, FeatherInterp interp,
 }
 
 /**
+ * Strip <> or ?? brackets from argument name.
+ * Converts "<name>" -> "name" and "?name?" -> "name"
+ */
+static void strip_arg_brackets(char *name, size_t *len) {
+  if (*len < 2) return;
+
+  /* Check for <name> format */
+  if (name[0] == '<' && name[*len - 1] == '>') {
+    /* Shift left and reduce length */
+    for (size_t i = 0; i < *len - 2; i++) {
+      name[i] = name[i + 1];
+    }
+    *len -= 2;
+    name[*len] = '\0';
+    return;
+  }
+
+  /* Check for ?name? format */
+  if (name[0] == '?' && name[*len - 1] == '?') {
+    /* Shift left and reduce length */
+    for (size_t i = 0; i < *len - 2; i++) {
+      name[i] = name[i + 1];
+    }
+    *len -= 2;
+    name[*len] = '\0';
+    return;
+  }
+}
+
+/**
  * Generate argument placeholders for expected positional arguments.
  * Returns list of {text {} type arg-placeholder name <arg> help <help>} dicts.
  */
@@ -3061,7 +3091,7 @@ static FeatherObj get_arg_placeholders(const FeatherHostOps *ops, FeatherInterp 
         variadicSatisfied = 1;
       }
       if (!variadicSatisfied) {
-        /* Convert name to C string */
+        /* Convert name to C string and strip brackets */
         size_t nameLen = ops->string.byte_length(interp, name);
         char namebuf[256];
         if (nameLen >= sizeof(namebuf)) nameLen = sizeof(namebuf) - 1;
@@ -3069,6 +3099,7 @@ static FeatherObj get_arg_placeholders(const FeatherHostOps *ops, FeatherInterp 
           namebuf[j] = (char)ops->string.byte_at(interp, name, j);
         }
         namebuf[nameLen] = '\0';
+        strip_arg_brackets(namebuf, &nameLen);
 
         FeatherObj placeholder = make_arg_placeholder(ops, interp, namebuf, help);
         result = ops->list.push(interp, result, placeholder);
@@ -3079,7 +3110,7 @@ static FeatherObj get_arg_placeholders(const FeatherHostOps *ops, FeatherInterp 
       if (argIndex == posArgCount) {
         /* This is the next expected arg */
         if (required || argIndex == posArgCount) {
-          /* Show placeholder */
+          /* Show placeholder and strip brackets from name */
           size_t nameLen = ops->string.byte_length(interp, name);
           char namebuf[256];
           if (nameLen >= sizeof(namebuf)) nameLen = sizeof(namebuf) - 1;
@@ -3087,6 +3118,7 @@ static FeatherObj get_arg_placeholders(const FeatherHostOps *ops, FeatherInterp 
             namebuf[j] = (char)ops->string.byte_at(interp, name, j);
           }
           namebuf[nameLen] = '\0';
+          strip_arg_brackets(namebuf, &nameLen);
 
           FeatherObj placeholder = make_arg_placeholder(ops, interp, namebuf, help);
           result = ops->list.push(interp, result, placeholder);
