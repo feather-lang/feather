@@ -11,8 +11,8 @@
 
   <test-case name="complete command at position 0 empty">
     <script>
-usage for puts {arg &lt;text&gt;}
-usage for proc {arg &lt;name&gt;}
+usage for puts {arg <text>}
+usage for proc {arg <name>}
 usage complete {} 0
     </script>
     <return>TCL_OK</return>
@@ -24,8 +24,8 @@ usage complete {} 0
 
   <test-case name="complete command with prefix">
     <script>
-usage for puts {arg &lt;text&gt;}
-usage for proc {arg &lt;name&gt;}
+usage for puts {arg <text>}
+usage for proc {arg <name>}
 usage complete {pu} 2
     </script>
     <return>TCL_OK</return>
@@ -37,9 +37,9 @@ usage complete {pu} 2
 
   <test-case name="complete command with partial match">
     <script>
-usage for puts {arg &lt;text&gt;}
-usage for proc {arg &lt;name&gt;}
-usage for print {arg &lt;msg&gt;}
+usage for puts {arg <text>}
+usage for proc {arg <name>}
+usage for print {arg <msg>}
 usage complete {pr} 2
     </script>
     <return>TCL_OK</return>
@@ -51,20 +51,20 @@ usage complete {pr} 2
 
   <test-case name="no completion in middle of command args">
     <script>
-usage for puts {arg &lt;text&gt;}
+usage for puts {arg <text>}
 usage complete {puts hello} 10
     </script>
     <return>TCL_OK</return>
     <error></error>
-    <stdout>{}</stdout>
+    <stdout></stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
 
   <test-case name="complete at start after semicolon">
     <script>
-usage for puts {arg &lt;text&gt;}
-usage for set {arg &lt;var&gt; arg &lt;value&gt;}
+usage for puts {arg <text>}
+usage for set {arg <var> arg <value>}
 usage complete {puts hello; se} 14
     </script>
     <return>TCL_OK</return>
@@ -77,7 +77,7 @@ usage complete {puts hello; se} 14
   <test-case name="complete command with help text">
     <script>
 usage for test {
-  arg &lt;file&gt;
+  arg <file>
   help {Check if file exists}
 }
 usage complete {te} 2
@@ -105,8 +105,8 @@ expr {[llength $result] == 2}
 
   <test-case name="case sensitive command matching">
     <script>
-usage for Puts {arg &lt;text&gt;}
-usage for puts {arg &lt;text&gt;}
+usage for Puts {arg <text>}
+usage for puts {arg <text>}
 usage complete {P} 1
     </script>
     <return>TCL_OK</return>
@@ -118,7 +118,7 @@ usage complete {P} 1
 
   <test-case name="complete at end of script">
     <script>
-usage for puts {arg &lt;text&gt;}
+usage for puts {arg <text>}
 set script {pu}
 usage complete $script [string length $script]
     </script>
@@ -131,7 +131,7 @@ usage complete $script [string length $script]
 
   <test-case name="position beyond script length is clamped">
     <script>
-usage for puts {arg &lt;text&gt;}
+usage for puts {arg <text>}
 usage complete {pu} 1000
     </script>
     <return>TCL_OK</return>

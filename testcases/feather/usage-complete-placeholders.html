@@ -13,7 +13,7 @@
   <test-case name="complete placeholder for required arg">
     <script>
 usage for cmd {
-  arg &lt;input&gt; {help {Input file}}
+  arg <input> {help {Input file}}
   flag --verbose
 }
 usage complete {cmd } 4
@@ -28,8 +28,8 @@ usage complete {cmd } 4
   <test-case name="complete placeholder for second required arg">
     <script>
 usage for copy {
-  arg &lt;src&gt; {help {Source file}}
-  arg &lt;dst&gt; {help {Destination file}}
+  arg <src> {help {Source file}}
+  arg <dst> {help {Destination file}}
 }
 usage complete {copy file1.txt } 15
     </script>
@@ -43,8 +43,8 @@ usage complete {copy file1.txt } 15
   <test-case name="complete placeholder for first of multiple required">
     <script>
 usage for copy {
-  arg &lt;src&gt; {help {Source file}}
-  arg &lt;dst&gt; {help {Destination file}}
+  arg <src> {help {Source file}}
+  arg <dst> {help {Destination file}}
 }
 usage complete {copy } 5
     </script>
@@ -62,7 +62,7 @@ usage complete {copy } 5
   <test-case name="complete placeholder for optional arg after required">
     <script>
 usage for cmd {
-  arg &lt;input&gt; {help {Input file}}
+  arg <input> {help {Input file}}
   arg ?output? {help {Output file}}
   flag --verbose
 }
@@ -97,7 +97,7 @@ usage complete {cmd } 4
   <test-case name="complete placeholder for variadic arg when not satisfied">
     <script>
 usage for cmd {
-  arg &lt;files&gt;... {help {Input files}}
+  arg <files>... {help {Input files}}
   flag --verbose
 }
 usage complete {cmd } 4
@@ -112,7 +112,7 @@ usage complete {cmd } 4
   <test-case name="no placeholder for variadic arg after satisfied once">
     <script>
 usage for cmd {
-  arg &lt;files&gt;... {help {Input files}}
+  arg <files>... {help {Input files}}
   flag --verbose
 }
 usage complete {cmd file1.txt } 13
@@ -127,8 +127,8 @@ usage complete {cmd file1.txt } 13
   <test-case name="complete placeholder for variadic after required">
     <script>
 usage for cmd {
-  arg &lt;command&gt; {help {Command name}}
-  arg &lt;args&gt;... {help {Command arguments}}
+  arg <command> {help {Command name}}
+  arg <args>... {help {Command arguments}}
 }
 usage complete {cmd test } 9
     </script>
@@ -142,14 +142,14 @@ usage complete {cmd test } 9
   <test-case name="no placeholder for variadic after satisfied with required">
     <script>
 usage for cmd {
-  arg &lt;command&gt; {help {Command name}}
-  arg &lt;args&gt;... {help {Command arguments}}
+  arg <command> {help {Command name}}
+  arg <args>... {help {Command arguments}}
 }
 usage complete {cmd test arg1 } 14
     </script>
     <return>TCL_OK</return>
     <error></error>
-    <stdout>{}</stdout>
+    <stdout></stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
@@ -161,7 +161,7 @@ usage complete {cmd test arg1 } 14
   <test-case name="complete placeholder after flag">
     <script>
 usage for cmd {
-  arg &lt;input&gt; {help {Input file}}
+  arg <input> {help {Input file}}
   flag -v --verbose
 }
 usage complete {cmd --verbose } 13
@@ -176,8 +176,8 @@ usage complete {cmd --verbose } 13
   <test-case name="complete placeholder mixed with flags after first arg">
     <script>
 usage for cmd {
-  arg &lt;first&gt; {help {First arg}}
-  arg &lt;second&gt; {help {Second arg}}
+  arg <first> {help {First arg}}
+  arg <second> {help {Second arg}}
   flag -v --verbose
   flag -q --quiet
 }
@@ -198,7 +198,7 @@ usage complete {cmd arg1 -v } 12
     <script>
 usage for git {
   cmd commit {
-    arg &lt;msg&gt; {help {Commit message}}
+    arg <msg> {help {Commit message}}
     flag -a --all
   }
 }
@@ -218,14 +218,14 @@ usage complete {git commit } 11
   <test-case name="no placeholder when all args satisfied">
     <script>
 usage for copy {
-  arg &lt;src&gt;
-  arg &lt;dst&gt;
+  arg <src>
+  arg <dst>
 }
 usage complete {copy file1.txt file2.txt } 25
     </script>
     <return>TCL_OK</return>
     <error></error>
-    <stdout>{}</stdout>
+    <stdout></stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
@@ -237,7 +237,7 @@ usage complete {copy file1.txt file2.txt } 25
   <test-case name="complete placeholder with no help text">
     <script>
 usage for cmd {
-  arg &lt;input&gt;
+  arg <input>
 }
 usage complete {cmd } 4
     </script>
@@ -251,7 +251,7 @@ usage complete {cmd } 4
   <test-case name="complete placeholder with complex arg name">
     <script>
 usage for cmd {
-  arg &lt;my-file&gt; {help {A file}}
+  arg <my-file> {help {A file}}
 }
 usage complete {cmd } 4
     </script>
