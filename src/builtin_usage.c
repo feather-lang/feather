@@ -2758,10 +2758,17 @@ static FeatherObj complete_flags(const FeatherHostOps *ops, FeatherInterp interp
     /* Get help text */
     FeatherObj help = dict_get_str(ops, interp, entry, K_HELP);
 
-    /* Add short flag if present */
+    /* Check if either short or long flag matches prefix */
     FeatherObj shortFlag = dict_get_str(ops, interp, entry, K_SHORT);
+    FeatherObj longFlag = dict_get_str(ops, interp, entry, K_LONG);
+
+    int shortMatches = 0;
+    int longMatches = 0;
+    FeatherObj shortFlagStr = ops->string.intern(interp, "", 0);
+    FeatherObj longFlagStr = ops->string.intern(interp, "", 0);
+
+    /* Build and check short flag */
     if (ops->string.byte_length(interp, shortFlag) > 0) {
-      /* Build -X format */
       size_t flagLen = ops->string.byte_length(interp, shortFlag);
       char flagbuf[64];
       flagbuf[0] = '-';
@@ -2769,19 +2776,12 @@ static FeatherObj complete_flags(const FeatherHostOps *ops, FeatherInterp interp
         flagbuf[j + 1] = (char)ops->string.byte_at(interp, shortFlag, j);
       }
       flagbuf[flagLen + 1] = '\0';
-
-      /* Create flag string and check prefix */
-      FeatherObj flagStr = ops->string.intern(interp, flagbuf, flagLen + 1);
-      if (obj_has_prefix(ops, interp, flagStr, prefix)) {
-        FeatherObj completion = make_completion(ops, interp, flagbuf, T_FLAG, help);
-        unsorted = ops->list.push(interp, unsorted, completion);
-      }
+      shortFlagStr = ops->string.intern(interp, flagbuf, flagLen + 1);
+      shortMatches = obj_has_prefix(ops, interp, shortFlagStr, prefix);
     }
 
-    /* Add long flag if present */
-    FeatherObj longFlag = dict_get_str(ops, interp, entry, K_LONG);
+    /* Build and check long flag */
     if (ops->string.byte_length(interp, longFlag) > 0) {
-      /* Build --XXX format */
       size_t flagLen = ops->string.byte_length(interp, longFlag);
       char flagbuf[64];
       flagbuf[0] = '-';
@@ -2790,11 +2790,30 @@ static FeatherObj complete_flags(const FeatherHostOps *ops, FeatherInterp interp
         flagbuf[j + 2] = (char)ops->string.byte_at(interp, longFlag, j);
       }
       flagbuf[flagLen + 2] = '\0';
+      longFlagStr = ops->string.intern(interp, flagbuf, flagLen + 2);
+      longMatches = obj_has_prefix(ops, interp, longFlagStr, prefix);
+    }
 
-      /* Create flag string and check prefix */
-      FeatherObj flagStr = ops->string.intern(interp, flagbuf, flagLen + 2);
-      if (obj_has_prefix(ops, interp, flagStr, prefix)) {
-        FeatherObj completion = make_completion(ops, interp, flagbuf, T_FLAG, help);
+    /* If either form matches, include both forms */
+    if (shortMatches || longMatches) {
+      if (ops->string.byte_length(interp, shortFlag) > 0) {
+        size_t len = ops->string.byte_length(interp, shortFlagStr);
+        char buf[64];
+        for (size_t j = 0; j < len && j < sizeof(buf) - 1; j++) {
+          buf[j] = (char)ops->string.byte_at(interp, shortFlagStr, j);
+        }
+        buf[len] = '\0';
+        FeatherObj completion = make_completion(ops, interp, buf, T_FLAG, help);
+        unsorted = ops->list.push(interp, unsorted, completion);
+      }
+      if (ops->string.byte_length(interp, longFlag) > 0) {
+        size_t len = ops->string.byte_length(interp, longFlagStr);
+        char buf[64];
+        for (size_t j = 0; j < len && j < sizeof(buf) - 1; j++) {
+          buf[j] = (char)ops->string.byte_at(interp, longFlagStr, j);
+        }
+        buf[len] = '\0';
+        FeatherObj completion = make_completion(ops, interp, buf, T_FLAG, help);
         unsorted = ops->list.push(interp, unsorted, completion);
       }
     }
@@ -3303,6 +3322,8 @@ static FeatherObj usage_complete_impl(const FeatherHostOps *ops, FeatherInterp i
     /* Check if second token is a subcommand */
     FeatherObj secondToken = ops->list.at(interp, tokens, 1);
     FeatherObj activeSpec = parsedSpec;
+    FeatherObj activeTokens = tokens;
+    int inSubcommand = 0;
 
     /* Look for matching subcommand in spec */
     size_t specLen = ops->list.length(interp, parsedSpec);
@@ -3317,6 +3338,14 @@ static FeatherObj usage_complete_impl(const FeatherHostOps *ops, FeatherInterp i
           FeatherObj subspec = dict_get_str(ops, interp, entry, K_SPEC);
           if (!ops->list.is_nil(interp, subspec)) {
             activeSpec = subspec;
+            inSubcommand = 1;
+
+            /* Create a new tokens list starting from the subcommand */
+            /* For "git commit -a", we want ["commit", "-a"] not ["git", "commit", "-a"] */
+            activeTokens = ops->list.create(interp);
+            for (size_t k = 1; k < numTokens; k++) {
+              activeTokens = ops->list.push(interp, activeTokens, ops->list.at(interp, tokens, k));
+            }
 
             /* Check if we're completing a flag value in the subcommand */
             if (numTokens >= 3) {
@@ -3337,7 +3366,7 @@ static FeatherObj usage_complete_impl(const FeatherHostOps *ops, FeatherInterp i
     }
 
     /* Complete flags and argument placeholders from active spec */
-    FeatherObj placeholders = get_arg_placeholders(ops, interp, activeSpec, tokens, prefix);
+    FeatherObj placeholders = get_arg_placeholders(ops, interp, activeSpec, activeTokens, prefix);
     FeatherObj flags = complete_flags(ops, interp, activeSpec, prefix);
 
     /* Combine placeholders and flags (placeholders first) */
