@@ -2650,9 +2650,17 @@ static FeatherObj complete_commands(const FeatherHostOps *ops, FeatherInterp int
     FeatherObj specEntry = ops->dict.get(interp, specs, cmdName);
 
     /* Get help text from spec entry if available */
+    /* Look for meta entry in parsed spec to get help text */
     FeatherObj help = ops->string.intern(interp, "", 0);
     if (!ops->list.is_nil(interp, specEntry)) {
-      help = dict_get_str(ops, interp, specEntry, K_HELP);
+      FeatherObj parsedSpec = dict_get_str(ops, interp, specEntry, K_SPEC);
+      size_t specLen = ops->list.length(interp, parsedSpec);
+      if (specLen > 0) {
+        FeatherObj firstEntry = ops->list.at(interp, parsedSpec, 0);
+        if (entry_is_type(ops, interp, firstEntry, T_META)) {
+          help = dict_get_str(ops, interp, firstEntry, K_ABOUT);
+        }
+      }
     }
 
     /* Convert cmdName to C string for make_completion */
@@ -2939,17 +2947,27 @@ static FeatherObj complete_choices(const FeatherHostOps *ops, FeatherInterp inte
 }
 
 /**
+ * Check if an object is an empty dict (used to detect "not found" returns).
+ */
+static int is_empty_dict(const FeatherHostOps *ops, FeatherInterp interp, FeatherObj obj) {
+  if (!ops->dict.is_dict(interp, obj)) {
+    return 1; /* Not a dict, treat as empty */
+  }
+  return ops->dict.size(interp, obj) == 0;
+}
+
+/**
  * Find a flag entry in a spec by matching against short or long form.
- * Returns the flag entry or nil if not found.
+ * Returns the flag entry dict if found, or an empty dict if not found.
  */
 static FeatherObj find_flag_entry(const FeatherHostOps *ops, FeatherInterp interp,
                                    FeatherObj spec, FeatherObj flagToken) {
   /* Extract flag name (strip leading dashes) */
   size_t flagLen = ops->string.byte_length(interp, flagToken);
-  if (flagLen == 0) return ops->list.create(interp);
+  if (flagLen == 0) return ops->dict.create(interp);
 
   int firstChar = ops->string.byte_at(interp, flagToken, 0);
-  if (firstChar != '-') return ops->list.create(interp);
+  if (firstChar != '-') return ops->dict.create(interp);
 
   /* Determine if short (-X) or long (--XXX) */
   int isLong = 0;
@@ -2986,7 +3004,7 @@ static FeatherObj find_flag_entry(const FeatherHostOps *ops, FeatherInterp inter
     }
   }
 
-  return ops->list.create(interp); /* Not found */
+  return ops->dict.create(interp); /* Not found - return empty dict */
 }
 
 /**
@@ -3048,7 +3066,8 @@ static FeatherObj get_arg_placeholders(const FeatherHostOps *ops, FeatherInterp 
     if (token_is_flag(ops, interp, token)) {
       /* Check if this flag consumes next token */
       FeatherObj flagEntry = find_flag_entry(ops, interp, spec, token);
-      if (!ops->list.is_nil(interp, flagEntry)) {
+      /* find_flag_entry returns empty dict if not found */
+      if (ops->dict.is_dict(interp, flagEntry) && ops->dict.size(interp, flagEntry) > 0) {
         int hasValue = dict_get_int(ops, interp, flagEntry, K_HAS_VALUE);
         if (hasValue && i + 1 < numTokens) {
           i++; /* Skip the flag's value */
@@ -3160,15 +3179,24 @@ static FeatherObj usage_complete_impl(const FeatherHostOps *ops, FeatherInterp i
   /* Extract the partial token being completed */
   FeatherObj prefix = ops->string.slice(interp, scriptObj, token_start, pos);
 
-  /* Tokenize the script up to the cursor to understand context */
+  /* Find the last semicolon before token_start to determine command boundary */
+  size_t cmd_start = 0;
+  for (size_t j = 0; j < token_start; j++) {
+    int c = ops->string.byte_at(interp, scriptObj, j);
+    if (c == ';') {
+      cmd_start = j + 1; /* Start after the semicolon */
+    }
+  }
+
+  /* Tokenize the script from cmd_start to the cursor to understand context */
   /* Simple tokenization: split by whitespace, track tokens before cursor */
   FeatherObj tokens = ops->list.create(interp);
-  size_t i = 0;
+  size_t i = cmd_start;
   while (i < token_start) {
     /* Skip whitespace */
     while (i < token_start) {
       int c = ops->string.byte_at(interp, scriptObj, i);
-      if (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == ';') {
+      if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
         i++;
       } else {
         break;
@@ -3180,7 +3208,7 @@ static FeatherObj usage_complete_impl(const FeatherHostOps *ops, FeatherInterp i
     size_t tok_start = i;
     while (i < token_start) {
       int c = ops->string.byte_at(interp, scriptObj, i);
-      if (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == ';') {
+      if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
         break;
       }
       i++;
@@ -3254,8 +3282,9 @@ static FeatherObj usage_complete_impl(const FeatherHostOps *ops, FeatherInterp i
 
       /* Try to find this flag in the spec */
       FeatherObj flagEntry = find_flag_entry(ops, interp, parsedSpec, prevToken);
-      if (!ops->list.is_nil(interp, flagEntry)) {
-        /* Check if flag has a value */
+      /* find_flag_entry returns empty dict if not found, check size directly */
+      if (ops->dict.is_dict(interp, flagEntry) && ops->dict.size(interp, flagEntry) > 0) {
+        /* Found the flag entry, check if it has a value */
         int hasValue = dict_get_int(ops, interp, flagEntry, K_HAS_VALUE);
         if (hasValue) {
           /* Complete from choices if defined */
@@ -3288,7 +3317,8 @@ static FeatherObj usage_complete_impl(const FeatherHostOps *ops, FeatherInterp i
             if (numTokens >= 3) {
               FeatherObj lastToken = ops->list.at(interp, tokens, numTokens - 1);
               FeatherObj subflagEntry = find_flag_entry(ops, interp, activeSpec, lastToken);
-              if (!ops->list.is_nil(interp, subflagEntry)) {
+              /* find_flag_entry returns empty dict if not found */
+              if (ops->dict.is_dict(interp, subflagEntry) && ops->dict.size(interp, subflagEntry) > 0) {
                 int hasValue = dict_get_int(ops, interp, subflagEntry, K_HAS_VALUE);
                 if (hasValue) {
                   return complete_choices(ops, interp, subflagEntry, prefix);
