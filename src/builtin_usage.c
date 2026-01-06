@@ -3052,7 +3052,7 @@ static void strip_arg_brackets(char *name, size_t *len) {
  * Returns list of {text {} type arg-placeholder name <arg> help <help>} dicts.
  */
 static FeatherObj get_arg_placeholders(const FeatherHostOps *ops, FeatherInterp interp,
-                                        FeatherObj spec, FeatherObj tokens) {
+                                        FeatherObj spec, FeatherObj tokens, FeatherObj prefix) {
   FeatherObj result = ops->list.create(interp);
 
   /* Count how many positional arguments have been provided */
@@ -3077,6 +3077,11 @@ static FeatherObj get_arg_placeholders(const FeatherHostOps *ops, FeatherInterp 
       /* Positional argument */
       posArgCount++;
     }
+  }
+
+  /* If we have a non-empty prefix that's not a flag, count it as being provided */
+  if (ops->string.byte_length(interp, prefix) > 0 && !token_is_flag(ops, interp, prefix)) {
+    posArgCount++;
   }
 
   /* Find arg entries in spec and determine which to show */
@@ -3260,7 +3265,7 @@ static FeatherObj usage_complete_impl(const FeatherHostOps *ops, FeatherInterp i
       return complete_subcommands(ops, interp, parsedSpec, prefix);
     } else {
       /* Complete flags and argument placeholders */
-      FeatherObj placeholders = get_arg_placeholders(ops, interp, parsedSpec, tokens);
+      FeatherObj placeholders = get_arg_placeholders(ops, interp, parsedSpec, tokens, prefix);
       FeatherObj flags = complete_flags(ops, interp, parsedSpec, prefix);
 
       /* Combine placeholders and flags (placeholders first) */
@@ -3331,8 +3336,18 @@ static FeatherObj usage_complete_impl(const FeatherHostOps *ops, FeatherInterp i
       }
     }
 
-    /* Complete flags from active spec */
-    return complete_flags(ops, interp, activeSpec, prefix);
+    /* Complete flags and argument placeholders from active spec */
+    FeatherObj placeholders = get_arg_placeholders(ops, interp, activeSpec, tokens, prefix);
+    FeatherObj flags = complete_flags(ops, interp, activeSpec, prefix);
+
+    /* Combine placeholders and flags (placeholders first) */
+    size_t numFlags = ops->list.length(interp, flags);
+    for (size_t i = 0; i < numFlags; i++) {
+      FeatherObj flag = ops->list.at(interp, flags, i);
+      placeholders = ops->list.push(interp, placeholders, flag);
+    }
+
+    return placeholders;
   }
 
   /* Default: return empty list */
