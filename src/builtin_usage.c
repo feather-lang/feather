@@ -3285,7 +3285,13 @@ static FeatherObj usage_complete_impl(const FeatherHostOps *ops, FeatherInterp i
     } else {
       /* Complete flags and argument placeholders */
       FeatherObj placeholders = get_arg_placeholders(ops, interp, parsedSpec, tokens, prefix);
-      FeatherObj flags = complete_flags(ops, interp, parsedSpec, prefix);
+
+      /* For flags, use empty prefix if current prefix is not a flag */
+      FeatherObj flag_prefix = prefix;
+      if (!token_is_flag(ops, interp, prefix)) {
+        flag_prefix = ops->string.intern(interp, "", 0);
+      }
+      FeatherObj flags = complete_flags(ops, interp, parsedSpec, flag_prefix);
 
       /* Combine placeholders and flags (placeholders first) */
       size_t numFlags = ops->list.length(interp, flags);
@@ -3367,7 +3373,13 @@ static FeatherObj usage_complete_impl(const FeatherHostOps *ops, FeatherInterp i
 
     /* Complete flags and argument placeholders from active spec */
     FeatherObj placeholders = get_arg_placeholders(ops, interp, activeSpec, activeTokens, prefix);
-    FeatherObj flags = complete_flags(ops, interp, activeSpec, prefix);
+
+    /* For flags, use empty prefix if current prefix is not a flag */
+    FeatherObj flag_prefix = prefix;
+    if (!token_is_flag(ops, interp, prefix)) {
+      flag_prefix = ops->string.intern(interp, "", 0);
+    }
+    FeatherObj flags = complete_flags(ops, interp, activeSpec, flag_prefix);
 
     /* Combine placeholders and flags (placeholders first) */
     size_t numFlags = ops->list.length(interp, flags);
