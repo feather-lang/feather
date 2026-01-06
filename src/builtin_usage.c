@@ -3260,17 +3260,17 @@ static FeatherObj usage_complete_impl(const FeatherHostOps *ops, FeatherInterp i
       return complete_subcommands(ops, interp, parsedSpec, prefix);
     } else {
       /* Complete flags and argument placeholders */
-      FeatherObj flags = complete_flags(ops, interp, parsedSpec, prefix);
       FeatherObj placeholders = get_arg_placeholders(ops, interp, parsedSpec, tokens);
+      FeatherObj flags = complete_flags(ops, interp, parsedSpec, prefix);
 
-      /* Combine flags and placeholders */
-      size_t numPlaceholders = ops->list.length(interp, placeholders);
-      for (size_t i = 0; i < numPlaceholders; i++) {
-        FeatherObj placeholder = ops->list.at(interp, placeholders, i);
-        flags = ops->list.push(interp, flags, placeholder);
+      /* Combine placeholders and flags (placeholders first) */
+      size_t numFlags = ops->list.length(interp, flags);
+      for (size_t i = 0; i < numFlags; i++) {
+        FeatherObj flag = ops->list.at(interp, flags, i);
+        placeholders = ops->list.push(interp, placeholders, flag);
       }
 
-      return flags;
+      return placeholders;
     }
   }
 

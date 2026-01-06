@@ -12,9 +12,9 @@
   <test-case name="complete subcommand with empty prefix">
     <script>
 usage for git {
-  cmd clone {arg &lt;repo&gt;}
-  cmd commit {arg &lt;msg&gt;}
-  cmd checkout {arg &lt;branch&gt;}
+  cmd clone {arg <repo>}
+  cmd commit {arg <msg>}
+  cmd checkout {arg <branch>}
 }
 usage complete {git } 4
     </script>
@@ -28,9 +28,9 @@ usage complete {git } 4
   <test-case name="complete subcommand with prefix">
     <script>
 usage for git {
-  cmd clone {arg &lt;repo&gt;}
-  cmd commit {arg &lt;msg&gt;}
-  cmd checkout {arg &lt;branch&gt;}
+  cmd clone {arg <repo>}
+  cmd commit {arg <msg>}
+  cmd checkout {arg <branch>}
 }
 usage complete {git co} 6
     </script>
@@ -45,11 +45,11 @@ usage complete {git co} 6
     <script>
 usage for git {
   cmd clone {
-    arg &lt;repo&gt;
+    arg <repo>
     help {Clone a repository}
   }
   cmd commit {
-    arg &lt;msg&gt;
+    arg <msg>
     help {Create a commit}
   }
 }
@@ -69,7 +69,7 @@ usage complete {git cl} 6
   <test-case name="complete flags when no subcommands">
     <script>
 usage for compile {
-  arg &lt;source&gt;
+  arg <source>
   flag --verbose {help {Enable verbose output}}
   flag -O --optimize ?level? {help {Optimization level}}
 }
@@ -85,7 +85,7 @@ usage complete {compile file.c } 15
   <test-case name="complete flags with dash prefix">
     <script>
 usage for compile {
-  arg &lt;source&gt;
+  arg <source>
   flag --verbose
   flag -O --optimize
 }
@@ -101,7 +101,7 @@ usage complete {compile file.c -} 16
   <test-case name="complete flags with long prefix">
     <script>
 usage for compile {
-  arg &lt;source&gt;
+  arg <source>
   flag --verbose
   flag --version
   flag -O --optimize
@@ -119,7 +119,7 @@ usage complete {compile file.c --ver} 20
     <script>
 usage for git {
   cmd commit {
-    flag -m --message &lt;msg&gt; {help {Commit message}}
+    flag -m --message <msg> {help {Commit message}}
     flag -a --all {help {Stage all changes}}
   }
 }
@@ -136,7 +136,7 @@ usage complete {git commit } 11
     <script>
 usage for git {
   cmd commit {
-    flag -m --message &lt;msg&gt;
+    flag -m --message <msg>
     flag -a --all
   }
 }
@@ -156,12 +156,12 @@ usage complete {git commit -a} 13
   <test-case name="no hidden subcommands in completion">
     <script>
 usage for git {
-  cmd clone {arg &lt;repo&gt;}
+  cmd clone {arg <repo>}
   cmd internal {
-    arg &lt;cmd&gt;
+    arg <cmd>
     hide
   }
-  cmd commit {arg &lt;msg&gt;}
+  cmd commit {arg <msg>}
 }
 usage complete {git } 4
     </script>
@@ -194,12 +194,12 @@ usage complete {cmd } 4
 
   <test-case name="no results for unknown command">
     <script>
-usage for puts {arg &lt;text&gt;}
+usage for puts {arg <text>}
 usage complete {undefined } 10
     </script>
     <return>TCL_OK</return>
     <error></error>
-    <stdout>{}</stdout>
+    <stdout></stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
@@ -208,7 +208,7 @@ usage complete {undefined } 10
     <script>
 usage for git {
   cmd commit {
-    arg &lt;msg&gt;
+    arg <msg>
     flag -a --all
   }
 }
@@ -224,9 +224,9 @@ usage complete {git commit "my message" } 24
   <test-case name="subcommand spec order preserved">
     <script>
 usage for test {
-  cmd zebra {arg &lt;x&gt;}
-  cmd apple {arg &lt;y&gt;}
-  cmd banana {arg &lt;z&gt;}
+  cmd zebra {arg <x>}
+  cmd apple {arg <y>}
+  cmd banana {arg <z>}
 }
 set result [usage complete {test } 5]
 list [lindex [lindex $result 0] 1] \

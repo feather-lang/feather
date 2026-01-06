@@ -12,7 +12,7 @@
   <test-case name="complete choices with empty prefix">
     <script>
 usage for compile {
-  flag --format &lt;fmt&gt; {
+  flag --format <fmt> {
     help {Output format}
     choices {json yaml toml}
   }
@@ -29,7 +29,7 @@ usage complete {compile --format } 18
   <test-case name="complete choices with prefix match">
     <script>
 usage for compile {
-  flag --format &lt;fmt&gt; {
+  flag --format <fmt> {
     help {Output format}
     choices {json yaml toml}
   }
@@ -46,7 +46,7 @@ usage complete {compile --format j} 19
   <test-case name="complete choices partial match">
     <script>
 usage for compile {
-  flag --format &lt;fmt&gt; {
+  flag --format <fmt> {
     choices {json yaml toml xml html}
   }
 }
@@ -66,7 +66,7 @@ usage complete {compile --format xm} 20
   <test-case name="complete choices for short flag">
     <script>
 usage for compile {
-  flag -f &lt;fmt&gt; {
+  flag -f <fmt> {
     help {Output format}
     choices {json yaml toml}
   }
@@ -88,7 +88,7 @@ usage complete {compile -f } 11
     <script>
 usage for git {
   cmd merge {
-    flag --strategy &lt;s&gt; {
+    flag --strategy <s> {
       help {Merge strategy}
       choices {recursive ours theirs}
     }
@@ -110,7 +110,7 @@ usage complete {git merge --strategy } 24
   <test-case name="no choices returns empty">
     <script>
 usage for cmd {
-  flag --file &lt;path&gt; {
+  flag --file <path> {
     help {Input file}
   }
 }
@@ -118,7 +118,7 @@ usage complete {cmd --file } 11
     </script>
     <return>TCL_OK</return>
     <error></error>
-    <stdout>{}</stdout>
+    <stdout></stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
@@ -144,8 +144,8 @@ usage complete {cmd --verbose } 16
   <test-case name="complete choices after other args">
     <script>
 usage for deploy {
-  arg &lt;app&gt;
-  flag --env &lt;e&gt; {
+  arg <app>
+  flag --env <e> {
     choices {dev staging prod}
   }
 }
@@ -165,7 +165,7 @@ usage complete {deploy myapp --env } 20
   <test-case name="choices are case sensitive">
     <script>
 usage for cmd {
-  flag --mode &lt;m&gt; {
+  flag --mode <m> {
     choices {Debug Release Test}
   }
 }
@@ -181,7 +181,7 @@ usage complete {compile --mode D} 18
   <test-case name="empty choices list returns empty">
     <script>
 usage for cmd {
-  flag --opt &lt;val&gt; {
+  flag --opt <val> {
     choices {}
   }
 }
@@ -189,7 +189,7 @@ usage complete {cmd --opt } 10
     </script>
     <return>TCL_OK</return>
     <error></error>
-    <stdout>{}</stdout>
+    <stdout></stdout>
     <stderr></stderr>
     <exit-code>0</exit-code>
   </test-case>
@@ -201,7 +201,7 @@ usage complete {cmd --opt } 10
   <test-case name="complete choices for long flag form">
     <script>
 usage for compile {
-  flag -f --format &lt;fmt&gt; {
+  flag -f --format <fmt> {
     choices {json yaml}
   }
 }
@@ -217,7 +217,7 @@ usage complete {compile --format } 18
   <test-case name="complete choices for short flag form">
     <script>
 usage for compile {
-  flag -f --format &lt;fmt&gt; {
+  flag -f --format <fmt> {
     choices {json yaml}
   }
 }
