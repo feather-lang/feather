@@ -10,27 +10,28 @@ import "github.com/feather-lang/feather"
 #include <string.h>
 
 // Handle types (size_t to match Go's export)
-typedef size_t FeatherInterpHandle;
-typedef size_t FeatherObjHandle;
+typedef size_t FeatherInterp;
+typedef size_t FeatherObj;
 
 // Callback type for custom commands registered from C
-// Commands receive handles and can use FeatherGetString, FeatherGetInt, etc. to extract values
-typedef int (*FeatherCommandCallback)(void *userData, FeatherInterpHandle interp,
-                                       int argc, FeatherObjHandle *argv,
-                                       FeatherObjHandle *result, char **error);
+// Commands receive handles and can use FeatherAsInt, FeatherAsDouble, etc.
+// to extract values. Error message is a static string (not freed).
+typedef int (*FeatherCmd)(void *data, FeatherInterp interp,
+                          size_t argc, FeatherObj *argv,
+                          FeatherObj *result, const char **err);
 
 // Wrapper function to call C callback from Go
-static inline int callCCallback(FeatherCommandCallback cb, void *userData,
-                                FeatherInterpHandle interp, int argc, FeatherObjHandle *argv,
-                                FeatherObjHandle *result, char **error) {
-    return cb(userData, interp, argc, argv, result, error);
+static inline int callCCallback(FeatherCmd cb, void *data,
+                                FeatherInterp interp, size_t argc, FeatherObj *argv,
+                                FeatherObj *result, const char **err) {
+    return cb(data, interp, argc, argv, result, err);
 }
 
 // Foreign type callbacks
 typedef void* (*FeatherForeignNewFunc)(void *userData);
-typedef int (*FeatherForeignInvokeFunc)(void *instance, FeatherInterpHandle interp,
-                                         const char *method, int argc, FeatherObjHandle *argv,
-                                         FeatherObjHandle *result, char **error);
+typedef int (*FeatherForeignInvokeFunc)(void *instance, FeatherInterp interp,
+                                         const char *method, size_t argc, FeatherObj *argv,
+                                         FeatherObj *result, const char **err);
 typedef void (*FeatherForeignDestroyFunc)(void *instance);
 
 // Wrapper functions for foreign type callbacks
@@ -39,10 +40,10 @@ static inline void* callForeignNew(FeatherForeignNewFunc fn, void *userData) {
 }
 
 static inline int callForeignInvoke(FeatherForeignInvokeFunc fn, void *instance,
-                                    FeatherInterpHandle interp, const char *method,
-                                    int argc, FeatherObjHandle *argv,
-                                    FeatherObjHandle *result, char **error) {
-    return fn(instance, interp, method, argc, argv, result, error);
+                                    FeatherInterp interp, const char *method,
+                                    size_t argc, FeatherObj *argv,
+                                    FeatherObj *result, const char **err) {
+    return fn(instance, interp, method, argc, argv, result, err);
 }
 
 static inline void callForeignDestroy(FeatherForeignDestroyFunc fn, void *instance) {
@@ -65,10 +66,10 @@ import (
 type exportState struct {
 	interp *feather.Interp
 
-	// Object handles: maps handle ID -> *feather.Obj
-	objects    map[uint64]*feather.Obj
-	nextObjID  uint64
-	objRefCount map[uint64]int // Reference counts for objects
+	// Arena: maps handle ID -> *feather.Obj
+	// Cleared at the START of each FeatherEval() call
+	arena      map[uint64]*feather.Obj
+	nextArenaID uint64
 	mu         sync.Mutex
 
 	// Command callbacks
@@ -80,7 +81,7 @@ type exportState struct {
 
 // cCommandInfo stores C callback info
 type cCommandInfo struct {
-	callback C.FeatherCommandCallback
+	callback C.FeatherCmd
 	userData unsafe.Pointer
 }
 
@@ -112,18 +113,17 @@ func getExportState(id uint64) *exportState {
 	return exportStates[id]
 }
 
-// storeObj stores an object and returns its handle
-func (s *exportState) storeObj(obj *feather.Obj) uint64 {
+// registerObj stores an object in the arena and returns its handle
+func (s *exportState) registerObj(obj *feather.Obj) uint64 {
 	if obj == nil {
 		return 0
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.nextObjID++
-	handle := s.nextObjID
-	s.objects[handle] = obj
-	s.objRefCount[handle] = 1
+	s.nextArenaID++
+	handle := s.nextArenaID
+	s.arena[handle] = obj
 	return handle
 }
 
@@ -134,41 +134,19 @@ func (s *exportState) getObj(handle uint64) *feather.Obj {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.objects[handle]
+	return s.arena[handle]
 }
 
-// retainObj increments reference count
-func (s *exportState) retainObj(handle uint64) {
-	if handle == 0 {
-		return
-	}
+// clearArena clears all arena objects (called at start of eval)
+func (s *exportState) clearArena() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, exists := s.objRefCount[handle]; exists {
-		s.objRefCount[handle]++
-	}
-}
-
-// releaseObj decrements reference count and removes if zero
-func (s *exportState) releaseObj(handle uint64) {
-	if handle == 0 {
-		return
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if count, exists := s.objRefCount[handle]; exists {
-		count--
-		if count <= 0 {
-			delete(s.objects, handle)
-			delete(s.objRefCount, handle)
-		} else {
-			s.objRefCount[handle] = count
-		}
-	}
+	s.arena = make(map[uint64]*feather.Obj)
+	s.nextArenaID = 0
 }
 
 // =============================================================================
-// Lifecycle (2 functions)
+// Lifecycle
 // =============================================================================
 
 //export FeatherNew
@@ -177,9 +155,8 @@ func FeatherNew() C.size_t {
 
 	state := &exportState{
 		interp:       interp,
-		objects:      make(map[uint64]*feather.Obj),
-		nextObjID:    0,
-		objRefCount:  make(map[uint64]int),
+		arena:        make(map[uint64]*feather.Obj),
+		nextArenaID:  0,
 		callbacks:    make(map[string]*cCommandInfo),
 		foreignTypes: make(map[string]*cForeignTypeInfo),
 	}
@@ -208,7 +185,7 @@ func FeatherClose(interp C.size_t) {
 }
 
 // =============================================================================
-// Parsing and Evaluation (4 functions)
+// Evaluation
 // =============================================================================
 
 // Parse status constants (matching Go's feather.ParseStatus)
@@ -251,7 +228,7 @@ func FeatherParseResult(interp C.size_t, script *C.char, length C.size_t, result
 	// Store the result string (e.g., "{INCOMPLETE 5 17}" or "{ERROR 0 10 {message}}")
 	if result != nil && pr.Result != "" {
 		resultObj := state.interp.String(pr.Result)
-		*result = C.size_t(state.storeObj(resultObj))
+		*result = C.size_t(state.registerObj(resultObj))
 	}
 
 	// Return error message for parse errors
@@ -273,66 +250,33 @@ func FeatherParseResult(interp C.size_t, script *C.char, length C.size_t, result
 func FeatherEval(interp C.size_t, script *C.char, length C.size_t, result *C.size_t) C.int {
 	state := getExportState(uint64(interp))
 	if state == nil {
-		return 1 // FEATHER_ERROR
+		return 1 // error
 	}
+
+	// Clear arena at the START of each eval
+	state.clearArena()
 
 	goScript := C.GoStringN(script, C.int(length))
 	obj, err := state.interp.Eval(goScript)
 	if err != nil {
 		// On error, store error message as result
 		errObj := state.interp.String(err.Error())
-		handle := state.storeObj(errObj)
+		handle := state.registerObj(errObj)
 		if result != nil {
 			*result = C.size_t(handle)
 		}
 		return 1
 	}
 
-	handle := state.storeObj(obj)
+	handle := state.registerObj(obj)
 	if result != nil {
 		*result = C.size_t(handle)
 	}
-	return 0 // FEATHER_OK
-}
-
-//export FeatherCall
-func FeatherCall(interp C.size_t, cmd *C.char, argc C.int, argv *C.size_t, result *C.size_t) C.int {
-	state := getExportState(uint64(interp))
-	if state == nil {
-		return 1
-	}
-
-	cmdName := C.GoString(cmd)
-
-	// Convert argv handles to Go args
-	args := make([]any, int(argc))
-	if argc > 0 && argv != nil {
-		argHandles := unsafe.Slice(argv, int(argc))
-		for i := 0; i < int(argc); i++ {
-			obj := state.getObj(uint64(argHandles[i]))
-			args[i] = obj
-		}
-	}
-
-	obj, err := state.interp.Call(cmdName, args...)
-	if err != nil {
-		errObj := state.interp.String(err.Error())
-		handle := state.storeObj(errObj)
-		if result != nil {
-			*result = C.size_t(handle)
-		}
-		return 1
-	}
-
-	handle := state.storeObj(obj)
-	if result != nil {
-		*result = C.size_t(handle)
-	}
-	return 0
+	return 0 // OK
 }
 
 // =============================================================================
-// Object Creation (4 functions)
+// Object Creation
 // =============================================================================
 
 //export FeatherString
@@ -344,7 +288,7 @@ func FeatherString(interp C.size_t, s *C.char, length C.size_t) C.size_t {
 
 	goStr := C.GoStringN(s, C.int(length))
 	obj := state.interp.String(goStr)
-	return C.size_t(state.storeObj(obj))
+	return C.size_t(state.registerObj(obj))
 }
 
 //export FeatherInt
@@ -355,7 +299,7 @@ func FeatherInt(interp C.size_t, val C.int64_t) C.size_t {
 	}
 
 	obj := state.interp.Int(int64(val))
-	return C.size_t(state.storeObj(obj))
+	return C.size_t(state.registerObj(obj))
 }
 
 //export FeatherDouble
@@ -366,19 +310,19 @@ func FeatherDouble(interp C.size_t, val C.double) C.size_t {
 	}
 
 	obj := state.interp.Double(float64(val))
-	return C.size_t(state.storeObj(obj))
+	return C.size_t(state.registerObj(obj))
 }
 
 //export FeatherList
-func FeatherList(interp C.size_t, argc C.int, items *C.size_t) C.size_t {
+func FeatherList(interp C.size_t, argc C.size_t, argv *C.size_t) C.size_t {
 	state := getExportState(uint64(interp))
 	if state == nil {
 		return 0
 	}
 
 	var objs []*feather.Obj
-	if argc > 0 && items != nil {
-		itemHandles := unsafe.Slice(items, int(argc))
+	if argc > 0 && argv != nil {
+		itemHandles := unsafe.Slice(argv, int(argc))
 		objs = make([]*feather.Obj, int(argc))
 		for i := 0; i < int(argc); i++ {
 			objs[i] = state.getObj(uint64(itemHandles[i]))
@@ -386,141 +330,90 @@ func FeatherList(interp C.size_t, argc C.int, items *C.size_t) C.size_t {
 	}
 
 	obj := state.interp.List(objs...)
-	return C.size_t(state.storeObj(obj))
+	return C.size_t(state.registerObj(obj))
+}
+
+//export FeatherDict
+func FeatherDict(interp C.size_t) C.size_t {
+	state := getExportState(uint64(interp))
+	if state == nil {
+		return 0
+	}
+
+	obj := state.interp.DictKV()
+	return C.size_t(state.registerObj(obj))
 }
 
 // =============================================================================
-// Object Access (4 functions)
+// Type Conversion
 // =============================================================================
 
-//export FeatherGetString
-func FeatherGetString(obj C.size_t, interp C.size_t, length *C.size_t) *C.char {
+//export FeatherAsInt
+func FeatherAsInt(interp C.size_t, obj C.size_t, def C.int64_t) C.int64_t {
 	state := getExportState(uint64(interp))
 	if state == nil {
-		return nil
+		return def
 	}
 
 	o := state.getObj(uint64(obj))
 	if o == nil {
-		return nil
-	}
-
-	str := o.String()
-	if length != nil {
-		*length = C.size_t(len(str))
-	}
-	return C.CString(str)
-}
-
-//export FeatherGetInt
-func FeatherGetInt(obj C.size_t, interp C.size_t, out *C.int64_t) C.int {
-	state := getExportState(uint64(interp))
-	if state == nil {
-		return 1
-	}
-
-	o := state.getObj(uint64(obj))
-	if o == nil {
-		return 1
+		return def
 	}
 
 	val, err := o.Int()
 	if err != nil {
-		return 1
+		return def
 	}
-	if out != nil {
-		*out = C.int64_t(val)
-	}
-	return 0
+	return C.int64_t(val)
 }
 
-//export FeatherGetDouble
-func FeatherGetDouble(obj C.size_t, interp C.size_t, out *C.double) C.int {
+//export FeatherAsDouble
+func FeatherAsDouble(interp C.size_t, obj C.size_t, def C.double) C.double {
 	state := getExportState(uint64(interp))
 	if state == nil {
-		return 1
+		return def
 	}
 
 	o := state.getObj(uint64(obj))
 	if o == nil {
-		return 1
+		return def
 	}
 
 	val, err := o.Double()
 	if err != nil {
-		return 1
+		return def
 	}
-	if out != nil {
-		*out = C.double(val)
-	}
-	return 0
+	return C.double(val)
 }
 
-//export FeatherGetList
-func FeatherGetList(interp C.size_t, obj C.size_t, argc *C.int, items **C.size_t) C.int {
+//export FeatherAsBool
+func FeatherAsBool(interp C.size_t, obj C.size_t, def C.int) C.int {
 	state := getExportState(uint64(interp))
 	if state == nil {
-		return 1
+		return def
 	}
 
 	o := state.getObj(uint64(obj))
 	if o == nil {
-		return 1
+		return def
 	}
 
-	list, err := o.List()
+	val, err := o.Bool()
 	if err != nil {
+		return def
+	}
+	if val {
 		return 1
-	}
-
-	n := len(list)
-	if argc != nil {
-		*argc = C.int(n)
-	}
-	if items != nil && n > 0 {
-		handles := (*C.size_t)(C.malloc(C.size_t(n) * C.size_t(unsafe.Sizeof(C.size_t(0)))))
-		handleSlice := unsafe.Slice(handles, n)
-		for i, item := range list {
-			handleSlice[i] = C.size_t(state.storeObj(item))
-		}
-		*items = handles
 	}
 	return 0
 }
 
 // =============================================================================
-// Memory Management (2 functions)
+// String Operations
 // =============================================================================
 
-//export FeatherRetain
-func FeatherRetain(interp C.size_t, obj C.size_t) {
-	state := getExportState(uint64(interp))
-	if state == nil {
-		return
-	}
-	state.retainObj(uint64(obj))
-}
-
-//export FeatherRelease
-func FeatherRelease(interp C.size_t, obj C.size_t) {
-	state := getExportState(uint64(interp))
-	if state == nil {
-		return
-	}
-	state.releaseObj(uint64(obj))
-}
-
-//export FeatherFreeString
-func FeatherFreeString(s *C.char) {
-	C.free(unsafe.Pointer(s))
-}
-
-// =============================================================================
-// String Operations (6 functions)
-// =============================================================================
-
-//export FeatherStringLength
-func FeatherStringLength(obj C.size_t, interp C.size_t) C.size_t {
+//export FeatherLen
+func FeatherLen(interp C.size_t, obj C.size_t) C.size_t {
 	state := getExportState(uint64(interp))
 	if state == nil {
 		return 0
@@ -534,8 +427,8 @@ func FeatherStringLength(obj C.size_t, interp C.size_t) C.size_t {
 	return C.size_t(len(o.String()))
 }
 
-//export FeatherStringByteAt
-func FeatherStringByteAt(obj C.size_t, interp C.size_t, index C.size_t) C.int {
+//export FeatherByteAt
+func FeatherByteAt(interp C.size_t, obj C.size_t, index C.size_t) C.int {
 	state := getExportState(uint64(interp))
 	if state == nil {
 		return -1
@@ -553,35 +446,8 @@ func FeatherStringByteAt(obj C.size_t, interp C.size_t, index C.size_t) C.int {
 	return C.int(str[int(index)])
 }
 
-//export FeatherStringSlice
-func FeatherStringSlice(interp C.size_t, str C.size_t, start C.size_t, end C.size_t) C.size_t {
-	state := getExportState(uint64(interp))
-	if state == nil {
-		return 0
-	}
-
-	o := state.getObj(uint64(str))
-	if o == nil {
-		return 0
-	}
-
-	s := o.String()
-	if int(start) > len(s) {
-		start = C.size_t(len(s))
-	}
-	if int(end) > len(s) {
-		end = C.size_t(len(s))
-	}
-	if start > end {
-		start = end
-	}
-
-	result := state.interp.String(s[int(start):int(end)])
-	return C.size_t(state.storeObj(result))
-}
-
-//export FeatherStringConcat
-func FeatherStringConcat(interp C.size_t, a C.size_t, b C.size_t) C.size_t {
+//export FeatherEq
+func FeatherEq(interp C.size_t, a C.size_t, b C.size_t) C.int {
 	state := getExportState(uint64(interp))
 	if state == nil {
 		return 0
@@ -593,14 +459,14 @@ func FeatherStringConcat(interp C.size_t, a C.size_t, b C.size_t) C.size_t {
 		return 0
 	}
 
-	strA := objA.String()
-	strB := objB.String()
-	result := state.interp.String(strA + strB)
-	return C.size_t(state.storeObj(result))
+	if objA.String() == objB.String() {
+		return 1
+	}
+	return 0
 }
 
-//export FeatherStringCompare
-func FeatherStringCompare(a C.size_t, b C.size_t, interp C.size_t) C.int {
+//export FeatherCmp
+func FeatherCmp(interp C.size_t, a C.size_t, b C.size_t) C.int {
 	state := getExportState(uint64(interp))
 	if state == nil {
 		return 0
@@ -623,73 +489,8 @@ func FeatherStringCompare(a C.size_t, b C.size_t, interp C.size_t) C.int {
 	return 0
 }
 
-//export FeatherStringMatch
-func FeatherStringMatch(pattern C.size_t, str C.size_t, interp C.size_t) C.int {
-	state := getExportState(uint64(interp))
-	if state == nil {
-		return 0
-	}
-
-	objP := state.getObj(uint64(pattern))
-	objS := state.getObj(uint64(str))
-	if objP == nil || objS == nil {
-		return 0
-	}
-
-	// Simple glob matching for string match
-	if simpleGlobMatch(objP.String(), objS.String()) {
-		return 1
-	}
-	return 0
-}
-
-// simpleGlobMatch implements basic glob matching (* and ?)
-func simpleGlobMatch(pattern, str string) bool {
-	return simpleGlobMatchHelper(pattern, str, 0, 0)
-}
-
-func simpleGlobMatchHelper(pattern, str string, pi, si int) bool {
-	for pi < len(pattern) {
-		if si >= len(str) {
-			// Check if remaining pattern is all *
-			for pi < len(pattern) {
-				if pattern[pi] != '*' {
-					return false
-				}
-				pi++
-			}
-			return true
-		}
-		switch pattern[pi] {
-		case '*':
-			// Try to match zero or more characters
-			for i := si; i <= len(str); i++ {
-				if simpleGlobMatchHelper(pattern, str, pi+1, i) {
-					return true
-				}
-			}
-			return false
-		case '?':
-			// Match exactly one character
-			pi++
-			si++
-		default:
-			if pattern[pi] != str[si] {
-				return false
-			}
-			pi++
-			si++
-		}
-	}
-	return si == len(str)
-}
-
-// =============================================================================
-// List Operations (5 functions)
-// =============================================================================
-
-//export FeatherListLength
-func FeatherListLength(obj C.size_t, interp C.size_t) C.size_t {
+//export FeatherCopy
+func FeatherCopy(interp C.size_t, obj C.size_t, buf *C.char, length C.size_t) C.size_t {
 	state := getExportState(uint64(interp))
 	if state == nil {
 		return 0
@@ -700,11 +501,42 @@ func FeatherListLength(obj C.size_t, interp C.size_t) C.size_t {
 		return 0
 	}
 
-	list, err := o.List()
+	str := o.String()
+	toCopy := len(str)
+	if toCopy > int(length) {
+		toCopy = int(length)
+	}
+
+	if toCopy > 0 && buf != nil {
+		// Copy string bytes to the buffer
+		goSlice := unsafe.Slice((*byte)(unsafe.Pointer(buf)), toCopy)
+		copy(goSlice, str[:toCopy])
+	}
+
+	return C.size_t(toCopy)
+}
+
+// =============================================================================
+// List Operations
+// =============================================================================
+
+//export FeatherListLen
+func FeatherListLen(interp C.size_t, list C.size_t) C.size_t {
+	state := getExportState(uint64(interp))
+	if state == nil {
+		return 0
+	}
+
+	o := state.getObj(uint64(list))
+	if o == nil {
+		return 0
+	}
+
+	l, err := o.List()
 	if err != nil {
 		return 0
 	}
-	return C.size_t(len(list))
+	return C.size_t(len(l))
 }
 
 //export FeatherListAt
@@ -724,38 +556,7 @@ func FeatherListAt(interp C.size_t, list C.size_t, index C.size_t) C.size_t {
 		return 0
 	}
 
-	return C.size_t(state.storeObj(l[int(index)]))
-}
-
-//export FeatherListSlice
-func FeatherListSlice(interp C.size_t, list C.size_t, first C.size_t, last C.size_t) C.size_t {
-	state := getExportState(uint64(interp))
-	if state == nil {
-		return 0
-	}
-
-	o := state.getObj(uint64(list))
-	if o == nil {
-		return 0
-	}
-
-	l, err := o.List()
-	if err != nil {
-		return 0
-	}
-
-	if int(first) > len(l) {
-		first = C.size_t(len(l))
-	}
-	if int(last) > len(l) {
-		last = C.size_t(len(l))
-	}
-	if first > last {
-		first = last
-	}
-
-	result := state.interp.List(l[int(first):int(last)]...)
-	return C.size_t(state.storeObj(result))
+	return C.size_t(state.registerObj(l[int(index)]))
 }
 
 //export FeatherListPush
@@ -781,58 +582,21 @@ func FeatherListPush(interp C.size_t, list C.size_t, item C.size_t) C.size_t {
 	newList[len(l)] = itemObj
 
 	result := state.interp.List(newList...)
-	return C.size_t(state.storeObj(result))
-}
-
-//export FeatherListSet
-func FeatherListSet(interp C.size_t, list C.size_t, index C.size_t, value C.size_t) C.size_t {
-	state := getExportState(uint64(interp))
-	if state == nil {
-		return 0
-	}
-
-	listObj := state.getObj(uint64(list))
-	valueObj := state.getObj(uint64(value))
-	if listObj == nil {
-		return 0
-	}
-
-	l, err := listObj.List()
-	if err != nil || int(index) >= len(l) {
-		return 0
-	}
-
-	newList := make([]*feather.Obj, len(l))
-	copy(newList, l)
-	newList[int(index)] = valueObj
-
-	result := state.interp.List(newList...)
-	return C.size_t(state.storeObj(result))
+	return C.size_t(state.registerObj(result))
 }
 
 // =============================================================================
-// Dict Operations (6 functions)
+// Dict Operations
 // =============================================================================
 
-//export FeatherDict
-func FeatherDict(interp C.size_t) C.size_t {
+//export FeatherDictLen
+func FeatherDictLen(interp C.size_t, dict C.size_t) C.size_t {
 	state := getExportState(uint64(interp))
 	if state == nil {
 		return 0
 	}
 
-	obj := state.interp.DictKV()
-	return C.size_t(state.storeObj(obj))
-}
-
-//export FeatherDictSize
-func FeatherDictSize(obj C.size_t, interp C.size_t) C.size_t {
-	state := getExportState(uint64(interp))
-	if state == nil {
-		return 0
-	}
-
-	o := state.getObj(uint64(obj))
+	o := state.getObj(uint64(dict))
 	if o == nil {
 		return 0
 	}
@@ -864,7 +628,7 @@ func FeatherDictGet(interp C.size_t, dict C.size_t, key C.size_t) C.size_t {
 
 	keyStr := keyObj.String()
 	if val, exists := d.Items[keyStr]; exists {
-		return C.size_t(state.storeObj(val))
+		return C.size_t(state.registerObj(val))
 	}
 	return 0
 }
@@ -885,27 +649,33 @@ func FeatherDictSet(interp C.size_t, dict C.size_t, key C.size_t, value C.size_t
 
 	d, _ := dictObj.Dict()
 	items := make(map[string]*feather.Obj)
+	var order []string
 	if d != nil {
 		for k, v := range d.Items {
 			items[k] = v
 		}
+		order = append(order, d.Order...)
 	}
 
 	keyStr := keyObj.String()
+	// If key doesn't exist, add to order
+	if _, exists := items[keyStr]; !exists {
+		order = append(order, keyStr)
+	}
 	items[keyStr] = valueObj
 
 	// Build KV pairs for DictKV
-	kvPairs := make([]any, 0, len(items)*2)
-	for k, v := range items {
-		kvPairs = append(kvPairs, k, v)
+	kvPairs := make([]any, 0, len(order)*2)
+	for _, k := range order {
+		kvPairs = append(kvPairs, k, items[k])
 	}
 
 	result := state.interp.DictKV(kvPairs...)
-	return C.size_t(state.storeObj(result))
+	return C.size_t(state.registerObj(result))
 }
 
-//export FeatherDictExists
-func FeatherDictExists(dict C.size_t, key C.size_t, interp C.size_t) C.int {
+//export FeatherDictHas
+func FeatherDictHas(interp C.size_t, dict C.size_t, key C.size_t) C.int {
 	state := getExportState(uint64(interp))
 	if state == nil {
 		return 0
@@ -952,11 +722,11 @@ func FeatherDictKeys(interp C.size_t, dict C.size_t) C.size_t {
 	}
 
 	result := state.interp.List(keys...)
-	return C.size_t(state.storeObj(result))
+	return C.size_t(state.registerObj(result))
 }
 
 // =============================================================================
-// Variables (2 functions)
+// Variables
 // =============================================================================
 
 //export FeatherSetVar
@@ -969,7 +739,7 @@ func FeatherSetVar(interp C.size_t, name *C.char, val C.size_t) {
 	goName := C.GoString(name)
 	obj := state.getObj(uint64(val))
 	if obj != nil {
-		state.interp.SetVar(goName, obj)
+		state.interp.SetVar(goName, obj.String())
 	}
 }
 
@@ -985,18 +755,22 @@ func FeatherGetVar(interp C.size_t, name *C.char) C.size_t {
 	if obj == nil {
 		return 0
 	}
-	return C.size_t(state.storeObj(obj))
+	// Don't return empty strings as valid
+	if obj.String() == "" {
+		return 0
+	}
+	return C.size_t(state.registerObj(obj))
 }
 
 // =============================================================================
-// Command Registration (1 function)
+// Command Registration
 // =============================================================================
 
-//export FeatherRegisterCommand
-func FeatherRegisterCommand(interp C.size_t, name *C.char, callback C.FeatherCommandCallback, userData unsafe.Pointer) C.int {
+//export FeatherRegister
+func FeatherRegister(interp C.size_t, name *C.char, fn C.FeatherCmd, data unsafe.Pointer) {
 	state := getExportState(uint64(interp))
 	if state == nil {
-		return 1
+		return
 	}
 
 	goName := C.GoString(name)
@@ -1004,8 +778,8 @@ func FeatherRegisterCommand(interp C.size_t, name *C.char, callback C.FeatherCom
 
 	// Store callback info
 	info := &cCommandInfo{
-		callback: callback,
-		userData: userData,
+		callback: fn,
+		userData: data,
 	}
 	state.mu.Lock()
 	state.callbacks[goName] = info
@@ -1020,7 +794,7 @@ func FeatherRegisterCommand(interp C.size_t, name *C.char, callback C.FeatherCom
 			cArgs = (*C.size_t)(C.malloc(C.size_t(argc) * C.size_t(unsafe.Sizeof(C.size_t(0)))))
 			argSlice := unsafe.Slice(cArgs, argc)
 			for j, arg := range args {
-				argSlice[j] = C.size_t(state.storeObj(arg))
+				argSlice[j] = C.size_t(state.registerObj(arg))
 			}
 		}
 
@@ -1029,9 +803,9 @@ func FeatherRegisterCommand(interp C.size_t, name *C.char, callback C.FeatherCom
 
 		// Call C callback with interpreter handle and arg handles
 		ret := C.callCCallback(info.callback, info.userData, C.size_t(interpHandle),
-			C.int(argc), cArgs, &result, &errMsg)
+			C.size_t(argc), cArgs, &result, &errMsg)
 
-		// Free the args array (handles are managed by refcount)
+		// Free the args array (handles are managed by arena)
 		if cArgs != nil {
 			C.free(unsafe.Pointer(cArgs))
 		}
@@ -1040,7 +814,7 @@ func FeatherRegisterCommand(interp C.size_t, name *C.char, callback C.FeatherCom
 			var errStr string
 			if errMsg != nil {
 				errStr = C.GoString(errMsg)
-				C.free(unsafe.Pointer(errMsg))
+				// Note: errMsg is a static string, don't free
 			} else {
 				errStr = "command failed"
 			}
@@ -1056,12 +830,10 @@ func FeatherRegisterCommand(interp C.size_t, name *C.char, callback C.FeatherCom
 		}
 		return feather.OK(i.String(""))
 	})
-
-	return 0
 }
 
 // =============================================================================
-// Foreign Type Registration (1 function)
+// Foreign Type Registration (kept for compatibility)
 // =============================================================================
 
 //export FeatherRegisterForeignMethod
@@ -1177,7 +949,7 @@ func FeatherRegisterForeign(interp C.size_t, typeName *C.char,
 				cArgs = (*C.size_t)(C.malloc(C.size_t(argc) * C.size_t(unsafe.Sizeof(C.size_t(0)))))
 				argSlice := unsafe.Slice(cArgs, argc)
 				for j, arg := range methodArgs {
-					argSlice[j] = C.size_t(state.storeObj(arg))
+					argSlice[j] = C.size_t(state.registerObj(arg))
 				}
 			}
 
@@ -1185,8 +957,10 @@ func FeatherRegisterForeign(interp C.size_t, typeName *C.char,
 			var errMsg *C.char
 
 			// Call C invoke callback with interpreter handle and arg handles
+			cMethodName := C.CString(methodName)
 			ret := C.callForeignInvoke(info.invokeFn, instanceInfo.instance,
-				C.size_t(interpHandle), C.CString(methodName), C.int(argc), cArgs, &result, &errMsg)
+				C.size_t(interpHandle), cMethodName, C.size_t(argc), cArgs, &result, &errMsg)
+			C.free(unsafe.Pointer(cMethodName))
 
 			// Free the args array
 			if cArgs != nil {
@@ -1197,7 +971,7 @@ func FeatherRegisterForeign(interp C.size_t, typeName *C.char,
 				var errStr string
 				if errMsg != nil {
 					errStr = C.GoString(errMsg)
-					C.free(unsafe.Pointer(errMsg))
+					// Note: errMsg is a static string, don't free
 				} else {
 					errStr = "method failed"
 				}
@@ -1218,6 +992,63 @@ func FeatherRegisterForeign(interp C.size_t, typeName *C.char,
 		return feather.OK(foreignObj)
 	})
 
+	return 0
+}
+
+// =============================================================================
+// Legacy API (kept for compatibility during transition)
+// =============================================================================
+
+//export FeatherGetString
+func FeatherGetString(obj C.size_t, interp C.size_t, length *C.size_t) *C.char {
+	state := getExportState(uint64(interp))
+	if state == nil {
+		return nil
+	}
+
+	o := state.getObj(uint64(obj))
+	if o == nil {
+		return nil
+	}
+
+	str := o.String()
+	if length != nil {
+		*length = C.size_t(len(str))
+	}
+	return C.CString(str)
+}
+
+//export FeatherGetInt
+func FeatherGetInt(obj C.size_t, interp C.size_t, out *C.int64_t) C.int {
+	state := getExportState(uint64(interp))
+	if state == nil {
+		return 1
+	}
+
+	o := state.getObj(uint64(obj))
+	if o == nil {
+		return 1
+	}
+
+	val, err := o.Int()
+	if err != nil {
+		return 1
+	}
+	if out != nil {
+		*out = C.int64_t(val)
+	}
+	return 0
+}
+
+//export FeatherFreeString
+func FeatherFreeString(s *C.char) {
+	C.free(unsafe.Pointer(s))
+}
+
+//export FeatherRegisterCommand
+func FeatherRegisterCommand(interp C.size_t, name *C.char, callback C.FeatherCmd, userData unsafe.Pointer) C.int {
+	// Redirect to new API
+	FeatherRegister(interp, name, callback, userData)
 	return 0
 }
 
