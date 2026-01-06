@@ -709,8 +709,10 @@ static FeatherObj parse_spec_from_list(const FeatherHostOps *ops, FeatherInterp 
         i++;
       }
 
-      /* Check for 'hide' keyword inside body and extract it before parsing */
+      /* Check for 'hide', 'help', 'long_help' keywords inside body and extract them before parsing */
       int hide = 0;
+      FeatherObj helpText = ops->string.intern(interp, "", 0);
+      FeatherObj longHelp = ops->string.intern(interp, "", 0);
       FeatherObj bodyList = feather_list_parse_obj(ops, interp, cmdBody);
       size_t bodyLen = ops->list.length(interp, bodyList);
       FeatherObj filteredBody = ops->list.create(interp);
@@ -719,14 +721,24 @@ static FeatherObj parse_spec_from_list(const FeatherHostOps *ops, FeatherInterp 
         FeatherObj token = ops->list.at(interp, bodyList, j);
         if (feather_obj_eq_literal(ops, interp, token, "hide")) {
           hide = 1;
+        } else if (feather_obj_eq_literal(ops, interp, token, "help")) {
+          /* Next token is the help text */
+          if (j + 1 < bodyLen) {
+            helpText = ops->list.at(interp, bodyList, j + 1);
+            j++; /* Skip next token */
+          }
+        } else if (feather_obj_eq_literal(ops, interp, token, "long_help")) {
+          /* Next token is the long help text */
+          if (j + 1 < bodyLen) {
+            longHelp = ops->list.at(interp, bodyList, j + 1);
+            j++; /* Skip next token */
+          }
         } else {
           filteredBody = ops->list.push(interp, filteredBody, token);
         }
       }
 
       /* Check for options block - cmd supports before/after help */
-      FeatherObj helpText = ops->string.intern(interp, "", 0);
-      FeatherObj longHelp = ops->string.intern(interp, "", 0);
       FeatherObj beforeHelp = ops->string.intern(interp, "", 0);
       FeatherObj afterHelp = ops->string.intern(interp, "", 0);
       FeatherObj beforeLongHelp = ops->string.intern(interp, "", 0);
@@ -2712,11 +2724,11 @@ static FeatherObj complete_subcommands(const FeatherHostOps *ops, FeatherInterp 
 
 /**
  * Complete flag names from a spec.
- * Returns list of {text <flag> type flag help <...>} dicts.
+ * Returns list of {text <flag> type flag help <...>} dicts, sorted alphabetically.
  */
 static FeatherObj complete_flags(const FeatherHostOps *ops, FeatherInterp interp,
                                   FeatherObj spec, FeatherObj prefix) {
-  FeatherObj result = ops->list.create(interp);
+  FeatherObj unsorted = ops->list.create(interp);
 
   /* Spec is a list of entries */
   size_t specLen = ops->list.length(interp, spec);
@@ -2754,7 +2766,7 @@ static FeatherObj complete_flags(const FeatherHostOps *ops, FeatherInterp interp
       FeatherObj flagStr = ops->string.intern(interp, flagbuf, flagLen + 1);
       if (obj_has_prefix(ops, interp, flagStr, prefix)) {
         FeatherObj completion = make_completion(ops, interp, flagbuf, T_FLAG, help);
-        result = ops->list.push(interp, result, completion);
+        unsorted = ops->list.push(interp, unsorted, completion);
       }
     }
 
@@ -2775,9 +2787,73 @@ static FeatherObj complete_flags(const FeatherHostOps *ops, FeatherInterp interp
       FeatherObj flagStr = ops->string.intern(interp, flagbuf, flagLen + 2);
       if (obj_has_prefix(ops, interp, flagStr, prefix)) {
         FeatherObj completion = make_completion(ops, interp, flagbuf, T_FLAG, help);
-        result = ops->list.push(interp, result, completion);
+        unsorted = ops->list.push(interp, unsorted, completion);
       }
     }
+  }
+
+  /* Sort flags alphabetically by text field */
+  size_t numFlags = ops->list.length(interp, unsorted);
+  if (numFlags == 0) {
+    return unsorted;
+  }
+
+  if (numFlags == 1) {
+    return unsorted;
+  }
+
+  /* Sort: short flags first (-X), then long flags (--XXX), alphabetically within each group */
+  FeatherObj result = unsorted;
+  int sorted = 0;
+  while (!sorted) {
+    sorted = 1;
+    FeatherObj newResult = ops->list.create(interp);
+    for (size_t i = 0; i < numFlags; i++) {
+      FeatherObj curr = ops->list.at(interp, result, i);
+
+      if (i + 1 < numFlags) {
+        FeatherObj next = ops->list.at(interp, result, i + 1);
+
+        /* Extract text fields for comparison */
+        FeatherObj currText = dict_get_str(ops, interp, curr, K_TEXT);
+        FeatherObj nextText = dict_get_str(ops, interp, next, K_TEXT);
+
+        /* Determine if short or long flag */
+        size_t currLen = ops->string.byte_length(interp, currText);
+        size_t nextLen = ops->string.byte_length(interp, nextText);
+
+        int currIsShort = (currLen >= 2 &&
+                          ops->string.byte_at(interp, currText, 0) == '-' &&
+                          ops->string.byte_at(interp, currText, 1) != '-');
+        int nextIsShort = (nextLen >= 2 &&
+                          ops->string.byte_at(interp, nextText, 0) == '-' &&
+                          ops->string.byte_at(interp, nextText, 1) != '-');
+
+        int shouldSwap = 0;
+        if (currIsShort && !nextIsShort) {
+          /* Current is short, next is long - keep order (short before long) */
+          shouldSwap = 0;
+        } else if (!currIsShort && nextIsShort) {
+          /* Current is long, next is short - swap (short before long) */
+          shouldSwap = 1;
+        } else {
+          /* Both same type - sort alphabetically */
+          shouldSwap = (obj_strcmp(ops, interp, currText, nextText) > 0);
+        }
+
+        if (shouldSwap) {
+          newResult = ops->list.push(interp, newResult, next);
+          newResult = ops->list.push(interp, newResult, curr);
+          i++;
+          sorted = 0;
+        } else {
+          newResult = ops->list.push(interp, newResult, curr);
+        }
+      } else {
+        newResult = ops->list.push(interp, newResult, curr);
+      }
+    }
+    result = newResult;
   }
 
   return result;
@@ -2804,24 +2880,59 @@ static FeatherObj complete_choices(const FeatherHostOps *ops, FeatherInterp inte
   FeatherObj choicesList = feather_list_parse_obj(ops, interp, choices);
   size_t numChoices = ops->list.length(interp, choicesList);
 
-  /* Filter and create completions */
+  /* Collect matching choices */
+  FeatherObj matches = ops->list.create(interp);
   for (size_t i = 0; i < numChoices; i++) {
     FeatherObj choice = ops->list.at(interp, choicesList, i);
-
-    /* Filter by prefix */
     if (obj_has_prefix(ops, interp, choice, prefix)) {
-      /* Convert to C string */
-      size_t choiceLen = ops->string.byte_length(interp, choice);
-      char choicebuf[256];
-      if (choiceLen >= sizeof(choicebuf)) choiceLen = sizeof(choicebuf) - 1;
-      for (size_t j = 0; j < choiceLen; j++) {
-        choicebuf[j] = (char)ops->string.byte_at(interp, choice, j);
-      }
-      choicebuf[choiceLen] = '\0';
-
-      FeatherObj completion = make_completion(ops, interp, choicebuf, T_VALUE, help);
-      result = ops->list.push(interp, result, completion);
+      matches = ops->list.push(interp, matches, choice);
     }
+  }
+
+  /* Sort matches alphabetically */
+  size_t numMatches = ops->list.length(interp, matches);
+  if (numMatches > 1) {
+    /* Bubble sort */
+    int sorted = 0;
+    while (!sorted) {
+      sorted = 1;
+      FeatherObj newMatches = ops->list.create(interp);
+      for (size_t i = 0; i < numMatches; i++) {
+        FeatherObj curr = ops->list.at(interp, matches, i);
+
+        if (i + 1 < numMatches) {
+          FeatherObj next = ops->list.at(interp, matches, i + 1);
+          if (obj_strcmp(ops, interp, curr, next) > 0) {
+            newMatches = ops->list.push(interp, newMatches, next);
+            newMatches = ops->list.push(interp, newMatches, curr);
+            i++;
+            sorted = 0;
+          } else {
+            newMatches = ops->list.push(interp, newMatches, curr);
+          }
+        } else {
+          newMatches = ops->list.push(interp, newMatches, curr);
+        }
+      }
+      matches = newMatches;
+    }
+  }
+
+  /* Create completions from sorted matches */
+  for (size_t i = 0; i < numMatches; i++) {
+    FeatherObj choice = ops->list.at(interp, matches, i);
+
+    /* Convert to C string */
+    size_t choiceLen = ops->string.byte_length(interp, choice);
+    char choicebuf[256];
+    if (choiceLen >= sizeof(choicebuf)) choiceLen = sizeof(choicebuf) - 1;
+    for (size_t j = 0; j < choiceLen; j++) {
+      choicebuf[j] = (char)ops->string.byte_at(interp, choice, j);
+    }
+    choicebuf[choiceLen] = '\0';
+
+    FeatherObj completion = make_completion(ops, interp, choicebuf, T_VALUE, help);
+    result = ops->list.push(interp, result, completion);
   }
 
   return result;
