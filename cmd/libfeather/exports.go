@@ -55,6 +55,7 @@ import "C"
 import (
 	"strings"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 )
 
@@ -67,9 +68,10 @@ type exportState struct {
 	interp *feather.Interp
 
 	// Arena: maps handle ID -> *feather.Obj
-	// Cleared at the START of each FeatherEval() call
+	// Cleared at the END of the outermost FeatherEval() call
 	arena       map[uint64]*feather.Obj
 	nextArenaID uint64
+	evalDepth   int32 // atomic counter for nested eval calls
 	mu          sync.Mutex
 
 	// Command callbacks
@@ -254,8 +256,16 @@ func FeatherEval(interp C.size_t, script *C.char, length C.size_t, result *C.siz
 		return 1 // error
 	}
 
-	// Clear arena at the START of each eval
-	state.clearArena()
+	// Track nesting depth atomically to support nested evals (e.g., source command)
+	// Using atomic operations avoids potential mutex issues in CGo callback chains
+	atomic.AddInt32(&state.evalDepth, 1)
+
+	// Clear arena only at the END of the outermost eval
+	defer func() {
+		if atomic.AddInt32(&state.evalDepth, -1) == 0 {
+			state.clearArena()
+		}
+	}()
 
 	goScript := C.GoStringN(script, C.int(length))
 	obj, err := state.interp.Eval(goScript)
