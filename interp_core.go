@@ -369,8 +369,16 @@ func (i *Interp) resultString() string {
 func (i *Interp) eval(script string) (string, error) {
 	scriptHandle := i.internStringScratch(script)
 
-	// Reset scratch arena after eval completes
-	defer i.resetScratch()
+	// Track nesting depth to support nested evals (e.g., source command)
+	i.evalDepth++
+
+	// Reset scratch arena only at the END of the outermost eval
+	defer func() {
+		i.evalDepth--
+		if i.evalDepth == 0 {
+			i.resetScratch()
+		}
+	}()
 
 	// Call the C interpreter
 	result := callCEval(i.handle, scriptHandle)

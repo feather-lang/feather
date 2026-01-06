@@ -257,15 +257,13 @@ func FeatherEval(interp C.size_t, script *C.char, length C.size_t, result *C.siz
 	}
 
 	// Track nesting depth atomically to support nested evals (e.g., source command)
-	// Using atomic operations avoids potential mutex issues in CGo callback chains
-	atomic.AddInt32(&state.evalDepth, 1)
+	// Clear arena only at the START of the outermost eval (preserves results for caller)
+	if atomic.AddInt32(&state.evalDepth, 1) == 1 {
+		state.clearArena()
+	}
 
-	// Clear arena only at the END of the outermost eval
-	defer func() {
-		if atomic.AddInt32(&state.evalDepth, -1) == 0 {
-			state.clearArena()
-		}
-	}()
+	// Decrement depth when eval completes (don't clear - results must remain valid)
+	defer atomic.AddInt32(&state.evalDepth, -1)
 
 	goScript := C.GoStringN(script, C.int(length))
 	obj, err := state.interp.Eval(goScript)

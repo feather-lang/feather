@@ -31,6 +31,7 @@ type Interp struct {
 	recursionLimit  int  // maximum call stack depth (0 means use default)
 	scriptPath      *Obj // current script file being executed (nil = none)
 	builders        map[FeatherObj]*strings.Builder
+	evalDepth       int  // tracks nested eval calls for scratch arena management
 
 	// Commands holds registered Go command implementations.
 	// Low-level API. May change between versions.
