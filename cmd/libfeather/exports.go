@@ -13,17 +13,17 @@ import "github.com/feather-lang/feather"
 typedef size_t FeatherInterp;
 typedef size_t FeatherObj;
 
-// Callback type for custom commands registered from C
-// Commands receive handles and can use FeatherAsInt, FeatherAsDouble, etc.
-// to extract values. Error message is a static string (not freed).
+// Callback type for custom commands registered from C.
+// Commands receive handles and return result/error as handles.
+// Return 0 for success, non-zero for error.
 typedef int (*FeatherCmd)(void *data, FeatherInterp interp,
                           size_t argc, FeatherObj *argv,
-                          FeatherObj *result, const char **err);
+                          FeatherObj *result, FeatherObj *err);
 
 // Wrapper function to call C callback from Go
 static inline int callCCallback(FeatherCmd cb, void *data,
                                 FeatherInterp interp, size_t argc, FeatherObj *argv,
-                                FeatherObj *result, const char **err) {
+                                FeatherObj *result, FeatherObj *err) {
     return cb(data, interp, argc, argv, result, err);
 }
 
@@ -31,7 +31,7 @@ static inline int callCCallback(FeatherCmd cb, void *data,
 typedef void* (*FeatherForeignNewFunc)(void *userData);
 typedef int (*FeatherForeignInvokeFunc)(void *instance, FeatherInterp interp,
                                          const char *method, size_t argc, FeatherObj *argv,
-                                         FeatherObj *result, const char **err);
+                                         FeatherObj *result, FeatherObj *err);
 typedef void (*FeatherForeignDestroyFunc)(void *instance);
 
 // Wrapper functions for foreign type callbacks
@@ -42,7 +42,7 @@ static inline void* callForeignNew(FeatherForeignNewFunc fn, void *userData) {
 static inline int callForeignInvoke(FeatherForeignInvokeFunc fn, void *instance,
                                     FeatherInterp interp, const char *method,
                                     size_t argc, FeatherObj *argv,
-                                    FeatherObj *result, const char **err) {
+                                    FeatherObj *result, FeatherObj *err) {
     return fn(instance, interp, method, argc, argv, result, err);
 }
 
@@ -68,9 +68,9 @@ type exportState struct {
 
 	// Arena: maps handle ID -> *feather.Obj
 	// Cleared at the START of each FeatherEval() call
-	arena      map[uint64]*feather.Obj
+	arena       map[uint64]*feather.Obj
 	nextArenaID uint64
-	mu         sync.Mutex
+	mu          sync.Mutex
 
 	// Command callbacks
 	callbacks map[string]*cCommandInfo
@@ -215,8 +215,8 @@ func FeatherParse(interp C.size_t, script *C.char, length C.size_t) C.int {
 	}
 }
 
-//export FeatherParseResult
-func FeatherParseResult(interp C.size_t, script *C.char, length C.size_t, result *C.size_t, errorMsg **C.char) C.int {
+//export FeatherParseInfo
+func FeatherParseInfo(interp C.size_t, script *C.char, length C.size_t, result *C.size_t, errorObj *C.size_t) C.int {
 	state := getExportState(uint64(interp))
 	if state == nil {
 		return parseError
@@ -231,9 +231,10 @@ func FeatherParseResult(interp C.size_t, script *C.char, length C.size_t, result
 		*result = C.size_t(state.registerObj(resultObj))
 	}
 
-	// Return error message for parse errors
-	if errorMsg != nil && pr.ErrorMessage != "" {
-		*errorMsg = C.CString(pr.ErrorMessage)
+	// Return error message as FeatherObj
+	if errorObj != nil && pr.ErrorMessage != "" {
+		errO := state.interp.String(pr.ErrorMessage)
+		*errorObj = C.size_t(state.registerObj(errO))
 	}
 
 	switch pr.Status {
@@ -799,11 +800,11 @@ func FeatherRegister(interp C.size_t, name *C.char, fn C.FeatherCmd, data unsafe
 		}
 
 		var result C.size_t
-		var errMsg *C.char
+		var errHandle C.size_t
 
 		// Call C callback with interpreter handle and arg handles
 		ret := C.callCCallback(info.callback, info.userData, C.size_t(interpHandle),
-			C.size_t(argc), cArgs, &result, &errMsg)
+			C.size_t(argc), cArgs, &result, &errHandle)
 
 		// Free the args array (handles are managed by arena)
 		if cArgs != nil {
@@ -811,14 +812,14 @@ func FeatherRegister(interp C.size_t, name *C.char, fn C.FeatherCmd, data unsafe
 		}
 
 		if ret != 0 {
-			var errStr string
-			if errMsg != nil {
-				errStr = C.GoString(errMsg)
-				// Note: errMsg is a static string, don't free
-			} else {
-				errStr = "command failed"
+			// Get error object from handle
+			if errHandle != 0 {
+				errObj := state.getObj(uint64(errHandle))
+				if errObj != nil {
+					return feather.Error(errObj)
+				}
 			}
-			return feather.Error(errStr)
+			return feather.Error("command failed")
 		}
 
 		// Get result object from handle
@@ -833,7 +834,7 @@ func FeatherRegister(interp C.size_t, name *C.char, fn C.FeatherCmd, data unsafe
 }
 
 // =============================================================================
-// Foreign Type Registration (kept for compatibility)
+// Foreign Type Registration
 // =============================================================================
 
 //export FeatherRegisterForeignMethod
@@ -954,12 +955,12 @@ func FeatherRegisterForeign(interp C.size_t, typeName *C.char,
 			}
 
 			var result C.size_t
-			var errMsg *C.char
+			var errHandle C.size_t
 
 			// Call C invoke callback with interpreter handle and arg handles
 			cMethodName := C.CString(methodName)
 			ret := C.callForeignInvoke(info.invokeFn, instanceInfo.instance,
-				C.size_t(interpHandle), cMethodName, C.size_t(argc), cArgs, &result, &errMsg)
+				C.size_t(interpHandle), cMethodName, C.size_t(argc), cArgs, &result, &errHandle)
 			C.free(unsafe.Pointer(cMethodName))
 
 			// Free the args array
@@ -968,14 +969,14 @@ func FeatherRegisterForeign(interp C.size_t, typeName *C.char,
 			}
 
 			if ret != 0 {
-				var errStr string
-				if errMsg != nil {
-					errStr = C.GoString(errMsg)
-					// Note: errMsg is a static string, don't free
-				} else {
-					errStr = "method failed"
+				// Get error object from handle
+				if errHandle != 0 {
+					errObj := state.getObj(uint64(errHandle))
+					if errObj != nil {
+						return feather.Error(errObj)
+					}
 				}
-				return feather.Error(errStr)
+				return feather.Error("method failed")
 			}
 
 			// Get result object from handle
@@ -992,63 +993,6 @@ func FeatherRegisterForeign(interp C.size_t, typeName *C.char,
 		return feather.OK(foreignObj)
 	})
 
-	return 0
-}
-
-// =============================================================================
-// Legacy API (kept for compatibility during transition)
-// =============================================================================
-
-//export FeatherGetString
-func FeatherGetString(obj C.size_t, interp C.size_t, length *C.size_t) *C.char {
-	state := getExportState(uint64(interp))
-	if state == nil {
-		return nil
-	}
-
-	o := state.getObj(uint64(obj))
-	if o == nil {
-		return nil
-	}
-
-	str := o.String()
-	if length != nil {
-		*length = C.size_t(len(str))
-	}
-	return C.CString(str)
-}
-
-//export FeatherGetInt
-func FeatherGetInt(obj C.size_t, interp C.size_t, out *C.int64_t) C.int {
-	state := getExportState(uint64(interp))
-	if state == nil {
-		return 1
-	}
-
-	o := state.getObj(uint64(obj))
-	if o == nil {
-		return 1
-	}
-
-	val, err := o.Int()
-	if err != nil {
-		return 1
-	}
-	if out != nil {
-		*out = C.int64_t(val)
-	}
-	return 0
-}
-
-//export FeatherFreeString
-func FeatherFreeString(s *C.char) {
-	C.free(unsafe.Pointer(s))
-}
-
-//export FeatherRegisterCommand
-func FeatherRegisterCommand(interp C.size_t, name *C.char, callback C.FeatherCmd, userData unsafe.Pointer) C.int {
-	// Redirect to new API
-	FeatherRegister(interp, name, callback, userData)
 	return 0
 }
 

@@ -145,17 +145,65 @@ FeatherObj FeatherGetVar(FeatherInterp interp, const char *name);
 // Command callback signature
 // - data: user data passed to FeatherRegister
 // - interp: interpreter handle
-// - argc: number of arguments (including command name)
-// - argv: argument handles (argv[0] is command name)
+// - argc: number of arguments (excluding command name)
+// - argv: argument handles (does NOT include command name)
 // - result: set to result value on success
-// - err: set to error message on failure (static string, not freed)
+// - err: set to error object on failure (create with FeatherString)
 // Returns 0 on success, non-zero on error
 typedef int (*FeatherCmd)(void *data, FeatherInterp interp,
                           size_t argc, FeatherObj *argv,
-                          FeatherObj *result, const char **err);
+                          FeatherObj *result, FeatherObj *err);
 
 // Register a command
 void FeatherRegister(FeatherInterp interp, const char *name, FeatherCmd fn, void *data);
+
+// =============================================================================
+// Foreign Types
+// =============================================================================
+
+// Foreign type create callback - returns new instance
+typedef void* (*FeatherForeignNewFunc)(void *userData);
+
+// Foreign type method invoke callback
+// - instance: the foreign object instance
+// - interp: interpreter handle
+// - method: method name being called
+// - argc: number of arguments (excluding method name)
+// - argv: argument handles
+// - result: set to result value on success
+// - err: set to error object on failure (create with FeatherString)
+// Returns 0 on success, non-zero on error
+typedef int (*FeatherForeignInvokeFunc)(void *instance, FeatherInterp interp,
+                                         const char *method, size_t argc, FeatherObj *argv,
+                                         FeatherObj *result, FeatherObj *err);
+
+// Foreign type destroy callback - frees instance
+typedef void (*FeatherForeignDestroyFunc)(void *instance);
+
+// Register a foreign type
+void FeatherRegisterForeign(FeatherInterp interp, const char *name,
+                            FeatherForeignNewFunc newFn,
+                            FeatherForeignInvokeFunc invokeFn,
+                            FeatherForeignDestroyFunc destroyFn,
+                            void *userData);
+
+// Register a method for a foreign type (for introspection)
+void FeatherRegisterForeignMethod(FeatherInterp interp, const char *typeName, const char *methodName);
+
+// =============================================================================
+// Parse Info
+// =============================================================================
+
+#define FEATHER_PARSE_OK 0
+#define FEATHER_PARSE_INCOMPLETE 1
+#define FEATHER_PARSE_ERROR 2
+
+// Check parse status of a script
+// Returns FEATHER_PARSE_OK, FEATHER_PARSE_INCOMPLETE, or FEATHER_PARSE_ERROR
+// On any status, *result contains info about the parse
+// On error, *errorObj contains error details
+int FeatherParseInfo(FeatherInterp interp, const char *script, size_t len,
+                     FeatherObj *result, FeatherObj *errorObj);
 
 #endif
 ```
@@ -195,19 +243,25 @@ void FeatherRegister(FeatherInterp interp, const char *name, FeatherCmd fn, void
 #include <stdio.h>
 #include <string.h>
 
+// Helper to create error objects
+static FeatherObj make_error(FeatherInterp interp, const char *msg) {
+    return FeatherString(interp, msg, strlen(msg));
+}
+
 // Command: add a b -> returns sum
+// Note: argc excludes command name, argv[0] is first argument
 int cmd_add(void *data, FeatherInterp interp,
             size_t argc, FeatherObj *argv,
-            FeatherObj *result, const char **err) {
+            FeatherObj *result, FeatherObj *err) {
     (void)data;
 
-    if (argc != 3) {
-        *err = "usage: add a b";
+    if (argc != 2) {
+        *err = make_error(interp, "usage: add a b");
         return 1;
     }
 
-    double a = FeatherAsDouble(interp, argv[1], 0.0);
-    double b = FeatherAsDouble(interp, argv[2], 0.0);
+    double a = FeatherAsDouble(interp, argv[0], 0.0);
+    double b = FeatherAsDouble(interp, argv[1], 0.0);
 
     *result = FeatherDouble(interp, a + b);
     return 0;
@@ -216,42 +270,42 @@ int cmd_add(void *data, FeatherInterp interp,
 // Command: camera subcommand ?args...?
 int cmd_camera(void *data, FeatherInterp interp,
                size_t argc, FeatherObj *argv,
-               FeatherObj *result, const char **err) {
+               FeatherObj *result, FeatherObj *err) {
     FeatherObj *state = (FeatherObj *)data;
 
-    if (argc < 2) {
-        *err = "usage: camera subcommand ?args?";
+    if (argc < 1) {
+        *err = make_error(interp, "usage: camera subcommand ?args?");
         return 1;
     }
 
-    FeatherObj subcmd = argv[1];
+    FeatherObj subcmd = argv[0];
     FeatherObj fov_key = FeatherString(interp, "fov", 3);
     FeatherObj pos_key = FeatherString(interp, "position", 8);
 
     // camera fov ?value?
     if (FeatherEq(interp, subcmd, FeatherString(interp, "fov", 3))) {
-        if (argc == 2) {
+        if (argc == 1) {
             *result = FeatherDictGet(interp, *state, fov_key);
             return 0;
         }
-        if (argc == 3) {
-            *state = FeatherDictSet(interp, *state, fov_key, argv[2]);
-            *result = argv[2];
+        if (argc == 2) {
+            *state = FeatherDictSet(interp, *state, fov_key, argv[1]);
+            *result = argv[1];
             return 0;
         }
     }
 
     // camera position x y z
     if (FeatherEq(interp, subcmd, FeatherString(interp, "position", 8))) {
-        if (argc == 5) {
-            FeatherObj pos = FeatherList(interp, 3, &argv[2]);
+        if (argc == 4) {
+            FeatherObj pos = FeatherList(interp, 3, &argv[1]);
             *state = FeatherDictSet(interp, *state, pos_key, pos);
             *result = pos;
             return 0;
         }
     }
 
-    *err = "unknown subcommand";
+    *err = make_error(interp, "unknown subcommand");
     return 1;
 }
 
