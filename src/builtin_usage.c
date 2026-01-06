@@ -263,6 +263,7 @@ static const UsageRegistration usage_registrations[] = {
   {"subst", feather_register_subst_usage},
   {"eval", feather_register_eval_usage},
   {"usage", feather_register_usage_usage},
+  {"help", feather_register_help_usage},
   {"tcl::mathfunc", feather_register_mathfunc_usage},
   {NULL, NULL}
 };
@@ -271,8 +272,8 @@ static const UsageRegistration usage_registrations[] = {
  * Ensure a command's usage spec is registered (lazy loading).
  * Called before looking up a spec to register it on-demand.
  */
-static void ensure_usage_registered(const FeatherHostOps *ops, FeatherInterp interp,
-                                    FeatherObj cmdName) {
+void feather_ensure_usage_registered(const FeatherHostOps *ops, FeatherInterp interp,
+                                     FeatherObj cmdName) {
   /* Ensure ::usage namespace exists */
   FeatherObj usageNs = ops->string.intern(interp, S(USAGE_NS));
   ops->ns.create(interp, usageNs);
@@ -1764,7 +1765,7 @@ static FeatherResult usage_for(const FeatherHostOps *ops, FeatherInterp interp,
 
   if (argc == 1) {
     /* Get mode: lazy-load and return original spec string for round-tripping */
-    ensure_usage_registered(ops, interp, cmdName);
+    feather_ensure_usage_registered(ops, interp, cmdName);
     FeatherObj specs = usage_get_specs(ops, interp);
     FeatherObj specEntry = ops->dict.get(interp, specs, cmdName);
     if (ops->list.is_nil(interp, specEntry)) {
@@ -2038,7 +2039,7 @@ static FeatherResult usage_parse(const FeatherHostOps *ops, FeatherInterp interp
   FeatherObj argsList = ops->list.at(interp, args, 1);
 
   /* Lazy-load the usage spec if not already registered */
-  ensure_usage_registered(ops, interp, cmdName);
+  feather_ensure_usage_registered(ops, interp, cmdName);
 
   /* Get the spec */
   FeatherObj specs = usage_get_specs(ops, interp);
@@ -2342,7 +2343,7 @@ static FeatherResult usage_help(const FeatherHostOps *ops, FeatherInterp interp,
   FeatherObj cmdName = ops->list.at(interp, args, 0);
 
   /* Lazy-load the usage spec if not already registered */
-  ensure_usage_registered(ops, interp, cmdName);
+  feather_ensure_usage_registered(ops, interp, cmdName);
 
   /* Get the spec */
   FeatherObj specs = usage_get_specs(ops, interp);

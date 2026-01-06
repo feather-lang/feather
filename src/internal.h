@@ -1297,6 +1297,15 @@ void feather_register_scan_usage(const FeatherHostOps *ops, FeatherInterp interp
 void feather_register_subst_usage(const FeatherHostOps *ops, FeatherInterp interp);
 void feather_register_eval_usage(const FeatherHostOps *ops, FeatherInterp interp);
 void feather_register_usage_usage(const FeatherHostOps *ops, FeatherInterp interp);
+void feather_register_help_usage(const FeatherHostOps *ops, FeatherInterp interp);
+
+/**
+ * feather_ensure_usage_registered ensures a command's usage spec is registered.
+ * This triggers lazy loading of usage specs on first access.
+ * Called internally by usage and help commands.
+ */
+void feather_ensure_usage_registered(const FeatherHostOps *ops, FeatherInterp interp,
+                                     FeatherObj cmdName);
 
 /**
  * feather_builtin_usage implements the TCL 'usage' command.
@@ -1311,5 +1320,20 @@ void feather_register_usage_usage(const FeatherHostOps *ops, FeatherInterp inter
  */
 FeatherResult feather_builtin_usage(const FeatherHostOps *ops, FeatherInterp interp,
                                     FeatherObj cmd, FeatherObj args);
+
+/**
+ * feather_builtin_help implements the TCL 'help' command.
+ *
+ * Usage:
+ *   help                       - List all commands with their help strings
+ *   help command ?subcommand?  - Show full help for a command
+ *
+ * When invoked without arguments, lists all visible commands with their
+ * short descriptions. Commands with subcommands show them indented.
+ * When invoked with a command name, delegates to 'usage help' to show
+ * the full formatted help text.
+ */
+FeatherResult feather_builtin_help(const FeatherHostOps *ops, FeatherInterp interp,
+                                   FeatherObj cmd, FeatherObj args);
 
 #endif
