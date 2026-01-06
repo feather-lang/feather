@@ -18,6 +18,19 @@ typedef size_t FeatherObj;
 #define FEATHER_PARSE_ERROR 2
 
 // -----------------------------------------------------------------------------
+// Utility function to copy string to stack buffer with null termination
+// -----------------------------------------------------------------------------
+
+static void copy_string(FeatherInterp interp, FeatherObj obj, char *buf, size_t bufsize) {
+    size_t len = FeatherLen(interp, obj);
+    if (len >= bufsize) {
+        len = bufsize - 1;
+    }
+    FeatherCopy(interp, obj, buf, len);
+    buf[len] = '\0';
+}
+
+// -----------------------------------------------------------------------------
 // Harness Protocol
 // -----------------------------------------------------------------------------
 
@@ -41,39 +54,38 @@ static void write_harness_result(const char *code, const char *result, const cha
 // Test Commands (handle-based API)
 // -----------------------------------------------------------------------------
 
-static int cmd_say_hello(void *userData, FeatherInterp interp, int argc, FeatherObj *argv,
-                         FeatherObj *result, char **error) {
+static int cmd_say_hello(void *userData, FeatherInterp interp, size_t argc, FeatherObj *argv,
+                         FeatherObj *result, const char **error) {
     (void)userData; (void)argc; (void)argv; (void)error;
     printf("hello\n");
     *result = FeatherString(interp, "", 0);
     return 0;
 }
 
-static int cmd_echo(void *userData, FeatherInterp interp, int argc, FeatherObj *argv,
-                    FeatherObj *result, char **error) {
+static int cmd_echo(void *userData, FeatherInterp interp, size_t argc, FeatherObj *argv,
+                    FeatherObj *result, const char **error) {
     (void)userData; (void)error;
-    for (int i = 0; i < argc; i++) {
+    char buf[4096];
+    for (size_t i = 0; i < argc; i++) {
         if (i > 0) printf(" ");
-        size_t len;
-        char *s = FeatherGetString(argv[i], interp, &len);
-        printf("%s", s);
-        FeatherFreeString(s);
+        copy_string(interp, argv[i], buf, sizeof(buf));
+        printf("%s", buf);
     }
     printf("\n");
     *result = FeatherString(interp, "", 0);
     return 0;
 }
 
-static int cmd_count(void *userData, FeatherInterp interp, int argc, FeatherObj *argv,
-                     FeatherObj *result, char **error) {
+static int cmd_count(void *userData, FeatherInterp interp, size_t argc, FeatherObj *argv,
+                     FeatherObj *result, const char **error) {
     (void)userData; (void)argv; (void)error;
     // Return the count as an integer
     *result = FeatherInt(interp, (int64_t)argc);
     return 0;
 }
 
-static int cmd_list(void *userData, FeatherInterp interp, int argc, FeatherObj *argv,
-                    FeatherObj *result, char **error) {
+static int cmd_list(void *userData, FeatherInterp interp, size_t argc, FeatherObj *argv,
+                    FeatherObj *result, const char **error) {
     (void)userData; (void)error;
 
     // Build the list directly using FeatherList
@@ -96,16 +108,19 @@ static void* counter_new(void *userData) {
     return c;
 }
 
+// Static error buffers for formatted error messages
+static char counter_error_buf[256];
+
 static int counter_invoke(void *instance, FeatherInterp interp, const char *method,
-                          int argc, FeatherObj *argv,
-                          FeatherObj *result, char **error) {
+                          size_t argc, FeatherObj *argv,
+                          FeatherObj *result, const char **error) {
     Counter *c = (Counter*)instance;
-    char buf[256];
 
     if (strcmp(method, "get") == 0) {
         if (argc != 0) {
-            snprintf(buf, sizeof(buf), "wrong # args: expected 0, got %d", argc);
-            *error = strdup(buf);
+            snprintf(counter_error_buf, sizeof(counter_error_buf),
+                     "wrong # args: expected 0, got %zu", argc);
+            *error = counter_error_buf;
             return 1;
         }
         *result = FeatherInt(interp, (int64_t)c->value);
@@ -114,18 +129,23 @@ static int counter_invoke(void *instance, FeatherInterp interp, const char *meth
 
     if (strcmp(method, "set") == 0) {
         if (argc != 1) {
-            snprintf(buf, sizeof(buf), "wrong # args: expected 1, got %d", argc);
-            *error = strdup(buf);
+            snprintf(counter_error_buf, sizeof(counter_error_buf),
+                     "wrong # args: expected 1, got %zu", argc);
+            *error = counter_error_buf;
             return 1;
         }
-        int64_t val;
-        if (FeatherGetInt(argv[0], interp, &val) != 0) {
-            size_t len;
-            char *s = FeatherGetString(argv[0], interp, &len);
-            snprintf(buf, sizeof(buf), "argument 1: expected integer but got \"%s\"", s);
-            FeatherFreeString(s);
-            *error = strdup(buf);
-            return 1;
+        int64_t val = FeatherAsInt(interp, argv[0], -999999);
+        if (val == -999999) {
+            // Check if it really was -999999 or a conversion failure
+            char buf[256];
+            copy_string(interp, argv[0], buf, sizeof(buf));
+            // Simple check: if the string is "-999999", it's valid
+            if (strcmp(buf, "-999999") != 0) {
+                snprintf(counter_error_buf, sizeof(counter_error_buf),
+                         "argument 1: expected integer but got \"%s\"", buf);
+                *error = counter_error_buf;
+                return 1;
+            }
         }
         c->value = (int)val;
         *result = FeatherString(interp, "", 0);
@@ -134,8 +154,9 @@ static int counter_invoke(void *instance, FeatherInterp interp, const char *meth
 
     if (strcmp(method, "incr") == 0) {
         if (argc != 0) {
-            snprintf(buf, sizeof(buf), "wrong # args: expected 0, got %d", argc);
-            *error = strdup(buf);
+            snprintf(counter_error_buf, sizeof(counter_error_buf),
+                     "wrong # args: expected 0, got %zu", argc);
+            *error = counter_error_buf;
             return 1;
         }
         c->value++;
@@ -145,26 +166,30 @@ static int counter_invoke(void *instance, FeatherInterp interp, const char *meth
 
     if (strcmp(method, "add") == 0) {
         if (argc != 1) {
-            snprintf(buf, sizeof(buf), "wrong # args: expected 1, got %d", argc);
-            *error = strdup(buf);
+            snprintf(counter_error_buf, sizeof(counter_error_buf),
+                     "wrong # args: expected 1, got %zu", argc);
+            *error = counter_error_buf;
             return 1;
         }
-        int64_t val;
-        if (FeatherGetInt(argv[0], interp, &val) != 0) {
-            size_t len;
-            char *s = FeatherGetString(argv[0], interp, &len);
-            snprintf(buf, sizeof(buf), "argument 1: expected integer but got \"%s\"", s);
-            FeatherFreeString(s);
-            *error = strdup(buf);
-            return 1;
+        int64_t val = FeatherAsInt(interp, argv[0], -999999);
+        if (val == -999999) {
+            char buf[256];
+            copy_string(interp, argv[0], buf, sizeof(buf));
+            if (strcmp(buf, "-999999") != 0) {
+                snprintf(counter_error_buf, sizeof(counter_error_buf),
+                         "argument 1: expected integer but got \"%s\"", buf);
+                *error = counter_error_buf;
+                return 1;
+            }
         }
         c->value += (int)val;
         *result = FeatherInt(interp, (int64_t)c->value);
         return 0;
     }
 
-    snprintf(buf, sizeof(buf), "unknown method \"%s\": must be get, set, incr, add, destroy", method);
-    *error = strdup(buf);
+    snprintf(counter_error_buf, sizeof(counter_error_buf),
+             "unknown method \"%s\": must be get, set, incr, add, destroy", method);
+    *error = counter_error_buf;
     return 1;
 }
 
@@ -183,10 +208,10 @@ static void register_test_commands(FeatherInterp interp) {
     FeatherSetVar(interp, "current-step", milestone);
 
     // Register test commands
-    FeatherRegisterCommand(interp, "say-hello", cmd_say_hello, NULL);
-    FeatherRegisterCommand(interp, "echo", cmd_echo, NULL);
-    FeatherRegisterCommand(interp, "count", cmd_count, NULL);
-    FeatherRegisterCommand(interp, "list", cmd_list, NULL);
+    FeatherRegister(interp, "say-hello", cmd_say_hello, NULL);
+    FeatherRegister(interp, "echo", cmd_echo, NULL);
+    FeatherRegister(interp, "count", cmd_count, NULL);
+    FeatherRegister(interp, "list", cmd_list, NULL);
 
     // Register Counter type
     FeatherRegisterForeign(interp, "Counter", counter_new, counter_invoke, counter_destroy, NULL);
@@ -205,6 +230,7 @@ static void register_test_commands(FeatherInterp interp) {
 static void run_repl(FeatherInterp interp) {
     char line[4096];
     char input_buffer[65536];
+    char result_buf[4096];
     input_buffer[0] = '\0';
 
     for (;;) {
@@ -236,17 +262,13 @@ static void run_repl(FeatherInterp interp) {
         int status = FeatherEval(interp, input_buffer, strlen(input_buffer), &result);
 
         if (status != FEATHER_OK) {
-            size_t errLen;
-            char *errMsg = FeatherGetString(result, interp, &errLen);
-            fprintf(stderr, "error: %s\n", errMsg ? errMsg : "unknown error");
-            if (errMsg) FeatherFreeString(errMsg);
+            copy_string(interp, result, result_buf, sizeof(result_buf));
+            fprintf(stderr, "error: %s\n", result_buf);
         } else {
-            size_t resLen;
-            char *resStr = FeatherGetString(result, interp, &resLen);
-            if (resStr && resStr[0]) {
-                printf("%s\n", resStr);
+            copy_string(interp, result, result_buf, sizeof(result_buf));
+            if (result_buf[0]) {
+                printf("%s\n", result_buf);
             }
-            if (resStr) FeatherFreeString(resStr);
         }
 
         input_buffer[0] = '\0';
@@ -298,22 +320,20 @@ static void run_script(FeatherInterp interp) {
     char *parseErrorMsg = NULL;
     int parseStatus = FeatherParseResult(interp, script, script_len, &parseResultObj, &parseErrorMsg);
 
+    char result_buf[65536];
+
     if (parseStatus == FEATHER_PARSE_INCOMPLETE) {
         // Return parse result as TCL_OK with the INCOMPLETE info
-        size_t resLen;
-        char *resStr = FeatherGetString(parseResultObj, interp, &resLen);
-        write_harness_result("TCL_OK", resStr ? resStr : "", "");
-        if (resStr) FeatherFreeString(resStr);
+        copy_string(interp, parseResultObj, result_buf, sizeof(result_buf));
+        write_harness_result("TCL_OK", result_buf, "");
         free(script);
         exit(2);
     }
 
     if (parseStatus == FEATHER_PARSE_ERROR) {
         // Return parse result with error info
-        size_t resLen;
-        char *resStr = FeatherGetString(parseResultObj, interp, &resLen);
-        write_harness_result("TCL_ERROR", resStr ? resStr : "", parseErrorMsg ? parseErrorMsg : "");
-        if (resStr) FeatherFreeString(resStr);
+        copy_string(interp, parseResultObj, result_buf, sizeof(result_buf));
+        write_harness_result("TCL_ERROR", result_buf, parseErrorMsg ? parseErrorMsg : "");
         if (parseErrorMsg) FeatherFreeString(parseErrorMsg);
         free(script);
         exit(3);
@@ -324,23 +344,20 @@ static void run_script(FeatherInterp interp) {
     int status = FeatherEval(interp, script, script_len, &result);
     free(script);
 
-    size_t resLen;
-    char *resStr = FeatherGetString(result, interp, &resLen);
+    copy_string(interp, result, result_buf, sizeof(result_buf));
 
     if (status != FEATHER_OK) {
-        if (resStr && resStr[0]) {
-            printf("%s\n", resStr);
+        if (result_buf[0]) {
+            printf("%s\n", result_buf);
         }
-        write_harness_result("TCL_ERROR", "", resStr ? resStr : "");
-        if (resStr) FeatherFreeString(resStr);
+        write_harness_result("TCL_ERROR", "", result_buf);
         exit(1);
     }
 
-    if (resStr && resStr[0]) {
-        printf("%s\n", resStr);
+    if (result_buf[0]) {
+        printf("%s\n", result_buf);
     }
-    write_harness_result("TCL_OK", resStr ? resStr : "", "");
-    if (resStr) FeatherFreeString(resStr);
+    write_harness_result("TCL_OK", result_buf, "");
 }
 
 // -----------------------------------------------------------------------------
