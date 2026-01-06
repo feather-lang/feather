@@ -2150,4 +2150,139 @@ string match "*trimcmd2 test.txt*" $help</script>
     <exit-code>0</exit-code>
   </test-case>
 
+  <!-- ============================================= -->
+  <!-- Top-level help and long_help keywords         -->
+  <!-- ============================================= -->
+
+  <test-case name="top-level help shows in NAME section">
+    <script>usage for helptop1 {
+    help {Add two numbers together}
+    arg <a>
+    arg <b>
+}
+set help [usage help helptop1]
+string match "*NAME*helptop1 - Add two numbers together*" $help</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="top-level long_help shows in DESCRIPTION section">
+    <script>usage for helptop2 {
+    long_help {This command performs addition of two integers and returns their sum.}
+    arg <a>
+    arg <b>
+}
+set help [usage help helptop2]
+string match "*DESCRIPTION*performs addition*" $help</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="top-level help and long_help together">
+    <script>usage for helptop3 {
+    help {Calculate the sum}
+    long_help {Takes two arguments and returns their sum. Both arguments must be valid numbers.}
+    arg <x>
+    arg <y>
+}
+set help [usage help helptop3]
+expr {[string match "*NAME*helptop3 - Calculate the sum*" $help] && [string match "*DESCRIPTION*Both arguments*" $help]}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="top-level help round-trips through usage for">
+    <script>usage for helptop4 {
+    help {Short description}
+    arg <file>
+}
+set spec [usage for helptop4]
+string match "*help*Short description*" $spec</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="top-level long_help round-trips through usage for">
+    <script>usage for helptop5 {
+    long_help {Detailed explanation of what this command does}
+    arg <input>
+}
+set spec [usage for helptop5]
+string match "*long_help*Detailed explanation*" $spec</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="top-level help with multi-line long_help">
+    <script>usage for helptop6 {
+    help {Process files}
+    long_help {
+        This command processes one or more input files.
+
+        It supports various file formats and can output
+        results in different formats.
+    }
+    arg <files>...
+}
+set help [usage help helptop6]
+expr {[string match "*Process files*" $help] && [string match "*various file formats*" $help]}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="top-level help does not affect parsing">
+    <script>usage for helptop7 {
+    help {A helpful command}
+    long_help {Very detailed help text here}
+    arg <input>
+    flag -v --verbose
+}
+proc helptop7 {args} {
+    usage parse helptop7 $args
+    return "$input|$verbose"
+}
+helptop7 -v myfile.txt</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>myfile.txt|1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="top-level help with subcommands">
+    <script>usage for helptop8 {
+    help {CLI tool for managing tasks}
+    long_help {A comprehensive task management tool with multiple subcommands.}
+    cmd add {
+        arg <task>
+    }
+    cmd list {}
+}
+set help [usage help helptop8]
+expr {[string match "*CLI tool for managing*" $help] && [string match "*comprehensive*" $help]}</script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>1</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
 </test-suite>

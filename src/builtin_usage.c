@@ -394,7 +394,9 @@ static int is_keyword(const FeatherHostOps *ops, FeatherInterp interp, FeatherOb
   return feather_obj_eq_literal(ops, interp, token, "flag") ||
          feather_obj_eq_literal(ops, interp, token, "arg") ||
          feather_obj_eq_literal(ops, interp, token, "cmd") ||
-         feather_obj_eq_literal(ops, interp, token, "example");
+         feather_obj_eq_literal(ops, interp, token, "example") ||
+         feather_obj_eq_literal(ops, interp, token, "help") ||
+         feather_obj_eq_literal(ops, interp, token, "long_help");
 }
 
 /**
@@ -850,10 +852,65 @@ static FeatherObj parse_spec(const FeatherHostOps *ops, FeatherInterp interp,
       /* Create example entry */
       FeatherObj entry = usage_example_from_parts(ops, interp, code, header, helpText);
       result = ops->list.push(interp, result, entry);
+
     }
   }
 
   return result;
+}
+
+/**
+ * Second pass of parse_spec: handle help/long_help keywords and create meta entry.
+ */
+static FeatherObj parse_spec_meta(const FeatherHostOps *ops, FeatherInterp interp,
+                                   FeatherObj specStr, FeatherObj entries) {
+  FeatherObj specList = feather_list_parse_obj(ops, interp, specStr);
+  size_t specLen = ops->list.length(interp, specList);
+
+  FeatherObj helpVal = 0;
+  FeatherObj longHelpVal = 0;
+
+  size_t i = 0;
+  while (i < specLen) {
+    FeatherObj keyword = ops->list.at(interp, specList, i);
+    i++;
+
+    if (feather_obj_eq_literal(ops, interp, keyword, "help")) {
+      if (i < specLen) {
+        helpVal = ops->list.at(interp, specList, i);
+        i++;
+      }
+    } else if (feather_obj_eq_literal(ops, interp, keyword, "long_help")) {
+      if (i < specLen) {
+        longHelpVal = ops->list.at(interp, specList, i);
+        i++;
+      }
+    }
+  }
+
+  /* If we found help or long_help, create a meta entry and prepend it */
+  if (!ops->list.is_nil(interp, helpVal) || !ops->list.is_nil(interp, longHelpVal)) {
+    FeatherObj meta = ops->dict.create(interp);
+    meta = dict_set_str(ops, interp, meta, K_TYPE, ops->string.intern(interp, S(T_META)));
+
+    if (!ops->list.is_nil(interp, helpVal)) {
+      meta = dict_set_str(ops, interp, meta, K_ABOUT, helpVal);
+    }
+    if (!ops->list.is_nil(interp, longHelpVal)) {
+      meta = dict_set_str(ops, interp, meta, K_LONG_HELP, longHelpVal);
+    }
+
+    /* Prepend meta entry to the result */
+    FeatherObj newResult = ops->list.create(interp);
+    newResult = ops->list.push(interp, newResult, meta);
+    size_t entriesLen = ops->list.length(interp, entries);
+    for (size_t j = 0; j < entriesLen; j++) {
+      newResult = ops->list.push(interp, newResult, ops->list.at(interp, entries, j));
+    }
+    return newResult;
+  }
+
+  return entries;
 }
 
 /**
@@ -1624,6 +1681,32 @@ static FeatherObj example_to_list(const FeatherHostOps *ops, FeatherInterp inter
 }
 
 /**
+ * Convert a parsed meta entry back to list format.
+ * Returns a list of tokens like: help {short desc} long_help {detailed desc}
+ * These are flattened into the result, not nested.
+ */
+static FeatherObj meta_to_list(const FeatherHostOps *ops, FeatherInterp interp,
+                                FeatherObj entry) {
+  FeatherObj result = ops->list.create(interp);
+
+  /* about -> help */
+  FeatherObj about = dict_get_str(ops, interp, entry, K_ABOUT);
+  if (ops->string.byte_length(interp, about) > 0) {
+    result = ops->list.push(interp, result, ops->string.intern(interp, S(K_HELP)));
+    result = ops->list.push(interp, result, about);
+  }
+
+  /* long_help */
+  FeatherObj longHelp = dict_get_str(ops, interp, entry, K_LONG_HELP);
+  if (ops->string.byte_length(interp, longHelp) > 0) {
+    result = ops->list.push(interp, result, ops->string.intern(interp, S(K_LONG_HELP)));
+    result = ops->list.push(interp, result, longHelp);
+  }
+
+  return result;
+}
+
+/**
  * Convert a parsed spec (list of entry dicts) back to input format (list of entry lists).
  */
 static FeatherObj spec_to_list(const FeatherHostOps *ops, FeatherInterp interp,
@@ -1644,6 +1727,8 @@ static FeatherObj spec_to_list(const FeatherHostOps *ops, FeatherInterp interp,
       entryList = cmd_to_list(ops, interp, entry);
     } else if (feather_obj_eq_literal(ops, interp, typeVal, T_EXAMPLE)) {
       entryList = example_to_list(ops, interp, entry);
+    } else if (feather_obj_eq_literal(ops, interp, typeVal, T_META)) {
+      entryList = meta_to_list(ops, interp, entry);
     } else {
       continue;  /* Unknown entry type, skip */
     }
@@ -1700,6 +1785,9 @@ static FeatherResult usage_for(const FeatherHostOps *ops, FeatherInterp interp,
 
   /* Parse the spec into structured form */
   FeatherObj parsed = parse_spec(ops, interp, specStr);
+
+  /* Handle top-level help/long_help keywords */
+  parsed = parse_spec_meta(ops, interp, specStr, parsed);
 
   /* Store both original and parsed in a dict for round-tripping */
   FeatherObj specEntry = ops->dict.create(interp);
