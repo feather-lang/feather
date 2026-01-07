@@ -1,0 +1,67 @@
+[env]
+RAYLIB_PATH = "{{config_root}}/raylib"
+
+[tasks.setup]
+description = "Download and extract Raylib 5.5 for the current platform"
+run = """
+set -e
+
+RAYLIB_VERSION="5.5"
+RAYLIB_DIR="$MISE_CONFIG_ROOT/raylib"
+
+# Determine platform-specific archive name
+case "$(uname -s)" in
+  Darwin)
+    ARCHIVE_NAME="raylib-${RAYLIB_VERSION}_macos.tar.gz"
+    ;;
+  Linux)
+    case "$(uname -m)" in
+      x86_64)
+        ARCHIVE_NAME="raylib-${RAYLIB_VERSION}_linux_amd64.tar.gz"
+        ;;
+      aarch64|arm64)
+        ARCHIVE_NAME="raylib-${RAYLIB_VERSION}_linux_arm64.tar.gz"
+        ;;
+      *)
+        echo "Unsupported Linux architecture: $(uname -m)"
+        exit 1
+        ;;
+    esac
+    ;;
+  *)
+    echo "Unsupported platform: $(uname -s)"
+    exit 1
+    ;;
+esac
+
+DOWNLOAD_URL="https://github.com/raysan5/raylib/releases/download/${RAYLIB_VERSION}/${ARCHIVE_NAME}"
+
+# Skip if already downloaded
+if [ -f "$RAYLIB_DIR/lib/libraylib.a" ]; then
+  echo "Raylib already installed at $RAYLIB_DIR"
+  exit 0
+fi
+
+echo "Downloading Raylib ${RAYLIB_VERSION} from ${DOWNLOAD_URL}..."
+mkdir -p "$RAYLIB_DIR"
+curl -fsSL "$DOWNLOAD_URL" | tar xz -C "$RAYLIB_DIR" --strip-components=1
+
+echo "Raylib ${RAYLIB_VERSION} installed to $RAYLIB_DIR"
+"""
+
+[tasks.clean]
+description = "Remove downloaded Raylib and build artifacts"
+run = """
+rm -rf "$MISE_CONFIG_ROOT/raylib"
+make clean
+"""
+
+[tasks.build]
+description = "Build the game (downloads Raylib if needed)"
+depends = ["setup"]
+run = "make"
+
+[tasks.run]
+description = "Run the game"
+depends = ["build"]
+run = "make run"

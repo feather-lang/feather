@@ -1,39 +1,64 @@
 # Feather + Raylib Example
 
-This example demonstrates embedding Feather as a scripting language for a raylib game.
+A bouncing balls demo showing how to embed Feather as a scripting language in a Raylib game.
 
-## Building
+<p align="center">
+  <img src="screenshot.webp" alt="Bouncing balls demo" />
+</p>
 
-1. Build libfeather from the project root:
-   ```
-   mise build
-   ```
+## Overview
 
-2. Install raylib:
-   ```
-   # Debian/Ubuntu
-   apt install libraylib-dev
+This example demonstrates:
+- Embedding libfeather in a C application
+- Using TCL scripts for rendering logic
+- Game state management in C with TCL for draw commands
+- Real-time input handling
 
-   # macOS
-   brew install raylib
+## Prerequisites
 
-   # Or build from source: https://github.com/raysan5/raylib
-   ```
+- libfeather.so built (run `mise build:c-shared` from project root)
+- mise installed
 
-3. Build the game:
-   ```
-   make
-   ```
+## Quick Start
 
-## Running
+```bash
+# Download Raylib 5.5 and build
+mise setup
+make
 
-```
+# Run the demo
 make run
-# or
-./game demo.tcl
 ```
 
 Click anywhere to spawn bouncing balls!
+
+## How It Works
+
+Game state (ball positions, velocities, physics) is managed in C for performance and simplicity. The TCL script handles rendering by querying ball data from C and issuing draw commands.
+
+**C side:**
+- Stores ball state in a static array
+- Handles physics updates each frame
+- Exposes commands: `get_ball_count`, `get_ball`, `draw_circle`, `draw_text`, etc.
+
+**TCL side:**
+- Queries ball data via `get_ball`
+- Issues draw commands for each ball with shadows and highlights
+- Handles mouse cursor rendering
+
+## Available mise Tasks
+
+| Task | Description |
+|------|-------------|
+| `mise setup` | Download Raylib 5.5 for your platform |
+| `mise build` | Build the game (runs setup if needed) |
+| `mise run` | Build and run the demo |
+| `mise clean` | Remove raylib and build artifacts |
+
+## Controls
+
+- **Click** - Spawn a new ball at cursor position
+- **ESC** - Exit
 
 ## API Reference
 
@@ -41,61 +66,18 @@ Click anywhere to spawn bouncing balls!
 
 | Command | Description |
 |---------|-------------|
-| `clear <color>` | Clear screen with color |
-| `draw_circle <x> <y> <radius> <color>` | Draw filled circle |
-| `draw_ring <x> <y> <inner> <outer> <color>` | Draw ring/donut |
-| `draw_rect <x> <y> <w> <h> <color>` | Draw filled rectangle |
-| `draw_rect_lines <x> <y> <w> <h> <color>` | Draw rectangle outline |
-| `draw_line <x1> <y1> <x2> <y2> <color>` | Draw line |
-| `draw_line_thick <x1> <y1> <x2> <y2> <thick> <color>` | Draw thick line |
-| `draw_text <text> <x> <y> <size> <color>` | Draw text |
-| `draw_triangle <x1> <y1> <x2> <y2> <x3> <y3> <color>` | Draw filled triangle |
-| `draw_poly <x> <y> <sides> <radius> <rotation> <color>` | Draw regular polygon |
+| `clear` | Clear screen with dark blue |
+| `draw_circle <x> <y> <radius> <r> <g> <b> <a>` | Draw filled circle |
+| `draw_ring <x> <y> <inner> <outer> <r> <g> <b> <a>` | Draw ring/donut |
+| `draw_text <text> <x> <y> <size> <r> <g> <b> <a>` | Draw text |
 
-### Input Commands
+### Game State Commands
 
 | Command | Description |
 |---------|-------------|
+| `get_ball_count` | Get number of balls |
+| `get_ball <index>` | Get ball data as `{x y radius r g b}` |
+| `get_fps` | Get current FPS |
 | `mouse_x` | Get mouse X position |
 | `mouse_y` | Get mouse Y position |
-| `mouse_pos` | Get mouse position as `{x y}` list |
-| `mouse_down ?button?` | Check if mouse button is held (0=left, 1=right, 2=middle) |
-| `mouse_pressed ?button?` | Check if mouse button was just pressed |
-| `key_down <key>` | Check if key is held (raylib key code) |
-| `key_pressed <key>` | Check if key was just pressed |
-
-### Utility Commands
-
-| Command | Description |
-|---------|-------------|
-| `screen_width` | Get screen width |
-| `screen_height` | Get screen height |
-| `frame_time` | Get delta time in seconds |
-| `get_time` | Get total elapsed time |
-| `get_fps` | Get current FPS |
-| `random <min> <max>` | Generate random integer in range |
-
-### Colors
-
-Colors can be specified as:
-- Named colors: `red`, `green`, `blue`, `yellow`, `orange`, `pink`, `purple`, `white`, `black`, `gray`, `darkgray`, `lightgray`, `skyblue`, `darkblue`, `darkgreen`
-- RGB list: `{255 128 0}`
-- RGBA list: `{255 128 0 200}`
-
-## Script Structure
-
-Your script should define two procs:
-
-```tcl
-proc update {} {
-    # Called each frame before drawing
-    # Handle input, update game state
-}
-
-proc draw {} {
-    # Called each frame inside BeginDrawing/EndDrawing
-    # All drawing commands go here
-}
-```
-
-Global variables persist across frames, so use them for game state.
+| `mouse_down` | Check if left mouse button is held |
