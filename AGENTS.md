@@ -129,3 +129,37 @@ Feather does not support TCL-style arrays.
 Sometimes you will find references to arrays when comparing TCL to Feather.
 
 We do not aim for array support in Feather.
+
+## Completion System Implementation Notes
+
+The `usage complete` command implements completion for CLI arguments based on usage specs.
+
+### Architecture (v2)
+
+The completion system uses a clean 4-phase architecture:
+
+1. **Phase 1 - Parse Context**: Tokenize script and separate `complete_tokens` (fully typed) from `partial_token` (being typed)
+2. **Phase 2 - Determine State**: Analyze tokens to determine completion state (command, subcommand, flag_value, argument)
+3. **Phase 3 - Generate Candidates**: Create completions based on state
+4. **Phase 4 - Filter**: Apply prefix filtering
+
+### Key Data Structures
+
+- `CompletionContext_v2`: Contains `complete_tokens` (list), `partial_token` (string), and cursor position info
+- `CompletionStateInfo_v2`: Contains state enum, active spec, and flag info for value completion
+
+### Critical Implementation Details
+
+1. **Token Parsing**: When scanning to cursor position, a token is "complete" if there's whitespace between it and the cursor. Otherwise it's "partial".
+
+2. **Flag Filtering**: v1 has special behavior: when ANY form (short or long) of a flag matches the prefix, include ALL forms. This is implemented in `generate_flags_v2` rather than the generic filter.
+
+3. **Placeholder Handling**: Arg placeholders are always included (never filtered by prefix). The count of positional args includes the partial_token if it's non-empty and not a flag.
+
+4. **Spec Token Adjustment**: For subcommands, `spec_tokens` excludes the parent command name to correctly count positional args within the subcommand.
+
+### Common Pitfalls
+
+- Don't conflate "prefix for filtering" with "context for counting args" - they're separate concepts
+- Flag matching must use the "any matches, include all" logic - simple prefix matching breaks completion
+- Placeholders should count the partial_token in the positional arg count (if non-empty, non-flag)
