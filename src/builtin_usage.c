@@ -3174,6 +3174,813 @@ static FeatherObj get_arg_placeholders(const FeatherHostOps *ops, FeatherInterp 
   return result;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Completion System v2 - Clean Architecture
+ *
+ * Phase 1: Parse script and extract context (complete_tokens, partial_token)
+ * Phase 2: Determine completion state (command, subcommand, flag_value, argument)
+ * Phase 3: Generate candidates (unfiltered)
+ * Phase 4: Filter by prefix
+ *
+ * Key insight: Separate "what tokens exist" from "what to filter by"
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Completion context - result of parsing the script up to cursor position.
+ *
+ * Separates two previously conflated concepts:
+ * - complete_tokens: tokens that have trailing whitespace (fully typed)
+ * - partial_token: the token being typed (may be empty if cursor after space)
+ */
+typedef struct {
+    FeatherObj complete_tokens;    /* List of fully-typed tokens */
+    FeatherObj partial_token;      /* String being typed (empty if at boundary) */
+    size_t partial_token_start;    /* Byte offset where partial token starts */
+    int at_token_boundary;         /* 1 if cursor right after whitespace */
+} CompletionContext_v2;
+
+/**
+ * Completion state - what kind of completion to offer.
+ */
+typedef enum {
+    COMPLETE_COMMAND_V2,     /* No tokens yet, complete command name */
+    COMPLETE_SUBCOMMAND_V2,  /* After command, spec has subcommands */
+    COMPLETE_FLAG_VALUE_V2,  /* Previous token is flag expecting value */
+    COMPLETE_ARGUMENT_V2     /* Complete positional arg or flag */
+} CompletionState_v2;
+
+/**
+ * Completion state info - context for generating completions.
+ */
+typedef struct {
+    CompletionState_v2 state;
+    FeatherObj active_spec;              /* Spec to complete against */
+    FeatherObj spec_tokens;              /* Tokens relevant to current spec */
+    FeatherObj expecting_value_for_flag; /* Flag entry if completing flag value */
+} CompletionStateInfo_v2;
+
+/**
+ * Phase 1: Parse script and extract completion context.
+ *
+ * Tokenizes from the last command separator to the cursor position.
+ * Distinguishes between complete tokens (have trailing whitespace) and
+ * partial tokens (cursor is within or at end of token).
+ */
+static CompletionContext_v2 parse_completion_context_v2(
+    const FeatherHostOps *ops,
+    FeatherInterp interp,
+    FeatherObj scriptObj,
+    size_t pos
+) {
+    CompletionContext_v2 ctx;
+    ctx.complete_tokens = ops->list.create(interp);
+    ctx.partial_token = ops->string.intern(interp, "", 0);
+    ctx.partial_token_start = pos;
+    ctx.at_token_boundary = 1;
+
+    size_t script_len = ops->string.byte_length(interp, scriptObj);
+    if (pos > script_len) {
+        pos = script_len;
+    }
+
+    /* Find the last command separator (semicolon or newline) before pos */
+    size_t cmd_start = 0;
+    for (size_t j = 0; j < pos; j++) {
+        int c = ops->string.byte_at(interp, scriptObj, j);
+        if (c == ';' || c == '\n') {
+            cmd_start = j + 1;
+        }
+    }
+
+    /* Tokenize from cmd_start to pos */
+    size_t i = cmd_start;
+
+    while (i < pos) {
+        /* Skip whitespace */
+        while (i < pos) {
+            int c = ops->string.byte_at(interp, scriptObj, i);
+            if (c == ' ' || c == '\t' || c == '\r') {
+                i++;
+            } else {
+                break;
+            }
+        }
+
+        if (i >= pos) {
+            /* Cursor is at whitespace - no partial token */
+            ctx.partial_token = ops->string.intern(interp, "", 0);
+            ctx.partial_token_start = pos;
+            ctx.at_token_boundary = 1;
+            break;
+        }
+
+        /* Find end of token */
+        size_t token_start = i;
+        while (i < pos) {
+            int c = ops->string.byte_at(interp, scriptObj, i);
+            if (c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == ';') {
+                break;
+            }
+            i++;
+        }
+
+        FeatherObj token = ops->string.slice(interp, scriptObj, token_start, i);
+
+        if (i < pos) {
+            /* Token is complete (has trailing whitespace before pos) */
+            ctx.complete_tokens = ops->list.push(interp, ctx.complete_tokens, token);
+        } else {
+            /* Cursor is in/at this token - it's partial */
+            ctx.partial_token = token;
+            ctx.partial_token_start = token_start;
+            ctx.at_token_boundary = 0;
+        }
+    }
+
+    return ctx;
+}
+
+/**
+ * Phase 2: Determine completion state from context.
+ *
+ * Analyzes complete_tokens to determine:
+ * - If we're at command position
+ * - If we're completing a subcommand
+ * - If we're completing a flag value
+ * - If we're completing an argument/flag
+ */
+static CompletionStateInfo_v2 determine_completion_state_v2(
+    const FeatherHostOps *ops,
+    FeatherInterp interp,
+    CompletionContext_v2 *ctx
+) {
+    CompletionStateInfo_v2 state;
+    state.active_spec = ops->list.create(interp);
+    state.spec_tokens = ops->list.create(interp);
+    state.expecting_value_for_flag = ops->dict.create(interp);
+
+    size_t numTokens = ops->list.length(interp, ctx->complete_tokens);
+
+    /* Case 1: No complete tokens - complete command names */
+    if (numTokens == 0) {
+        state.state = COMPLETE_COMMAND_V2;
+        return state;
+    }
+
+    /* Get command name and look up spec */
+    FeatherObj cmdName = ops->list.at(interp, ctx->complete_tokens, 0);
+    FeatherObj specs = usage_get_specs(ops, interp);
+    FeatherObj specEntry = ops->dict.get(interp, specs, cmdName);
+
+    if (ops->list.is_nil(interp, specEntry)) {
+        /* Command not found - no completions */
+        state.state = COMPLETE_ARGUMENT_V2;
+        return state;
+    }
+
+    FeatherObj parsedSpec = dict_get_str(ops, interp, specEntry, K_SPEC);
+    state.active_spec = parsedSpec;
+    state.spec_tokens = ctx->complete_tokens;
+
+    /* Check if spec has subcommands */
+    int hasSubcmds = 0;
+    size_t specLen = ops->list.length(interp, parsedSpec);
+    for (size_t j = 0; j < specLen; j++) {
+        FeatherObj entry = ops->list.at(interp, parsedSpec, j);
+        FeatherObj entryType = dict_get_str(ops, interp, entry, K_TYPE);
+        if (feather_obj_eq_literal(ops, interp, entryType, T_CMD)) {
+            hasSubcmds = 1;
+            break;
+        }
+    }
+
+    /* Case 2: Only command token, spec has subcommands */
+    if (numTokens == 1 && hasSubcmds) {
+        state.state = COMPLETE_SUBCOMMAND_V2;
+        return state;
+    }
+
+    /* If we have more tokens and spec has subcommands, check for subcommand match */
+    if (numTokens >= 2 && hasSubcmds) {
+        FeatherObj secondToken = ops->list.at(interp, ctx->complete_tokens, 1);
+
+        /* Look for matching subcommand */
+        for (size_t j = 0; j < specLen; j++) {
+            FeatherObj entry = ops->list.at(interp, parsedSpec, j);
+            FeatherObj entryType = dict_get_str(ops, interp, entry, K_TYPE);
+
+            if (feather_obj_eq_literal(ops, interp, entryType, T_CMD)) {
+                FeatherObj subcmdName = dict_get_str(ops, interp, entry, K_NAME);
+                if (obj_strcmp(ops, interp, secondToken, subcmdName) == 0) {
+                    /* Found matching subcommand - use its spec */
+                    FeatherObj subspec = dict_get_str(ops, interp, entry, K_SPEC);
+                    if (!ops->list.is_nil(interp, subspec)) {
+                        state.active_spec = subspec;
+                        /* Adjust tokens: ["git", "commit", "-a"] -> ["commit", "-a"] */
+                        state.spec_tokens = ops->list.create(interp);
+                        for (size_t k = 1; k < numTokens; k++) {
+                            state.spec_tokens = ops->list.push(interp, state.spec_tokens,
+                                ops->list.at(interp, ctx->complete_tokens, k));
+                        }
+                        parsedSpec = subspec;
+                        specLen = ops->list.length(interp, parsedSpec);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    /* Check if last complete token is a flag expecting a value */
+    size_t stateTokens = ops->list.length(interp, state.spec_tokens);
+    if (stateTokens >= 1) {
+        FeatherObj lastToken = ops->list.at(interp, state.spec_tokens, stateTokens - 1);
+        FeatherObj flagEntry = find_flag_entry(ops, interp, state.active_spec, lastToken);
+
+        if (ops->dict.is_dict(interp, flagEntry) && ops->dict.size(interp, flagEntry) > 0) {
+            int hasValue = dict_get_int(ops, interp, flagEntry, K_HAS_VALUE);
+            if (hasValue) {
+                state.state = COMPLETE_FLAG_VALUE_V2;
+                state.expecting_value_for_flag = flagEntry;
+                return state;
+            }
+        }
+    }
+
+    /* Default: complete arguments/flags */
+    state.state = COMPLETE_ARGUMENT_V2;
+    return state;
+}
+
+/**
+ * Generate all command completions (unfiltered).
+ */
+static FeatherObj generate_all_commands_v2(
+    const FeatherHostOps *ops,
+    FeatherInterp interp
+) {
+    FeatherObj result = ops->list.create(interp);
+    FeatherObj specs = usage_get_specs(ops, interp);
+    FeatherObj keys = ops->dict.keys(interp, specs);
+    size_t numKeys = ops->list.length(interp, keys);
+
+    /* Collect all command names (we'll sort later) */
+    FeatherObj matches = ops->list.create(interp);
+    for (size_t i = 0; i < numKeys; i++) {
+        FeatherObj cmdName = ops->list.at(interp, keys, i);
+        matches = ops->list.push(interp, matches, cmdName);
+    }
+
+    /* Sort alphabetically */
+    size_t numMatches = ops->list.length(interp, matches);
+    if (numMatches > 1) {
+        int sorted = 0;
+        while (!sorted) {
+            sorted = 1;
+            FeatherObj newMatches = ops->list.create(interp);
+            for (size_t i = 0; i < numMatches; i++) {
+                FeatherObj curr = ops->list.at(interp, matches, i);
+                if (i + 1 < numMatches) {
+                    FeatherObj next = ops->list.at(interp, matches, i + 1);
+                    if (obj_strcmp(ops, interp, curr, next) > 0) {
+                        newMatches = ops->list.push(interp, newMatches, next);
+                        newMatches = ops->list.push(interp, newMatches, curr);
+                        i++;
+                        sorted = 0;
+                    } else {
+                        newMatches = ops->list.push(interp, newMatches, curr);
+                    }
+                } else {
+                    newMatches = ops->list.push(interp, newMatches, curr);
+                }
+            }
+            matches = newMatches;
+        }
+    }
+
+    /* Create completion entries */
+    for (size_t i = 0; i < numMatches; i++) {
+        FeatherObj cmdName = ops->list.at(interp, matches, i);
+        FeatherObj specEntry = ops->dict.get(interp, specs, cmdName);
+
+        /* Get help text */
+        FeatherObj help = ops->string.intern(interp, "", 0);
+        if (!ops->list.is_nil(interp, specEntry)) {
+            FeatherObj parsedSpec = dict_get_str(ops, interp, specEntry, K_SPEC);
+            size_t specLen = ops->list.length(interp, parsedSpec);
+            if (specLen > 0) {
+                FeatherObj firstEntry = ops->list.at(interp, parsedSpec, 0);
+                if (entry_is_type(ops, interp, firstEntry, T_META)) {
+                    help = dict_get_str(ops, interp, firstEntry, K_ABOUT);
+                }
+            }
+        }
+
+        size_t cmdLen = ops->string.byte_length(interp, cmdName);
+        char cmdbuf[256];
+        if (cmdLen >= sizeof(cmdbuf)) cmdLen = sizeof(cmdbuf) - 1;
+        for (size_t j = 0; j < cmdLen; j++) {
+            cmdbuf[j] = (char)ops->string.byte_at(interp, cmdName, j);
+        }
+        cmdbuf[cmdLen] = '\0';
+
+        FeatherObj completion = make_completion(ops, interp, cmdbuf, T_COMMAND, help);
+        result = ops->list.push(interp, result, completion);
+    }
+
+    return result;
+}
+
+/**
+ * Generate all subcommand completions (unfiltered).
+ */
+static FeatherObj generate_all_subcommands_v2(
+    const FeatherHostOps *ops,
+    FeatherInterp interp,
+    FeatherObj spec
+) {
+    FeatherObj result = ops->list.create(interp);
+    size_t specLen = ops->list.length(interp, spec);
+
+    for (size_t i = 0; i < specLen; i++) {
+        FeatherObj entry = ops->list.at(interp, spec, i);
+        FeatherObj entryType = dict_get_str(ops, interp, entry, K_TYPE);
+
+        if (!feather_obj_eq_literal(ops, interp, entryType, T_CMD)) {
+            continue;
+        }
+
+        int hide = dict_get_int(ops, interp, entry, K_HIDE);
+        if (hide) {
+            continue;
+        }
+
+        FeatherObj subcmdName = dict_get_str(ops, interp, entry, K_NAME);
+        FeatherObj help = dict_get_str(ops, interp, entry, K_HELP);
+
+        size_t nameLen = ops->string.byte_length(interp, subcmdName);
+        char namebuf[256];
+        if (nameLen >= sizeof(namebuf)) nameLen = sizeof(namebuf) - 1;
+        for (size_t j = 0; j < nameLen; j++) {
+            namebuf[j] = (char)ops->string.byte_at(interp, subcmdName, j);
+        }
+        namebuf[nameLen] = '\0';
+
+        FeatherObj completion = make_completion(ops, interp, namebuf, T_SUBCOMMAND, help);
+        result = ops->list.push(interp, result, completion);
+    }
+
+    return result;
+}
+
+/**
+ * Generate flag completions with v1-compatible "any matches, include all" filtering.
+ *
+ * When any form (short or long) of a flag matches the prefix, BOTH forms are included.
+ * This matches the v1 behavior where flags are grouped by entry.
+ */
+static FeatherObj generate_flags_v2(
+    const FeatherHostOps *ops,
+    FeatherInterp interp,
+    FeatherObj spec,
+    FeatherObj prefix
+) {
+    FeatherObj unsorted = ops->list.create(interp);
+    size_t specLen = ops->list.length(interp, spec);
+
+    for (size_t i = 0; i < specLen; i++) {
+        FeatherObj entry = ops->list.at(interp, spec, i);
+        FeatherObj entryType = dict_get_str(ops, interp, entry, K_TYPE);
+
+        if (!feather_obj_eq_literal(ops, interp, entryType, T_FLAG)) {
+            continue;
+        }
+
+        int hide = dict_get_int(ops, interp, entry, K_HIDE);
+        if (hide) {
+            continue;
+        }
+
+        FeatherObj help = dict_get_str(ops, interp, entry, K_HELP);
+        FeatherObj shortFlag = dict_get_str(ops, interp, entry, K_SHORT);
+        FeatherObj longFlag = dict_get_str(ops, interp, entry, K_LONG);
+
+        /* Build short and long flag strings */
+        FeatherObj shortFlagStr = ops->string.intern(interp, "", 0);
+        FeatherObj longFlagStr = ops->string.intern(interp, "", 0);
+
+        if (ops->string.byte_length(interp, shortFlag) > 0) {
+            size_t flagLen = ops->string.byte_length(interp, shortFlag);
+            char flagbuf[64];
+            flagbuf[0] = '-';
+            for (size_t j = 0; j < flagLen && j < sizeof(flagbuf) - 2; j++) {
+                flagbuf[j + 1] = (char)ops->string.byte_at(interp, shortFlag, j);
+            }
+            flagbuf[flagLen + 1] = '\0';
+            shortFlagStr = ops->string.intern(interp, flagbuf, flagLen + 1);
+        }
+
+        if (ops->string.byte_length(interp, longFlag) > 0) {
+            size_t flagLen = ops->string.byte_length(interp, longFlag);
+            char flagbuf[64];
+            flagbuf[0] = '-';
+            flagbuf[1] = '-';
+            for (size_t j = 0; j < flagLen && j < sizeof(flagbuf) - 3; j++) {
+                flagbuf[j + 2] = (char)ops->string.byte_at(interp, longFlag, j);
+            }
+            flagbuf[flagLen + 2] = '\0';
+            longFlagStr = ops->string.intern(interp, flagbuf, flagLen + 2);
+        }
+
+        /* v1 behavior: if EITHER form matches prefix, include BOTH forms */
+        int shortMatches = obj_has_prefix(ops, interp, shortFlagStr, prefix);
+        int longMatches = obj_has_prefix(ops, interp, longFlagStr, prefix);
+
+        if (shortMatches || longMatches) {
+            /* Add short flag if it exists */
+            if (ops->string.byte_length(interp, shortFlagStr) > 0) {
+                size_t len = ops->string.byte_length(interp, shortFlagStr);
+                char buf[64];
+                for (size_t j = 0; j < len && j < sizeof(buf) - 1; j++) {
+                    buf[j] = (char)ops->string.byte_at(interp, shortFlagStr, j);
+                }
+                buf[len] = '\0';
+                FeatherObj completion = make_completion(ops, interp, buf, T_FLAG, help);
+                unsorted = ops->list.push(interp, unsorted, completion);
+            }
+            /* Add long flag if it exists */
+            if (ops->string.byte_length(interp, longFlagStr) > 0) {
+                size_t len = ops->string.byte_length(interp, longFlagStr);
+                char buf[64];
+                for (size_t j = 0; j < len && j < sizeof(buf) - 1; j++) {
+                    buf[j] = (char)ops->string.byte_at(interp, longFlagStr, j);
+                }
+                buf[len] = '\0';
+                FeatherObj completion = make_completion(ops, interp, buf, T_FLAG, help);
+                unsorted = ops->list.push(interp, unsorted, completion);
+            }
+        }
+    }
+
+    /* Sort: short flags first, then long flags, alphabetically within each group */
+    size_t numFlags = ops->list.length(interp, unsorted);
+    if (numFlags <= 1) {
+        return unsorted;
+    }
+
+    FeatherObj result = unsorted;
+    int sorted = 0;
+    while (!sorted) {
+        sorted = 1;
+        FeatherObj newResult = ops->list.create(interp);
+        for (size_t i = 0; i < numFlags; i++) {
+            FeatherObj curr = ops->list.at(interp, result, i);
+
+            if (i + 1 < numFlags) {
+                FeatherObj next = ops->list.at(interp, result, i + 1);
+                FeatherObj currText = dict_get_str(ops, interp, curr, K_TEXT);
+                FeatherObj nextText = dict_get_str(ops, interp, next, K_TEXT);
+
+                size_t currLen = ops->string.byte_length(interp, currText);
+                size_t nextLen = ops->string.byte_length(interp, nextText);
+
+                int currIsShort = (currLen >= 2 &&
+                                   ops->string.byte_at(interp, currText, 0) == '-' &&
+                                   ops->string.byte_at(interp, currText, 1) != '-');
+                int nextIsShort = (nextLen >= 2 &&
+                                   ops->string.byte_at(interp, nextText, 0) == '-' &&
+                                   ops->string.byte_at(interp, nextText, 1) != '-');
+
+                int shouldSwap = 0;
+                if (currIsShort && !nextIsShort) {
+                    shouldSwap = 0;
+                } else if (!currIsShort && nextIsShort) {
+                    shouldSwap = 1;
+                } else {
+                    shouldSwap = (obj_strcmp(ops, interp, currText, nextText) > 0);
+                }
+
+                if (shouldSwap) {
+                    newResult = ops->list.push(interp, newResult, next);
+                    newResult = ops->list.push(interp, newResult, curr);
+                    i++;
+                    sorted = 0;
+                } else {
+                    newResult = ops->list.push(interp, newResult, curr);
+                }
+            } else {
+                newResult = ops->list.push(interp, newResult, curr);
+            }
+        }
+        result = newResult;
+    }
+
+    return result;
+}
+
+/**
+ * Generate choice completions for a flag (unfiltered).
+ */
+static FeatherObj generate_flag_choices_v2(
+    const FeatherHostOps *ops,
+    FeatherInterp interp,
+    FeatherObj flagEntry
+) {
+    FeatherObj result = ops->list.create(interp);
+
+    FeatherObj choices = dict_get_str(ops, interp, flagEntry, K_CHOICES);
+    if (ops->string.byte_length(interp, choices) == 0) {
+        return result;
+    }
+
+    FeatherObj help = dict_get_str(ops, interp, flagEntry, K_HELP);
+    FeatherObj choicesList = feather_list_parse_obj(ops, interp, choices);
+    size_t numChoices = ops->list.length(interp, choicesList);
+
+    /* Collect and sort choices */
+    FeatherObj matches = ops->list.create(interp);
+    for (size_t i = 0; i < numChoices; i++) {
+        FeatherObj choice = ops->list.at(interp, choicesList, i);
+        matches = ops->list.push(interp, matches, choice);
+    }
+
+    /* Sort alphabetically */
+    size_t numMatches = ops->list.length(interp, matches);
+    if (numMatches > 1) {
+        int sorted = 0;
+        while (!sorted) {
+            sorted = 1;
+            FeatherObj newMatches = ops->list.create(interp);
+            for (size_t i = 0; i < numMatches; i++) {
+                FeatherObj curr = ops->list.at(interp, matches, i);
+                if (i + 1 < numMatches) {
+                    FeatherObj next = ops->list.at(interp, matches, i + 1);
+                    if (obj_strcmp(ops, interp, curr, next) > 0) {
+                        newMatches = ops->list.push(interp, newMatches, next);
+                        newMatches = ops->list.push(interp, newMatches, curr);
+                        i++;
+                        sorted = 0;
+                    } else {
+                        newMatches = ops->list.push(interp, newMatches, curr);
+                    }
+                } else {
+                    newMatches = ops->list.push(interp, newMatches, curr);
+                }
+            }
+            matches = newMatches;
+        }
+    }
+
+    /* Create completion entries */
+    for (size_t i = 0; i < numMatches; i++) {
+        FeatherObj choice = ops->list.at(interp, matches, i);
+
+        size_t choiceLen = ops->string.byte_length(interp, choice);
+        char choicebuf[256];
+        if (choiceLen >= sizeof(choicebuf)) choiceLen = sizeof(choicebuf) - 1;
+        for (size_t j = 0; j < choiceLen; j++) {
+            choicebuf[j] = (char)ops->string.byte_at(interp, choice, j);
+        }
+        choicebuf[choiceLen] = '\0';
+
+        FeatherObj completion = make_completion(ops, interp, choicebuf, T_VALUE, help);
+        result = ops->list.push(interp, result, completion);
+    }
+
+    return result;
+}
+
+/**
+ * Generate argument placeholders based on provided tokens.
+ *
+ * The partial_token is counted as a positional argument if non-empty and not a flag.
+ * This matches the v1 behavior where typing a value counts as providing that argument.
+ */
+static FeatherObj generate_placeholders_v2(
+    const FeatherHostOps *ops,
+    FeatherInterp interp,
+    FeatherObj spec,
+    FeatherObj tokens,
+    FeatherObj partial_token
+) {
+    FeatherObj result = ops->list.create(interp);
+
+    /* Count positional arguments provided (skip command token at index 0) */
+    size_t numTokens = ops->list.length(interp, tokens);
+    size_t posArgCount = 0;
+
+    for (size_t i = 1; i < numTokens; i++) {
+        FeatherObj token = ops->list.at(interp, tokens, i);
+
+        if (token_is_flag(ops, interp, token)) {
+            /* Check if flag consumes next token */
+            FeatherObj flagEntry = find_flag_entry(ops, interp, spec, token);
+            if (ops->dict.is_dict(interp, flagEntry) && ops->dict.size(interp, flagEntry) > 0) {
+                int hasValue = dict_get_int(ops, interp, flagEntry, K_HAS_VALUE);
+                if (hasValue && i + 1 < numTokens) {
+                    i++; /* Skip flag value */
+                }
+            }
+        } else {
+            posArgCount++;
+        }
+    }
+
+    /* If partial_token is non-empty and not a flag, count it as being provided */
+    if (ops->string.byte_length(interp, partial_token) > 0 &&
+        !token_is_flag(ops, interp, partial_token)) {
+        posArgCount++;
+    }
+
+    /* Find arg entries and determine which placeholders to show */
+    size_t specLen = ops->list.length(interp, spec);
+    size_t argIndex = 0;
+    int variadicSatisfied = 0;
+
+    for (size_t i = 0; i < specLen; i++) {
+        FeatherObj entry = ops->list.at(interp, spec, i);
+        FeatherObj entryType = dict_get_str(ops, interp, entry, K_TYPE);
+
+        if (!feather_obj_eq_literal(ops, interp, entryType, T_ARG)) {
+            continue;
+        }
+
+        int hide = dict_get_int(ops, interp, entry, K_HIDE);
+        if (hide) {
+            continue;
+        }
+
+        int variadic = dict_get_int(ops, interp, entry, K_VARIADIC);
+        FeatherObj name = dict_get_str(ops, interp, entry, K_NAME);
+        FeatherObj help = dict_get_str(ops, interp, entry, K_HELP);
+
+        if (variadic) {
+            if (argIndex < posArgCount) {
+                variadicSatisfied = 1;
+            }
+            if (!variadicSatisfied) {
+                size_t nameLen = ops->string.byte_length(interp, name);
+                char namebuf[256];
+                if (nameLen >= sizeof(namebuf)) nameLen = sizeof(namebuf) - 1;
+                for (size_t j = 0; j < nameLen; j++) {
+                    namebuf[j] = (char)ops->string.byte_at(interp, name, j);
+                }
+                namebuf[nameLen] = '\0';
+                strip_arg_brackets(namebuf, &nameLen);
+
+                FeatherObj placeholder = make_arg_placeholder(ops, interp, namebuf, help);
+                result = ops->list.push(interp, result, placeholder);
+            }
+        } else {
+            if (argIndex == posArgCount) {
+                size_t nameLen = ops->string.byte_length(interp, name);
+                char namebuf[256];
+                if (nameLen >= sizeof(namebuf)) nameLen = sizeof(namebuf) - 1;
+                for (size_t j = 0; j < nameLen; j++) {
+                    namebuf[j] = (char)ops->string.byte_at(interp, name, j);
+                }
+                namebuf[nameLen] = '\0';
+                strip_arg_brackets(namebuf, &nameLen);
+
+                FeatherObj placeholder = make_arg_placeholder(ops, interp, namebuf, help);
+                result = ops->list.push(interp, result, placeholder);
+            }
+            argIndex++;
+        }
+    }
+
+    return result;
+}
+
+/**
+ * Phase 4: Filter completions by prefix.
+ *
+ * v1-compatible behavior:
+ * - Arg placeholders are always included (not filtered by prefix)
+ * - Flags are pre-filtered by generate_flags_v2, so include them directly
+ * - Other completions use standard prefix filtering
+ */
+static FeatherObj filter_completions_v2(
+    const FeatherHostOps *ops,
+    FeatherInterp interp,
+    FeatherObj candidates,
+    FeatherObj filter_prefix
+) {
+    size_t prefix_len = ops->string.byte_length(interp, filter_prefix);
+
+    /* Empty prefix matches everything */
+    if (prefix_len == 0) {
+        return candidates;
+    }
+
+    FeatherObj result = ops->list.create(interp);
+    size_t num = ops->list.length(interp, candidates);
+
+    for (size_t i = 0; i < num; i++) {
+        FeatherObj candidate = ops->list.at(interp, candidates, i);
+        FeatherObj text = dict_get_str(ops, interp, candidate, K_TEXT);
+        FeatherObj type = dict_get_str(ops, interp, candidate, K_TYPE);
+
+        size_t text_len = ops->string.byte_length(interp, text);
+
+        /* Arg placeholders have empty text - always include them */
+        if (text_len == 0) {
+            result = ops->list.push(interp, result, candidate);
+            continue;
+        }
+
+        /* Flags are already filtered by generate_flags_v2 - include directly */
+        if (feather_obj_eq_literal(ops, interp, type, T_FLAG)) {
+            result = ops->list.push(interp, result, candidate);
+            continue;
+        }
+
+        /* Standard prefix match for other types */
+        if (obj_has_prefix(ops, interp, text, filter_prefix)) {
+            result = ops->list.push(interp, result, candidate);
+        }
+    }
+
+    return result;
+}
+
+/**
+ * Combine two lists of completions.
+ */
+static FeatherObj combine_completions_v2(
+    const FeatherHostOps *ops,
+    FeatherInterp interp,
+    FeatherObj a,
+    FeatherObj b
+) {
+    size_t numB = ops->list.length(interp, b);
+    for (size_t i = 0; i < numB; i++) {
+        a = ops->list.push(interp, a, ops->list.at(interp, b, i));
+    }
+    return a;
+}
+
+/**
+ * Clean completion implementation (v2).
+ *
+ * Four-phase architecture:
+ * 1. Parse script to extract context (complete_tokens, partial_token)
+ * 2. Determine completion state (command, subcommand, flag_value, argument)
+ * 3. Generate all candidates (unfiltered)
+ * 4. Filter by partial_token prefix
+ */
+static FeatherObj usage_complete_impl_v2(
+    const FeatherHostOps *ops,
+    FeatherInterp interp,
+    FeatherObj scriptObj,
+    size_t pos
+) {
+    /* Phase 1: Parse script and determine cursor context */
+    CompletionContext_v2 ctx = parse_completion_context_v2(ops, interp, scriptObj, pos);
+
+    /* Phase 2: Determine what we're completing */
+    CompletionStateInfo_v2 state = determine_completion_state_v2(ops, interp, &ctx);
+
+    /* Phase 3: Generate all candidates (unfiltered) */
+    FeatherObj candidates;
+    switch (state.state) {
+        case COMPLETE_COMMAND_V2:
+            candidates = generate_all_commands_v2(ops, interp);
+            break;
+
+        case COMPLETE_SUBCOMMAND_V2:
+            candidates = generate_all_subcommands_v2(ops, interp, state.active_spec);
+            break;
+
+        case COMPLETE_FLAG_VALUE_V2:
+            candidates = generate_flag_choices_v2(ops, interp, state.expecting_value_for_flag);
+            break;
+
+        case COMPLETE_ARGUMENT_V2:
+            /* Combine placeholders and flags */
+            candidates = generate_placeholders_v2(ops, interp, state.active_spec, state.spec_tokens, ctx.partial_token);
+            {
+                /* Use flag prefix for filtering - match v1 behavior */
+                FeatherObj flag_prefix = ctx.partial_token;
+                if (!token_is_flag(ops, interp, ctx.partial_token)) {
+                    flag_prefix = ops->string.intern(interp, "", 0);
+                }
+                FeatherObj flags = generate_flags_v2(ops, interp, state.active_spec, flag_prefix);
+                candidates = combine_completions_v2(ops, interp, candidates, flags);
+            }
+            break;
+
+        default:
+            candidates = ops->list.create(interp);
+            break;
+    }
+
+    /* Phase 4: Filter by partial token */
+    FeatherObj filtered = filter_completions_v2(ops, interp, candidates, ctx.partial_token);
+
+    return filtered;
+}
+
 /**
  * Enhanced completion implementation (v3).
  *
@@ -3457,7 +4264,7 @@ FeatherResult feather_builtin_usage(const FeatherHostOps *ops, FeatherInterp int
     size_t pos = (size_t)pos_i;
 
     /* Perform completion */
-    FeatherObj result = usage_complete_impl(ops, interp, scriptObj, pos);
+    FeatherObj result = usage_complete_impl_v2(ops, interp, scriptObj, pos);
     ops->interp.set_result(interp, result);
     return TCL_OK;
   }
