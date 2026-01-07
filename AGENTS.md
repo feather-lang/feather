@@ -134,7 +134,7 @@ We do not aim for array support in Feather.
 
 The `usage complete` command implements completion for CLI arguments based on usage specs.
 
-### Architecture (v2)
+### Architecture
 
 The completion system uses a clean 4-phase architecture:
 
@@ -145,14 +145,14 @@ The completion system uses a clean 4-phase architecture:
 
 ### Key Data Structures
 
-- `CompletionContext_v2`: Contains `complete_tokens` (list), `partial_token` (string), and cursor position info
-- `CompletionStateInfo_v2`: Contains state enum, active spec, and flag info for value completion
+- `CompletionContext`: Contains `complete_tokens` (list), `partial_token` (string), and cursor position info
+- `CompletionStateInfo`: Contains state enum, active spec, and flag info for value completion
 
 ### Critical Implementation Details
 
 1. **Token Parsing**: When scanning to cursor position, a token is "complete" if there's whitespace between it and the cursor. Otherwise it's "partial".
 
-2. **Flag Filtering**: v1 has special behavior: when ANY form (short or long) of a flag matches the prefix, include ALL forms. This is implemented in `generate_flags_v2` rather than the generic filter.
+2. **Flag Filtering**: When ANY form (short or long) of a flag matches the prefix, include ALL forms. This is implemented in `generate_flags` rather than the generic filter.
 
 3. **Placeholder Handling**: Arg placeholders are always included (never filtered by prefix). The count of positional args includes the partial_token if it's non-empty and not a flag.
 
