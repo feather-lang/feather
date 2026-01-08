@@ -198,6 +198,22 @@ bench -host bin/feather-c benchmarks/*.html
 description = "Run all benchmarks in parallel"
 depends = ["bench", "bench:js", "bench:oracle", "bench:c"]
 
+[tasks."build:raylib"]
+description = "Build the raylib example game"
+depends = ["build:c-shared"]
+dir = "c/examples/raylib"
+run = """
+# Copy libfeather.so to make the example self-contained
+cp $MISE_PROJECT_ROOT/bin/libfeather.so .
+make
+"""
+
+[tasks."run:raylib"]
+description = "Run the raylib example game"
+depends = ["build:raylib"]
+dir = "c/examples/raylib"
+run = "./game"
+
 [tools]
 go = "1.25.5"
 zig = "latest"
