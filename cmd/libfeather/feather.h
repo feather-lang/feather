@@ -31,13 +31,17 @@ typedef size_t FeatherInterp;
 typedef size_t FeatherObj;
 
 /* Parse status codes */
-#define FEATHER_PARSE_OK         0
-#define FEATHER_PARSE_INCOMPLETE 1
-#define FEATHER_PARSE_ERROR      2
+typedef enum {
+    FEATHER_PARSE_OK         = 0,
+    FEATHER_PARSE_INCOMPLETE = 1,
+    FEATHER_PARSE_ERROR      = 2
+} FeatherParseStatus;
 
 /* Result codes for FeatherEval and FeatherCall */
-#define FEATHER_OK    0
-#define FEATHER_ERROR 1
+typedef enum {
+    FEATHER_OK    = 0,
+    FEATHER_ERROR = 1
+} FeatherResult;
 
 /* ============================================================================
  * Callback Types
@@ -94,7 +98,7 @@ void FeatherClose(FeatherInterp interp);
  *
  * Returns: FEATHER_PARSE_OK, FEATHER_PARSE_INCOMPLETE, or FEATHER_PARSE_ERROR
  */
-int FeatherParse(FeatherInterp interp, const char *script, size_t length);
+FeatherParseStatus FeatherParse(FeatherInterp interp, const char *script, size_t length);
 
 /*
  * Parse with detailed information.
@@ -105,8 +109,8 @@ int FeatherParse(FeatherInterp interp, const char *script, size_t length);
  *
  * Returns: FEATHER_PARSE_OK, FEATHER_PARSE_INCOMPLETE, or FEATHER_PARSE_ERROR
  */
-int FeatherParseInfo(FeatherInterp interp, const char *script, size_t length,
-                     FeatherObj *result, FeatherObj *errorObj);
+FeatherParseStatus FeatherParseInfo(FeatherInterp interp, const char *script, size_t length,
+                                    FeatherObj *result, FeatherObj *errorObj);
 
 /*
  * Evaluate a TCL script.
@@ -119,8 +123,8 @@ int FeatherParseInfo(FeatherInterp interp, const char *script, size_t length,
  * Returns: FEATHER_OK on success, FEATHER_ERROR on failure
  *          On error, result contains the error message
  */
-int FeatherEval(FeatherInterp interp, const char *script, size_t length,
-                FeatherObj *result);
+FeatherResult FeatherEval(FeatherInterp interp, const char *script, size_t length,
+                          FeatherObj *result);
 
 /*
  * Call a TCL command with handle arguments.
@@ -148,8 +152,8 @@ int FeatherEval(FeatherInterp interp, const char *script, size_t length,
  *       // result is a list: {hello { world} 42
  *   }
  */
-int FeatherCall(FeatherInterp interp, size_t argc, FeatherObj *argv,
-                FeatherObj *result);
+FeatherResult FeatherCall(FeatherInterp interp, size_t argc, FeatherObj *argv,
+                          FeatherObj *result);
 
 /* ============================================================================
  * Object Creation
@@ -328,19 +332,19 @@ void FeatherRegister(FeatherInterp interp, const char *name,
  *
  * Returns: FEATHER_OK on success, FEATHER_ERROR on failure
  */
-int FeatherRegisterForeign(FeatherInterp interp, const char *typeName,
-                           FeatherForeignNewFunc newFn,
-                           FeatherForeignInvokeFunc invokeFn,
-                           FeatherForeignDestroyFunc destroyFn,
-                           void *userData);
+FeatherResult FeatherRegisterForeign(FeatherInterp interp, const char *typeName,
+                                     FeatherForeignNewFunc newFn,
+                                     FeatherForeignInvokeFunc invokeFn,
+                                     FeatherForeignDestroyFunc destroyFn,
+                                     void *userData);
 
 /*
  * Register a method name for a foreign type (for introspection).
  *
  * Returns: FEATHER_OK on success, FEATHER_ERROR on failure
  */
-int FeatherRegisterForeignMethod(FeatherInterp interp, const char *typeName,
-                                 const char *methodName);
+FeatherResult FeatherRegisterForeignMethod(FeatherInterp interp, const char *typeName,
+                                           const char *methodName);
 
 #ifdef __cplusplus
 }
