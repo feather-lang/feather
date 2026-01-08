@@ -148,50 +148,7 @@ func cmdList(i *feather.Interp, cmd *feather.Obj, args []*feather.Obj) feather.R
 }
 
 func runREPL(i *feather.Interp) {
-	scanner := bufio.NewScanner(os.Stdin)
-	var inputBuffer string
-
-	for {
-		if inputBuffer == "" {
-			fmt.Print("% ")
-		} else {
-			fmt.Print("> ")
-		}
-
-		if !scanner.Scan() {
-			break
-		}
-
-		line := scanner.Text()
-		if inputBuffer != "" {
-			inputBuffer += "\n" + line
-		} else {
-			inputBuffer = line
-		}
-
-		parseResult := i.Parse(inputBuffer)
-		if parseResult.Status == feather.ParseIncomplete {
-			continue
-		}
-
-		if parseResult.Status == feather.ParseError {
-			fmt.Fprintf(os.Stderr, "error: %s\n", parseResult.Message)
-			inputBuffer = ""
-			continue
-		}
-
-		result, err := i.Eval(inputBuffer)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %s\n", err.Error())
-		} else if result.String() != "" {
-			fmt.Println(result.String())
-		}
-		inputBuffer = ""
-	}
-
-	if err := scanner.Err(); err != nil {
-		fmt.Fprintf(os.Stderr, "error reading input: %v\n", err)
-	}
+	runREPLWithEditor(i)
 }
 
 func runScript(i *feather.Interp) {
