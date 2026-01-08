@@ -6,9 +6,10 @@
 
 FEATHER_ROOT := ../../..
 FEATHER_LIB := $(FEATHER_ROOT)/bin
+FEATHER_INCLUDE := $(FEATHER_ROOT)/cmd/libfeather
 
 CC := cc
-CFLAGS := -Wall -Wextra -O2 -I$(FEATHER_LIB)
+CFLAGS := -Wall -Wextra -O2 -I$(FEATHER_INCLUDE) -I$(FEATHER_LIB)
 LDFLAGS := -L$(FEATHER_LIB)
 
 # Platform-specific flags
@@ -32,7 +33,7 @@ else
 endif
 
 TARGET := game
-SRCS := main.c
+SRCS := main.c console.c
 
 .PHONY: all clean run
 

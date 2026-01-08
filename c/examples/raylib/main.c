@@ -2,8 +2,11 @@
 //
 // Game state is managed in C, TCL is used for drawing commands.
 // This avoids state persistence issues across evals.
+//
+// Press ` (backtick) to toggle the in-game console.
 
-#include "libfeather.h"
+#include "feather.h"
+#include "console.h"
 #include "raylib.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,6 +24,7 @@ typedef struct {
 static Ball balls[MAX_BALLS];
 static int ball_count = 0;
 static float spawn_cooldown = 0;
+static Console *console = NULL;
 
 // -----------------------------------------------------------------------------
 // Drawing Commands
@@ -216,11 +220,11 @@ static void update_game(void) {
     int w = GetScreenWidth();
     int h = GetScreenHeight();
 
-    // Spawn on click
+    // Spawn on click (only when console is not visible)
     if (spawn_cooldown > 0) {
         spawn_cooldown -= dt;
     }
-    if (IsMouseButtonPressed(0) && spawn_cooldown <= 0) {
+    if (!console_is_visible(console) && IsMouseButtonPressed(0) && spawn_cooldown <= 0) {
         spawn_ball(GetMouseX(), GetMouseY());
         spawn_cooldown = 0.1f;
     }
@@ -277,6 +281,10 @@ int main(int argc, char *argv[]) {
     FeatherInterp interp = FeatherNew();
     register_commands(interp);
 
+    // Initialize console
+    console = console_new(interp);
+    console_register_commands(console);
+
     // Draw script - called each frame
     const char *draw_script =
         "clear\n"
@@ -307,6 +315,14 @@ int main(int argc, char *argv[]) {
     int status;
 
     while (!WindowShouldClose()) {
+        // Toggle console with backtick key
+        if (IsKeyPressed(KEY_GRAVE)) {
+            console_toggle(console);
+        }
+
+        // Update console (handles input when visible)
+        console_update(console);
+
         // Update game state in C
         update_game();
 
@@ -323,9 +339,13 @@ int main(int argc, char *argv[]) {
             DrawText(errbuf, 10, 10, 20, WHITE);
         }
 
+        // Draw console overlay
+        console_render(console);
+
         EndDrawing();
     }
 
+    console_free(console);
     CloseWindow();
     FeatherClose(interp);
 
