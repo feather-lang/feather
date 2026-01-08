@@ -421,6 +421,7 @@ void feather_register_trace_usage(const FeatherHostOps *ops, FeatherInterp inter
   e = feather_usage_help(ops, interp, e, "Command to execute when trace fires");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "add", subspec);
+  e = feather_usage_help(ops, interp, e, "Add a trace to a variable or command");
   e = feather_usage_long_help(ops, interp, e,
     "Arrange for commandPrefix to be executed whenever the named variable or "
     "command is accessed in one of the ways specified by ops.\n\n"
@@ -456,6 +457,7 @@ void feather_register_trace_usage(const FeatherHostOps *ops, FeatherInterp inter
   e = feather_usage_help(ops, interp, e, "Command that was registered");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "remove", subspec);
+  e = feather_usage_help(ops, interp, e, "Remove a trace from a variable or command");
   e = feather_usage_long_help(ops, interp, e,
     "If there is a trace set on the specified variable or command with the "
     "operations and command given by opList and commandPrefix, then the trace "
@@ -475,6 +477,7 @@ void feather_register_trace_usage(const FeatherHostOps *ops, FeatherInterp inter
   e = feather_usage_help(ops, interp, e, "Name of variable or command");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "info", subspec);
+  e = feather_usage_help(ops, interp, e, "Query traces on a variable or command");
   e = feather_usage_long_help(ops, interp, e,
     "Returns a list containing one element for each trace currently set on the "
     "specified variable or command. Each element of the list is itself a list "
