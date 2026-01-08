@@ -2451,12 +2451,16 @@ static FeatherResult usage_help(const FeatherHostOps *ops, FeatherInterp interp,
       FeatherObj meta = ops->dict.create(interp);
       meta = dict_set_str(ops, interp, meta, K_TYPE, ops->string.intern(interp, S(T_META)));
 
-      /* Use long_help if available, otherwise use help */
-      FeatherObj desc = subcmdLongHelp;
-      if (ops->string.byte_length(interp, desc) == 0) {
-        desc = subcmdHelp;
+      /* Use short help for NAME section, long_help for DESCRIPTION */
+      if (ops->string.byte_length(interp, subcmdHelp) > 0) {
+        meta = dict_set_str(ops, interp, meta, K_ABOUT, subcmdHelp);
       }
-      meta = dict_set_str(ops, interp, meta, K_LONG_HELP, desc);
+      if (ops->string.byte_length(interp, subcmdLongHelp) > 0) {
+        meta = dict_set_str(ops, interp, meta, K_LONG_HELP, subcmdLongHelp);
+      } else if (ops->string.byte_length(interp, subcmdHelp) > 0) {
+        /* Fallback: use help for DESCRIPTION if no long_help */
+        meta = dict_set_str(ops, interp, meta, K_LONG_HELP, subcmdHelp);
+      }
       newSpec = ops->list.push(interp, newSpec, meta);
     }
 

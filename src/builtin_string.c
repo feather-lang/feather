@@ -1056,6 +1056,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   e = feather_usage_arg(ops, interp, "?string?...");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "cat", subspec);
+  e = feather_usage_help(ops, interp, e, "Concatenate strings");
   e = feather_usage_long_help(ops, interp, e,
     "Concatenate the given strings just like placing them directly next to each "
     "other and return the resulting compound string. If no strings are present, "
@@ -1078,6 +1079,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   e = feather_usage_arg(ops, interp, "<string2>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "compare", subspec);
+  e = feather_usage_help(ops, interp, e, "Compare two strings lexicographically");
   e = feather_usage_long_help(ops, interp, e,
     "Perform a character-by-character comparison of strings string1 and string2. "
     "Returns -1, 0, or 1, depending on whether string1 is lexicographically less "
@@ -1100,6 +1102,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   e = feather_usage_arg(ops, interp, "<string2>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "equal", subspec);
+  e = feather_usage_help(ops, interp, e, "Test if two strings are equal");
   e = feather_usage_long_help(ops, interp, e,
     "Perform a character-by-character comparison of strings string1 and string2. "
     "Returns 1 if string1 and string2 are identical, or 0 when not.\n\n"
@@ -1117,6 +1120,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   e = feather_usage_arg(ops, interp, "?startIndex?");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "first", subspec);
+  e = feather_usage_help(ops, interp, e, "Find first occurrence of substring");
   e = feather_usage_long_help(ops, interp, e,
     "Search haystackString for a sequence of characters that exactly match the "
     "characters in needleString. If found, return the index of the first "
@@ -1134,6 +1138,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   e = feather_usage_arg(ops, interp, "<charIndex>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "index", subspec);
+  e = feather_usage_help(ops, interp, e, "Get character at index");
   e = feather_usage_long_help(ops, interp, e,
     "Returns the charIndex'th character of the string argument. A charIndex of 0 "
     "corresponds to the first character of the string. charIndex may be specified "
@@ -1151,6 +1156,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   e = feather_usage_arg(ops, interp, "<insertString>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "insert", subspec);
+  e = feather_usage_help(ops, interp, e, "Insert string at index");
   e = feather_usage_long_help(ops, interp, e,
     "Returns a copy of string with insertString inserted at the index'th "
     "character. The index may be specified as described in the STRING INDICES "
@@ -1173,6 +1179,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   e = feather_usage_arg(ops, interp, "<string>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "is", subspec);
+  e = feather_usage_help(ops, interp, e, "Test if string is member of class");
   e = feather_usage_long_help(ops, interp, e,
     "Returns 1 if string is a valid member of the specified character class, "
     "otherwise returns 0. If -strict is specified, then an empty string returns "
@@ -1193,6 +1200,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   e = feather_usage_arg(ops, interp, "?lastIndex?");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "last", subspec);
+  e = feather_usage_help(ops, interp, e, "Find last occurrence of substring");
   e = feather_usage_long_help(ops, interp, e,
     "Search haystackString for a sequence of characters that exactly match the "
     "characters in needleString. If found, return the index of the first "
@@ -1208,6 +1216,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   e = feather_usage_arg(ops, interp, "<string>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "length", subspec);
+  e = feather_usage_help(ops, interp, e, "Get string length in characters");
   e = feather_usage_long_help(ops, interp, e,
     "Returns a decimal string giving the number of characters in string. Note "
     "that this is not necessarily the same as the number of bytes used to store "
@@ -1224,6 +1233,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   e = feather_usage_arg(ops, interp, "<string>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "map", subspec);
+  e = feather_usage_help(ops, interp, e, "Apply character mapping to string");
   e = feather_usage_long_help(ops, interp, e,
     "Replaces substrings in string based on the key-value pairs in mapping. "
     "mapping is a list of key value key value ... pairs. Each instance of a key "
@@ -1244,6 +1254,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   e = feather_usage_arg(ops, interp, "<string>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "match", subspec);
+  e = feather_usage_help(ops, interp, e, "Test if pattern matches string");
   e = feather_usage_long_help(ops, interp, e,
     "See if pattern matches string; return 1 if it does, 0 if it does not. If "
     "-nocase is specified, then the pattern attempts to match against the string "
@@ -1264,6 +1275,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   e = feather_usage_arg(ops, interp, "<last>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "range", subspec);
+  e = feather_usage_help(ops, interp, e, "Extract substring by index range");
   e = feather_usage_long_help(ops, interp, e,
     "Returns a range of consecutive characters from string, starting with the "
     "character whose index is first and ending with the character whose index is "
@@ -1283,6 +1295,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   e = feather_usage_arg(ops, interp, "<count>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "repeat", subspec);
+  e = feather_usage_help(ops, interp, e, "Repeat string N times");
   e = feather_usage_long_help(ops, interp, e,
     "Returns a string consisting of string concatenated with itself count times. "
     "If count is 0, the empty string will be returned.");
@@ -1299,6 +1312,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   e = feather_usage_arg(ops, interp, "?newstring?");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "replace", subspec);
+  e = feather_usage_help(ops, interp, e, "Replace range of characters");
   e = feather_usage_long_help(ops, interp, e,
     "Removes a range of consecutive characters from string, starting with the "
     "character whose index is first and ending with the character whose index is "
@@ -1315,6 +1329,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   e = feather_usage_arg(ops, interp, "<string>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "reverse", subspec);
+  e = feather_usage_help(ops, interp, e, "Reverse characters in string");
   e = feather_usage_long_help(ops, interp, e,
     "Returns a string that is the same length as string but with its characters "
     "in the reverse order.");
@@ -1329,6 +1344,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   e = feather_usage_arg(ops, interp, "?last?");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "tolower", subspec);
+  e = feather_usage_help(ops, interp, e, "Convert string to lowercase");
   e = feather_usage_long_help(ops, interp, e,
     "Returns a value equal to string except that all upper (or title) case "
     "letters have been converted to lower case.\n\n"
@@ -1346,6 +1362,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   e = feather_usage_arg(ops, interp, "?last?");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "totitle", subspec);
+  e = feather_usage_help(ops, interp, e, "Convert string to title case");
   e = feather_usage_long_help(ops, interp, e,
     "Returns a value equal to string except that the first character in string "
     "(or the range specified by first and last) is converted to its Unicode "
@@ -1366,6 +1383,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   e = feather_usage_arg(ops, interp, "?last?");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "toupper", subspec);
+  e = feather_usage_help(ops, interp, e, "Convert string to uppercase");
   e = feather_usage_long_help(ops, interp, e,
     "Returns a value equal to string except that all lower (or title) case "
     "letters have been converted to upper case.\n\n"
@@ -1381,6 +1399,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   e = feather_usage_arg(ops, interp, "?chars?");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "trim", subspec);
+  e = feather_usage_help(ops, interp, e, "Trim characters from both ends");
   e = feather_usage_long_help(ops, interp, e,
     "Returns a value equal to string except that any leading or trailing "
     "characters present in the string given by chars are removed. If chars is "
@@ -1395,6 +1414,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   e = feather_usage_arg(ops, interp, "?chars?");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "trimleft", subspec);
+  e = feather_usage_help(ops, interp, e, "Trim characters from start");
   e = feather_usage_long_help(ops, interp, e,
     "Returns a value equal to string except that any leading characters present "
     "in the string given by chars are removed. If chars is not specified then "
@@ -1409,6 +1429,7 @@ void feather_register_string_usage(const FeatherHostOps *ops, FeatherInterp inte
   e = feather_usage_arg(ops, interp, "?chars?");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "trimright", subspec);
+  e = feather_usage_help(ops, interp, e, "Trim characters from end");
   e = feather_usage_long_help(ops, interp, e,
     "Returns a value equal to string except that any trailing characters present "
     "in the string given by chars are removed. If chars is not specified then "
