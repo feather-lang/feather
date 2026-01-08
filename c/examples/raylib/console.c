@@ -60,7 +60,7 @@ Console* console_new(FeatherInterp interp) {
     console_print(c, "Feather Console");
     console_print(c, "");
     console_print(c, "Drawing: draw circle|rect|line|ring|text|clear ...");
-    console_print(c, "Physics: set ::gravity|::damping|::friction <value>");
+    console_print(c, "Physics: set gravity|damping|friction <value>");
     console_print(c, "Game: spawn_ball ?x? ?y?  clear_balls");
     console_print(c, "Query: get_ball mouse_x mouse_y frame_time elapsed_time");
     console_print(c, "Custom: run_each_frame {script}");
@@ -308,9 +308,12 @@ static void console_submit(Console* c) {
         /* Need more input */
         c->continuation = 1;
     } else if (status == FEATHER_PARSE_OK) {
-        /* Evaluate the script */
+        /* Wrap script in ::game namespace and evaluate */
+        char wrapped[CONSOLE_ACCUMULATED_SIZE + 64];
+        snprintf(wrapped, sizeof(wrapped), "namespace eval ::game { %s }", c->accumulated);
+
         FeatherObj result = 0;
-        FeatherResult eval_status = FeatherEval(c->interp, c->accumulated, c->accumulated_len, &result);
+        FeatherResult eval_status = FeatherEval(c->interp, wrapped, strlen(wrapped), &result);
 
         if (eval_status == FEATHER_OK) {
             /* Show result if non-empty */

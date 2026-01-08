@@ -34,30 +34,32 @@ static char custom_draw_script[4096] = "";
 // Variable helpers - use TCL's set command via FeatherCall
 // -----------------------------------------------------------------------------
 
-static void set_var_double(FeatherInterp interp, const char *name, double val) {
-    // Use global namespace (::name) so variable persists across frames
-    char global_name[128];
-    snprintf(global_name, sizeof(global_name), "::%s", name);
-    FeatherObj argv[3];
-    argv[0] = FeatherString(interp, "set", 3);
-    argv[1] = FeatherString(interp, global_name, strlen(global_name));
-    argv[2] = FeatherDouble(interp, val);
-    FeatherObj result;
-    FeatherCall(interp, 3, argv, &result);
-}
+// All game variables live in ::game namespace
+#define GAME_NS "::game::"
 
 static double get_var_double(FeatherInterp interp, const char *name, double def) {
-    // Use global namespace (::name)
-    char global_name[128];
-    snprintf(global_name, sizeof(global_name), "::%s", name);
+    char full_name[128];
+    snprintf(full_name, sizeof(full_name), GAME_NS "%s", name);
     FeatherObj argv[2];
     argv[0] = FeatherString(interp, "set", 3);
-    argv[1] = FeatherString(interp, global_name, strlen(global_name));
+    argv[1] = FeatherString(interp, full_name, strlen(full_name));
     FeatherObj result;
     if (FeatherCall(interp, 2, argv, &result) == FEATHER_OK && result != 0) {
         return FeatherAsDouble(interp, result, def);
     }
     return def;
+}
+
+static void init_game_namespace(FeatherInterp interp) {
+    // Create ::game namespace and initialize variables
+    const char *init_script =
+        "namespace eval ::game {\n"
+        "    variable gravity 500.0\n"
+        "    variable damping 0.8\n"
+        "    variable friction 0.95\n"
+        "}\n";
+    FeatherObj result;
+    FeatherEval(interp, init_script, strlen(init_script), &result);
 }
 
 // -----------------------------------------------------------------------------
@@ -475,10 +477,8 @@ int main(int argc, char *argv[]) {
     g_interp = interp;
     register_commands(interp);
 
-    // Initialize physics variables (can be changed with `set` from console)
-    set_var_double(interp, "gravity", 500.0);
-    set_var_double(interp, "damping", 0.8);
-    set_var_double(interp, "friction", 0.95);
+    // Initialize ::game namespace with physics variables
+    init_game_namespace(interp);
 
     // Initialize console
     console = console_new(interp);
