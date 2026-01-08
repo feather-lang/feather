@@ -284,6 +284,69 @@ func FeatherEval(interp C.size_t, script *C.char, length C.size_t, result *C.siz
 	return 0 // OK
 }
 
+//export FeatherCall
+func FeatherCall(interp C.size_t, argc C.size_t, argv *C.size_t, result *C.size_t) C.int {
+	state := getExportState(uint64(interp))
+	if state == nil {
+		return 1 // error
+	}
+
+	if argc == 0 {
+		errObj := state.interp.String("wrong # args: should be \"FeatherCall interp argc argv result\"")
+		if result != nil {
+			*result = C.size_t(state.registerObj(errObj))
+		}
+		return 1
+	}
+
+	// Track nesting depth atomically (same as FeatherEval)
+	if atomic.AddInt32(&state.evalDepth, 1) == 1 {
+		state.clearArena()
+	}
+	defer atomic.AddInt32(&state.evalDepth, -1)
+
+	// Convert argv handles to Go objects
+	argHandles := unsafe.Slice(argv, int(argc))
+
+	// First element is the command name
+	cmdObj := state.getObj(uint64(argHandles[0]))
+	if cmdObj == nil {
+		errObj := state.interp.String("invalid command handle")
+		if result != nil {
+			*result = C.size_t(state.registerObj(errObj))
+		}
+		return 1
+	}
+	cmd := cmdObj.String()
+
+	// Remaining elements are arguments
+	args := make([]any, int(argc)-1)
+	for i := 1; i < int(argc); i++ {
+		obj := state.getObj(uint64(argHandles[i]))
+		if obj != nil {
+			args[i-1] = obj
+		} else {
+			args[i-1] = ""
+		}
+	}
+
+	// Call the command
+	obj, err := state.interp.Call(cmd, args...)
+	if err != nil {
+		errObj := state.interp.String(err.Error())
+		if result != nil {
+			*result = C.size_t(state.registerObj(errObj))
+		}
+		return 1
+	}
+
+	handle := state.registerObj(obj)
+	if result != nil {
+		*result = C.size_t(handle)
+	}
+	return 0 // OK
+}
+
 // =============================================================================
 // Object Creation
 // =============================================================================
