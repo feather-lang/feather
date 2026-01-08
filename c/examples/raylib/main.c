@@ -530,12 +530,17 @@ int main(int argc, char *argv[]) {
 
     while (!WindowShouldClose()) {
         // Toggle console with backtick key
+        int just_opened = 0;
         if (IsKeyPressed(KEY_GRAVE)) {
+            just_opened = !console_is_visible(console);
             console_toggle(console);
         }
 
         // Update console (handles input when visible)
-        console_update(console);
+        // Skip input on frame when just opened to avoid inserting the backtick
+        if (!just_opened) {
+            console_update(console);
+        }
 
         // Update game state in C
         update_game();
@@ -553,10 +558,12 @@ int main(int argc, char *argv[]) {
             DrawText(errbuf, 10, 10, 20, WHITE);
         }
 
-        // Execute custom draw script (set via run_each_frame command)
+        // Execute custom draw script in ::game namespace
         if (custom_draw_script[0] != '\0') {
+            char wrapped[sizeof(custom_draw_script) + 64];
+            snprintf(wrapped, sizeof(wrapped), "namespace eval ::game { %s }", custom_draw_script);
             FeatherObj custom_result;
-            int custom_status = FeatherEval(interp, custom_draw_script, strlen(custom_draw_script), &custom_result);
+            int custom_status = FeatherEval(interp, wrapped, strlen(wrapped), &custom_result);
             if (custom_status != 0) {
                 // Show error in console
                 char errbuf[512];
