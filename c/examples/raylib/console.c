@@ -59,10 +59,11 @@ Console* console_new(FeatherInterp interp) {
     /* Print welcome message */
     console_print(c, "Feather Console");
     console_print(c, "");
-    console_print(c, "Drawing: draw_circle draw_rect draw_line draw_ring draw_text clear");
-    console_print(c, "Physics: set_gravity set_damping set_friction spawn_ball clear_balls");
-    console_print(c, "Query: get_ball get_ball_count mouse_x mouse_y frame_time elapsed_time");
-    console_print(c, "Custom: run_each_frame {script} - runs script every frame");
+    console_print(c, "Drawing: draw circle|rect|line|ring|text|clear ...");
+    console_print(c, "Physics: set gravity|damping|friction <value>");
+    console_print(c, "Game: spawn_ball ?x? ?y?  clear_balls");
+    console_print(c, "Query: get_ball mouse_x mouse_y frame_time elapsed_time");
+    console_print(c, "Custom: run_each_frame {script}");
     console_print(c, "");
 
     return c;

@@ -25,132 +25,160 @@ static Ball balls[MAX_BALLS];
 static int ball_count = 0;
 static float spawn_cooldown = 0;
 static Console *console = NULL;
-
-// Configurable physics parameters
-static float gravity = 500.0f;
-static float damping = 0.8f;
-static float friction = 0.95f;
+static FeatherInterp g_interp = 0;
 
 // Custom draw script (set via console, runs each frame)
 static char custom_draw_script[4096] = "";
 
 // -----------------------------------------------------------------------------
-// Drawing Commands
+// Variable helpers - use TCL's set command via FeatherCall
 // -----------------------------------------------------------------------------
 
-static int cmd_clear(void *data, FeatherInterp interp,
-                     size_t argc, FeatherObj *argv,
-                     FeatherObj *result, FeatherObj *err) {
-    (void)data; (void)err; (void)argc; (void)argv; (void)interp;
-    ClearBackground(DARKBLUE);
-    *result = 0;
-    return 0;
+static void set_var_double(FeatherInterp interp, const char *name, double val) {
+    FeatherObj argv[3];
+    argv[0] = FeatherString(interp, "set", 3);
+    argv[1] = FeatherString(interp, name, strlen(name));
+    argv[2] = FeatherDouble(interp, val);
+    FeatherObj result;
+    FeatherCall(interp, 3, argv, &result);
 }
 
-static int cmd_draw_circle(void *data, FeatherInterp interp,
-                           size_t argc, FeatherObj *argv,
-                           FeatherObj *result, FeatherObj *err) {
-    (void)data; (void)err;
-    if (argc < 7) {
+static double get_var_double(FeatherInterp interp, const char *name, double def) {
+    FeatherObj argv[2];
+    argv[0] = FeatherString(interp, "set", 3);
+    argv[1] = FeatherString(interp, name, strlen(name));
+    FeatherObj result;
+    if (FeatherCall(interp, 2, argv, &result) == FEATHER_OK && result != 0) {
+        return FeatherAsDouble(interp, result, def);
+    }
+    return def;
+}
+
+// -----------------------------------------------------------------------------
+// Draw Command with Subcommands
+// -----------------------------------------------------------------------------
+
+static int str_eq(FeatherInterp interp, FeatherObj obj, const char *s) {
+    char buf[64];
+    size_t len = FeatherCopy(interp, obj, buf, sizeof(buf) - 1);
+    buf[len] = '\0';
+    return strcmp(buf, s) == 0;
+}
+
+static int cmd_draw(void *data, FeatherInterp interp,
+                    size_t argc, FeatherObj *argv,
+                    FeatherObj *result, FeatherObj *err) {
+    (void)data;
+    if (argc < 1) {
+        *err = FeatherString(interp, "draw: missing subcommand", 24);
+        return 1;
+    }
+
+    FeatherObj subcmd = argv[0];
+    FeatherObj *args = argv + 1;
+    size_t nargs = argc - 1;
+
+    if (str_eq(interp, subcmd, "clear")) {
+        ClearBackground(DARKBLUE);
         *result = 0;
         return 0;
     }
-    int x = (int)FeatherAsInt(interp, argv[0], 0);
-    int y = (int)FeatherAsInt(interp, argv[1], 0);
-    float radius = (float)FeatherAsDouble(interp, argv[2], 10.0);
-    int r = (int)FeatherAsInt(interp, argv[3], 255);
-    int g = (int)FeatherAsInt(interp, argv[4], 255);
-    int b = (int)FeatherAsInt(interp, argv[5], 255);
-    int a = (int)FeatherAsInt(interp, argv[6], 255);
-    DrawCircle(x, y, radius, (Color){r, g, b, a});
-    *result = 0;
-    return 0;
-}
 
-static int cmd_draw_ring(void *data, FeatherInterp interp,
-                         size_t argc, FeatherObj *argv,
-                         FeatherObj *result, FeatherObj *err) {
-    (void)data; (void)err;
-    if (argc < 8) {
+    if (str_eq(interp, subcmd, "circle")) {
+        if (nargs < 7) {
+            *err = FeatherString(interp, "draw circle: x y radius r g b a", 32);
+            return 1;
+        }
+        int x = (int)FeatherAsInt(interp, args[0], 0);
+        int y = (int)FeatherAsInt(interp, args[1], 0);
+        float radius = (float)FeatherAsDouble(interp, args[2], 10.0);
+        int r = (int)FeatherAsInt(interp, args[3], 255);
+        int g = (int)FeatherAsInt(interp, args[4], 255);
+        int b = (int)FeatherAsInt(interp, args[5], 255);
+        int a = (int)FeatherAsInt(interp, args[6], 255);
+        DrawCircle(x, y, radius, (Color){r, g, b, a});
         *result = 0;
         return 0;
     }
-    int x = (int)FeatherAsInt(interp, argv[0], 0);
-    int y = (int)FeatherAsInt(interp, argv[1], 0);
-    float inner = (float)FeatherAsDouble(interp, argv[2], 10.0);
-    float outer = (float)FeatherAsDouble(interp, argv[3], 20.0);
-    int r = (int)FeatherAsInt(interp, argv[4], 255);
-    int g = (int)FeatherAsInt(interp, argv[5], 255);
-    int b = (int)FeatherAsInt(interp, argv[6], 255);
-    int a = (int)FeatherAsInt(interp, argv[7], 255);
-    DrawRing((Vector2){x, y}, inner, outer, 0, 360, 36, (Color){r, g, b, a});
-    *result = 0;
-    return 0;
-}
 
-static int cmd_draw_text(void *data, FeatherInterp interp,
-                         size_t argc, FeatherObj *argv,
-                         FeatherObj *result, FeatherObj *err) {
-    (void)data; (void)err;
-    if (argc < 8) {
+    if (str_eq(interp, subcmd, "ring")) {
+        if (nargs < 8) {
+            *err = FeatherString(interp, "draw ring: x y inner outer r g b a", 35);
+            return 1;
+        }
+        int x = (int)FeatherAsInt(interp, args[0], 0);
+        int y = (int)FeatherAsInt(interp, args[1], 0);
+        float inner = (float)FeatherAsDouble(interp, args[2], 10.0);
+        float outer = (float)FeatherAsDouble(interp, args[3], 20.0);
+        int r = (int)FeatherAsInt(interp, args[4], 255);
+        int g = (int)FeatherAsInt(interp, args[5], 255);
+        int b = (int)FeatherAsInt(interp, args[6], 255);
+        int a = (int)FeatherAsInt(interp, args[7], 255);
+        DrawRing((Vector2){x, y}, inner, outer, 0, 360, 36, (Color){r, g, b, a});
         *result = 0;
         return 0;
     }
-    char text[1024];
-    size_t n = FeatherCopy(interp, argv[0], text, sizeof(text) - 1);
-    text[n] = '\0';
-    int x = (int)FeatherAsInt(interp, argv[1], 0);
-    int y = (int)FeatherAsInt(interp, argv[2], 0);
-    int size = (int)FeatherAsInt(interp, argv[3], 20);
-    int r = (int)FeatherAsInt(interp, argv[4], 255);
-    int g = (int)FeatherAsInt(interp, argv[5], 255);
-    int b = (int)FeatherAsInt(interp, argv[6], 255);
-    int a = (int)FeatherAsInt(interp, argv[7], 255);
-    DrawText(text, x, y, size, (Color){r, g, b, a});
-    *result = 0;
-    return 0;
-}
 
-static int cmd_draw_rect(void *data, FeatherInterp interp,
-                         size_t argc, FeatherObj *argv,
-                         FeatherObj *result, FeatherObj *err) {
-    (void)data; (void)err;
-    if (argc < 8) {
+    if (str_eq(interp, subcmd, "text")) {
+        if (nargs < 8) {
+            *err = FeatherString(interp, "draw text: str x y size r g b a", 31);
+            return 1;
+        }
+        char text[1024];
+        size_t n = FeatherCopy(interp, args[0], text, sizeof(text) - 1);
+        text[n] = '\0';
+        int x = (int)FeatherAsInt(interp, args[1], 0);
+        int y = (int)FeatherAsInt(interp, args[2], 0);
+        int size = (int)FeatherAsInt(interp, args[3], 20);
+        int r = (int)FeatherAsInt(interp, args[4], 255);
+        int g = (int)FeatherAsInt(interp, args[5], 255);
+        int b = (int)FeatherAsInt(interp, args[6], 255);
+        int a = (int)FeatherAsInt(interp, args[7], 255);
+        DrawText(text, x, y, size, (Color){r, g, b, a});
         *result = 0;
         return 0;
     }
-    int x = (int)FeatherAsInt(interp, argv[0], 0);
-    int y = (int)FeatherAsInt(interp, argv[1], 0);
-    int w = (int)FeatherAsInt(interp, argv[2], 10);
-    int h = (int)FeatherAsInt(interp, argv[3], 10);
-    int r = (int)FeatherAsInt(interp, argv[4], 255);
-    int g = (int)FeatherAsInt(interp, argv[5], 255);
-    int b = (int)FeatherAsInt(interp, argv[6], 255);
-    int a = (int)FeatherAsInt(interp, argv[7], 255);
-    DrawRectangle(x, y, w, h, (Color){r, g, b, a});
-    *result = 0;
-    return 0;
-}
 
-static int cmd_draw_line(void *data, FeatherInterp interp,
-                         size_t argc, FeatherObj *argv,
-                         FeatherObj *result, FeatherObj *err) {
-    (void)data; (void)err;
-    if (argc < 8) {
+    if (str_eq(interp, subcmd, "rect")) {
+        if (nargs < 8) {
+            *err = FeatherString(interp, "draw rect: x y w h r g b a", 26);
+            return 1;
+        }
+        int x = (int)FeatherAsInt(interp, args[0], 0);
+        int y = (int)FeatherAsInt(interp, args[1], 0);
+        int w = (int)FeatherAsInt(interp, args[2], 10);
+        int h = (int)FeatherAsInt(interp, args[3], 10);
+        int r = (int)FeatherAsInt(interp, args[4], 255);
+        int g = (int)FeatherAsInt(interp, args[5], 255);
+        int b = (int)FeatherAsInt(interp, args[6], 255);
+        int a = (int)FeatherAsInt(interp, args[7], 255);
+        DrawRectangle(x, y, w, h, (Color){r, g, b, a});
         *result = 0;
         return 0;
     }
-    int x1 = (int)FeatherAsInt(interp, argv[0], 0);
-    int y1 = (int)FeatherAsInt(interp, argv[1], 0);
-    int x2 = (int)FeatherAsInt(interp, argv[2], 0);
-    int y2 = (int)FeatherAsInt(interp, argv[3], 0);
-    int r = (int)FeatherAsInt(interp, argv[4], 255);
-    int g = (int)FeatherAsInt(interp, argv[5], 255);
-    int b = (int)FeatherAsInt(interp, argv[6], 255);
-    int a = (int)FeatherAsInt(interp, argv[7], 255);
-    DrawLine(x1, y1, x2, y2, (Color){r, g, b, a});
-    *result = 0;
-    return 0;
+
+    if (str_eq(interp, subcmd, "line")) {
+        if (nargs < 8) {
+            *err = FeatherString(interp, "draw line: x1 y1 x2 y2 r g b a", 31);
+            return 1;
+        }
+        int x1 = (int)FeatherAsInt(interp, args[0], 0);
+        int y1 = (int)FeatherAsInt(interp, args[1], 0);
+        int x2 = (int)FeatherAsInt(interp, args[2], 0);
+        int y2 = (int)FeatherAsInt(interp, args[3], 0);
+        int r = (int)FeatherAsInt(interp, args[4], 255);
+        int g = (int)FeatherAsInt(interp, args[5], 255);
+        int b = (int)FeatherAsInt(interp, args[6], 255);
+        int a = (int)FeatherAsInt(interp, args[7], 255);
+        DrawLine(x1, y1, x2, y2, (Color){r, g, b, a});
+        *result = 0;
+        return 0;
+    }
+
+    char errbuf[128];
+    snprintf(errbuf, sizeof(errbuf), "draw: unknown subcommand");
+    *err = FeatherString(interp, errbuf, strlen(errbuf));
+    return 1;
 }
 
 // -----------------------------------------------------------------------------
@@ -279,47 +307,6 @@ static int cmd_clear_balls(void *data, FeatherInterp interp,
     return 0;
 }
 
-static int cmd_set_gravity(void *data, FeatherInterp interp,
-                           size_t argc, FeatherObj *argv,
-                           FeatherObj *result, FeatherObj *err) {
-    (void)data; (void)err;
-    if (argc > 0) {
-        gravity = (float)FeatherAsDouble(interp, argv[0], gravity);
-    }
-    *result = FeatherDouble(interp, gravity);
-    return 0;
-}
-
-static int cmd_get_gravity(void *data, FeatherInterp interp,
-                           size_t argc, FeatherObj *argv,
-                           FeatherObj *result, FeatherObj *err) {
-    (void)data; (void)argc; (void)argv; (void)err;
-    *result = FeatherDouble(interp, gravity);
-    return 0;
-}
-
-static int cmd_set_damping(void *data, FeatherInterp interp,
-                           size_t argc, FeatherObj *argv,
-                           FeatherObj *result, FeatherObj *err) {
-    (void)data; (void)err;
-    if (argc > 0) {
-        damping = (float)FeatherAsDouble(interp, argv[0], damping);
-    }
-    *result = FeatherDouble(interp, damping);
-    return 0;
-}
-
-static int cmd_set_friction(void *data, FeatherInterp interp,
-                            size_t argc, FeatherObj *argv,
-                            FeatherObj *result, FeatherObj *err) {
-    (void)data; (void)err;
-    if (argc > 0) {
-        friction = (float)FeatherAsDouble(interp, argv[0], friction);
-    }
-    *result = FeatherDouble(interp, friction);
-    return 0;
-}
-
 static int cmd_screen_width(void *data, FeatherInterp interp,
                             size_t argc, FeatherObj *argv,
                             FeatherObj *result, FeatherObj *err) {
@@ -363,13 +350,8 @@ static int cmd_get_draw_script(void *data, FeatherInterp interp,
 // -----------------------------------------------------------------------------
 
 static void register_commands(FeatherInterp interp) {
-    // Drawing commands
-    FeatherRegister(interp, "clear", cmd_clear, NULL);
-    FeatherRegister(interp, "draw_circle", cmd_draw_circle, NULL);
-    FeatherRegister(interp, "draw_ring", cmd_draw_ring, NULL);
-    FeatherRegister(interp, "draw_text", cmd_draw_text, NULL);
-    FeatherRegister(interp, "draw_rect", cmd_draw_rect, NULL);
-    FeatherRegister(interp, "draw_line", cmd_draw_line, NULL);
+    // Drawing command with subcommands
+    FeatherRegister(interp, "draw", cmd_draw, NULL);
 
     // Game state queries
     FeatherRegister(interp, "get_ball_count", cmd_get_ball_count, NULL);
@@ -386,10 +368,6 @@ static void register_commands(FeatherInterp interp) {
     // Game manipulation (usable from console)
     FeatherRegister(interp, "spawn_ball", cmd_spawn_ball, NULL);
     FeatherRegister(interp, "clear_balls", cmd_clear_balls, NULL);
-    FeatherRegister(interp, "set_gravity", cmd_set_gravity, NULL);
-    FeatherRegister(interp, "get_gravity", cmd_get_gravity, NULL);
-    FeatherRegister(interp, "set_damping", cmd_set_damping, NULL);
-    FeatherRegister(interp, "set_friction", cmd_set_friction, NULL);
 
     // Custom draw script (runs each frame during drawing)
     FeatherRegister(interp, "run_each_frame", cmd_run_each_frame, NULL);
@@ -423,6 +401,11 @@ static void update_game(void) {
     float dt = GetFrameTime();
     int w = GetScreenWidth();
     int h = GetScreenHeight();
+
+    // Read physics parameters from interpreter variables
+    float gravity = (float)get_var_double(g_interp, "gravity", 500.0);
+    float damping = (float)get_var_double(g_interp, "damping", 0.8);
+    float friction = (float)get_var_double(g_interp, "friction", 0.95);
 
     // Spawn on click (only when console is not visible)
     if (spawn_cooldown > 0) {
@@ -483,7 +466,13 @@ int main(int argc, char *argv[]) {
 
     // Initialize Feather
     FeatherInterp interp = FeatherNew();
+    g_interp = interp;
     register_commands(interp);
+
+    // Initialize physics variables (can be changed with `set` from console)
+    set_var_double(interp, "gravity", 500.0);
+    set_var_double(interp, "damping", 0.8);
+    set_var_double(interp, "friction", 0.95);
 
     // Initialize console
     console = console_new(interp);
@@ -491,10 +480,10 @@ int main(int argc, char *argv[]) {
 
     // Draw script - called each frame
     const char *draw_script =
-        "clear\n"
-        "draw_text \"Click to spawn balls!\" 10 10 24 255 255 255 255\n"
-        "draw_text \"Balls: [get_ball_count]\" 10 40 20 200 200 200 255\n"
-        "draw_text \"FPS: [get_fps]\" 10 65 20 200 200 200 255\n"
+        "draw clear\n"
+        "draw text \"Click to spawn balls!\" 10 10 24 255 255 255 255\n"
+        "draw text \"Balls: [get_ball_count]\" 10 40 20 200 200 200 255\n"
+        "draw text \"FPS: [get_fps]\" 10 65 20 200 200 200 255\n"
         "for {set i 0} {$i < [get_ball_count]} {incr i} {\n"
         "    set b [get_ball $i]\n"
         "    set x [lindex $b 0]\n"
@@ -503,16 +492,16 @@ int main(int argc, char *argv[]) {
         "    set r [lindex $b 3]\n"
         "    set g [lindex $b 4]\n"
         "    set bcolor [lindex $b 5]\n"
-        "    draw_circle [expr {int($x + 3)}] [expr {int($y + 3)}] $radius 0 0 0 100\n"
-        "    draw_circle [expr {int($x)}] [expr {int($y)}] $radius $r $g $bcolor 255\n"
+        "    draw circle [expr {int($x + 3)}] [expr {int($y + 3)}] $radius 0 0 0 100\n"
+        "    draw circle [expr {int($x)}] [expr {int($y)}] $radius $r $g $bcolor 255\n"
         "    set hr [expr {$radius * 0.3}]\n"
         "    set hx [expr {int($x - $radius * 0.3)}]\n"
         "    set hy [expr {int($y - $radius * 0.3)}]\n"
-        "    draw_circle $hx $hy $hr 255 255 255 80\n"
+        "    draw circle $hx $hy $hr 255 255 255 80\n"
         "}\n"
-        "draw_ring [mouse_x] [mouse_y] 15 18 255 255 255 255\n"
+        "draw ring [mouse_x] [mouse_y] 15 18 255 255 255 255\n"
         "if {[mouse_down]} {\n"
-        "    draw_circle [mouse_x] [mouse_y] 12 255 255 255 150\n"
+        "    draw circle [mouse_x] [mouse_y] 12 255 255 255 150\n"
         "}\n";
 
     FeatherObj result;
