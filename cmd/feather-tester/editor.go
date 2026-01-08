@@ -20,6 +20,12 @@ type CompletionCandidate struct {
 	Name string // for arg-placeholder type
 }
 
+// keyResult holds a key press result
+type keyResult struct {
+	key string
+	err error
+}
+
 // LineEditor provides an interactive line editor with completion support.
 type LineEditor struct {
 	interp   *feather.Interp
@@ -38,6 +44,13 @@ type LineEditor struct {
 
 	// Multi-line input accumulator
 	inputBuffer string
+
+	// Pending input bytes (for when we read multiple bytes at once)
+	pendingInput []byte
+
+	// Persistent key reader
+	keyChan   chan keyResult
+	readerRunning bool
 }
 
 // NewLineEditor creates a new line editor for the given interpreter.
@@ -79,25 +92,92 @@ func (e *LineEditor) getTerminalWidth() int {
 	return width
 }
 
+// debugLog writes debug info to stderr
+var debugEnabled = os.Getenv("DEBUG_KEYS") == "1"
+
+func debugLog(format string, args ...interface{}) {
+	if debugEnabled {
+		fmt.Fprintf(os.Stderr, format+"\n", args...)
+	}
+}
+
+// tclQuote quotes a string for safe use as a TCL argument.
+// It uses double quotes and escapes special characters.
+func tclQuote(s string) string {
+	var buf strings.Builder
+	buf.WriteByte('"')
+	for _, c := range s {
+		switch c {
+		case '"', '$', '[', ']', '\\':
+			buf.WriteByte('\\')
+			buf.WriteRune(c)
+		default:
+			buf.WriteRune(c)
+		}
+	}
+	buf.WriteByte('"')
+	return buf.String()
+}
+
+// readByte reads a single byte, using pending buffer first
+func (e *LineEditor) readByte() (byte, error) {
+	if len(e.pendingInput) > 0 {
+		b := e.pendingInput[0]
+		e.pendingInput = e.pendingInput[1:]
+		return b, nil
+	}
+
+	buf := make([]byte, 32)
+	n, err := os.Stdin.Read(buf)
+	if err != nil {
+		return 0, err
+	}
+	if n == 0 {
+		return 0, io.EOF
+	}
+
+	debugLog("readByte: read %d bytes: %v %q", n, buf[:n], string(buf[:n]))
+
+	// Store all but first byte in pending buffer
+	if n > 1 {
+		e.pendingInput = append(e.pendingInput, buf[1:n]...)
+	}
+	return buf[0], nil
+}
+
+// skipToTerminator skips bytes until we find a CSI sequence terminator (0x40-0x7E)
+func (e *LineEditor) skipToTerminator() {
+	for {
+		b, err := e.readByte()
+		if err != nil {
+			return
+		}
+		// CSI terminators are in range 0x40-0x7E (@ to ~)
+		if b >= 0x40 && b <= 0x7E {
+			return
+		}
+	}
+}
+
 // readKey reads a single key press, handling escape sequences.
 func (e *LineEditor) readKey() (key string, err error) {
-	buf := make([]byte, 1)
-	_, err = os.Stdin.Read(buf)
+	ch, err := e.readByte()
 	if err != nil {
 		return "", err
 	}
 
-	ch := buf[0]
-
 	// Handle escape sequences
 	if ch == 0x1b {
-		buf2 := make([]byte, 2)
-		n, _ := os.Stdin.Read(buf2)
-		if n == 0 {
+		ch2, err := e.readByte()
+		if err != nil {
 			return "escape", nil
 		}
-		if buf2[0] == '[' {
-			switch buf2[1] {
+		if ch2 == '[' {
+			ch3, err := e.readByte()
+			if err != nil {
+				return "escape", nil
+			}
+			switch ch3 {
 			case 'A':
 				return "up", nil
 			case 'B':
@@ -113,11 +193,32 @@ func (e *LineEditor) readKey() (key string, err error) {
 			case 'Z':
 				return "shift-tab", nil
 			case '3':
-				// Read one more byte for delete key
-				os.Stdin.Read(buf[:1])
+				// Delete key: ESC[3~
+				e.readByte() // skip ~
 				return "delete", nil
+			case 'I':
+				// Focus gained - ignore
+				return e.readKey()
+			case 'O':
+				// Focus lost - ignore
+				return e.readKey()
 			}
+			// Handle CSI sequences like ESC[200~ (bracketed paste)
+			if ch3 >= '0' && ch3 <= '9' {
+				// Skip the whole sequence
+				debugLog("readKey: skipping CSI sequence starting with %c", ch3)
+				e.skipToTerminator()
+				return e.readKey()
+			}
+			// Unknown CSI sequence - skip to terminator
+			debugLog("readKey: unknown CSI %c, skipping", ch3)
+			if ch3 < 0x40 || ch3 > 0x7E {
+				e.skipToTerminator()
+			}
+			return e.readKey()
 		}
+		// Unknown escape sequence - treat as escape
+		debugLog("readKey: unknown escape sequence starting with 0x%02x", ch2)
 		return "escape", nil
 	}
 
@@ -315,12 +416,19 @@ func (e *LineEditor) getCompletions() {
 	script += string(e.line)
 	pos := len(script)
 
-	// Call usage complete
-	result, err := e.interp.Eval(fmt.Sprintf("usage complete {%s} %d", script, pos))
+	debugLog("getCompletions: script=%q pos=%d", script, pos)
+
+	// Escape the script for TCL list format
+	escapedScript := tclQuote(script)
+
+	// Call usage complete with properly quoted script
+	result, err := e.interp.Eval(fmt.Sprintf("usage complete %s %d", escapedScript, pos))
 	if err != nil {
+		debugLog("getCompletions: error=%v", err)
 		e.completions = nil
 		return
 	}
+	debugLog("getCompletions: result=%q", result.String())
 
 	// Parse the result
 	e.completions = nil
@@ -391,6 +499,26 @@ func isWordBreak(r rune) bool {
 	return r == ' ' || r == '\t' || r == ';' || r == '\n' || r == '{' || r == '}'
 }
 
+// startKeyReader starts the persistent key reader goroutine if not already running
+func (e *LineEditor) startKeyReader() {
+	if e.readerRunning {
+		return
+	}
+	e.keyChan = make(chan keyResult, 16) // Larger buffer to prevent blocking
+	e.readerRunning = true
+	go func() {
+		for {
+			key, err := e.readKey()
+			debugLog("readKey returned: %q err=%v", key, err)
+			e.keyChan <- keyResult{key, err}
+			if err != nil {
+				e.readerRunning = false
+				return
+			}
+		}
+	}()
+}
+
 // ReadLine reads a complete line of input with completion support.
 func (e *LineEditor) ReadLine(prompt string) (string, error) {
 	if err := e.enterRawMode(); err != nil {
@@ -403,12 +531,8 @@ func (e *LineEditor) ReadLine(prompt string) (string, error) {
 	signal.Notify(sigwinch, syscall.SIGWINCH)
 	defer signal.Stop(sigwinch)
 
-	// Channel for key input from goroutine
-	type keyResult struct {
-		key string
-		err error
-	}
-	keyChan := make(chan keyResult, 1)
+	// Start the persistent key reader if not already running
+	e.startKeyReader()
 
 	e.line = nil
 	e.cursor = 0
@@ -417,17 +541,6 @@ func (e *LineEditor) ReadLine(prompt string) (string, error) {
 	e.selected = 0
 
 	e.render(prompt)
-
-	// Start key reader goroutine
-	go func() {
-		for {
-			key, err := e.readKey()
-			keyChan <- keyResult{key, err}
-			if err != nil {
-				return
-			}
-		}
-	}()
 
 	for {
 		// Wait for either a key press or a resize signal
@@ -439,7 +552,7 @@ func (e *LineEditor) ReadLine(prompt string) (string, error) {
 			// Terminal resized - just re-render
 			e.render(prompt)
 			continue
-		case kr := <-keyChan:
+		case kr := <-e.keyChan:
 			key = kr.key
 			err = kr.err
 		}
@@ -450,6 +563,8 @@ func (e *LineEditor) ReadLine(prompt string) (string, error) {
 			}
 			return "", err
 		}
+
+		debugLog("processing key: %q", key)
 
 		switch key {
 		case "enter":

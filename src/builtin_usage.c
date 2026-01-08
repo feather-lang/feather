@@ -3427,6 +3427,221 @@ static FeatherObj combine_completions(
 }
 
 /**
+ * Script recursion info - result of checking for script-type argument.
+ */
+typedef struct {
+    int should_recurse;         /* 1 if cursor is inside script-type arg */
+    size_t inner_start;         /* Start of brace content (after '{') */
+    size_t inner_end;           /* End of brace content (before '}') */
+    size_t inner_pos;           /* Cursor position relative to inner_start */
+} ScriptRecursionInfo;
+
+/**
+ * Check if cursor is inside a script-type argument.
+ *
+ * Scans the script to find brace blocks and determines if the cursor
+ * is inside one that corresponds to a script-type argument.
+ */
+static ScriptRecursionInfo check_script_recursion(
+    const FeatherHostOps *ops,
+    FeatherInterp interp,
+    FeatherObj scriptObj,
+    size_t pos
+) {
+    ScriptRecursionInfo info = {0, 0, 0, 0};
+
+    size_t script_len = ops->string.byte_length(interp, scriptObj);
+    if (pos > script_len) {
+        pos = script_len;
+    }
+
+    /* Find the last command separator before pos */
+    size_t cmd_start = 0;
+    for (size_t j = 0; j < pos; j++) {
+        int c = ops->string.byte_at(interp, scriptObj, j);
+        if (c == ';' || c == '\n') {
+            cmd_start = j + 1;
+        }
+    }
+
+    /* Scan to find tokens and track brace blocks */
+    size_t i = cmd_start;
+    int arg_index = -1;  /* -1 = command position, 0+ = argument index */
+    FeatherObj cmd_name = ops->string.intern(interp, "", 0);
+
+    /* Track nested braces */
+    int brace_depth = 0;
+    size_t brace_start = 0;
+    int brace_arg_index = -1;
+
+    while (i <= pos) {
+        /* Skip whitespace */
+        while (i < pos) {
+            int c = ops->string.byte_at(interp, scriptObj, i);
+            if (c == ' ' || c == '\t' || c == '\r') {
+                i++;
+            } else {
+                break;
+            }
+        }
+
+        if (i >= pos && brace_depth == 0) {
+            break;
+        }
+
+        /* Check for brace start */
+        int c = ops->string.byte_at(interp, scriptObj, i);
+        if (c == '{') {
+            if (brace_depth == 0) {
+                brace_start = i;
+                brace_arg_index = arg_index;  /* Current arg position */
+            }
+            brace_depth++;
+            i++;
+
+            /* If cursor is inside this brace block, track it */
+            if (brace_depth > 0 && i <= pos) {
+                /* Continue scanning inside braces */
+                while (i < script_len && brace_depth > 0) {
+                    c = ops->string.byte_at(interp, scriptObj, i);
+                    if (c == '{') {
+                        brace_depth++;
+                    } else if (c == '}') {
+                        brace_depth--;
+                        if (brace_depth == 0) {
+                            /* Found matching close brace */
+                            if (pos > brace_start && pos <= i) {
+                                /* Cursor is inside this brace block */
+                                info.inner_start = brace_start + 1;
+                                info.inner_end = i;
+                                info.inner_pos = pos - info.inner_start;
+
+                                /* Now check if this arg has type script */
+                                /* First, we need the command name */
+                                /* Re-scan to get it */
+                                size_t j2 = cmd_start;
+                                while (j2 < script_len) {
+                                    int c2 = ops->string.byte_at(interp, scriptObj, j2);
+                                    if (c2 == ' ' || c2 == '\t' || c2 == '\r' || c2 == '{') break;
+                                    j2++;
+                                }
+                                if (j2 > cmd_start) {
+                                    cmd_name = ops->string.slice(interp, scriptObj, cmd_start, j2);
+                                }
+
+                                /* Look up spec */
+                                FeatherObj specs = usage_get_specs(ops, interp);
+                                FeatherObj specEntry = ops->dict.get(interp, specs, cmd_name);
+
+                                if (!ops->list.is_nil(interp, specEntry)) {
+                                    FeatherObj parsedSpec = dict_get_str(ops, interp, specEntry, K_SPEC);
+
+                                    /* Find arg at brace_arg_index */
+                                    int current_arg = 0;
+                                    size_t specLen = ops->list.length(interp, parsedSpec);
+                                    for (size_t k = 0; k < specLen; k++) {
+                                        FeatherObj entry = ops->list.at(interp, parsedSpec, k);
+                                        FeatherObj entryType = dict_get_str(ops, interp, entry, K_TYPE);
+
+                                        if (feather_obj_eq_literal(ops, interp, entryType, T_ARG)) {
+                                            if (current_arg == brace_arg_index) {
+                                                /* Check if this arg has type script */
+                                                FeatherObj argType = dict_get_str(ops, interp, entry, K_VALUE_TYPE);
+                                                if (feather_obj_eq_literal(ops, interp, argType, "script")) {
+                                                    info.should_recurse = 1;
+                                                }
+                                                break;
+                                            }
+                                            current_arg++;
+                                        }
+                                    }
+                                }
+
+                                return info;
+                            }
+                            break;
+                        }
+                    }
+                    i++;
+                }
+
+                /* Handle unclosed brace - cursor is inside if brace_depth > 0 */
+                if (brace_depth > 0 && pos > brace_start) {
+                    /* Cursor is inside an unclosed brace block */
+                    info.inner_start = brace_start + 1;
+                    info.inner_end = script_len;  /* Use end of script */
+                    info.inner_pos = pos - info.inner_start;
+
+                    /* Check if this arg has type script */
+                    /* First, get the command name */
+                    size_t j2 = cmd_start;
+                    while (j2 < script_len) {
+                        int c2 = ops->string.byte_at(interp, scriptObj, j2);
+                        if (c2 == ' ' || c2 == '\t' || c2 == '\r' || c2 == '{') break;
+                        j2++;
+                    }
+                    if (j2 > cmd_start) {
+                        cmd_name = ops->string.slice(interp, scriptObj, cmd_start, j2);
+                    }
+
+                    /* Look up spec */
+                    FeatherObj specs = usage_get_specs(ops, interp);
+                    FeatherObj specEntry = ops->dict.get(interp, specs, cmd_name);
+
+                    if (!ops->list.is_nil(interp, specEntry)) {
+                        FeatherObj parsedSpec = dict_get_str(ops, interp, specEntry, K_SPEC);
+
+                        /* Find arg at brace_arg_index */
+                        int current_arg = 0;
+                        size_t specLen = ops->list.length(interp, parsedSpec);
+                        for (size_t k = 0; k < specLen; k++) {
+                            FeatherObj entry = ops->list.at(interp, parsedSpec, k);
+                            FeatherObj entryType = dict_get_str(ops, interp, entry, K_TYPE);
+
+                            if (feather_obj_eq_literal(ops, interp, entryType, T_ARG)) {
+                                if (current_arg == brace_arg_index) {
+                                    /* Check if this arg has type script */
+                                    FeatherObj argType = dict_get_str(ops, interp, entry, K_VALUE_TYPE);
+                                    if (feather_obj_eq_literal(ops, interp, argType, "script")) {
+                                        info.should_recurse = 1;
+                                    }
+                                    break;
+                                }
+                                current_arg++;
+                            }
+                        }
+                    }
+
+                    return info;
+                }
+
+                arg_index++;
+            }
+            continue;
+        }
+
+        /* Regular token - find end */
+        size_t token_start = i;
+        while (i < pos) {
+            c = ops->string.byte_at(interp, scriptObj, i);
+            if (c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == ';' || c == '{') {
+                break;
+            }
+            i++;
+        }
+
+        if (i > token_start) {
+            if (arg_index == -1) {
+                cmd_name = ops->string.slice(interp, scriptObj, token_start, i);
+            }
+            arg_index++;
+        }
+    }
+
+    return info;
+}
+
+/**
  * Clean completion implementation (v2).
  *
  * Four-phase architecture:
@@ -3441,6 +3656,15 @@ static FeatherObj usage_complete_impl(
     FeatherObj scriptObj,
     size_t pos
 ) {
+    /* Phase 0: Check for script-type recursion */
+    ScriptRecursionInfo recursion = check_script_recursion(ops, interp, scriptObj, pos);
+    if (recursion.should_recurse) {
+        /* Extract inner script and recurse */
+        FeatherObj innerScript = ops->string.slice(interp, scriptObj,
+            recursion.inner_start, recursion.inner_end);
+        return usage_complete_impl(ops, interp, innerScript, recursion.inner_pos);
+    }
+
     /* Phase 1: Parse script and determine cursor context */
     CompletionContext ctx = parse_completion_context(ops, interp, scriptObj, pos);
 
