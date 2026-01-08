@@ -299,10 +299,9 @@ func FeatherCall(interp C.size_t, argc C.size_t, argv *C.size_t, result *C.size_
 		return 1
 	}
 
-	// Track nesting depth atomically (same as FeatherEval)
-	if atomic.AddInt32(&state.evalDepth, 1) == 1 {
-		state.clearArena()
-	}
+	// Track nesting depth but DON'T clear arena - the caller already created
+	// argument handles that would be invalidated. Only FeatherEval manages arena.
+	atomic.AddInt32(&state.evalDepth, 1)
 	defer atomic.AddInt32(&state.evalDepth, -1)
 
 	// Convert argv handles to Go objects

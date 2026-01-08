@@ -43,22 +43,22 @@ static double get_var_double(FeatherInterp interp, const char *name, double def)
     FeatherObj argv[2];
     argv[0] = FeatherString(interp, "set", 3);
     argv[1] = FeatherString(interp, full_name, strlen(full_name));
-    FeatherObj result;
-    if (FeatherCall(interp, 2, argv, &result) == FEATHER_OK && result != 0) {
+    FeatherObj result = 0;
+    FeatherResult status = FeatherCall(interp, 2, argv, &result);
+    if (status == FEATHER_OK && result != 0) {
         return FeatherAsDouble(interp, result, def);
     }
     return def;
 }
 
 static void init_game_namespace(FeatherInterp interp) {
-    // Create ::game namespace and initialize variables
+    // Create namespace and set variables with fully qualified names
     const char *init_script =
-        "namespace eval ::game {\n"
-        "    variable gravity 500.0\n"
-        "    variable damping 0.8\n"
-        "    variable friction 0.95\n"
-        "}\n";
-    FeatherObj result;
+        "namespace eval ::game {}\n"
+        "set ::game::gravity 500.0\n"
+        "set ::game::damping 0.8\n"
+        "set ::game::friction 0.95\n";
+    FeatherObj result = 0;
     FeatherEval(interp, init_script, strlen(init_script), &result);
 }
 
@@ -315,6 +315,20 @@ static int cmd_clear_balls(void *data, FeatherInterp interp,
     return 0;
 }
 
+static int cmd_physics(void *data, FeatherInterp interp,
+                       size_t argc, FeatherObj *argv,
+                       FeatherObj *result, FeatherObj *err) {
+    (void)data; (void)argc; (void)argv; (void)err;
+    // Return current physics values as read by C
+    double gravity = get_var_double(interp, "gravity", -1);
+    double damping = get_var_double(interp, "damping", -1);
+    double friction = get_var_double(interp, "friction", -1);
+    char buf[256];
+    snprintf(buf, sizeof(buf), "gravity=%.2f damping=%.2f friction=%.2f", gravity, damping, friction);
+    *result = FeatherString(interp, buf, strlen(buf));
+    return 0;
+}
+
 static int cmd_screen_width(void *data, FeatherInterp interp,
                             size_t argc, FeatherObj *argv,
                             FeatherObj *result, FeatherObj *err) {
@@ -376,6 +390,7 @@ static void register_commands(FeatherInterp interp) {
     // Game manipulation (usable from console)
     FeatherRegister(interp, "spawn_ball", cmd_spawn_ball, NULL);
     FeatherRegister(interp, "clear_balls", cmd_clear_balls, NULL);
+    FeatherRegister(interp, "physics", cmd_physics, NULL);
 
     // Custom draw script (runs each frame during drawing)
     FeatherRegister(interp, "run_each_frame", cmd_run_each_frame, NULL);
