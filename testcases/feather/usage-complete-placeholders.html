@@ -1,0 +1,265 @@
+<test-suite>
+  <!--
+    Usage Complete - Argument Placeholders
+
+    Tests for argument placeholder completion in the usage complete subcommand.
+    Placeholders indicate expected positional arguments.
+  -->
+
+  <!-- ============================================= -->
+  <!-- Required argument placeholders                -->
+  <!-- ============================================= -->
+
+  <test-case name="complete placeholder for required arg">
+    <script>
+usage for cmd {
+  arg <input> {help {Input file}}
+  flag --verbose
+}
+usage complete {cmd } 4
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text {} type arg-placeholder name input help {Input file}} {text --verbose type flag help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="complete placeholder for second required arg">
+    <script>
+usage for copy {
+  arg <src> {help {Source file}}
+  arg <dst> {help {Destination file}}
+}
+usage complete {copy file1.txt } 15
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text {} type arg-placeholder name dst help {Destination file}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="complete placeholder for first of multiple required">
+    <script>
+usage for copy {
+  arg <src> {help {Source file}}
+  arg <dst> {help {Destination file}}
+}
+usage complete {copy } 5
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text {} type arg-placeholder name src help {Source file}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Optional argument placeholders                -->
+  <!-- ============================================= -->
+
+  <test-case name="complete placeholder for optional arg after required">
+    <script>
+usage for cmd {
+  arg <input> {help {Input file}}
+  arg ?output? {help {Output file}}
+  flag --verbose
+}
+usage complete {cmd file.txt } 13
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text {} type arg-placeholder name output help {Output file}} {text --verbose type flag help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="complete placeholder for only optional arg">
+    <script>
+usage for cmd {
+  arg ?opt? {help {Optional arg}}
+  flag --verbose
+}
+usage complete {cmd } 4
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text {} type arg-placeholder name opt help {Optional arg}} {text --verbose type flag help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Variadic argument placeholders                -->
+  <!-- ============================================= -->
+
+  <test-case name="complete placeholder for variadic arg when not satisfied">
+    <script>
+usage for cmd {
+  arg <files>... {help {Input files}}
+  flag --verbose
+}
+usage complete {cmd } 4
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text {} type arg-placeholder name files help {Input files}} {text --verbose type flag help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="no placeholder for variadic arg after satisfied once">
+    <script>
+usage for cmd {
+  arg <files>... {help {Input files}}
+  flag --verbose
+}
+usage complete {cmd file1.txt } 13
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text --verbose type flag help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="complete placeholder for variadic after required">
+    <script>
+usage for cmd {
+  arg <command> {help {Command name}}
+  arg <args>... {help {Command arguments}}
+}
+usage complete {cmd test } 9
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text {} type arg-placeholder name args help {Command arguments}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="no placeholder for variadic after satisfied with required">
+    <script>
+usage for cmd {
+  arg <command> {help {Command name}}
+  arg <args>... {help {Command arguments}}
+}
+usage complete {cmd test arg1 } 14
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Placeholders with flags                       -->
+  <!-- ============================================= -->
+
+  <test-case name="complete placeholder after flag">
+    <script>
+usage for cmd {
+  arg <input> {help {Input file}}
+  flag -v --verbose
+}
+usage complete {cmd --verbose } 13
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text {} type arg-placeholder name input help {Input file}} {text -v type flag help {}} {text --verbose type flag help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="complete placeholder mixed with flags after first arg">
+    <script>
+usage for cmd {
+  arg <first> {help {First arg}}
+  arg <second> {help {Second arg}}
+  flag -v --verbose
+  flag -q --quiet
+}
+usage complete {cmd arg1 -v } 12
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text {} type arg-placeholder name second help {Second arg}} {text -q type flag help {}} {text -v type flag help {}} {text --quiet type flag help {}} {text --verbose type flag help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Placeholders in subcommands                   -->
+  <!-- ============================================= -->
+
+  <test-case name="complete placeholder in subcommand">
+    <script>
+usage for git {
+  cmd commit {
+    arg <msg> {help {Commit message}}
+    flag -a --all
+  }
+}
+usage complete {git commit } 11
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text {} type arg-placeholder name msg help {Commit message}} {text -a type flag help {}} {text --all type flag help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- No placeholders when args satisfied           -->
+  <!-- ============================================= -->
+
+  <test-case name="no placeholder when all args satisfied">
+    <script>
+usage for copy {
+  arg <src>
+  arg <dst>
+}
+usage complete {copy file1.txt file2.txt } 25
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Edge cases                                     -->
+  <!-- ============================================= -->
+
+  <test-case name="complete placeholder with no help text">
+    <script>
+usage for cmd {
+  arg <input>
+}
+usage complete {cmd } 4
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text {} type arg-placeholder name input help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="complete placeholder with complex arg name">
+    <script>
+usage for cmd {
+  arg <my-file> {help {A file}}
+}
+usage complete {cmd } 4
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text {} type arg-placeholder name my-file help {A file}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>

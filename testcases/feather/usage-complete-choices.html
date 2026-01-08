@@ -1,0 +1,253 @@
+<test-suite>
+  <!--
+    Usage Complete - Value Completion from Choices
+
+    Tests for completing flag values from defined choice lists.
+  -->
+
+  <!-- ============================================= -->
+  <!-- Basic value completion from choices           -->
+  <!-- ============================================= -->
+
+  <test-case name="complete choices with empty prefix">
+    <script>
+usage for compile {
+  flag --format <fmt> {
+    help {Output format}
+    choices {json yaml toml}
+  }
+}
+usage complete {compile --format } 18
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text json type value help {Output format}} {text toml type value help {Output format}} {text yaml type value help {Output format}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="complete choices with prefix match">
+    <script>
+usage for compile {
+  flag --format <fmt> {
+    help {Output format}
+    choices {json yaml toml}
+  }
+}
+usage complete {compile --format j} 19
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text json type value help {Output format}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="complete choices partial match">
+    <script>
+usage for compile {
+  flag --format <fmt> {
+    choices {json yaml toml xml html}
+  }
+}
+usage complete {compile --format xm} 20
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text xml type value help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Choices with short flags                      -->
+  <!-- ============================================= -->
+
+  <test-case name="complete choices for short flag">
+    <script>
+usage for compile {
+  flag -f <fmt> {
+    help {Output format}
+    choices {json yaml toml}
+  }
+}
+usage complete {compile -f } 11
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text json type value help {Output format}} {text toml type value help {Output format}} {text yaml type value help {Output format}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Choices in subcommands                        -->
+  <!-- ============================================= -->
+
+  <test-case name="complete choices in subcommand">
+    <script>
+usage for git {
+  cmd merge {
+    flag --strategy <s> {
+      help {Merge strategy}
+      choices {recursive ours theirs}
+    }
+  }
+}
+usage complete {git merge --strategy } 24
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text ours type value help {Merge strategy}} {text recursive type value help {Merge strategy}} {text theirs type value help {Merge strategy}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Flags without choices                         -->
+  <!-- ============================================= -->
+
+  <test-case name="no choices returns empty">
+    <script>
+usage for cmd {
+  flag --file <path> {
+    help {Input file}
+  }
+}
+usage complete {cmd --file } 11
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="boolean flag does not complete values">
+    <script>
+usage for cmd {
+  flag --verbose
+}
+usage complete {cmd --verbose } 16
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text --verbose type flag help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Choices with other arguments                  -->
+  <!-- ============================================= -->
+
+  <test-case name="complete choices after other args">
+    <script>
+usage for deploy {
+  arg <app>
+  flag --env <e> {
+    choices {dev staging prod}
+  }
+}
+usage complete {deploy myapp --env } 20
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text dev type value help {}} {text prod type value help {}} {text staging type value help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Case sensitivity and edge cases               -->
+  <!-- ============================================= -->
+
+  <test-case name="choices are case sensitive">
+    <script>
+usage for cmd {
+  flag --mode <m> {
+    choices {Debug Release Test}
+  }
+}
+usage complete {cmd --mode D} 14
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text Debug type value help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="empty choices list returns empty">
+    <script>
+usage for cmd {
+  flag --opt <val> {
+    choices {}
+  }
+}
+usage complete {cmd --opt } 10
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout></stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Choices with both short and long flags        -->
+  <!-- ============================================= -->
+
+  <test-case name="complete choices for long flag form">
+    <script>
+usage for compile {
+  flag -f --format <fmt> {
+    choices {json yaml}
+  }
+}
+usage complete {compile --format } 18
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text json type value help {}} {text yaml type value help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <test-case name="complete choices for short flag form">
+    <script>
+usage for compile {
+  flag -f --format <fmt> {
+    choices {json yaml}
+  }
+}
+usage complete {compile -f } 11
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text json type value help {}} {text yaml type value help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+  <!-- ============================================= -->
+  <!-- Optional flag values                          -->
+  <!-- ============================================= -->
+
+  <test-case name="optional flag value still completes from choices">
+    <script>
+usage for cmd {
+  flag --level ?n? {
+    choices {1 2 3}
+  }
+}
+usage complete {cmd --level } 12
+    </script>
+    <return>TCL_OK</return>
+    <error></error>
+    <stdout>{text 1 type value help {}} {text 2 type value help {}} {text 3 type value help {}}</stdout>
+    <stderr></stderr>
+    <exit-code>0</exit-code>
+  </test-case>
+
+</test-suite>
