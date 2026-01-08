@@ -4046,6 +4046,7 @@ void feather_register_usage_usage(const FeatherHostOps *ops, FeatherInterp inter
   e = feather_usage_help(ops, interp, e, "The usage specification (if defining)");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "for", subspec);
+  e = feather_usage_help(ops, interp, e, "Define or retrieve a usage specification");
   e = feather_usage_long_help(ops, interp, e,
     "Defines or retrieves a usage specification for a command. When called with "
     "both command and spec arguments, stores the specification for later use "
@@ -4072,6 +4073,7 @@ void feather_register_usage_usage(const FeatherHostOps *ops, FeatherInterp inter
   e = feather_usage_help(ops, interp, e, "The argument list to parse");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "parse", subspec);
+  e = feather_usage_help(ops, interp, e, "Parse arguments using a usage specification");
   e = feather_usage_long_help(ops, interp, e,
     "Parses an argument list according to a previously defined usage "
     "specification and creates local variables in the caller's scope for each "
@@ -4097,6 +4099,7 @@ void feather_register_usage_usage(const FeatherHostOps *ops, FeatherInterp inter
   e = feather_usage_help(ops, interp, e, "Optional subcommand path for specific help");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "help", subspec);
+  e = feather_usage_help(ops, interp, e, "Generate help text for a command");
   e = feather_usage_long_help(ops, interp, e,
     "Generates help text for a command based on its usage specification. The "
     "output follows the standard Unix manpage format with sections for NAME, "
