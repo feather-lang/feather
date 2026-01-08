@@ -61,11 +61,15 @@ func toTclString(v any) string {
 	}
 }
 
-// quote adds braces around a string if it contains special characters.
+// quote returns a properly quoted TCL string.
+// It uses brace quoting when safe (balanced braces, no trailing backslash).
+// Otherwise it uses double-quote escaping.
 func quote(s string) string {
 	if s == "" {
 		return "{}"
 	}
+
+	// Check if we need any quoting at all
 	needsQuote := false
 	for _, c := range s {
 		if c == ' ' || c == '\t' || c == '\n' || c == '{' || c == '}' || c == '"' || c == '\\' || c == '$' || c == '[' || c == ']' {
@@ -73,10 +77,57 @@ func quote(s string) string {
 			break
 		}
 	}
-	if needsQuote {
+	if !needsQuote {
+		return s
+	}
+
+	// Check if brace quoting is safe: braces must be balanced and no trailing backslash
+	if canBraceQuote(s) {
 		return "{" + s + "}"
 	}
-	return s
+
+	// Fall back to double-quote escaping
+	return doubleQuote(s)
+}
+
+// canBraceQuote returns true if the string can be safely quoted with braces.
+// This requires balanced braces and no trailing backslash.
+func canBraceQuote(s string) bool {
+	if len(s) > 0 && s[len(s)-1] == '\\' {
+		return false
+	}
+
+	depth := 0
+	for _, c := range s {
+		switch c {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth < 0 {
+				return false
+			}
+		}
+	}
+	return depth == 0
+}
+
+// doubleQuote quotes a string using double-quote escaping.
+func doubleQuote(s string) string {
+	var buf strings.Builder
+	buf.Grow(len(s) + 10) // estimate with some headroom for escapes
+	buf.WriteByte('"')
+	for _, c := range s {
+		switch c {
+		case '"', '$', '[', ']', '\\':
+			buf.WriteByte('\\')
+			buf.WriteRune(c)
+		default:
+			buf.WriteRune(c)
+		}
+	}
+	buf.WriteByte('"')
+	return buf.String()
 }
 
 // wrapFunc wraps a Go function to be callable from TCL.

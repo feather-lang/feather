@@ -101,24 +101,6 @@ func debugLog(format string, args ...interface{}) {
 	}
 }
 
-// tclQuote quotes a string for safe use as a TCL argument.
-// It uses double quotes and escapes special characters.
-func tclQuote(s string) string {
-	var buf strings.Builder
-	buf.WriteByte('"')
-	for _, c := range s {
-		switch c {
-		case '"', '$', '[', ']', '\\':
-			buf.WriteByte('\\')
-			buf.WriteRune(c)
-		default:
-			buf.WriteRune(c)
-		}
-	}
-	buf.WriteByte('"')
-	return buf.String()
-}
-
 // readByte reads a single byte, using pending buffer first
 func (e *LineEditor) readByte() (byte, error) {
 	if len(e.pendingInput) > 0 {
@@ -418,11 +400,8 @@ func (e *LineEditor) getCompletions() {
 
 	debugLog("getCompletions: script=%q pos=%d", script, pos)
 
-	// Escape the script for TCL list format
-	escapedScript := tclQuote(script)
-
-	// Call usage complete with properly quoted script
-	result, err := e.interp.Eval(fmt.Sprintf("usage complete %s %d", escapedScript, pos))
+	// Use Call API for proper argument handling (handles unbalanced braces, etc.)
+	result, err := e.interp.Call("usage", "complete", script, pos)
 	if err != nil {
 		debugLog("getCompletions: error=%v", err)
 		e.completions = nil

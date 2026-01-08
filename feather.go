@@ -407,18 +407,39 @@ func (i *Interp) EvalObj(obj *Obj) (*Obj, error) {
 
 // Call invokes a single TCL command with the given arguments.
 //
-// Arguments are automatically converted from Go types to TCL values.
-// This is a convenience wrapper around [Interp.Eval] for single command invocation.
+// Unlike building a command string and using [Interp.Eval], Call passes arguments
+// directly to the command without TCL parsing. This means strings with special
+// characters (unbalanced braces, $, [, etc.) are passed safely without escaping.
+//
+// Arguments can be Go types or *Obj values:
+//   - *Obj: passed directly as-is
+//   - string: converted to TCL string
+//   - int, int64: converted to TCL integer
+//   - float64: converted to TCL double
+//   - bool: converted to 1 or 0
+//   - []string: converted to TCL list
+//   - Other types: converted via fmt.Sprintf
+//
+// Examples:
 //
 //	result, err := interp.Call("expr", "2 + 2")
 //	result, err := interp.Call("llength", myList)
 //	result, err := interp.Call("myns::proc", arg1, arg2)
+//	result, err := interp.Call("usage", "complete", "hello { l", 9)  // unbalanced brace OK
 func (i *Interp) Call(cmd string, args ...any) (*Obj, error) {
-	script := cmd
-	for _, arg := range args {
-		script += " " + toTclString(arg)
+	// Build the command string with proper quoting
+	parts := make([]string, len(args)+1)
+	parts[0] = quote(cmd)
+	for idx, arg := range args {
+		parts[idx+1] = toTclString(arg)
 	}
-	return i.Eval(script)
+
+	script := strings.Join(parts, " ")
+	result, err := i.Eval(script)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // -----------------------------------------------------------------------------

@@ -603,6 +603,40 @@ func TestCallAPI(t *testing.T) {
 			t.Errorf("list length = %d; want 3", len(items))
 		}
 	})
+
+	t.Run("Call with unbalanced braces", func(t *testing.T) {
+		// This tests the double-quote escaping fallback
+		result, err := interp.Call("list", "hello { world", "foo } bar")
+		if err != nil {
+			t.Fatalf("Call failed: %v", err)
+		}
+		items, _ := result.List()
+		if len(items) != 2 {
+			t.Errorf("list length = %d; want 2", len(items))
+		}
+		if items[0].String() != "hello { world" {
+			t.Errorf("first item = %q; want 'hello { world'", items[0].String())
+		}
+		if items[1].String() != "foo } bar" {
+			t.Errorf("second item = %q; want 'foo } bar'", items[1].String())
+		}
+	})
+
+	t.Run("Call with Obj argument", func(t *testing.T) {
+		// Create an Obj via Eval and pass it to Call
+		obj, _ := interp.Eval(`return "test value"`)
+		result, err := interp.Call("list", obj, "other")
+		if err != nil {
+			t.Fatalf("Call failed: %v", err)
+		}
+		items, _ := result.List()
+		if len(items) != 2 {
+			t.Errorf("list length = %d; want 2", len(items))
+		}
+		if items[0].String() != "test value" {
+			t.Errorf("first item = %q; want 'test value'", items[0].String())
+		}
+	})
 }
 
 // =============================================================================
