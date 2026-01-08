@@ -175,6 +175,35 @@ func (e *LineEditor) render(prompt string) {
 	fmt.Printf("\r\033[%dC", len(prompt)+e.cursor)
 }
 
+// typeIndicator returns a single-letter type indicator for completion types.
+func typeIndicator(t string) string {
+	switch t {
+	case "arg-placeholder":
+		return "A"
+	case "flag":
+		return "F"
+	case "command":
+		return "C"
+	case "subcommand":
+		return "S"
+	case "value":
+		return "V"
+	default:
+		if len(t) > 0 {
+			return strings.ToUpper(t[:1])
+		}
+		return "?"
+	}
+}
+
+// completionText returns the display text for a completion candidate.
+func completionText(c CompletionCandidate) string {
+	if c.Type == "arg-placeholder" && c.Name != "" {
+		return fmt.Sprintf("<%s>", c.Name)
+	}
+	return c.Text
+}
+
 // renderPopup displays the completion popup below the current line.
 func (e *LineEditor) renderPopup(prompt string) {
 	maxDisplay := min(len(e.completions), 10)
@@ -188,6 +217,23 @@ func (e *LineEditor) renderPopup(prompt string) {
 
 	e.popupLineCount = maxDisplay
 
+	// Calculate the width needed for the name column based on longest name
+	nameWidth := 0
+	for i := 0; i < maxDisplay; i++ {
+		text := completionText(e.completions[i])
+		if len(text) > nameWidth {
+			nameWidth = len(text)
+		}
+	}
+	// Add 2 for surrounding spaces, cap at reasonable max
+	nameWidth += 2
+	if nameWidth > 30 {
+		nameWidth = 30
+	}
+	if nameWidth < 8 {
+		nameWidth = 8
+	}
+
 	for i := 0; i < maxDisplay; i++ {
 		c := e.completions[i]
 
@@ -200,24 +246,15 @@ func (e *LineEditor) renderPopup(prompt string) {
 			prefix = "> "
 		}
 
-		text := c.Text
-		if c.Type == "arg-placeholder" && c.Name != "" {
-			text = fmt.Sprintf("<%s>", c.Name)
-		}
-		if len(text) > 20 {
-			text = text[:17] + "..."
+		text := completionText(c)
+		if len(text) > nameWidth-2 {
+			text = text[:nameWidth-5] + "..."
 		}
 
-		// Format: "> text                [type] help..."
-		// Start with prefix and text
-		line := fmt.Sprintf("%s%-20s", prefix, text)
-
-		// Add type label
-		typeLabel := fmt.Sprintf("[%s]", c.Type)
-		if len(typeLabel) > 12 {
-			typeLabel = typeLabel[:12]
-		}
-		line += " " + typeLabel
+		// Format: "> name     [T] help..."
+		// Use dynamic width for name column
+		formatStr := fmt.Sprintf("%%s%%-%ds [%%s]", nameWidth)
+		line := fmt.Sprintf(formatStr, prefix, text, typeIndicator(c.Type))
 
 		// Add help text if there's room
 		if c.Help != "" {
