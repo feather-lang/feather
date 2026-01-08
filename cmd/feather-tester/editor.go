@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/feather-lang/feather"
 	"golang.org/x/term"
@@ -176,9 +178,13 @@ func (e *LineEditor) render(prompt string) {
 // renderPopup displays the completion popup below the current line.
 func (e *LineEditor) renderPopup(prompt string) {
 	maxDisplay := min(len(e.completions), 10)
+	termWidth := e.getTerminalWidth()
 
-	// Use conservative fixed width - terminal detection is unreliable through tmux
-	maxLen := 70
+	// Leave safety margin to prevent wrapping
+	maxLen := termWidth - 2
+	if maxLen < 40 {
+		maxLen = 40
+	}
 
 	e.popupLineCount = maxDisplay
 
@@ -188,7 +194,7 @@ func (e *LineEditor) renderPopup(prompt string) {
 		// Move to next line, go to column 1, and clear the line
 		fmt.Print("\n\r\033[K")
 
-		// Build the display line - keep it very compact
+		// Build the display line
 		prefix := "  "
 		if i == e.selected {
 			prefix = "> "
@@ -198,14 +204,34 @@ func (e *LineEditor) renderPopup(prompt string) {
 		if c.Type == "arg-placeholder" && c.Name != "" {
 			text = fmt.Sprintf("<%s>", c.Name)
 		}
-		if len(text) > 18 {
-			text = text[:15] + "..."
+		if len(text) > 20 {
+			text = text[:17] + "..."
 		}
 
-		// Very compact: "> text           [type]"
-		line := fmt.Sprintf("%s%-18s [%s]", prefix, text, c.Type[:3])
+		// Format: "> text                [type] help..."
+		// Start with prefix and text
+		line := fmt.Sprintf("%s%-20s", prefix, text)
 
-		// Truncate to ensure no wrapping
+		// Add type label
+		typeLabel := fmt.Sprintf("[%s]", c.Type)
+		if len(typeLabel) > 12 {
+			typeLabel = typeLabel[:12]
+		}
+		line += " " + typeLabel
+
+		// Add help text if there's room
+		if c.Help != "" {
+			remaining := maxLen - len(line) - 1
+			if remaining > 10 {
+				help := c.Help
+				if len(help) > remaining {
+					help = help[:remaining-3] + "..."
+				}
+				line += " " + help
+			}
+		}
+
+		// Final truncation safety
 		if len(line) > maxLen {
 			line = line[:maxLen]
 		}
@@ -333,6 +359,18 @@ func (e *LineEditor) ReadLine(prompt string) (string, error) {
 	}
 	defer e.exitRawMode()
 
+	// Set up SIGWINCH handler for terminal resize
+	sigwinch := make(chan os.Signal, 1)
+	signal.Notify(sigwinch, syscall.SIGWINCH)
+	defer signal.Stop(sigwinch)
+
+	// Channel for key input from goroutine
+	type keyResult struct {
+		key string
+		err error
+	}
+	keyChan := make(chan keyResult, 1)
+
 	e.line = nil
 	e.cursor = 0
 	e.showPopup = false
@@ -341,8 +379,32 @@ func (e *LineEditor) ReadLine(prompt string) (string, error) {
 
 	e.render(prompt)
 
+	// Start key reader goroutine
+	go func() {
+		for {
+			key, err := e.readKey()
+			keyChan <- keyResult{key, err}
+			if err != nil {
+				return
+			}
+		}
+	}()
+
 	for {
-		key, err := e.readKey()
+		// Wait for either a key press or a resize signal
+		var key string
+		var err error
+
+		select {
+		case <-sigwinch:
+			// Terminal resized - just re-render
+			e.render(prompt)
+			continue
+		case kr := <-keyChan:
+			key = kr.key
+			err = kr.err
+		}
+
 		if err != nil {
 			if err == io.EOF {
 				return "", io.EOF
