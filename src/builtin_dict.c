@@ -1028,6 +1028,7 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "?string?...");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "append", subspec);
+  e = feather_usage_help(ops, interp, e, "Append strings to a dictionary value");
   e = feather_usage_long_help(ops, interp, e,
     "Appends the given string (or strings) to the value that the given key "
     "maps to in the dictionary value contained in the given variable, writing "
@@ -1041,6 +1042,7 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "?key value?...");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "create", subspec);
+  e = feather_usage_help(ops, interp, e, "Create a new dictionary");
   e = feather_usage_long_help(ops, interp, e,
     "Returns a new dictionary that contains each of the key/value mappings "
     "listed as arguments (keys and values alternating, with each key being "
@@ -1056,6 +1058,7 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "?key?...");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "exists", subspec);
+  e = feather_usage_help(ops, interp, e, "Check if a key exists in a dictionary");
   e = feather_usage_long_help(ops, interp, e,
     "Returns a boolean value indicating whether the given key (or path of "
     "keys through a set of nested dictionaries) exists in the given dictionary "
@@ -1072,6 +1075,7 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "?arg?...");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "filter", subspec);
+  e = feather_usage_help(ops, interp, e, "Filter dictionary by key, value, or script");
   e = feather_usage_long_help(ops, interp, e,
     "Takes a dictionary value and returns a new dictionary that contains just "
     "those key/value pairs that match the specified filter type. Supported "
@@ -1097,6 +1101,7 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "<body>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "for", subspec);
+  e = feather_usage_help(ops, interp, e, "Iterate over dictionary key-value pairs");
   e = feather_usage_long_help(ops, interp, e,
     "Iterates over the key-value pairs in the dictionary. The first argument "
     "is a two-element list of variable names (for the key and value "
@@ -1116,6 +1121,7 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "?key?...");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "get", subspec);
+  e = feather_usage_help(ops, interp, e, "Get value for a key from dictionary");
   e = feather_usage_long_help(ops, interp, e,
     "Given a dictionary value and a key, retrieves the value for that key. "
     "When several keys are supplied, this facilitates lookups in nested "
@@ -1139,6 +1145,7 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "<default>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "getdef", subspec);
+  e = feather_usage_help(ops, interp, e, "Get value with default if key missing");
   e = feather_usage_long_help(ops, interp, e,
     "Behaves the same as dict get (with at least one key argument), returning "
     "the value that the key path maps to in the dictionary, except that "
@@ -1157,6 +1164,7 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "?increment?");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "incr", subspec);
+  e = feather_usage_help(ops, interp, e, "Increment a dictionary value");
   e = feather_usage_long_help(ops, interp, e,
     "Adds the given increment value (an integer that defaults to 1 if not "
     "specified) to the value that the given key maps to in the dictionary "
@@ -1171,6 +1179,7 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "<dictionary>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "info", subspec);
+  e = feather_usage_help(ops, interp, e, "Get information about a dictionary");
   e = feather_usage_long_help(ops, interp, e,
     "Returns information (intended for display to people) about the given "
     "dictionary. In feather, this returns a string of the form \"N entries in "
@@ -1184,6 +1193,7 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "?globPattern?");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "keys", subspec);
+  e = feather_usage_help(ops, interp, e, "Get list of keys from dictionary");
   e = feather_usage_long_help(ops, interp, e,
     "Returns a list of all keys in the given dictionary value. If a pattern "
     "is supplied, only those keys that match it (according to the rules of "
@@ -1200,6 +1210,7 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "?value?...");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "lappend", subspec);
+  e = feather_usage_help(ops, interp, e, "Append list elements to a dictionary value");
   e = feather_usage_long_help(ops, interp, e,
     "Appends the given items to the list value that the given key maps to in "
     "the dictionary value contained in the given variable, writing the "
@@ -1218,6 +1229,7 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "<body>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "map", subspec);
+  e = feather_usage_help(ops, interp, e, "Transform dictionary values with a script");
   e = feather_usage_long_help(ops, interp, e,
     "Applies a transformation to each element of a dictionary, returning a "
     "new dictionary. The first argument is a two-element list of variable "
@@ -1235,6 +1247,7 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "?dictionary?...");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "merge", subspec);
+  e = feather_usage_help(ops, interp, e, "Merge multiple dictionaries into one");
   e = feather_usage_long_help(ops, interp, e,
     "Returns a dictionary that contains the contents of each of the dictionary "
     "arguments. Where two or more dictionaries contain a mapping for the same "
@@ -1249,6 +1262,7 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "?key?...");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "remove", subspec);
+  e = feather_usage_help(ops, interp, e, "Remove keys from a dictionary");
   e = feather_usage_long_help(ops, interp, e,
     "Returns a new dictionary that is a copy of the old one passed in as the "
     "first argument except without mappings for each of the keys listed. It "
@@ -1263,6 +1277,7 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "?key value?...");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "replace", subspec);
+  e = feather_usage_help(ops, interp, e, "Replace or add key-value pairs in dictionary");
   e = feather_usage_long_help(ops, interp, e,
     "Returns a new dictionary that is a copy of the old one passed in as the "
     "first argument except with some values different or some extra key/value "
@@ -1281,6 +1296,7 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "<value>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "set", subspec);
+  e = feather_usage_help(ops, interp, e, "Set a value in a dictionary variable");
   e = feather_usage_long_help(ops, interp, e,
     "Takes the name of a variable containing a dictionary value and places an "
     "updated dictionary value in that variable containing a mapping from the "
@@ -1294,6 +1310,7 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "<dictionary>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "size", subspec);
+  e = feather_usage_help(ops, interp, e, "Get number of entries in dictionary");
   e = feather_usage_long_help(ops, interp, e,
     "Returns the number of key/value mappings in the given dictionary value.");
   spec = feather_usage_add(ops, interp, spec, e);
@@ -1307,6 +1324,7 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "?key?...");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "unset", subspec);
+  e = feather_usage_help(ops, interp, e, "Remove a key from a dictionary variable");
   e = feather_usage_long_help(ops, interp, e,
     "Takes the name of a variable containing a dictionary value and places an "
     "updated dictionary value in that variable that does not contain a mapping "
@@ -1330,6 +1348,7 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "<body>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "update", subspec);
+  e = feather_usage_help(ops, interp, e, "Update dictionary values using variables");
   e = feather_usage_long_help(ops, interp, e,
     "Executes the script in body with the value for each key (as found by "
     "reading the dictionary value in dictVarName) mapped to the variable "
@@ -1348,6 +1367,7 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "?globPattern?");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "values", subspec);
+  e = feather_usage_help(ops, interp, e, "Get list of values from dictionary");
   e = feather_usage_long_help(ops, interp, e,
     "Returns a list of all values in the given dictionary value. If a pattern "
     "is supplied, only those values that match it (according to the rules of "
@@ -1365,6 +1385,7 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "<body>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "with", subspec);
+  e = feather_usage_help(ops, interp, e, "Execute script with dictionary keys as variables");
   e = feather_usage_long_help(ops, interp, e,
     "Executes the script in body with the value for each key in dictVarName "
     "mapped to a variable with the same name as the key. Where one or more "
