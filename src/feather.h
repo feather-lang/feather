@@ -421,6 +421,21 @@ typedef struct FeatherFrameOps {
   FeatherObj (*get_namespace)(FeatherInterp interp);
 
   /**
+   * push_locals saves the current locals and sets locals to the given namespace.
+   *
+   * Used by namespace eval to switch variable storage to the target namespace.
+   * Call pop_locals to restore the previous locals.
+   */
+  FeatherResult (*push_locals)(FeatherInterp interp, FeatherObj ns);
+
+  /**
+   * pop_locals restores the previously saved locals.
+   *
+   * Used by namespace eval to restore variable storage after evaluation.
+   */
+  FeatherResult (*pop_locals)(FeatherInterp interp);
+
+  /**
    * set_line sets the line number for the current frame.
    * Used to track source location for debugging and error reporting.
    */

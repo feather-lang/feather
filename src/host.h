@@ -32,6 +32,8 @@ extern FeatherResult feather_host_frame_info(FeatherInterp interp, size_t level,
                                              FeatherObj *cmd, FeatherObj *args, FeatherObj *ns);
 extern FeatherResult feather_host_frame_set_namespace(FeatherInterp interp, FeatherObj ns);
 extern FeatherObj feather_host_frame_get_namespace(FeatherInterp interp);
+extern FeatherResult feather_host_frame_push_locals(FeatherInterp interp, FeatherObj ns);
+extern FeatherResult feather_host_frame_pop_locals(FeatherInterp interp);
 extern FeatherResult feather_host_frame_set_line(FeatherInterp interp, size_t line);
 extern size_t feather_host_frame_get_line(FeatherInterp interp, size_t level);
 extern FeatherResult feather_host_frame_set_lambda(FeatherInterp interp, FeatherObj lambda);

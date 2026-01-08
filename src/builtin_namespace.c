@@ -117,8 +117,9 @@ static FeatherResult ns_eval(const FeatherHostOps *ops, FeatherInterp interp, Fe
   // Save current namespace
   FeatherObj saved_ns = ops->frame.get_namespace(interp);
 
-  // Set current frame's namespace
+  // Set current frame's namespace and locals
   ops->frame.set_namespace(interp, abs_path);
+  ops->frame.push_locals(interp, abs_path);
 
   // Get the script (concatenate remaining args if multiple)
   FeatherObj script;
@@ -137,7 +138,8 @@ static FeatherResult ns_eval(const FeatherHostOps *ops, FeatherInterp interp, Fe
   // Evaluate the script
   FeatherResult result = feather_script_eval_obj(ops, interp, script, TCL_EVAL_LOCAL);
 
-  // Restore namespace
+  // Restore locals and namespace
+  ops->frame.pop_locals(interp);
   ops->frame.set_namespace(interp, saved_ns);
 
   return result;
@@ -704,13 +706,15 @@ static FeatherResult ns_inscope(const FeatherHostOps *ops, FeatherInterp interp,
   // Save current namespace
   FeatherObj saved_ns = ops->frame.get_namespace(interp);
 
-  // Set current frame's namespace
+  // Set current frame's namespace and locals
   ops->frame.set_namespace(interp, abs_path);
+  ops->frame.push_locals(interp, abs_path);
 
   // Evaluate the script
   FeatherResult result = feather_script_eval_obj(ops, interp, script, TCL_EVAL_LOCAL);
 
-  // Restore namespace
+  // Restore locals and namespace
+  ops->frame.pop_locals(interp);
   ops->frame.set_namespace(interp, saved_ns);
 
   return result;

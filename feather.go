@@ -32,6 +32,7 @@ type Interp struct {
 	scriptPath      *Obj // current script file being executed (nil = none)
 	builders        map[FeatherObj]*strings.Builder
 	evalDepth       int  // tracks nested eval calls for scratch arena management
+	savedLocals     []*Namespace // stack for saving frame.locals during namespace eval
 
 	// Commands holds registered Go command implementations.
 	// Low-level API. May change between versions.

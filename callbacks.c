@@ -308,6 +308,14 @@ FeatherObj feather_host_frame_get_namespace(FeatherInterp interp) {
     return goFrameGetNamespace(interp);
 }
 
+FeatherResult feather_host_frame_push_locals(FeatherInterp interp, FeatherObj ns) {
+    return goFramePushLocals(interp, ns);
+}
+
+FeatherResult feather_host_frame_pop_locals(FeatherInterp interp) {
+    return goFramePopLocals(interp);
+}
+
 FeatherResult feather_host_frame_set_line(FeatherInterp interp, size_t line) {
     return goFrameSetLine(interp, line);
 }

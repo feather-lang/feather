@@ -2078,6 +2078,40 @@ func goFrameGetNamespace(interp C.FeatherInterp) C.FeatherObj {
 	return C.FeatherObj(i.internString("::"))
 }
 
+//export goFramePushLocals
+func goFramePushLocals(interp C.FeatherInterp, nsPath C.FeatherObj) C.FeatherResult {
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	// Save current locals
+	frame := i.frames[i.active]
+	i.savedLocals = append(i.savedLocals, frame.locals)
+
+	// Set locals to the target namespace
+	pathStr := i.getString(FeatherObj(nsPath))
+	ns := i.ensureNamespace(pathStr)
+	frame.locals = ns
+	return C.TCL_OK
+}
+
+//export goFramePopLocals
+func goFramePopLocals(interp C.FeatherInterp) C.FeatherResult {
+	i := getInterp(interp)
+	if i == nil {
+		return C.TCL_ERROR
+	}
+	if len(i.savedLocals) == 0 {
+		return C.TCL_ERROR // stack underflow
+	}
+	// Restore locals
+	n := len(i.savedLocals)
+	saved := i.savedLocals[n-1]
+	i.savedLocals = i.savedLocals[:n-1]
+	i.frames[i.active].locals = saved
+	return C.TCL_OK
+}
+
 //export goFrameSetLine
 func goFrameSetLine(interp C.FeatherInterp, line C.size_t) C.FeatherResult {
 	i := getInterp(interp)
