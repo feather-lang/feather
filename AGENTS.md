@@ -122,6 +122,26 @@ they have access to.
 
 `mise test:js` runs the test harness against the JavaScript/WASM host.
 
+## C API Guidelines
+
+When writing C headers (especially for libfeather):
+
+1. **Use enums instead of #define macros for constants.** Macros are preprocessor-only and not visible to binding generators (Python, Rust, etc.). Enums are part of the type system and can be extracted by tools.
+
+   ```c
+   // Bad - not visible to bindings
+   #define FEATHER_OK    0
+   #define FEATHER_ERROR 1
+
+   // Good - visible to bindings
+   typedef enum {
+       FEATHER_OK    = 0,
+       FEATHER_ERROR = 1
+   } FeatherResult;
+   ```
+
+2. **Use typedef'd types consistently.** If you define `typedef size_t FeatherObj`, use `FeatherObj` everywhere, not `size_t`.
+
 ## Important differences from TCL
 
 Feather does not support TCL-style arrays.
