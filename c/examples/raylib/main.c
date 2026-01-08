@@ -35,18 +35,24 @@ static char custom_draw_script[4096] = "";
 // -----------------------------------------------------------------------------
 
 static void set_var_double(FeatherInterp interp, const char *name, double val) {
+    // Use global namespace (::name) so variable persists across frames
+    char global_name[128];
+    snprintf(global_name, sizeof(global_name), "::%s", name);
     FeatherObj argv[3];
     argv[0] = FeatherString(interp, "set", 3);
-    argv[1] = FeatherString(interp, name, strlen(name));
+    argv[1] = FeatherString(interp, global_name, strlen(global_name));
     argv[2] = FeatherDouble(interp, val);
     FeatherObj result;
     FeatherCall(interp, 3, argv, &result);
 }
 
 static double get_var_double(FeatherInterp interp, const char *name, double def) {
+    // Use global namespace (::name)
+    char global_name[128];
+    snprintf(global_name, sizeof(global_name), "::%s", name);
     FeatherObj argv[2];
     argv[0] = FeatherString(interp, "set", 3);
-    argv[1] = FeatherString(interp, name, strlen(name));
+    argv[1] = FeatherString(interp, global_name, strlen(global_name));
     FeatherObj result;
     if (FeatherCall(interp, 2, argv, &result) == FEATHER_OK && result != 0) {
         return FeatherAsDouble(interp, result, def);
