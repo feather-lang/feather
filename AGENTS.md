@@ -2,6 +2,21 @@
 
 VitePress-based documentation and playground for the Feather programming language.
 
+## Repository Structure
+
+This repository uses **two orphan branches** with separate histories:
+
+| Branch | Purpose |
+|--------|---------|
+| `main` | Feather interpreter source code (Go, C, WASM builds) |
+| `page` | This VitePress documentation site (no shared commits with `main`) |
+
+**Implications:**
+- The `page` branch only contains docs/website files, not interpreter source
+- `feather.wasm` and `feather.js` are **copies** extracted from the `main` branch build output
+- To update WASM/JS files, use `mise run update-tests` which extracts from `../feather` (a separate checkout of `main`)
+- Deploys go to Cloudflare Pages from the `page` branch
+
 ## Commands
 
 Use `mise` to run all tasks (never use npm directly):
