@@ -26,6 +26,14 @@ static int ball_count = 0;
 static float spawn_cooldown = 0;
 static Console *console = NULL;
 
+// Configurable physics parameters
+static float gravity = 500.0f;
+static float damping = 0.8f;
+static float friction = 0.95f;
+
+// Custom draw script (set via console, runs each frame)
+static char custom_draw_script[4096] = "";
+
 // -----------------------------------------------------------------------------
 // Drawing Commands
 // -----------------------------------------------------------------------------
@@ -103,6 +111,48 @@ static int cmd_draw_text(void *data, FeatherInterp interp,
     return 0;
 }
 
+static int cmd_draw_rect(void *data, FeatherInterp interp,
+                         size_t argc, FeatherObj *argv,
+                         FeatherObj *result, FeatherObj *err) {
+    (void)data; (void)err;
+    if (argc < 8) {
+        *result = 0;
+        return 0;
+    }
+    int x = (int)FeatherAsInt(interp, argv[0], 0);
+    int y = (int)FeatherAsInt(interp, argv[1], 0);
+    int w = (int)FeatherAsInt(interp, argv[2], 10);
+    int h = (int)FeatherAsInt(interp, argv[3], 10);
+    int r = (int)FeatherAsInt(interp, argv[4], 255);
+    int g = (int)FeatherAsInt(interp, argv[5], 255);
+    int b = (int)FeatherAsInt(interp, argv[6], 255);
+    int a = (int)FeatherAsInt(interp, argv[7], 255);
+    DrawRectangle(x, y, w, h, (Color){r, g, b, a});
+    *result = 0;
+    return 0;
+}
+
+static int cmd_draw_line(void *data, FeatherInterp interp,
+                         size_t argc, FeatherObj *argv,
+                         FeatherObj *result, FeatherObj *err) {
+    (void)data; (void)err;
+    if (argc < 8) {
+        *result = 0;
+        return 0;
+    }
+    int x1 = (int)FeatherAsInt(interp, argv[0], 0);
+    int y1 = (int)FeatherAsInt(interp, argv[1], 0);
+    int x2 = (int)FeatherAsInt(interp, argv[2], 0);
+    int y2 = (int)FeatherAsInt(interp, argv[3], 0);
+    int r = (int)FeatherAsInt(interp, argv[4], 255);
+    int g = (int)FeatherAsInt(interp, argv[5], 255);
+    int b = (int)FeatherAsInt(interp, argv[6], 255);
+    int a = (int)FeatherAsInt(interp, argv[7], 255);
+    DrawLine(x1, y1, x2, y2, (Color){r, g, b, a});
+    *result = 0;
+    return 0;
+}
+
 // -----------------------------------------------------------------------------
 // Game State Commands
 // -----------------------------------------------------------------------------
@@ -173,21 +223,177 @@ static int cmd_mouse_down(void *data, FeatherInterp interp,
     return 0;
 }
 
+static int cmd_frame_time(void *data, FeatherInterp interp,
+                          size_t argc, FeatherObj *argv,
+                          FeatherObj *result, FeatherObj *err) {
+    (void)data; (void)argc; (void)argv; (void)err;
+    *result = FeatherDouble(interp, GetFrameTime());
+    return 0;
+}
+
+static int cmd_elapsed_time(void *data, FeatherInterp interp,
+                            size_t argc, FeatherObj *argv,
+                            FeatherObj *result, FeatherObj *err) {
+    (void)data; (void)argc; (void)argv; (void)err;
+    *result = FeatherDouble(interp, GetTime());
+    return 0;
+}
+
+// -----------------------------------------------------------------------------
+// Console-accessible Game Commands
+// -----------------------------------------------------------------------------
+
+static int cmd_spawn_ball(void *data, FeatherInterp interp,
+                          size_t argc, FeatherObj *argv,
+                          FeatherObj *result, FeatherObj *err) {
+    (void)data; (void)err;
+    int x = (argc > 0) ? (int)FeatherAsInt(interp, argv[0], GetScreenWidth()/2) : GetScreenWidth()/2;
+    int y = (argc > 1) ? (int)FeatherAsInt(interp, argv[1], GetScreenHeight()/2) : GetScreenHeight()/2;
+
+    if (ball_count >= MAX_BALLS) {
+        for (int i = 0; i < MAX_BALLS - 1; i++) {
+            balls[i] = balls[i + 1];
+        }
+        ball_count = MAX_BALLS - 1;
+    }
+    Ball *b = &balls[ball_count++];
+    b->x = (float)x;
+    b->y = (float)y;
+    b->vx = (float)(GetRandomValue(-200, 200));
+    b->vy = (float)(GetRandomValue(-300, -100));
+    b->radius = (float)(GetRandomValue(10, 30));
+    b->r = (unsigned char)GetRandomValue(100, 255);
+    b->g = (unsigned char)GetRandomValue(100, 255);
+    b->b = (unsigned char)GetRandomValue(100, 255);
+
+    *result = FeatherInt(interp, ball_count);
+    return 0;
+}
+
+static int cmd_clear_balls(void *data, FeatherInterp interp,
+                           size_t argc, FeatherObj *argv,
+                           FeatherObj *result, FeatherObj *err) {
+    (void)data; (void)argc; (void)argv; (void)err;
+    ball_count = 0;
+    *result = FeatherInt(interp, 0);
+    return 0;
+}
+
+static int cmd_set_gravity(void *data, FeatherInterp interp,
+                           size_t argc, FeatherObj *argv,
+                           FeatherObj *result, FeatherObj *err) {
+    (void)data; (void)err;
+    if (argc > 0) {
+        gravity = (float)FeatherAsDouble(interp, argv[0], gravity);
+    }
+    *result = FeatherDouble(interp, gravity);
+    return 0;
+}
+
+static int cmd_get_gravity(void *data, FeatherInterp interp,
+                           size_t argc, FeatherObj *argv,
+                           FeatherObj *result, FeatherObj *err) {
+    (void)data; (void)argc; (void)argv; (void)err;
+    *result = FeatherDouble(interp, gravity);
+    return 0;
+}
+
+static int cmd_set_damping(void *data, FeatherInterp interp,
+                           size_t argc, FeatherObj *argv,
+                           FeatherObj *result, FeatherObj *err) {
+    (void)data; (void)err;
+    if (argc > 0) {
+        damping = (float)FeatherAsDouble(interp, argv[0], damping);
+    }
+    *result = FeatherDouble(interp, damping);
+    return 0;
+}
+
+static int cmd_set_friction(void *data, FeatherInterp interp,
+                            size_t argc, FeatherObj *argv,
+                            FeatherObj *result, FeatherObj *err) {
+    (void)data; (void)err;
+    if (argc > 0) {
+        friction = (float)FeatherAsDouble(interp, argv[0], friction);
+    }
+    *result = FeatherDouble(interp, friction);
+    return 0;
+}
+
+static int cmd_screen_width(void *data, FeatherInterp interp,
+                            size_t argc, FeatherObj *argv,
+                            FeatherObj *result, FeatherObj *err) {
+    (void)data; (void)argc; (void)argv; (void)err;
+    *result = FeatherInt(interp, GetScreenWidth());
+    return 0;
+}
+
+static int cmd_screen_height(void *data, FeatherInterp interp,
+                             size_t argc, FeatherObj *argv,
+                             FeatherObj *result, FeatherObj *err) {
+    (void)data; (void)argc; (void)argv; (void)err;
+    *result = FeatherInt(interp, GetScreenHeight());
+    return 0;
+}
+
+static int cmd_run_each_frame(void *data, FeatherInterp interp,
+                              size_t argc, FeatherObj *argv,
+                              FeatherObj *result, FeatherObj *err) {
+    (void)data; (void)err;
+    if (argc > 0) {
+        size_t len = FeatherCopy(interp, argv[0], custom_draw_script, sizeof(custom_draw_script) - 1);
+        custom_draw_script[len] = '\0';
+    } else {
+        custom_draw_script[0] = '\0';
+    }
+    *result = FeatherString(interp, custom_draw_script, strlen(custom_draw_script));
+    return 0;
+}
+
+static int cmd_get_draw_script(void *data, FeatherInterp interp,
+                               size_t argc, FeatherObj *argv,
+                               FeatherObj *result, FeatherObj *err) {
+    (void)data; (void)argc; (void)argv; (void)err;
+    *result = FeatherString(interp, custom_draw_script, strlen(custom_draw_script));
+    return 0;
+}
+
 // -----------------------------------------------------------------------------
 // Registration
 // -----------------------------------------------------------------------------
 
 static void register_commands(FeatherInterp interp) {
+    // Drawing commands
     FeatherRegister(interp, "clear", cmd_clear, NULL);
     FeatherRegister(interp, "draw_circle", cmd_draw_circle, NULL);
     FeatherRegister(interp, "draw_ring", cmd_draw_ring, NULL);
     FeatherRegister(interp, "draw_text", cmd_draw_text, NULL);
+    FeatherRegister(interp, "draw_rect", cmd_draw_rect, NULL);
+    FeatherRegister(interp, "draw_line", cmd_draw_line, NULL);
+
+    // Game state queries
     FeatherRegister(interp, "get_ball_count", cmd_get_ball_count, NULL);
     FeatherRegister(interp, "get_ball", cmd_get_ball, NULL);
     FeatherRegister(interp, "get_fps", cmd_get_fps, NULL);
     FeatherRegister(interp, "mouse_x", cmd_mouse_x, NULL);
     FeatherRegister(interp, "mouse_y", cmd_mouse_y, NULL);
     FeatherRegister(interp, "mouse_down", cmd_mouse_down, NULL);
+    FeatherRegister(interp, "frame_time", cmd_frame_time, NULL);
+    FeatherRegister(interp, "elapsed_time", cmd_elapsed_time, NULL);
+    FeatherRegister(interp, "screen_width", cmd_screen_width, NULL);
+    FeatherRegister(interp, "screen_height", cmd_screen_height, NULL);
+
+    // Game manipulation (usable from console)
+    FeatherRegister(interp, "spawn_ball", cmd_spawn_ball, NULL);
+    FeatherRegister(interp, "clear_balls", cmd_clear_balls, NULL);
+    FeatherRegister(interp, "set_gravity", cmd_set_gravity, NULL);
+    FeatherRegister(interp, "get_gravity", cmd_get_gravity, NULL);
+    FeatherRegister(interp, "set_damping", cmd_set_damping, NULL);
+    FeatherRegister(interp, "set_friction", cmd_set_friction, NULL);
+
+    // Custom draw script (runs each frame during drawing)
+    FeatherRegister(interp, "run_each_frame", cmd_run_each_frame, NULL);
+    FeatherRegister(interp, "get_draw_script", cmd_get_draw_script, NULL);
 }
 
 // -----------------------------------------------------------------------------
@@ -215,8 +421,6 @@ static void spawn_ball(int x, int y) {
 
 static void update_game(void) {
     float dt = GetFrameTime();
-    float gravity = 500.0f;
-    float damping = 0.8f;
     int w = GetScreenWidth();
     int h = GetScreenHeight();
 
@@ -254,7 +458,7 @@ static void update_game(void) {
         if (b->y + b->radius > h) {
             b->y = (float)h - b->radius;
             b->vy = -b->vy * damping;
-            b->vx *= 0.95f; // Friction
+            b->vx *= friction;
         }
 
         // Bounce off ceiling
@@ -337,6 +541,21 @@ int main(int argc, char *argv[]) {
             FeatherCopy(interp, result, errbuf, sizeof(errbuf) - 1);
             errbuf[511] = '\0';
             DrawText(errbuf, 10, 10, 20, WHITE);
+        }
+
+        // Execute custom draw script (set via run_each_frame command)
+        if (custom_draw_script[0] != '\0') {
+            FeatherObj custom_result;
+            int custom_status = FeatherEval(interp, custom_draw_script, strlen(custom_draw_script), &custom_result);
+            if (custom_status != 0) {
+                // Show error in console
+                char errbuf[512];
+                FeatherCopy(interp, custom_result, errbuf, sizeof(errbuf) - 1);
+                errbuf[511] = '\0';
+                console_printf(console, "draw script error: %s", errbuf);
+                // Clear the broken script
+                custom_draw_script[0] = '\0';
+            }
         }
 
         // Draw console overlay
