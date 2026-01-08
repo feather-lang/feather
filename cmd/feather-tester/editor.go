@@ -110,6 +110,8 @@ func (e *LineEditor) readKey() (key string, err error) {
 				return "home", nil
 			case 'F':
 				return "end", nil
+			case 'Z':
+				return "shift-tab", nil
 			case '3':
 				// Read one more byte for delete key
 				os.Stdin.Read(buf[:1])
@@ -480,13 +482,29 @@ func (e *LineEditor) ReadLine(prompt string) (string, error) {
 
 		case "tab":
 			if e.showPopup && len(e.completions) > 0 {
-				// Cycle through completions
+				// Cycle forward through completions
 				e.selected = (e.selected + 1) % len(e.completions)
 			} else {
 				// Get completions
 				e.getCompletions()
 				e.selected = 0
 				e.showPopup = len(e.completions) > 0
+			}
+
+		case "shift-tab":
+			if e.showPopup && len(e.completions) > 0 {
+				// Cycle backward through completions
+				e.selected--
+				if e.selected < 0 {
+					e.selected = len(e.completions) - 1
+				}
+			} else {
+				// Get completions and select last item
+				e.getCompletions()
+				if len(e.completions) > 0 {
+					e.selected = len(e.completions) - 1
+					e.showPopup = true
+				}
 			}
 
 		case "up":
