@@ -1067,6 +1067,7 @@ void feather_register_info_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "<procname>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "args", subspec);
+  e = feather_usage_help(ops, interp, e, "Get argument names of a procedure");
   e = feather_usage_long_help(ops, interp, e,
     "Returns a list containing the names of the arguments to procedure procname, "
     "in order.");
@@ -1077,6 +1078,7 @@ void feather_register_info_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "<procname>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "body", subspec);
+  e = feather_usage_help(ops, interp, e, "Get body of a procedure");
   e = feather_usage_long_help(ops, interp, e,
     "Returns the body of procedure procname. Procname must be the name of a TCL "
     "command procedure.");
@@ -1087,6 +1089,7 @@ void feather_register_info_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "?pattern?");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "commands", subspec);
+  e = feather_usage_help(ops, interp, e, "List available commands");
   e = feather_usage_long_help(ops, interp, e,
     "Returns the names of all commands visible in the current namespace. If "
     "pattern is given, returns only those names that match according to string "
@@ -1104,6 +1107,7 @@ void feather_register_info_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "<varname>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "default", subspec);
+  e = feather_usage_help(ops, interp, e, "Get default value of a procedure argument");
   e = feather_usage_long_help(ops, interp, e,
     "If the parameter parameter for the procedure named procname has a default "
     "value, stores that value in varname and returns 1. Otherwise, returns 0.");
@@ -1114,6 +1118,7 @@ void feather_register_info_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "<varName>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "exists", subspec);
+  e = feather_usage_help(ops, interp, e, "Check if a variable exists");
   e = feather_usage_long_help(ops, interp, e,
     "Returns 1 if a variable named varName is visible and has been defined, and "
     "0 otherwise. Handles qualified variable names containing ::.");
@@ -1124,6 +1129,7 @@ void feather_register_info_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "?depth?");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "frame", subspec);
+  e = feather_usage_help(ops, interp, e, "Get information about a call frame");
   e = feather_usage_long_help(ops, interp, e,
     "Returns the depth of the call to info frame itself. Otherwise, returns a "
     "dictionary describing the active command at the depth, which counts all "
@@ -1147,6 +1153,7 @@ void feather_register_info_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "?pattern?");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "globals", subspec);
+  e = feather_usage_help(ops, interp, e, "List global variables");
   e = feather_usage_long_help(ops, interp, e,
     "If pattern is not given, returns a list of all the names of currently-defined "
     "global variables. Global variables are variables in the global namespace. If "
@@ -1159,6 +1166,7 @@ void feather_register_info_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "?level?");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "level", subspec);
+  e = feather_usage_help(ops, interp, e, "Get current or specified stack level");
   e = feather_usage_long_help(ops, interp, e,
     "If level is not given, returns the level this routine was called from. "
     "Otherwise returns the complete command active at the given level as a list. "
@@ -1171,6 +1179,7 @@ void feather_register_info_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "?pattern?");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "locals", subspec);
+  e = feather_usage_help(ops, interp, e, "List local variables");
   e = feather_usage_long_help(ops, interp, e,
     "If pattern is given, returns the name of each local variable matching pattern "
     "according to string match. Otherwise, returns the name of each local variable. "
@@ -1182,6 +1191,7 @@ void feather_register_info_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "<value>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "methods", subspec);
+  e = feather_usage_help(ops, interp, e, "List methods of a foreign object");
   e = feather_usage_long_help(ops, interp, e,
     "Feather extension: Returns a list of method names available on a foreign "
     "object. Returns an empty list for non-foreign objects.");
@@ -1192,6 +1202,7 @@ void feather_register_info_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "?pattern?");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "procs", subspec);
+  e = feather_usage_help(ops, interp, e, "List defined procedures");
   e = feather_usage_long_help(ops, interp, e,
     "Returns the names of all visible procedures. If pattern is given, returns "
     "only those names that match according to string match. Only the final "
@@ -1203,6 +1214,7 @@ void feather_register_info_usage(const FeatherHostOps *ops, FeatherInterp interp
   // info script
   subspec = feather_usage_spec(ops, interp);
   e = feather_usage_cmd(ops, interp, "script", subspec);
+  e = feather_usage_help(ops, interp, e, "Get pathname of current script");
   e = feather_usage_long_help(ops, interp, e,
     "Returns the pathname of the innermost script currently being evaluated, or "
     "the empty string if no pathname can be determined.\n\n"
@@ -1215,6 +1227,7 @@ void feather_register_info_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "<value>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "type", subspec);
+  e = feather_usage_help(ops, interp, e, "Get type of a value");
   e = feather_usage_long_help(ops, interp, e,
     "Feather extension: Returns the type of a value. For foreign objects returns "
     "the registered type name (e.g., \"Mux\", \"Connection\"). For collections "
@@ -1227,6 +1240,7 @@ void feather_register_info_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "?pattern?");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "vars", subspec);
+  e = feather_usage_help(ops, interp, e, "List visible variables");
   e = feather_usage_long_help(ops, interp, e,
     "If pattern is not given, returns the names of all visible variables. If "
     "pattern is given, returns only those names that match according to string "
