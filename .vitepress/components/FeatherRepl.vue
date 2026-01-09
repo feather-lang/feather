@@ -27,7 +27,7 @@
           </div>
         </div>
         <div class="input-area">
-          <span class="prompt">%</span>
+          <span class="prompt">{{ inputBuffer ? '>' : '%' }}</span>
           <input
             ref="inputEl"
             v-model="inputText"
@@ -57,10 +57,16 @@ const completions = ref([])
 const selectedCompletion = ref(0)
 const history = ref([])
 const historyIndex = ref(-1)
+const inputBuffer = ref('')  // Accumulates incomplete multiline input
 
 let feather = null
 let interp = null
 let initialized = false
+
+// Parse status constants
+const TCL_PARSE_OK = 0
+const TCL_PARSE_INCOMPLETE = 1
+const TCL_PARSE_ERROR = 2
 
 function log(text, type = 'output') {
   output.value.push({ text, type })
@@ -152,24 +158,50 @@ async function initFeather() {
 }
 
 function runCommand(cmd) {
-  if (!cmd.trim()) return
+  if (!cmd.trim() && !inputBuffer.value) return
 
-  // Add to history
-  if (history.value[history.value.length - 1] !== cmd) {
-    history.value.push(cmd)
+  // Build full script from buffer + current input
+  const fullScript = inputBuffer.value ? inputBuffer.value + '\n' + cmd : cmd
+  
+  // Check if input is complete
+  const parseResult = feather.parse(interp, fullScript)
+  
+  if (parseResult.status === TCL_PARSE_INCOMPLETE) {
+    // Accumulate and continue
+    const prompt = inputBuffer.value ? '> ' : '% '
+    log(prompt + cmd, 'input')
+    inputBuffer.value = fullScript
+    return
+  }
+  
+  if (parseResult.status === TCL_PARSE_ERROR) {
+    // Show error and clear buffer
+    const prompt = inputBuffer.value ? '> ' : '% '
+    log(prompt + cmd, 'input')
+    log('Error: ' + (parseResult.errorMessage || 'parse error'), 'error')
+    inputBuffer.value = ''
+    return
+  }
+  
+  // Complete input - add to history and evaluate
+  if (history.value[history.value.length - 1] !== fullScript) {
+    history.value.push(fullScript)
   }
   historyIndex.value = history.value.length
 
-  log('% ' + cmd, 'input')
+  const prompt = inputBuffer.value ? '> ' : '% '
+  log(prompt + cmd, 'input')
   
   try {
-    const result = feather.eval(interp, cmd)
+    const result = feather.eval(interp, fullScript)
     if (result !== '' && result !== undefined) {
       log(String(result), 'result')
     }
   } catch (err) {
     log('Error: ' + err.message, 'error')
   }
+  
+  inputBuffer.value = ''
 }
 
 function getCompletions() {
@@ -179,14 +211,15 @@ function getCompletions() {
   }
 
   try {
-    const script = inputText.value
-    const pos = inputEl.value?.selectionStart || script.length
+    // Build full script including accumulated multiline input
+    const currentLine = inputText.value
+    const fullScript = inputBuffer.value ? inputBuffer.value + '\n' + currentLine : currentLine
+    const pos = inputBuffer.value 
+      ? inputBuffer.value.length + 1 + (inputEl.value?.selectionStart || currentLine.length)
+      : (inputEl.value?.selectionStart || currentLine.length)
     
-    // Escape braces in the script for TCL
-    const escaped = script.replace(/\\/g, '\\\\').replace(/\{/g, '\\{').replace(/\}/g, '\\}')
-    const cmd = `usage complete {${escaped}} ${pos}`
-    
-    const result = feather.eval(interp, cmd)
+    // Use call API to pass script directly without escaping
+    const result = feather.call(interp, 'usage', 'complete', fullScript, pos)
     
     if (result) {
       const parsed = parseCompletionList(result)
@@ -315,11 +348,27 @@ function handleKeydown(e) {
     }
   }
   
-  // Escape to close popup
+  // Escape to close popup or cancel multiline input
   if (e.key === 'Escape') {
+    e.preventDefault()
     if (completions.value.length > 0) {
-      e.preventDefault()
       completions.value = []
+    } else if (inputBuffer.value) {
+      // Cancel multiline input
+      log('Incomplete input, discarded', 'info')
+      inputBuffer.value = ''
+      inputText.value = ''
+    }
+    return
+  }
+  
+  // Ctrl-C to cancel multiline input
+  if (e.key === 'c' && e.ctrlKey) {
+    if (inputBuffer.value) {
+      e.preventDefault()
+      log('Incomplete input, discarded', 'info')
+      inputBuffer.value = ''
+      inputText.value = ''
       return
     }
   }
@@ -408,10 +457,16 @@ onMounted(() => {
   min-height: 150px;
   max-height: 300px;
   overflow-y: auto;
+  line-height: 1.5;
+}
+
+.output > div {
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 .output-line {
-  margin: 2px 0;
+  display: block;
   white-space: pre-wrap;
   word-break: break-all;
 }

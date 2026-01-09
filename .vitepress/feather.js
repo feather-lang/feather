@@ -23,6 +23,86 @@ const TCL_CMD_PROC = 2;
 
 const DEFAULT_RECURSION_LIMIT = 200;
 
+/**
+ * Quote a value for TCL command construction.
+ * Uses brace quoting when safe, falls back to backslash escaping.
+ */
+function tclQuote(val) {
+  if (val === null || val === undefined) {
+    return '{}';
+  }
+  
+  // Numbers don't need quoting
+  if (typeof val === 'number') {
+    return String(val);
+  }
+  
+  // Arrays become TCL lists
+  if (Array.isArray(val)) {
+    return val.map(tclQuote).join(' ');
+  }
+  
+  // Convert to string
+  const s = String(val);
+  
+  if (s === '') {
+    return '{}';
+  }
+  
+  // Check if we need any quoting at all
+  if (!/[\s{}"\\$\[\]]/.test(s)) {
+    return s;
+  }
+  
+  // Check if brace quoting is safe: braces must be balanced and no trailing backslash
+  if (canBraceQuote(s)) {
+    return '{' + s + '}';
+  }
+  
+  // Fall back to double-quote escaping
+  return doubleQuote(s);
+}
+
+/**
+ * Check if string can be safely quoted with braces.
+ * Requires balanced braces and no trailing backslash.
+ */
+function canBraceQuote(s) {
+  if (s.length > 0 && s[s.length - 1] === '\\') {
+    return false;
+  }
+  
+  let depth = 0;
+  for (const c of s) {
+    if (c === '{') {
+      depth++;
+    } else if (c === '}') {
+      depth--;
+      if (depth < 0) {
+        return false;
+      }
+    }
+  }
+  return depth === 0;
+}
+
+/**
+ * Quote a string using double-quote escaping.
+ * Only escapes characters that are special inside double quotes.
+ */
+function doubleQuote(s) {
+  let result = '"';
+  for (const c of s) {
+    if (c === '"' || c === '$' || c === '[' || c === ']' || c === '\\') {
+      result += '\\' + c;
+    } else {
+      result += c;
+    }
+  }
+  result += '"';
+  return result;
+}
+
 class FeatherInterp {
   constructor(id) {
     this.id = id;
@@ -1911,6 +1991,32 @@ async function createFeather(wasmSource) {
           wasmInstance.exports.feather_arena_reset();
         }
       }
+    },
+
+    /**
+     * Call a command with arguments, using proper TCL quoting.
+     * 
+     * Arguments are converted to TCL strings with proper quoting:
+     * - string -> quoted with braces or backslash escaping
+     * - number -> numeric string
+     * - array -> TCL list
+     * 
+     * @param {number} interpId - Interpreter ID
+     * @param {string} cmdName - Command name
+     * @param {...any} args - Arguments to pass to the command
+     * @returns {string} Result as string
+     * @throws {Error} On command error
+     * 
+     * Example:
+     *   feather.call(interp, 'usage', 'complete', 'eval { l', 9)
+     *   // Builds: usage complete {eval { l} 9
+     *   // Handles unbalanced braces correctly
+     */
+    call(interpId, cmdName, ...args) {
+      // Build the command string with proper TCL quoting
+      const parts = [tclQuote(cmdName), ...args.map(tclQuote)];
+      const script = parts.join(' ');
+      return this.eval(interpId, script);
     },
 
     getResult(interpId) {
