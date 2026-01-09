@@ -30,6 +30,12 @@ export default defineConfig({
         ],
       },
       {
+        text: "Feather Extensions",
+        items: [
+          { text: "Command Completion", link: "/completion" },
+        ],
+      },
+      {
         text: "Built-in Commands",
         collapsed: false,
         items: [
@@ -109,6 +115,9 @@ export default defineConfig({
     ],
   },
   vite: {
+    server: {
+      allowedHosts: ['golf-lima.exe.xyz']
+    },
     ssr: {
       noExternal: ['feather.js']
     },

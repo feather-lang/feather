@@ -2,6 +2,10 @@
 
 Provides CLI argument parsing inspired by [usage.jdx.dev](https://usage.jdx.dev).
 
+::: info Feather Extension
+This is a **Feather-specific command**, not part of standard TCL.
+:::
+
 ## Syntax
 
 ```tcl
@@ -25,6 +29,7 @@ The `usage` command provides:
 | `for` | `usage for cmdName ?spec?` | Define or retrieve a usage spec for a command |
 | `parse` | `usage parse cmdName argsList` | Parse arguments and create local variables |
 | `help` | `usage help cmdName` | Generate help text for a command |
+| `complete` | `usage complete script pos` | Get completion candidates at position |
 
 ### usage for
 
@@ -80,6 +85,16 @@ puts [usage help mycommand]
 # Flags:
 #   -v, --verbose    Enable verbose output
 ```
+
+### usage complete
+
+Returns completion candidates at byte position `pos` in `script`. This enables hosts to offer tab-completion, IDE autocomplete, or any interactive completion UI.
+
+```tcl
+usage complete script pos
+```
+
+See [Command Completion](/completion) for detailed documentation and examples.
 
 ## Spec Format
 
@@ -309,5 +324,6 @@ format data.txt -f json`
 
 ## See Also
 
+- [Command Completion](/completion) - Using `usage complete` for interactive completion
 - [proc](./proc)
 - [info](./info)

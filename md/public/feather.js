@@ -39,7 +39,8 @@ class FeatherInterp {
     const globalNS = { vars: new Map(), children: new Map(), exports: [], commands: new Map() };
     this.namespaces = new Map([['', globalNS]]);
     // Frame 0's vars IS the global namespace's vars (unified storage)
-    this.frames = [{ vars: globalNS.vars, cmd: 0, args: 0, ns: '::', line: 0, lambda: 0 }];
+    // links is a separate map for variable links (upvar/global/variable) to avoid overwriting values
+    this.frames = [{ vars: globalNS.vars, links: new Map(), cmd: 0, args: 0, ns: '::', line: 0, lambda: 0 }];
     this.activeLevel = 0;
     this.hostCommands = new Map();
     this.returnOptions = new Map();
@@ -47,6 +48,7 @@ class FeatherInterp {
     this.foreignTypes = new Map();
     this.foreignInstances = new Map(); // handle name -> { typeName, value, objHandle }
     this.recursionLimit = DEFAULT_RECURSION_LIMIT;
+    this.savedLocals = []; // stack for saving frame.vars during namespace eval
     // Injected by createFeather() - calls C's feather_list_parse via WASM
     this._parseListFromC = null;
   }
@@ -113,7 +115,17 @@ class FeatherInterp {
    */
   wrap(value) {
     if (value === null || value === undefined) return 0;
-    
+
+    // Handle raw primitive values that aren't proper objects
+    if (typeof value !== 'object') {
+      return this.store({ type: 'string', value: String(value) });
+    }
+
+    // Ensure value has a type property (defensive)
+    if (!value.type) {
+      return this.store({ type: 'string', value: String(value) });
+    }
+
     if (value.type === 'list') {
       const items = value.items.map(item => this.wrap(item));
       return this.store({ type: 'list', items });
@@ -372,8 +384,9 @@ async function createFeather(wasmSource) {
       }
       const parentNs = interp.frames[interp.frames.length - 1].ns;
       // New frames get their own vars Map (NOT shared with namespace)
+      // links is separate from vars to avoid overwriting values with links
       // line and lambda fields for info frame support
-      interp.frames.push({ vars: new Map(), cmd, args, ns: parentNs, line: 0, lambda: 0 });
+      interp.frames.push({ vars: new Map(), links: new Map(), cmd, args, ns: parentNs, line: 0, lambda: 0 });
       interp.activeLevel = interp.frames.length - 1;
       return TCL_OK;
     },
@@ -436,78 +449,126 @@ async function createFeather(wasmSource) {
       if (level >= interp.frames.length) return 0;
       return interp.frames[level].lambda || 0;
     },
+    feather_host_frame_push_locals: (interpId, ns) => {
+      const interp = interpreters.get(interpId);
+      const frame = interp.currentFrame();
+      // Save current frame.vars
+      interp.savedLocals.push(frame.vars);
+      // Set frame.vars to the target namespace's vars
+      const nsPath = interp.getString(ns);
+      const namespace = interp.ensureNamespace(nsPath);
+      frame.vars = namespace.vars;
+      return TCL_OK;
+    },
+    feather_host_frame_pop_locals: (interpId) => {
+      const interp = interpreters.get(interpId);
+      if (interp.savedLocals.length === 0) return TCL_ERROR; // stack underflow
+      // Restore frame.vars
+      const saved = interp.savedLocals.pop();
+      interp.currentFrame().vars = saved;
+      return TCL_OK;
+    },
 
     // Variable operations
     feather_host_var_get: (interpId, name) => {
       const interp = interpreters.get(interpId);
-      const varName = interp.getString(name);
-      const frame = interp.currentFrame();
+      let varName = interp.getString(name);
+      let frame = interp.currentFrame();
+
+      // Follow links (stored separately from values)
+      while (frame.links.has(varName)) {
+        const link = frame.links.get(varName);
+        if (link.level !== undefined) {
+          // Upvar link - follow to target frame
+          const targetFrame = interp.frames[link.level];
+          if (!targetFrame) return 0;
+          frame = targetFrame;
+          varName = link.name;
+        } else if (link.nsPath !== undefined) {
+          // Namespace link - get value from namespace directly
+          const ns = interp.getNamespace(link.nsPath);
+          if (!ns) return 0;
+          const nsEntry = ns.vars.get(link.nsName);
+          if (!nsEntry) return 0;
+          const materialized = typeof nsEntry === 'object' && 'value' in nsEntry ? nsEntry.value : nsEntry;
+          if (!materialized) return 0;
+          return interp.wrap(materialized);
+        }
+      }
+
+      // Get value from frame.vars
       const entry = frame.vars.get(varName);
       if (!entry) return 0;
-      let materialized;
-      if (entry.link) {
-        const targetFrame = interp.frames[entry.link.level];
-        const targetEntry = targetFrame?.vars.get(entry.link.name);
-        if (!targetEntry) return 0;
-        materialized = typeof targetEntry === 'object' && 'value' in targetEntry ? targetEntry.value : targetEntry;
-      } else if (entry.nsLink) {
-        const ns = interp.getNamespace(entry.nsLink.ns);
-        const nsEntry = ns?.vars.get(entry.nsLink.name);
-        if (!nsEntry) return 0;
-        materialized = typeof nsEntry === 'object' && 'value' in nsEntry ? nsEntry.value : nsEntry;
-      } else {
-        materialized = entry.value;
-      }
+      const materialized = typeof entry === 'object' && 'value' in entry ? entry.value : entry;
       if (!materialized) return 0;
       return interp.wrap(materialized);
     },
     feather_host_var_set: (interpId, name, value) => {
       const interp = interpreters.get(interpId);
-      const varName = interp.getString(name);
-      const frame = interp.currentFrame();
-      const entry = frame.vars.get(varName);
+      let varName = interp.getString(name);
+      let frame = interp.currentFrame();
       const materialized = interp.materialize(value);
-      if (entry?.link) {
-        const targetFrame = interp.frames[entry.link.level];
-        if (targetFrame) {
-          let targetEntry = targetFrame.vars.get(entry.link.name);
-          if (!targetEntry) targetEntry = {};
-          targetEntry.value = materialized;
-          targetFrame.vars.set(entry.link.name, targetEntry);
+
+      // Follow links (stored separately from values)
+      while (frame.links.has(varName)) {
+        const link = frame.links.get(varName);
+        if (link.level !== undefined) {
+          // Upvar link - follow to target frame
+          const targetFrame = interp.frames[link.level];
+          if (!targetFrame) return;
+          frame = targetFrame;
+          varName = link.name;
+        } else if (link.nsPath !== undefined) {
+          // Namespace link - set value in namespace directly
+          const ns = interp.getNamespace(link.nsPath);
+          if (ns) ns.vars.set(link.nsName, { value: materialized });
+          return;
         }
-      } else if (entry?.nsLink) {
-        const ns = interp.getNamespace(entry.nsLink.ns);
-        if (ns) ns.vars.set(entry.nsLink.name, { value: materialized });
-      } else {
-        frame.vars.set(varName, { value: materialized });
       }
+
+      // Set value in frame.vars
+      frame.vars.set(varName, { value: materialized });
     },
     feather_host_var_unset: (interpId, name) => {
       const interp = interpreters.get(interpId);
       const varName = interp.getString(name);
-      interp.currentFrame().vars.delete(varName);
+      const frame = interp.currentFrame();
+      // Delete from both links and vars
+      frame.links.delete(varName);
+      frame.vars.delete(varName);
     },
     feather_host_var_exists: (interpId, name) => {
       const interp = interpreters.get(interpId);
-      const varName = interp.getString(name);
-      const frame = interp.currentFrame();
+      let varName = interp.getString(name);
+      let frame = interp.currentFrame();
+
+      // Follow links (stored separately from values)
+      while (frame.links.has(varName)) {
+        const link = frame.links.get(varName);
+        if (link.level !== undefined) {
+          // Upvar link - follow to target frame
+          const targetFrame = interp.frames[link.level];
+          if (!targetFrame) return TCL_ERROR;
+          frame = targetFrame;
+          varName = link.name;
+        } else if (link.nsPath !== undefined) {
+          // Namespace link - check if exists in namespace
+          const ns = interp.getNamespace(link.nsPath);
+          return ns?.vars.has(link.nsName) ? TCL_OK : TCL_ERROR;
+        }
+      }
+
+      // Check if exists in frame.vars
       const entry = frame.vars.get(varName);
       if (!entry) return TCL_ERROR;
-      if (entry.link) {
-        const targetFrame = interp.frames[entry.link.level];
-        return targetFrame?.vars.has(entry.link.name) ? TCL_OK : TCL_ERROR;
-      }
-      if (entry.nsLink) {
-        const ns = interp.getNamespace(entry.nsLink.ns);
-        return ns?.vars.has(entry.nsLink.name) ? TCL_OK : TCL_ERROR;
-      }
-      return entry.value !== undefined ? TCL_OK : TCL_ERROR;
+      const value = typeof entry === 'object' && 'value' in entry ? entry.value : entry;
+      return value !== undefined ? TCL_OK : TCL_ERROR;
     },
     feather_host_var_link: (interpId, local, targetLevel, target) => {
       const interp = interpreters.get(interpId);
       const localName = interp.getString(local);
       const targetName = interp.getString(target);
-      interp.currentFrame().vars.set(localName, { link: { level: targetLevel, name: targetName } });
+      interp.currentFrame().links.set(localName, { level: targetLevel, name: targetName });
     },
     feather_host_var_link_ns: (interpId, local, ns, name) => {
       const interp = interpreters.get(interpId);
@@ -515,14 +576,17 @@ async function createFeather(wasmSource) {
       const nsPath = interp.getString(ns);
       const varName = interp.getString(name);
       interp.ensureNamespace(nsPath);
-      interp.currentFrame().vars.set(localName, { nsLink: { ns: nsPath, name: varName } });
+      interp.currentFrame().links.set(localName, { nsPath: nsPath, nsName: varName });
     },
     feather_host_var_names: (interpId, ns) => {
       const interp = interpreters.get(interpId);
       let names;
       if (ns === 0) {
-        // Return local frame variables
-        names = [...interp.currentFrame().vars.keys()];
+        // Return local frame variables including linked ones
+        const frame = interp.currentFrame();
+        const varsNames = [...frame.vars.keys()];
+        const linksNames = [...frame.links.keys()];
+        names = [...new Set([...varsNames, ...linksNames])];
       } else {
         const nsPath = interp.getString(ns);
         const namespace = interp.getNamespace(nsPath);
@@ -534,23 +598,22 @@ async function createFeather(wasmSource) {
     feather_host_var_is_link: (interpId, name) => {
       const interp = interpreters.get(interpId);
       const varName = interp.getString(name);
-      const entry = interp.currentFrame().vars.get(varName);
-      // A variable is a link if it has 'link' (upvar) or 'nsLink' (global/variable)
-      return (entry && (entry.link || entry.nsLink)) ? 1 : 0;
+      // Check if the variable is in the links map
+      return interp.currentFrame().links.has(varName) ? 1 : 0;
     },
     feather_host_var_resolve_link: (interpId, name) => {
       const interp = interpreters.get(interpId);
       let varName = interp.getString(name);
       let frame = interp.currentFrame();
       // Follow links to find the target variable name
-      while (true) {
-        const entry = frame.vars.get(varName);
-        if (entry?.link) {
-          frame = interp.frames[entry.link.level];
-          varName = entry.link.name;
-        } else if (entry?.nsLink) {
+      while (frame.links.has(varName)) {
+        const link = frame.links.get(varName);
+        if (link.level !== undefined) {
+          frame = interp.frames[link.level];
+          varName = link.name;
+        } else if (link.nsPath !== undefined) {
           // Namespace link - return the namespace variable name
-          return interp.store({ type: 'string', value: entry.nsLink.name });
+          return interp.store({ type: 'string', value: link.nsName });
         } else {
           break;
         }
