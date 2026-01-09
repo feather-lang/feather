@@ -23,86 +23,6 @@ const TCL_CMD_PROC = 2;
 
 const DEFAULT_RECURSION_LIMIT = 200;
 
-/**
- * Quote a value for TCL command construction.
- * Uses brace quoting when safe, falls back to backslash escaping.
- */
-function tclQuote(val) {
-  if (val === null || val === undefined) {
-    return '{}';
-  }
-  
-  // Numbers don't need quoting
-  if (typeof val === 'number') {
-    return String(val);
-  }
-  
-  // Arrays become TCL lists
-  if (Array.isArray(val)) {
-    return val.map(tclQuote).join(' ');
-  }
-  
-  // Convert to string
-  const s = String(val);
-  
-  if (s === '') {
-    return '{}';
-  }
-  
-  // Check if we need any quoting at all
-  if (!/[\s{}"\\$\[\]]/.test(s)) {
-    return s;
-  }
-  
-  // Check if brace quoting is safe: braces must be balanced and no trailing backslash
-  if (canBraceQuote(s)) {
-    return '{' + s + '}';
-  }
-  
-  // Fall back to double-quote escaping
-  return doubleQuote(s);
-}
-
-/**
- * Check if string can be safely quoted with braces.
- * Requires balanced braces and no trailing backslash.
- */
-function canBraceQuote(s) {
-  if (s.length > 0 && s[s.length - 1] === '\\') {
-    return false;
-  }
-  
-  let depth = 0;
-  for (const c of s) {
-    if (c === '{') {
-      depth++;
-    } else if (c === '}') {
-      depth--;
-      if (depth < 0) {
-        return false;
-      }
-    }
-  }
-  return depth === 0;
-}
-
-/**
- * Quote a string using double-quote escaping.
- * Only escapes characters that are special inside double quotes.
- */
-function doubleQuote(s) {
-  let result = '"';
-  for (const c of s) {
-    if (c === '"' || c === '$' || c === '[' || c === ']' || c === '\\') {
-      result += '\\' + c;
-    } else {
-      result += c;
-    }
-  }
-  result += '"';
-  return result;
-}
-
 class FeatherInterp {
   constructor(id) {
     this.id = id;
@@ -1994,12 +1914,14 @@ async function createFeather(wasmSource) {
     },
 
     /**
-     * Call a command with arguments, using proper TCL quoting.
+     * Call a command with arguments, bypassing string parsing.
      * 
-     * Arguments are converted to TCL strings with proper quoting:
-     * - string -> quoted with braces or backslash escaping
-     * - number -> numeric string
-     * - array -> TCL list
+     * Arguments are converted to Feather objects:
+     * - string -> Feather string
+     * - number (integer) -> Feather int
+     * - number (float) -> Feather double
+     * - array -> Feather list (recursive)
+     * - Feather handle (number from store) -> passed through
      * 
      * @param {number} interpId - Interpreter ID
      * @param {string} cmdName - Command name
@@ -2009,14 +1931,60 @@ async function createFeather(wasmSource) {
      * 
      * Example:
      *   feather.call(interp, 'usage', 'complete', 'eval { l', 9)
-     *   // Builds: usage complete {eval { l} 9
-     *   // Handles unbalanced braces correctly
+     *   // Calls: usage complete {eval { l} 9
+     *   // Without needing to escape braces
      */
     call(interpId, cmdName, ...args) {
-      // Build the command string with proper TCL quoting
-      const parts = [tclQuote(cmdName), ...args.map(tclQuote)];
-      const script = parts.join(' ');
-      return this.eval(interpId, script);
+      const interp = interpreters.get(interpId);
+      interp.evalDepth++;
+      
+      try {
+        // Convert JS values to Feather handles
+        const toHandle = (val) => {
+          if (typeof val === 'string') {
+            return interp.store({ type: 'string', value: val });
+          }
+          if (typeof val === 'number') {
+            if (Number.isInteger(val)) {
+              return interp.store({ type: 'int', value: val });
+            }
+            return interp.store({ type: 'double', value: val });
+          }
+          if (Array.isArray(val)) {
+            const items = val.map(toHandle);
+            return interp.store({ type: 'list', items });
+          }
+          // Assume it's already a handle
+          return val;
+        };
+        
+        // Build argv list: [cmdName, ...args]
+        const argv = [toHandle(cmdName), ...args.map(toHandle)];
+        const argvHandle = interp.store({ type: 'list', items: argv });
+        
+        // Call the command via feather_command_exec (ops=0, interp, command, flags=0)
+        const result = wasmInstance.exports.feather_command_exec(0, interpId, argvHandle, 0);
+        
+        // Capture result BEFORE reset
+        const resultValue = interp.getString(interp.result);
+        
+        if (result === TCL_OK) {
+          return resultValue;
+        }
+        
+        // Handle errors similar to eval
+        const error = new Error(resultValue);
+        error.code = result;
+        throw error;
+      } finally {
+        interp.evalDepth--;
+        
+        // Reset arenas only at top-level completion
+        if (interp.evalDepth === 0) {
+          interp.resetScratch();
+          wasmInstance.exports.feather_arena_reset();
+        }
+      }
     },
 
     getResult(interpId) {

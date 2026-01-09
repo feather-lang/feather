@@ -1913,6 +1913,80 @@ async function createFeather(wasmSource) {
       }
     },
 
+    /**
+     * Call a command with arguments, bypassing string parsing.
+     * 
+     * Arguments are converted to Feather objects:
+     * - string -> Feather string
+     * - number (integer) -> Feather int
+     * - number (float) -> Feather double
+     * - array -> Feather list (recursive)
+     * - Feather handle (number from store) -> passed through
+     * 
+     * @param {number} interpId - Interpreter ID
+     * @param {string} cmdName - Command name
+     * @param {...any} args - Arguments to pass to the command
+     * @returns {string} Result as string
+     * @throws {Error} On command error
+     * 
+     * Example:
+     *   feather.call(interp, 'usage', 'complete', 'eval { l', 9)
+     *   // Calls: usage complete {eval { l} 9
+     *   // Without needing to escape braces
+     */
+    call(interpId, cmdName, ...args) {
+      const interp = interpreters.get(interpId);
+      interp.evalDepth++;
+      
+      try {
+        // Convert JS values to Feather handles
+        const toHandle = (val) => {
+          if (typeof val === 'string') {
+            return interp.store({ type: 'string', value: val });
+          }
+          if (typeof val === 'number') {
+            if (Number.isInteger(val)) {
+              return interp.store({ type: 'int', value: val });
+            }
+            return interp.store({ type: 'double', value: val });
+          }
+          if (Array.isArray(val)) {
+            const items = val.map(toHandle);
+            return interp.store({ type: 'list', items });
+          }
+          // Assume it's already a handle
+          return val;
+        };
+        
+        // Build argv list: [cmdName, ...args]
+        const argv = [toHandle(cmdName), ...args.map(toHandle)];
+        const argvHandle = interp.store({ type: 'list', items: argv });
+        
+        // Call the command via feather_command_exec (ops=0, interp, command, flags=0)
+        const result = wasmInstance.exports.feather_command_exec(0, interpId, argvHandle, 0);
+        
+        // Capture result BEFORE reset
+        const resultValue = interp.getString(interp.result);
+        
+        if (result === TCL_OK) {
+          return resultValue;
+        }
+        
+        // Handle errors similar to eval
+        const error = new Error(resultValue);
+        error.code = result;
+        throw error;
+      } finally {
+        interp.evalDepth--;
+        
+        // Reset arenas only at top-level completion
+        if (interp.evalDepth === 0) {
+          interp.resetScratch();
+          wasmInstance.exports.feather_arena_reset();
+        }
+      }
+    },
+
     getResult(interpId) {
       const interp = interpreters.get(interpId);
       return interp.getString(interp.result);
