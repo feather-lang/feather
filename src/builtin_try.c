@@ -497,6 +497,7 @@ void feather_register_try_usage(const FeatherHostOps *ops, FeatherInterp interp)
 
   e = feather_usage_arg(ops, interp, "<body>");
   e = feather_usage_help(ops, interp, e, "Script to evaluate for exceptions");
+  e = feather_usage_type(ops, interp, e, "script");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_arg(ops, interp, "?handler?...");
@@ -517,6 +518,7 @@ void feather_register_try_usage(const FeatherHostOps *ops, FeatherInterp interp)
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_arg(ops, interp, "<script>");
   e = feather_usage_help(ops, interp, e, "Handler script or \"-\" for fallthrough");
+  e = feather_usage_type(ops, interp, e, "script");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "on", subspec);
   e = feather_usage_help(ops, interp, e, "Handle exceptions by completion code");
@@ -549,6 +551,7 @@ void feather_register_try_usage(const FeatherHostOps *ops, FeatherInterp interp)
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_arg(ops, interp, "<script>");
   e = feather_usage_help(ops, interp, e, "Handler script or \"-\" for fallthrough");
+  e = feather_usage_type(ops, interp, e, "script");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "trap", subspec);
   e = feather_usage_help(ops, interp, e, "Handle exceptions by error code pattern");
@@ -568,6 +571,7 @@ void feather_register_try_usage(const FeatherHostOps *ops, FeatherInterp interp)
   subspec = feather_usage_spec(ops, interp);
   e = feather_usage_arg(ops, interp, "<script>");
   e = feather_usage_help(ops, interp, e, "Cleanup script to execute");
+  e = feather_usage_type(ops, interp, e, "script");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "finally", subspec);
   e = feather_usage_help(ops, interp, e, "Execute cleanup script unconditionally");

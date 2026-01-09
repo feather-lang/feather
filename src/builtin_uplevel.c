@@ -148,6 +148,7 @@ void feather_register_uplevel_usage(const FeatherHostOps *ops, FeatherInterp int
   e = feather_usage_help(ops, interp, e,
     "One or more arguments forming the script. Multiple arguments are concatenated "
     "with spaces (as if passed to concat) to form the script to evaluate.");
+  e = feather_usage_type(ops, interp, e, "script");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,

@@ -1099,6 +1099,7 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "<dictionary>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_arg(ops, interp, "<body>");
+  e = feather_usage_type(ops, interp, e, "script");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "for", subspec);
   e = feather_usage_help(ops, interp, e, "Iterate over dictionary key-value pairs");
@@ -1227,6 +1228,7 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "<dictionary>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_arg(ops, interp, "<body>");
+  e = feather_usage_type(ops, interp, e, "script");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "map", subspec);
   e = feather_usage_help(ops, interp, e, "Transform dictionary values with a script");
@@ -1346,6 +1348,7 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "?key varName?...");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_arg(ops, interp, "<body>");
+  e = feather_usage_type(ops, interp, e, "script");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "update", subspec);
   e = feather_usage_help(ops, interp, e, "Update dictionary values using variables");
@@ -1383,6 +1386,7 @@ void feather_register_dict_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "?key?...");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_arg(ops, interp, "<body>");
+  e = feather_usage_type(ops, interp, e, "script");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "with", subspec);
   e = feather_usage_help(ops, interp, e, "Execute script with dictionary keys as variables");

@@ -405,6 +405,7 @@ void feather_register_proc_usage(const FeatherHostOps *ops, FeatherInterp interp
   e = feather_usage_arg(ops, interp, "<body>");
   e = feather_usage_help(ops, interp, e,
     "Script to execute when the procedure is called");
+  e = feather_usage_type(ops, interp, e, "script");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,

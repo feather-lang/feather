@@ -58,6 +58,7 @@ void feather_register_foreach_usage(const FeatherHostOps *ops, FeatherInterp int
   e = feather_usage_arg(ops, interp, "<body>");
   e = feather_usage_help(ops, interp, e,
     "The Tcl script to execute for each iteration. Loop variables are visible in this scope.");
+  e = feather_usage_type(ops, interp, e, "script");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_example(ops, interp,

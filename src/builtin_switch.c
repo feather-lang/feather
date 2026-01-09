@@ -338,6 +338,7 @@ void feather_register_switch_usage(const FeatherHostOps *ops, FeatherInterp inte
 
   e = feather_usage_arg(ops, interp, "<body>");
   e = feather_usage_help(ops, interp, e, "Script to evaluate if pattern matches (or \"-\" for fall-through)");
+  e = feather_usage_type(ops, interp, e, "script");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_arg(ops, interp, "?pattern body ...?");

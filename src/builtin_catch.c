@@ -168,6 +168,7 @@ void feather_register_catch_usage(const FeatherHostOps *ops, FeatherInterp inter
 
   e = feather_usage_arg(ops, interp, "<script>");
   e = feather_usage_help(ops, interp, e, "The script to evaluate");
+  e = feather_usage_type(ops, interp, e, "script");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_arg(ops, interp, "?resultVarName?");

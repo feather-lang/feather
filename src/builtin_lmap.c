@@ -62,6 +62,7 @@ void feather_register_lmap_usage(const FeatherHostOps *ops, FeatherInterp interp
   // Required argument: body
   e = feather_usage_arg(ops, interp, "<body>");
   e = feather_usage_help(ops, interp, e, "Script to execute on each iteration");
+  e = feather_usage_type(ops, interp, e, "script");
   spec = feather_usage_add(ops, interp, spec, e);
 
   // Examples

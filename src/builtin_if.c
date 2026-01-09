@@ -127,6 +127,7 @@ void feather_register_if_usage(const FeatherHostOps *ops, FeatherInterp interp) 
   e = feather_usage_arg(ops, interp, "<body1>");
   e = feather_usage_help(ops, interp, e,
     "Script to execute if expr1 is true.");
+  e = feather_usage_type(ops, interp, e, "script");
   spec = feather_usage_add(ops, interp, spec, e);
 
   e = feather_usage_arg(ops, interp, "?elseif expr2 ?then? body2 ...?");

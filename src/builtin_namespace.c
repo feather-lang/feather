@@ -891,6 +891,7 @@ void feather_register_namespace_usage(const FeatherHostOps *ops, FeatherInterp i
   // --- Subcommand: code ---
   subspec = feather_usage_spec(ops, interp);
   e = feather_usage_arg(ops, interp, "<script>");
+  e = feather_usage_type(ops, interp, e, "script");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "code", subspec);
   e = feather_usage_help(ops, interp, e, "Capture namespace context for callback");
@@ -1035,6 +1036,7 @@ void feather_register_namespace_usage(const FeatherHostOps *ops, FeatherInterp i
   e = feather_usage_arg(ops, interp, "<namespace>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_arg(ops, interp, "<script>");
+  e = feather_usage_type(ops, interp, e, "script");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_arg(ops, interp, "?arg?...");
   subspec = feather_usage_add(ops, interp, subspec, e);

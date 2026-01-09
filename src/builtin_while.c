@@ -80,6 +80,7 @@ void feather_register_while_usage(const FeatherHostOps *ops, FeatherInterp inter
   // Required argument: body
   e = feather_usage_arg(ops, interp, "<body>");
   e = feather_usage_help(ops, interp, e, "Script to execute while test is true");
+  e = feather_usage_type(ops, interp, e, "script");
   spec = feather_usage_add(ops, interp, spec, e);
 
   // Examples

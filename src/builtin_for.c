@@ -97,6 +97,7 @@ void feather_register_for_usage(const FeatherHostOps *ops, FeatherInterp interp)
   // Required argument: start
   e = feather_usage_arg(ops, interp, "<start>");
   e = feather_usage_help(ops, interp, e, "Script to execute once at the beginning");
+  e = feather_usage_type(ops, interp, e, "script");
   spec = feather_usage_add(ops, interp, spec, e);
 
   // Required argument: test
@@ -107,11 +108,13 @@ void feather_register_for_usage(const FeatherHostOps *ops, FeatherInterp interp)
   // Required argument: next
   e = feather_usage_arg(ops, interp, "<next>");
   e = feather_usage_help(ops, interp, e, "Script to execute after each iteration");
+  e = feather_usage_type(ops, interp, e, "script");
   spec = feather_usage_add(ops, interp, spec, e);
 
   // Required argument: body
   e = feather_usage_arg(ops, interp, "<body>");
   e = feather_usage_help(ops, interp, e, "Script to execute in each iteration");
+  e = feather_usage_type(ops, interp, e, "script");
   spec = feather_usage_add(ops, interp, spec, e);
 
   // Examples
