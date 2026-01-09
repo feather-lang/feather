@@ -875,6 +875,7 @@ void feather_register_namespace_usage(const FeatherHostOps *ops, FeatherInterp i
   e = feather_usage_arg(ops, interp, "?pattern?");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "children", subspec);
+  e = feather_usage_help(ops, interp, e, "List child namespaces");
   e = feather_usage_long_help(ops, interp, e,
     "Returns a list of all child namespaces that belong to the namespace. "
     "If namespace is not specified, then the children are returned for the "
@@ -892,6 +893,7 @@ void feather_register_namespace_usage(const FeatherHostOps *ops, FeatherInterp i
   e = feather_usage_arg(ops, interp, "<script>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "code", subspec);
+  e = feather_usage_help(ops, interp, e, "Capture namespace context for callback");
   e = feather_usage_long_help(ops, interp, e,
     "Captures the current namespace context for later execution of the "
     "script. It returns a new script in which script has been wrapped in a "
@@ -909,6 +911,7 @@ void feather_register_namespace_usage(const FeatherHostOps *ops, FeatherInterp i
   // --- Subcommand: current ---
   subspec = feather_usage_spec(ops, interp);
   e = feather_usage_cmd(ops, interp, "current", subspec);
+  e = feather_usage_help(ops, interp, e, "Get current namespace name");
   e = feather_usage_long_help(ops, interp, e,
     "Returns the fully-qualified name for the current namespace. The actual "
     "name of the global namespace is \"\" (i.e., an empty string), but this "
@@ -921,6 +924,7 @@ void feather_register_namespace_usage(const FeatherHostOps *ops, FeatherInterp i
   e = feather_usage_arg(ops, interp, "?namespace?...");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "delete", subspec);
+  e = feather_usage_help(ops, interp, e, "Delete namespaces and their contents");
   e = feather_usage_long_help(ops, interp, e,
     "Each namespace is deleted and all variables, procedures, and child "
     "namespaces contained in the namespace are deleted. If a namespace does "
@@ -935,6 +939,7 @@ void feather_register_namespace_usage(const FeatherHostOps *ops, FeatherInterp i
   e = feather_usage_arg(ops, interp, "<arg>...");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "eval", subspec);
+  e = feather_usage_help(ops, interp, e, "Evaluate script in a namespace");
   e = feather_usage_long_help(ops, interp, e,
     "Activates a namespace called namespace and evaluates some code in that "
     "context. If the namespace does not already exist, it is created. If "
@@ -950,6 +955,7 @@ void feather_register_namespace_usage(const FeatherHostOps *ops, FeatherInterp i
   e = feather_usage_arg(ops, interp, "<namespace>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "exists", subspec);
+  e = feather_usage_help(ops, interp, e, "Check if a namespace exists");
   e = feather_usage_long_help(ops, interp, e,
     "Returns 1 if namespace is a valid namespace in the current context, "
     "returns 0 otherwise.");
@@ -962,6 +968,7 @@ void feather_register_namespace_usage(const FeatherHostOps *ops, FeatherInterp i
   e = feather_usage_arg(ops, interp, "?pattern?...");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "export", subspec);
+  e = feather_usage_help(ops, interp, e, "Set export patterns for commands");
   e = feather_usage_long_help(ops, interp, e,
     "Specifies which commands are exported from a namespace. The exported "
     "commands are those that can be later imported into another namespace "
@@ -984,6 +991,7 @@ void feather_register_namespace_usage(const FeatherHostOps *ops, FeatherInterp i
   e = feather_usage_arg(ops, interp, "?pattern?...");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "forget", subspec);
+  e = feather_usage_help(ops, interp, e, "Remove imported commands");
   e = feather_usage_long_help(ops, interp, e,
     "Removes previously imported commands from a namespace. Each pattern is "
     "a simple or qualified name such as x, foo::x or a::b::p*. Qualified "
@@ -1005,6 +1013,7 @@ void feather_register_namespace_usage(const FeatherHostOps *ops, FeatherInterp i
   e = feather_usage_arg(ops, interp, "?pattern?...");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "import", subspec);
+  e = feather_usage_help(ops, interp, e, "Import commands from other namespaces");
   e = feather_usage_long_help(ops, interp, e,
     "Imports commands into a namespace, or queries the set of imported "
     "commands in a namespace. When no arguments are present, namespace import "
@@ -1030,6 +1039,7 @@ void feather_register_namespace_usage(const FeatherHostOps *ops, FeatherInterp i
   e = feather_usage_arg(ops, interp, "?arg?...");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "inscope", subspec);
+  e = feather_usage_help(ops, interp, e, "Execute script in namespace context");
   e = feather_usage_long_help(ops, interp, e,
     "Executes a script in the context of the specified namespace. This "
     "command is not expected to be used directly by programmers; calls to it "
@@ -1047,6 +1057,7 @@ void feather_register_namespace_usage(const FeatherHostOps *ops, FeatherInterp i
   e = feather_usage_arg(ops, interp, "<command>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "origin", subspec);
+  e = feather_usage_help(ops, interp, e, "Get original command of an import");
   e = feather_usage_long_help(ops, interp, e,
     "Returns the fully-qualified name of the original command to which the "
     "imported command refers. When a command is imported into a namespace, a "
@@ -1064,6 +1075,7 @@ void feather_register_namespace_usage(const FeatherHostOps *ops, FeatherInterp i
   e = feather_usage_arg(ops, interp, "?namespace?");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "parent", subspec);
+  e = feather_usage_help(ops, interp, e, "Get parent namespace");
   e = feather_usage_long_help(ops, interp, e,
     "Returns the fully-qualified name of the parent namespace for namespace. "
     "If namespace is not specified, the fully-qualified name of the current "
@@ -1075,6 +1087,7 @@ void feather_register_namespace_usage(const FeatherHostOps *ops, FeatherInterp i
   e = feather_usage_arg(ops, interp, "<string>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "qualifiers", subspec);
+  e = feather_usage_help(ops, interp, e, "Extract namespace qualifiers from name");
   e = feather_usage_long_help(ops, interp, e,
     "Returns any leading namespace qualifiers for string. Qualifiers are "
     "namespace names separated by double colons (::). For the string "
@@ -1089,6 +1102,7 @@ void feather_register_namespace_usage(const FeatherHostOps *ops, FeatherInterp i
   e = feather_usage_arg(ops, interp, "<string>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "tail", subspec);
+  e = feather_usage_help(ops, interp, e, "Extract simple name from qualified name");
   e = feather_usage_long_help(ops, interp, e,
     "Returns the simple name at the end of a qualified string. Qualifiers "
     "are namespace names separated by double colons (::). For the string "
@@ -1107,6 +1121,7 @@ void feather_register_namespace_usage(const FeatherHostOps *ops, FeatherInterp i
   e = feather_usage_arg(ops, interp, "<name>");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "which", subspec);
+  e = feather_usage_help(ops, interp, e, "Find fully-qualified name of command or variable");
   e = feather_usage_long_help(ops, interp, e,
     "Looks up name as either a command or variable and returns its "
     "fully-qualified name. For example, if name does not exist in the current "

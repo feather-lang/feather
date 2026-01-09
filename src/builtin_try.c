@@ -519,6 +519,7 @@ void feather_register_try_usage(const FeatherHostOps *ops, FeatherInterp interp)
   e = feather_usage_help(ops, interp, e, "Handler script or \"-\" for fallthrough");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "on", subspec);
+  e = feather_usage_help(ops, interp, e, "Handle exceptions by completion code");
   e = feather_usage_clause(ops, interp, e);
   e = feather_usage_long_help(ops, interp, e,
     "This clause matches if the evaluation of body completed with the exception "
@@ -550,6 +551,7 @@ void feather_register_try_usage(const FeatherHostOps *ops, FeatherInterp interp)
   e = feather_usage_help(ops, interp, e, "Handler script or \"-\" for fallthrough");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "trap", subspec);
+  e = feather_usage_help(ops, interp, e, "Handle exceptions by error code pattern");
   e = feather_usage_clause(ops, interp, e);
   e = feather_usage_long_help(ops, interp, e,
     "This clause matches if the evaluation of body resulted in an error and the "
@@ -568,6 +570,7 @@ void feather_register_try_usage(const FeatherHostOps *ops, FeatherInterp interp)
   e = feather_usage_help(ops, interp, e, "Cleanup script to execute");
   subspec = feather_usage_add(ops, interp, subspec, e);
   e = feather_usage_cmd(ops, interp, "finally", subspec);
+  e = feather_usage_help(ops, interp, e, "Execute cleanup script unconditionally");
   e = feather_usage_clause(ops, interp, e);
   e = feather_usage_long_help(ops, interp, e,
     "The finally clause, if present, is always executed after the body and any "
