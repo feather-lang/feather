@@ -217,3 +217,231 @@ This document compares the three public APIs for the Feather TCL interpreter.
 3. **C: Add `FeatherBool()`** - Simple parity fix
 4. **C: Add list/dict getters** - Important for data exchange
 5. **Go: Add `ParseInfo()`** - Useful for tooling
+
+---
+
+## Canonical API (IDL)
+
+This is the target interface that all implementations should provide.
+
+```idl
+// =============================================================================
+// Types
+// =============================================================================
+
+typedef handle Interp;      // Interpreter instance
+typedef handle Obj;         // TCL value (string, int, list, dict, foreign, etc.)
+
+enum ResultCode {
+    OK       = 0,
+    ERROR    = 1,
+    RETURN   = 2,
+    BREAK    = 3,
+    CONTINUE = 4
+};
+
+enum ParseStatus {
+    PARSE_OK         = 0,
+    PARSE_INCOMPLETE = 1,
+    PARSE_ERROR      = 2
+};
+
+struct ParseResult {
+    ParseStatus status;
+    string      message;     // Error message (if status == PARSE_ERROR)
+    int         position;    // Byte offset where parsing stopped
+    int         length;      // Length of problematic token (if applicable)
+};
+
+struct EvalResult {
+    ResultCode code;
+    Obj        value;        // Result value (or error message on ERROR)
+};
+
+// =============================================================================
+// Lifecycle
+// =============================================================================
+
+interface Feather {
+    // Create a new interpreter with all builtins registered
+    Interp create();
+    
+    // Destroy interpreter and release all resources
+    void destroy(Interp i);
+};
+
+// =============================================================================
+// Evaluation
+// =============================================================================
+
+interface Interp {
+    // Evaluate a TCL script
+    // Returns result or throws/returns error
+    EvalResult eval(string script);
+    
+    // Call a command directly without TCL parsing
+    // Arguments are passed as-is (no substitution, safe for special chars)
+    EvalResult call(string cmd, Obj[] args);
+    
+    // Check if script is syntactically complete
+    ParseResult parse(string script);
+};
+
+// =============================================================================
+// Object Creation
+// =============================================================================
+
+interface Interp {
+    Obj string(string s);
+    Obj int(int64 v);
+    Obj double(float64 v);
+    Obj bool(bool v);                    // Creates int 1 or 0
+    Obj list(Obj[] items);
+    Obj dict();                          // Empty dict
+    Obj dictFrom(Entry[] entries);       // Dict from key-value pairs
+};
+
+struct Entry {
+    string key;
+    Obj    value;
+};
+
+// =============================================================================
+// Type Conversion (Shimmering)
+// =============================================================================
+
+interface Obj {
+    // Get string representation (always succeeds)
+    string asString();
+    
+    // Attempt conversion (may fail)
+    (int64, error)           asInt();
+    (float64, error)         asDouble();
+    (bool, error)            asBool();
+    (Obj[], error)           asList();
+    (map<string,Obj>, error) asDict();
+    
+    // Type introspection
+    string type();           // "string", "int", "double", "list", "dict", "foreign", etc.
+};
+
+// =============================================================================
+// List Operations
+// =============================================================================
+
+interface Interp {
+    int  listLength(Obj list);
+    Obj  listIndex(Obj list, int index);      // Returns null/0 if out of bounds
+    Obj  listPush(Obj list, Obj item);        // Returns NEW list (immutable)
+    Obj  listConcat(Obj a, Obj b);            // Returns NEW list
+    Obj  listRange(Obj list, int from, int to);
+};
+
+// =============================================================================
+// Dict Operations
+// =============================================================================
+
+interface Interp {
+    int   dictSize(Obj dict);
+    Obj   dictGet(Obj dict, string key);      // Returns null/0 if not found
+    bool  dictExists(Obj dict, string key);
+    Obj   dictSet(Obj dict, string key, Obj value);  // Returns NEW dict
+    Obj   dictRemove(Obj dict, string key);          // Returns NEW dict
+    Obj[] dictKeys(Obj dict);
+    Obj[] dictValues(Obj dict);
+};
+
+// =============================================================================
+// Variables
+// =============================================================================
+
+interface Interp {
+    Obj  getVar(string name);                 // Returns null/0 if not set
+    void setVar(string name, Obj value);
+    bool existsVar(string name);
+    void unsetVar(string name);
+};
+
+// =============================================================================
+// Command Registration
+// =============================================================================
+
+// Callback signature for custom commands
+// cmd: command name as invoked
+// args: arguments (not including command name)
+// Returns: result code and value/error
+callback CommandFunc(Interp i, Obj cmd, Obj[] args) -> EvalResult;
+
+interface Interp {
+    void register(string name, CommandFunc fn);
+    void unregister(string name);
+    void setUnknownHandler(CommandFunc fn);   // Called when command not found
+    bool commandExists(string name);
+};
+
+// =============================================================================
+// Foreign Types
+// =============================================================================
+
+// Callbacks for foreign type lifecycle
+callback ForeignNew(any userData) -> any;
+callback ForeignInvoke(any instance, string method, Obj[] args) -> EvalResult;
+callback ForeignDestroy(any instance);
+callback ForeignString(any instance) -> string;
+
+struct ForeignTypeDef {
+    ForeignNew     constructor;    // Required: creates new instance
+    ForeignInvoke  invoke;         // Required: dispatches method calls
+    ForeignDestroy destroy;        // Optional: cleanup on destroy
+    ForeignString  toString;       // Optional: custom string representation
+    string[]       methods;        // Optional: list of method names for introspection
+};
+
+interface Interp {
+    void registerForeignType(string typeName, ForeignTypeDef def);
+    
+    // Create a foreign object wrapping a host value
+    Obj createForeign(string typeName, any value);
+    
+    // Introspection
+    bool   isForeign(Obj o);
+    string foreignType(Obj o);         // Returns type name or empty
+    any    foreignValue(Obj o);        // Returns wrapped value or null
+};
+
+// =============================================================================
+// Introspection & Debugging
+// =============================================================================
+
+interface Interp {
+    string[] commands();               // List all command names
+    string[] variables();              // List all variable names in current scope
+    string[] namespaces();             // List all namespace paths
+    
+    // Memory/resource stats (implementation-specific details OK)
+    map<string, int> memoryStats();
+};
+```
+
+### Language Mapping Notes
+
+| IDL Type | C | Go | JS |
+|----------|---|----|----|
+| `Interp` | `FeatherInterp` (size_t) | `*Interp` | `number` (id) |
+| `Obj` | `FeatherObj` (size_t) | `*Obj` | `number` (handle) |
+| `string` | `const char*, size_t` | `string` | `string` |
+| `int64` | `int64_t` | `int64` | `number` or `bigint` |
+| `float64` | `double` | `float64` | `number` |
+| `error` | Return code + out param | `error` return | `throw Error` |
+| `Obj[]` | `Obj*, size_t` | `[]*Obj` | `number[]` |
+| `map<K,V>` | N/A (use iteration) | `map[K]V` | `Map<K,V>` or object |
+| `any` | `void*` | `any` | `any` |
+| `callback` | Function pointer | `func` | `function` |
+
+### Error Handling Conventions
+
+| Language | Success | Failure |
+|----------|---------|---------|
+| C | Return `FEATHER_OK`, set result via out-param | Return `FEATHER_ERROR`, set error via out-param |
+| Go | Return `(*Obj, nil)` | Return `(nil, error)` |
+| JS | Return value | `throw Error` with `.code` property |
