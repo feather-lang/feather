@@ -445,3 +445,198 @@ interface Interp {
 | C | Return `FEATHER_OK`, set result via out-param | Return `FEATHER_ERROR`, set error via out-param |
 | Go | Return `(*Obj, nil)` | Return `(nil, error)` |
 | JS | Return value | `throw Error` with `.code` property |
+
+---
+
+## Implementation Scorecard
+
+Rating each implementation against the canonical IDL.
+
+| Symbol | Meaning |
+|--------|---------|
+| ✓ | Fully implemented |
+| ~ | Partial or different signature |
+| ✗ | Missing |
+
+### Lifecycle
+
+| IDL Function | C | Go | JS |
+|--------------|---|----|----|
+| `create()` | ✓ `FeatherNew` | ✓ `New` | ✓ `create` |
+| `destroy(i)` | ✓ `FeatherClose` | ✓ `Close` | ✓ `destroy` |
+
+**Score: C 2/2, Go 2/2, JS 2/2**
+
+### Evaluation
+
+| IDL Function | C | Go | JS |
+|--------------|---|----|----|
+| `eval(script)` | ✓ `FeatherEval` | ✓ `Eval` | ✓ `eval` |
+| `call(cmd, args)` | ✓ `FeatherCall` | ✓ `Call` | ✗ |
+| `parse(script)` | ✓ `FeatherParse` | ✓ `Parse` | ✓ `parse` |
+
+**Score: C 3/3, Go 3/3, JS 2/3**
+
+### Object Creation
+
+| IDL Function | C | Go | JS |
+|--------------|---|----|----|
+| `string(s)` | ✓ `FeatherString` | ✓ `String` | ✗ |
+| `int(v)` | ✓ `FeatherInt` | ✓ `Int` | ✗ |
+| `double(v)` | ✓ `FeatherDouble` | ✓ `Double` | ✗ |
+| `bool(v)` | ✗ | ✓ `Bool` | ✗ |
+| `list(items)` | ✓ `FeatherList` | ✓ `List` | ✗ |
+| `dict()` | ✓ `FeatherDict` | ✓ `Dict` | ✗ |
+| `dictFrom(entries)` | ✗ | ✓ `DictKV`, `DictFrom` | ✗ |
+
+**Score: C 5/7, Go 7/7, JS 0/7**
+
+### Type Conversion (on Obj)
+
+| IDL Function | C | Go | JS |
+|--------------|---|----|----|
+| `asString()` | ~ `FeatherCopy` | ✓ `String` | ~ internal |
+| `asInt()` | ~ `FeatherAsInt` (default) | ✓ `Int` | ~ internal |
+| `asDouble()` | ~ `FeatherAsDouble` (default) | ✓ `Double` | ~ internal |
+| `asBool()` | ~ `FeatherAsBool` (default) | ✓ `Bool` | ~ internal |
+| `asList()` | ✗ | ✓ `List` | ~ internal |
+| `asDict()` | ✗ | ✓ `Dict` | ~ internal |
+| `type()` | ✗ | ✓ `Type` | ~ internal |
+
+**Score: C 2/7 (partial), Go 7/7, JS 0/7 (all internal)**
+
+### List Operations
+
+| IDL Function | C | Go | JS |
+|--------------|---|----|----|
+| `listLength(list)` | ✓ `FeatherListLen` | ~ via `List()` | ~ internal |
+| `listIndex(list, i)` | ✓ `FeatherListAt` | ~ via `List()` | ~ internal |
+| `listPush(list, item)` | ✓ `FeatherListPush` | ✗ | ✗ |
+| `listConcat(a, b)` | ✗ | ✗ | ✗ |
+| `listRange(list, from, to)` | ✗ | ✗ | ✗ |
+
+**Score: C 3/5, Go 1/5 (partial), JS 0/5**
+
+### Dict Operations
+
+| IDL Function | C | Go | JS |
+|--------------|---|----|----|
+| `dictSize(dict)` | ✓ `FeatherDictLen` | ~ via `Dict()` | ~ internal |
+| `dictGet(dict, key)` | ✓ `FeatherDictGet` | ~ via `Dict()` | ~ internal |
+| `dictExists(dict, key)` | ✓ `FeatherDictHas` | ~ via `Dict()` | ✗ |
+| `dictSet(dict, k, v)` | ✓ `FeatherDictSet` | ✗ | ✗ |
+| `dictRemove(dict, key)` | ✗ | ✗ | ✗ |
+| `dictKeys(dict)` | ✓ `FeatherDictKeys` | ~ via `Dict()` | ✗ |
+| `dictValues(dict)` | ✗ | ✗ | ✗ |
+
+**Score: C 5/7, Go 2/7 (partial), JS 0/7**
+
+### Variables
+
+| IDL Function | C | Go | JS |
+|--------------|---|----|----|
+| `getVar(name)` | ✓ `FeatherGetVar` | ✓ `Var` | ✗ |
+| `setVar(name, val)` | ✓ `FeatherSetVar` | ✓ `SetVar` | ✗ |
+| `existsVar(name)` | ✗ | ✗ | ✗ |
+| `unsetVar(name)` | ✗ | ✗ | ✗ |
+
+**Score: C 2/4, Go 2/4, JS 0/4**
+
+### Command Registration
+
+| IDL Function | C | Go | JS |
+|--------------|---|----|----|
+| `register(name, fn)` | ✓ `FeatherRegister` | ✓ `Register` | ✓ `register` |
+| `unregister(name)` | ✗ | ✓ `UnregisterCommand` | ✗ |
+| `setUnknownHandler(fn)` | ✗ | ✓ `SetUnknownHandler` | ✗ |
+| `commandExists(name)` | ✗ | ✗ | ✗ |
+
+**Score: C 1/4, Go 3/4, JS 1/4**
+
+### Foreign Types
+
+| IDL Function | C | Go | JS |
+|--------------|---|----|----|
+| `registerForeignType(name, def)` | ✓ `FeatherRegisterForeign` | ✓ `RegisterType` | ✓ `registerType` |
+| `createForeign(type, value)` | ~ via constructor | ~ via `New` | ✓ `createForeign` |
+| `isForeign(o)` | ✗ | ~ internal | ~ internal |
+| `foreignType(o)` | ✗ | ~ internal | ~ internal |
+| `foreignValue(o)` | ✗ | ~ internal | ~ internal |
+
+**Score: C 1.5/5, Go 1.5/5, JS 2/5**
+
+### Introspection
+
+| IDL Function | C | Go | JS |
+|--------------|---|----|----|
+| `commands()` | ✗ | ✗ | ✗ |
+| `variables()` | ✗ | ✗ | ✗ |
+| `namespaces()` | ✗ | ✗ | ✗ |
+| `memoryStats()` | ✗ | ✗ | ✓ `memoryStats` |
+
+**Score: C 0/4, Go 0/4, JS 1/4**
+
+---
+
+## Summary Scores
+
+| Category | Max | C | Go | JS |
+|----------|-----|---|----|----|
+| Lifecycle | 2 | 2 | 2 | 2 |
+| Evaluation | 3 | 3 | 3 | 2 |
+| Object Creation | 7 | 5 | 7 | 0 |
+| Type Conversion | 7 | 2 | 7 | 0 |
+| List Operations | 5 | 3 | 1 | 0 |
+| Dict Operations | 7 | 5 | 2 | 0 |
+| Variables | 4 | 2 | 2 | 0 |
+| Command Registration | 4 | 1 | 3 | 1 |
+| Foreign Types | 5 | 1.5 | 1.5 | 2 |
+| Introspection | 4 | 0 | 0 | 1 |
+| **TOTAL** | **48** | **24.5 (51%)** | **28.5 (59%)** | **8 (17%)** |
+
+---
+
+## Analysis
+
+### Go (59%) - Most Complete
+- ✓ Strong object creation and type conversion
+- ✓ Good command registration with unknown handler
+- ✗ Weak on list/dict mutation operations
+- ✗ Missing introspection APIs
+
+### C (51%) - Good Data Ops
+- ✓ Best list/dict operation coverage
+- ✓ All evaluation functions
+- ✗ Missing `bool()` constructor
+- ✗ No command unregister or unknown handler
+- ✗ No introspection
+
+### JS (17%) - Minimal Public API
+- ✓ Basic lifecycle and eval
+- ✓ Foreign type creation
+- ✗ No public object creation
+- ✗ No variable access
+- ✗ No `call()` function
+- ✗ All type operations are internal only
+
+### Priority Actions
+
+**JS (most needed):**
+1. Add `call(id, cmd, args)` 
+2. Add `getVar(id, name)` / `setVar(id, name, val)`
+3. Add public object creation: `string()`, `int()`, `list()`, etc.
+
+**C (quick wins):**
+1. Add `FeatherBool()`
+2. Add `FeatherUnregister()`
+3. Add `FeatherListConcat()`, `FeatherDictRemove()`
+
+**Go (polish):**
+1. Add `ListPush()`, `ListConcat()` helpers
+2. Add `DictSet()`, `DictRemove()` (returning new dicts)
+3. Add introspection: `Commands()`, `Variables()`
+
+**All:**
+1. Add `existsVar()` / `unsetVar()`
+2. Add `commandExists()`
+3. Add introspection APIs
