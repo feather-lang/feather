@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 
 	"github.com/feather-lang/feather"
 	"golang.org/x/term"
@@ -505,10 +503,9 @@ func (e *LineEditor) ReadLine(prompt string) (string, error) {
 	}
 	defer e.exitRawMode()
 
-	// Set up SIGWINCH handler for terminal resize
-	sigwinch := make(chan os.Signal, 1)
-	signal.Notify(sigwinch, syscall.SIGWINCH)
-	defer signal.Stop(sigwinch)
+	// Set up SIGWINCH handler for terminal resize (no-op on Windows)
+	sigwinch, stopSigwinch := setupResizeSignal()
+	defer stopSigwinch()
 
 	// Start the persistent key reader if not already running
 	e.startKeyReader()

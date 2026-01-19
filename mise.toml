@@ -1,5 +1,7 @@
 [env]
 _.path = "./bin"
+CGO_ENABLED = "1"
+CC = "zig cc"
 
 [tasks."build:harness"]
 description = "Builds the test harness runner"
